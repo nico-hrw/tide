@@ -422,8 +422,9 @@ export async function migrateV1ToV2IfNeeded<T extends Record<string, unknown>>(
                 const buf = await blobToDecrypt.arrayBuffer();
                 const decrypted = await window.crypto.subtle.decrypt({ name: "RSA-OAEP" }, userPrivateKey, buf);
                 decryptedBlob = new Blob([decrypted]);
-            } catch {
-                decryptedBlob = blobToDecrypt;
+            } catch (err) {
+                console.error("[CRYPTO-V2] migrateV1ToV2IfNeeded: RSA-OAEP decryption failed", err);
+                throw new Error("[CRYPTO-V2] Failed to decrypt V1 RSA-OAEP payload during migration.", { cause: err });
             }
         } else {
             decryptedBlob = blobToDecrypt;

@@ -42,7 +42,7 @@ type DevLoginResponse struct {
 
 // DevLogin provides quick development login endpoints that bypass OTP and manual PIN entry.
 func (h *AuthHandler) DevLogin(w http.ResponseWriter, r *http.Request) {
-	if os.Getenv("DEV_MODE") != "true" && os.Getenv("ENV") == "production" {
+	if os.Getenv("ENV") == "production" && os.Getenv("DEV_MODE") != "true" {
 		http.Error(w, "Dev login is disabled in production", http.StatusForbidden)
 		return
 	}

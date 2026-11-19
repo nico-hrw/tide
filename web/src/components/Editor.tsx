@@ -7,7 +7,6 @@ import { YjsE2EEProvider } from '@/lib/yjsE2EEProvider';
 import { isCryptoKey } from '@/lib/tabStorage';
 import { setDocNote } from '@/lib/ydocRegistry';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
-import { derivePublicNoteDEK } from '@/lib/cryptoV2';
 
 import type { EditorProps } from './Editor/types';
 import { COLORS } from './Editor/editorConstants';
@@ -48,7 +47,6 @@ function CollaborativeEditor(props: EditorProps) {
         onBlockHover, onAbortLinking, activeTabId, onReturnToTab, onFileClick,
         onEventClick, onActiveUsersChange, userProfile, myId, dek, keyEpoch,
     } = props;
-    const fileId = activeTabId;
     const cleanInitial = useMemo(() => getCleanDocContent(initialContent), [initialContent]);
     const [pencilMode, setPencilMode] = useState<PencilInputMode>('text');
     const [activeInkTool, setActiveInkTool] = useState<InkToolType>('pen');
@@ -102,7 +100,6 @@ function CollaborativeEditor(props: EditorProps) {
         }
     }, [activeTabId]);
 
-    const isTempKeyRef = useRef(false);
     const providerRef = useRef<YjsE2EEProvider | null>(null);
     providerRef.current = provider;
     const ydocRef = useRef<Y.Doc>(ydoc);
@@ -114,11 +111,17 @@ function CollaborativeEditor(props: EditorProps) {
     const dekCandidate = dek || storeDEK || useActiveNoteStore.getState().activeDEK || null;
     const activeDek = isCryptoKey(dekCandidate) ? dekCandidate : null;
     const activeEpoch = keyEpoch || storeEpoch || useActiveNoteStore.getState().keyEpoch || 1;
+    const isNoteTab = Boolean(
+        activeTabId &&
+        !activeTabId.startsWith('chat-') &&
+        !activeTabId.startsWith('profile:') &&
+        !['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)
+    );
 
     const userProfileRef = useRef(userProfile);
     userProfileRef.current = userProfile;
 
-    const createProvider = useCallback((key: CryptoKey, docToUse: Y.Doc, isTemp: boolean) => {
+    const createProvider = useCallback((key: CryptoKey, docToUse: Y.Doc) => {
         if (!activeTabId) return null;
 
         const userId = myId || useDataStore.getState().myId || 'anonymous';
@@ -152,15 +155,11 @@ function CollaborativeEditor(props: EditorProps) {
         };
         e2eeProvider.on('status', handleWsStatus);
 
-        isTempKeyRef.current = isTemp;
         return e2eeProvider;
     }, [activeTabId, activeEpoch, myId]);
 
     useEffect(() => {
-        if (!activeTabId || 
-            activeTabId.startsWith('chat-') || 
-            activeTabId.startsWith('profile:') || 
-            ['calendar', 'messages', 'social', 'ext_finance'].includes(activeTabId)) {
+        if (!isNoteTab || !activeDek) {
             if (providerRef.current) {
                 (window as any).__tideWsConnected = false;
                 providerRef.current.destroy();
@@ -171,66 +170,27 @@ function CollaborativeEditor(props: EditorProps) {
         }
 
         let isCancelled = false;
-        let tempKeyTimer: NodeJS.Timeout | null = null;
 
-        if (activeDek) {
-            if (providerRef.current && providerRef.current.noteId !== activeTabId) {
-                (window as any).__tideWsConnected = false;
-                providerRef.current.destroy();
-                providerRef.current = null;
-                setProvider(null);
-            }
+        if (providerRef.current && providerRef.current.noteId !== activeTabId) {
+            (window as any).__tideWsConnected = false;
+            providerRef.current.destroy();
+            providerRef.current = null;
+            setProvider(null);
+        }
 
-            if (!providerRef.current) {
-                const newProvider = createProvider(activeDek, ydocRef.current, false);
-                if (newProvider && !isCancelled) {
-                    setProvider(newProvider);
-                }
-            } else if (isTempKeyRef.current) {
-                (window as any).__tideWsConnected = false;
-                providerRef.current.destroy();
-                providerRef.current = null;
-
-                const newDoc = new Y.Doc();
-                ydocRef.current.destroy();
-                setYdoc(newDoc);
-                contentInitialized.current = false;
-                setIsSynced(false);
-
-                const newProvider = createProvider(activeDek, newDoc, false);
-                if (newProvider && !isCancelled) {
-                    setProvider(newProvider);
-                }
-            } else {
-                providerRef.current.updateDEK(activeDek, activeEpoch);
+        if (!providerRef.current) {
+            const newProvider = createProvider(activeDek, ydocRef.current);
+            if (newProvider && !isCancelled) {
+                setProvider(newProvider);
             }
         } else {
-            // Avoid creating temporary random keys while activeDek is loading.
-            // If activeDek does not arrive after 2500ms (fallback for offline/keyless), derive or generate key.
-            if (!providerRef.current) {
-                tempKeyTimer = setTimeout(() => {
-                    const keyPromise = fileId
-                        ? derivePublicNoteDEK(fileId)
-                        : window.crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
-
-                    keyPromise
-                        .then((tempKey) => {
-                            if (isCancelled || providerRef.current) return;
-                            const newProvider = createProvider(tempKey, ydocRef.current, true);
-                            if (newProvider && !isCancelled) {
-                                setProvider(newProvider);
-                            }
-                        })
-                        .catch((err) => console.error('[Editor] Failed to obtain key for provider:', err));
-                }, 2500);
-            }
+            providerRef.current.updateDEK(activeDek, activeEpoch);
         }
 
         return () => {
             isCancelled = true;
-            if (tempKeyTimer) clearTimeout(tempKeyTimer);
         };
-    }, [activeTabId, activeDek, activeEpoch, createProvider]);
+    }, [activeTabId, isNoteTab, activeDek, activeEpoch, createProvider]);
 
     useEffect(() => {
         return () => {
@@ -241,7 +201,6 @@ function CollaborativeEditor(props: EditorProps) {
             }
             ydocRef.current.destroy();
             contentInitialized.current = false;
-            isTempKeyRef.current = false;
         };
     }, []);
 
@@ -574,6 +533,15 @@ function CollaborativeEditor(props: EditorProps) {
         setSelectedStrokeIds([]);
         handleInkStrokesChange(remaining);
     }, [selectedStrokeIds, inkStrokes, handleInkStrokesChange]);
+
+    if (isNoteTab && !activeDek) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[200px] text-muted-foreground/60 text-sm gap-2">
+                <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                <span>Lade Schlüssel für verschlüsselte Notiz...</span>
+            </div>
+        );
+    }
 
     if (!editor) {
         if (provider && !isSynced) {

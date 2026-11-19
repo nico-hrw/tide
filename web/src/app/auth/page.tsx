@@ -495,7 +495,6 @@ function AuthContent() {
                     public_key: publicKeySpki,
                     encrypted_vault: JSON.stringify(encryptedVault),
                     pepper: pepperBase64,
-                    pin: fullPin,
                 }),
             });
 

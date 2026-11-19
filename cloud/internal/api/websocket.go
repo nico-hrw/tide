@@ -214,7 +214,13 @@ func (h *Hub) broadcast(sender *Client, message []byte) {
 		case <-client.done:
 		case client.send <- message:
 		default:
-			log.Printf("[WebSocket] Dropping slow client frame for user %s in file %s", client.userID, client.fileID)
+			if len(message) > 0 && message[0] == FrameTypeCRDTUpdate {
+				log.Printf("[WebSocket] Closing slow client %s in file %s to prevent CRDT desync", client.userID, client.fileID)
+				client.close()
+				h.removeClient(client)
+			} else {
+				log.Printf("[WebSocket] Dropping slow client frame for user %s in file %s", client.userID, client.fileID)
+			}
 		}
 	}
 }
@@ -245,9 +251,9 @@ func (h *Hub) broadcastControl(fileID string, payload any) {
 	}
 }
 
-// triggerSSEPulse broadcasts NOTE_ACTIVITY_PULSE and NOTE_WAL_APPENDED via SSE, throttled to max 1x per 5 seconds per room.
-func (h *Hub) triggerSSEPulse(broker *Broker, fileID string) {
-	if broker == nil {
+// triggerSSEPulse broadcasts NOTE_ACTIVITY_PULSE and NOTE_WAL_APPENDED via SSE to file participants only, throttled to max 1x per 5 seconds per room.
+func (h *Hub) triggerSSEPulse(fh *FileHandler, fileID string) {
+	if fh == nil || fh.Broker == nil || fh.Store == nil {
 		return
 	}
 	h.mu.Lock()
@@ -263,6 +269,11 @@ func (h *Hub) triggerSSEPulse(broker *Broker, fileID string) {
 	h.lastPulse[fileID] = now
 	h.mu.Unlock()
 
+	file, err := fh.Store.GetFile(context.Background(), fileID)
+	if err != nil || file == nil {
+		return
+	}
+
 	pulsePayload, _ := json.Marshal(map[string]any{
 		"type": "NOTE_ACTIVITY_PULSE",
 		"payload": map[string]any{
@@ -275,8 +286,8 @@ func (h *Hub) triggerSSEPulse(broker *Broker, fileID string) {
 			"file_id": fileID,
 		},
 	})
-	broker.BroadcastAll(string(pulsePayload))
-	broker.BroadcastAll(string(walPayload))
+	fh.broadcastToFileUsers(fileID, file.OwnerID, string(pulsePayload))
+	fh.broadcastToFileUsers(fileID, file.OwnerID, string(walPayload))
 }
 
 // EnforcePermissionChange applies live role updates or instant evictions for a targeted user.
@@ -421,7 +432,7 @@ func (c *Client) readPump(h *FileHandler) {
 			}
 
 			// 7. Dispatch SSE pulse
-			c.hub.triggerSSEPulse(h.Broker, c.fileID)
+			c.hub.triggerSSEPulse(h, c.fileID)
 
 		case FrameTypeAwareness: // 0x02
 			if len(payload) < MinEncryptedFrameLen {

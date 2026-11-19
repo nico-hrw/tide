@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"log"
 	"net/http"
@@ -18,9 +19,7 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// [FIX KRIT-1] Verify ownership before allowing a blob upload/overwrite.
-	// GetFile alone does not enforce ownership; an attacker with a valid JWT could
-	// overwrite any file's blob by guessing its UUID.
+	// [FIX KRIT-1] Verify access and write permission before allowing a blob upload/overwrite.
 	userID, ok := r.Context().Value("user_id").(string)
 	if !ok || userID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
@@ -28,35 +27,20 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
 	if err != nil {
-		file, err = h.Store.GetFile(r.Context(), id)
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "File not found or access denied", http.StatusForbidden)
 			return
 		}
+		http.Error(w, "Failed to verify access", http.StatusInternalServerError)
+		return
 	}
 
 	parentFileID := ""
 	if file.ParentFileID != nil && *file.ParentFileID != "" {
 		parentFileID = *file.ParentFileID
-	} else if p := r.URL.Query().Get("parent_file_id"); p != "" {
-		parentFileID = p
 	}
 
-	canUpload := false
-	if file.OwnerID == userID {
-		canUpload = true
-	} else if store.CanWrite(file.Permission) {
-		canUpload = true
-	} else if file.ParentID != nil && *file.ParentID != "" {
-		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *file.ParentID, userID); err == nil && store.CanWrite(parentFile.Permission) {
-			canUpload = true
-		}
-	} else if parentFileID != "" {
-		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), parentFileID, userID); err == nil && store.CanWrite(parentFile.Permission) {
-			canUpload = true
-		}
-	}
-
+	canUpload := store.CanWrite(file.Permission)
 	if !canUpload {
 		http.Error(w, "Forbidden: write permission required to upload content", http.StatusForbidden)
 		return

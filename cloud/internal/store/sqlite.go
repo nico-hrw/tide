@@ -303,8 +303,10 @@ func (s *SQLiteStore) migrate() error {
 	// 4. Create Indices (Now that columns exist)
 	indices := `
 	CREATE INDEX IF NOT EXISTS idx_files_parent ON files(parent_id);
+	CREATE INDEX IF NOT EXISTS idx_files_parent_file ON files(parent_file_id);
 	CREATE INDEX IF NOT EXISTS idx_files_owner ON files(owner_id);
 	CREATE INDEX IF NOT EXISTS idx_files_visibility ON files(visibility);
+	CREATE INDEX IF NOT EXISTS idx_files_blob_path ON files(blob_path) WHERE blob_path IS NOT NULL AND blob_path != '';
 	
 	CREATE INDEX IF NOT EXISTS idx_links_source ON links(source_id);
 	CREATE INDEX IF NOT EXISTS idx_links_target ON links(target_id);
@@ -314,6 +316,8 @@ func (s *SQLiteStore) migrate() error {
 
 	CREATE INDEX IF NOT EXISTS idx_file_shares_user ON file_shares(user_id);
 	CREATE INDEX IF NOT EXISTS idx_messages_recipient_created ON messages(recipient_id, created_at);
+	CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created ON messages(sender_id, recipient_id, created_at);
+	CREATE INDEX IF NOT EXISTS idx_contacts_contact_status ON contacts(contact_id, status);
 	CREATE INDEX IF NOT EXISTS idx_tasks_user ON tasks(user_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknote_wal_slug ON quicknote_wal(slug, seq_id);
 	CREATE INDEX IF NOT EXISTS idx_quicknotes_parent_slug ON quicknotes(parent_slug);
@@ -631,6 +635,16 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"CREATE INDEX IF NOT EXISTS idx_survey_responses_created ON survey_responses(created_at);",
 			},
 		},
+		{
+			version: 12,
+			name:    "additional_query_indexes",
+			stmts: []string{
+				"CREATE INDEX IF NOT EXISTS idx_messages_sender_recipient_created ON messages(sender_id, recipient_id, created_at);",
+				"CREATE INDEX IF NOT EXISTS idx_contacts_contact_status ON contacts(contact_id, status);",
+				"CREATE INDEX IF NOT EXISTS idx_files_parent_file ON files(parent_file_id);",
+				"CREATE INDEX IF NOT EXISTS idx_files_blob_path ON files(blob_path) WHERE blob_path IS NOT NULL AND blob_path != '';",
+			},
+		},
 	}
 
 	for _, m := range migrations {
@@ -889,7 +903,7 @@ created_at, updated_at, blob_path, visibility, public_meta, secured_meta, versio
 }
 
 func (s *SQLiteStore) GetFile(ctx context.Context, id string) (*db.File, error) {
-	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, COALESCE(NULLIF(public_meta, ''), '{}') as public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, 'owner' as permission, parent_file_id, COALESCE(key_epoch, 1) as key_epoch, COALESCE(snapshot_seq_id, 0) as snapshot_seq_id, snapshot_iv, content FROM files WHERE id = ?`
+	query := `SELECT id, owner_id, parent_id, type, mime_type, size, created_at, updated_at, blob_path, COALESCE(visibility, 'private') as visibility, COALESCE(NULLIF(public_meta, ''), '{}') as public_meta, COALESCE(secured_meta, x'') as secured_meta, COALESCE(version, 1) as version, COALESCE(NULLIF(metadata, ''), '{}') as metadata, COALESCE(NULLIF(access_keys, ''), '{}') as access_keys, '' as permission, parent_file_id, COALESCE(key_epoch, 1) as key_epoch, COALESCE(snapshot_seq_id, 0) as snapshot_seq_id, snapshot_iv, content FROM files WHERE id = ?`
 	row := s.readDB().QueryRowContext(ctx, query, id)
 
 	var file db.File

@@ -147,6 +147,18 @@ export default function CanvasLayer({
     const [overlayStrokes, setOverlayStrokes] = useState<OverlayStroke[]>([]);
     const [currentDrawingStroke, setCurrentDrawingStroke] = useState<OverlayStroke | null>(null);
     const isDrawingRef = useRef(false);
+    const activeDrawingStrokeRef = useRef<OverlayStroke | null>(null);
+    const pendingDrawPointsRef = useRef<Array<{ x: number; y: number; p?: number }>>([]);
+    const drawRafRef = useRef<number | null>(null);
+
+    useEffect(() => {
+        return () => {
+            if (drawRafRef.current !== null) {
+                cancelAnimationFrame(drawRafRef.current);
+                drawRafRef.current = null;
+            }
+        };
+    }, []);
 
     useEffect(() => {
         if (!effectiveYOverlay) {
@@ -232,6 +244,11 @@ export default function CanvasLayer({
         const y = Math.round(e.clientY - rect.top);
         const p = e.pressure || 0.5;
 
+        if (drawRafRef.current !== null) {
+            cancelAnimationFrame(drawRafRef.current);
+            drawRafRef.current = null;
+        }
+        pendingDrawPointsRef.current = [];
         isDrawingRef.current = true;
         (e.target as HTMLElement).setPointerCapture?.(e.pointerId);
 
@@ -243,11 +260,12 @@ export default function CanvasLayer({
             opacity: activeDrawingTool === 'marker' ? 0.5 : 1,
             points: [{ x, y, p }],
         };
+        activeDrawingStrokeRef.current = newStroke;
         setCurrentDrawingStroke(newStroke);
     }, [isDrawingMode, effectiveYOverlay, effectiveDoc, activeDrawingTool, strokeColor, strokeSize]);
 
     const handlePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
-        if (!isDrawingRef.current || !currentDrawingStroke) return;
+        if (!isDrawingRef.current || !activeDrawingStrokeRef.current) return;
         const shell = shellRef.current;
         if (!shell) return;
         const rect = shell.getBoundingClientRect();
@@ -255,26 +273,49 @@ export default function CanvasLayer({
         const y = Math.round(e.clientY - rect.top);
         const p = e.pressure || 0.5;
 
-        setCurrentDrawingStroke(prev => prev ? {
-            ...prev,
-            points: [...prev.points, { x, y, p }],
-        } : null);
-    }, [currentDrawingStroke]);
+        pendingDrawPointsRef.current.push({ x, y, p });
+        if (drawRafRef.current === null) {
+            drawRafRef.current = requestAnimationFrame(() => {
+                drawRafRef.current = null;
+                const stroke = activeDrawingStrokeRef.current;
+                const pending = pendingDrawPointsRef.current;
+                if (!stroke || pending.length === 0) return;
+                pendingDrawPointsRef.current = [];
+                stroke.points.push(...pending);
+                setCurrentDrawingStroke({ ...stroke });
+            });
+        }
+    }, []);
 
     const handlePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
         if (!isDrawingRef.current) return;
         isDrawingRef.current = false;
         (e.target as HTMLElement).releasePointerCapture?.(e.pointerId);
 
-        if (currentDrawingStroke && effectiveYOverlay && effectiveDoc) {
-            const strokeMap = new Y.Map<unknown>();
-            for (const [k, v] of Object.entries(currentDrawingStroke)) strokeMap.set(k, v);
-            effectiveDoc.transact(() => {
-                effectiveYOverlay.set(currentDrawingStroke.id, strokeMap);
-            });
+        if (drawRafRef.current !== null) {
+            cancelAnimationFrame(drawRafRef.current);
+            drawRafRef.current = null;
         }
+
+        const stroke = activeDrawingStrokeRef.current;
+        if (stroke) {
+            if (pendingDrawPointsRef.current.length > 0) {
+                stroke.points.push(...pendingDrawPointsRef.current);
+                pendingDrawPointsRef.current = [];
+            }
+            if (effectiveYOverlay && effectiveDoc) {
+                const strokeMap = new Y.Map<unknown>();
+                for (const [k, v] of Object.entries(stroke)) {
+                    strokeMap.set(k, k === 'points' ? [...stroke.points] : v);
+                }
+                effectiveDoc.transact(() => {
+                    effectiveYOverlay.set(stroke.id, strokeMap);
+                });
+            }
+        }
+        activeDrawingStrokeRef.current = null;
         setCurrentDrawingStroke(null);
-    }, [currentDrawingStroke, effectiveYOverlay, effectiveDoc]);
+    }, [effectiveYOverlay, effectiveDoc]);
 
     // ── Binding mode ──────────────────────────────────────────────────────────
     const isBindingMode = !!pendingBindBlockId;

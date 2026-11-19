@@ -50,7 +50,10 @@ export class YjsE2EEProvider {
     private destroyed: boolean = false;
     private options: YjsE2EEProviderOptions;
     private listeners: Map<string, Set<(...args: any[]) => void>> = new Map();
+    private static readonly LOCAL_UPDATE_BATCH_MS = 75;
     private pendingUpdates: Uint8Array[] = [];
+    private localUpdateBuffer: Uint8Array[] = [];
+    private localUpdateFlushTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectTimer: any = null;
     private reconnectAttempts: number = 0;
     private currentPathIndex: number = 0;
@@ -60,6 +63,7 @@ export class YjsE2EEProvider {
     private isProcessingInbound: boolean = false;
     private boundVisibilityChange: (() => void) | null = null;
     private boundWindowFocus: (() => void) | null = null;
+    private boundBeforeUnload: (() => void) | null = null;
 
     private boundYdocUpdate: (update: Uint8Array, origin: any) => void;
     private boundAwarenessUpdate: (changed: { added: number[]; updated: number[]; removed: number[] }, origin: any) => void;
@@ -87,10 +91,10 @@ export class YjsE2EEProvider {
         }
         activeNoteStore.getState().setKeyEpoch(this.keyEpoch);
 
-        // Listen for local ydoc updates and encrypt
+        // Listen for local ydoc updates and buffer before encrypting
         this.boundYdocUpdate = (update: Uint8Array, origin: any) => {
             if (origin === 'remote' || origin === 'server') return;
-            void this.handleLocalDocUpdate(update);
+            this.handleLocalDocUpdate(update);
         };
         this.ydoc.on('update', this.boundYdocUpdate);
 
@@ -104,10 +108,12 @@ export class YjsE2EEProvider {
         };
         this.awareness.on('update', this.boundAwarenessUpdate);
 
-        // Handle Safari Tab Suspension & Liveness
+        // Handle Safari Tab Suspension, Liveness & Flush on Hide/Unload
         if (typeof document !== 'undefined') {
             this.boundVisibilityChange = () => {
-                if (document.visibilityState === 'visible') {
+                if (document.visibilityState === 'hidden') {
+                    void this.flushLocalDocUpdates();
+                } else if (document.visibilityState === 'visible') {
                     this.checkLivenessAndReconnect();
                 }
             };
@@ -118,6 +124,10 @@ export class YjsE2EEProvider {
                 this.checkLivenessAndReconnect();
             };
             window.addEventListener('focus', this.boundWindowFocus);
+            this.boundBeforeUnload = () => {
+                void this.flushLocalDocUpdates();
+            };
+            window.addEventListener('beforeunload', this.boundBeforeUnload);
         }
 
         // Start bootstrap & websocket connection
@@ -637,7 +647,8 @@ export class YjsE2EEProvider {
         }
     }
 
-    private async handleLocalDocUpdate(update: Uint8Array): Promise<void> {
+    private handleLocalDocUpdate(update: Uint8Array): void {
+        if (this.destroyed) return;
         if (!this.dek || !(this.dek instanceof CryptoKey)) {
             return;
         }
@@ -648,18 +659,53 @@ export class YjsE2EEProvider {
             return;
         }
 
+        this.localUpdateBuffer.push(update);
+        if (this.localUpdateFlushTimer === null) {
+            this.localUpdateFlushTimer = setTimeout(() => {
+                this.localUpdateFlushTimer = null;
+                void this.flushLocalDocUpdates();
+            }, YjsE2EEProvider.LOCAL_UPDATE_BATCH_MS);
+        }
+    }
+
+    private async flushLocalDocUpdates(targetWs?: WebSocket | null): Promise<void> {
+        if (this.localUpdateFlushTimer !== null) {
+            clearTimeout(this.localUpdateFlushTimer);
+            this.localUpdateFlushTimer = null;
+        }
+
+        if (this.localUpdateBuffer.length === 0) {
+            return;
+        }
+
+        if (!this.dek || !(this.dek instanceof CryptoKey)) {
+            this.localUpdateBuffer = [];
+            return;
+        }
+
+        const perm = activeNoteStore.getState().permission;
+        if (perm === 'view') {
+            this.localUpdateBuffer = [];
+            return;
+        }
+
+        const updates = this.localUpdateBuffer;
+        this.localUpdateBuffer = [];
+        const mergedUpdate = updates.length === 1 ? updates[0] : Y.mergeUpdates(updates);
+
         try {
             const frame = await encryptWSFrame(
                 this.noteId,
                 FRAME_TYPE_CRDT,
                 this.keyEpoch,
                 this.dek,
-                update
+                mergedUpdate
             );
 
-            if (this.ws?.readyState === WebSocket.OPEN) {
-                this.ws.send(frame);
-            } else {
+            const ws = targetWs ?? this.ws;
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(frame);
+            } else if (!this.destroyed) {
                 this.pendingUpdates.push(frame);
             }
         } catch (err) {
@@ -790,6 +836,19 @@ export class YjsE2EEProvider {
     }
 
     public destroy(): void {
+        const socketToFlush =
+            this.ws && this.ws.readyState === WebSocket.OPEN && this.localUpdateBuffer.length > 0
+                ? this.ws
+                : null;
+        const flushPromise = socketToFlush ? this.flushLocalDocUpdates(socketToFlush) : null;
+        if (!flushPromise) {
+            if (this.localUpdateFlushTimer !== null) {
+                clearTimeout(this.localUpdateFlushTimer);
+                this.localUpdateFlushTimer = null;
+            }
+            this.localUpdateBuffer = [];
+        }
+
         this.destroyed = true;
         if (this.reconnectTimer) {
             clearTimeout(this.reconnectTimer);
@@ -806,6 +865,10 @@ export class YjsE2EEProvider {
             window.removeEventListener('focus', this.boundWindowFocus);
             this.boundWindowFocus = null;
         }
+        if (typeof window !== 'undefined' && this.boundBeforeUnload) {
+            window.removeEventListener('beforeunload', this.boundBeforeUnload);
+            this.boundBeforeUnload = null;
+        }
 
         if (this.ws) {
             this.ws.onmessage = null;
@@ -816,6 +879,12 @@ export class YjsE2EEProvider {
                     try { socket.close(); } catch {}
                 };
                 socket.onclose = null;
+            } else if (flushPromise && this.ws === socketToFlush) {
+                this.ws.onclose = null;
+                const socket = this.ws;
+                void flushPromise.finally(() => {
+                    try { socket.close(); } catch {}
+                });
             } else {
                 this.ws.onclose = null;
                 try { this.ws.close(); } catch {}

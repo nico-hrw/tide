@@ -183,7 +183,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
     hourHRef.current = v;
     return v;
   });
-  const updateHourH = (v: number) => { hourHRef.current = v; setHourH(v); localStorage.setItem('tide_mobile_hour_h', String(v)); onHourHeightChange?.(v); };
+  const updateHourH = (v: number) => { hourHRef.current = v; setHourH(v); onHourHeightChange?.(v); };
 
   const [creation, setCreation] = useState<CreationDrag | null>(null);
   const holdRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -585,7 +585,14 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
     }
   }, []);
 
-  const containerTouchEnd = useCallback(() => { pinchRef.current.active = false; }, []);
+  const containerTouchEnd = useCallback(() => {
+    if (pinchRef.current.active) {
+      pinchRef.current.active = false;
+      try {
+        localStorage.setItem('tide_mobile_hour_h', String(hourHRef.current));
+      } catch {}
+    }
+  }, []);
 
   useEffect(() => () => { stopAutoScroll(); stopEdgeTimer(); }, []);
 

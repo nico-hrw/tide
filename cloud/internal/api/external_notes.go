@@ -479,16 +479,18 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *ExternalHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
-	file, _, _, _, ok := h.loadScopedNote(w, r, true)
+	file, userID, _, _, ok := h.loadScopedNote(w, r, true)
 	if !ok {
 		return
 	}
-
+	if file.OwnerID != userID && !store.CanAdmin(file.Permission) {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Only the note owner can delete this note")
+		return
+	}
 	if err := h.Store.DeleteFile(r.Context(), file.ID); err != nil {
 		writeExternalError(w, http.StatusInternalServerError, "Internal Server Error", "Failed to delete note")
 		return
 	}
-
 	writeExternalJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,
 		"message": "Note deleted successfully",

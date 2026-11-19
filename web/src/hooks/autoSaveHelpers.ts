@@ -36,8 +36,10 @@ export function countWordsInTipTapJson(node: any): number {
     return count;
 }
 
-export function recordNoteStats(noteId: string, json: any, lastWordCounts: Record<string, number>): void {
-    if (typeof window === 'undefined') return;
+const NOTE_STATS_DEBOUNCE_MS = 1000;
+const noteStatsTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+function flushNoteStats(noteId: string, json: unknown, lastWordCounts: Record<string, number>): void {
     try {
         const editedStr = localStorage.getItem('tide_stats_edited_notes');
         const editedNotes = editedStr ? JSON.parse(editedStr) : [];
@@ -46,22 +48,26 @@ export function recordNoteStats(noteId: string, json: any, lastWordCounts: Recor
             localStorage.setItem('tide_stats_edited_notes', JSON.stringify(editedNotes));
         }
     } catch (e) { console.error("Failed to update edited notes stats", e); }
+    if (!json) return;
+    try {
+        const currentWordCount = countWordsInTipTapJson(json);
+        const prev = lastWordCounts[noteId];
+        if (prev !== undefined && currentWordCount > prev) {
+            const total = parseInt(localStorage.getItem('tide_stats_words_written') || '0', 10);
+            localStorage.setItem('tide_stats_words_written', (total + (currentWordCount - prev)).toString());
+        }
+        lastWordCounts[noteId] = currentWordCount;
+    } catch (e) { console.error("Failed to update words written stats", e); }
+}
 
-    if (json) {
-        try {
-            const currentWordCount = countWordsInTipTapJson(json);
-            const prev = lastWordCounts[noteId];
-            if (prev === undefined) {
-                lastWordCounts[noteId] = currentWordCount;
-            } else {
-                if (currentWordCount > prev) {
-                    const total = parseInt(localStorage.getItem('tide_stats_words_written') || '0', 10);
-                    localStorage.setItem('tide_stats_words_written', (total + (currentWordCount - prev)).toString());
-                }
-                lastWordCounts[noteId] = currentWordCount;
-            }
-        } catch (e) { console.error("Failed to update words written stats", e); }
-    }
+export function recordNoteStats(noteId: string, json: unknown, lastWordCounts: Record<string, number>): void {
+    if (typeof window === 'undefined') return;
+    const existing = noteStatsTimers.get(noteId);
+    if (existing) clearTimeout(existing);
+    noteStatsTimers.set(noteId, setTimeout(() => {
+        noteStatsTimers.delete(noteId);
+        flushNoteStats(noteId, json, lastWordCounts);
+    }, NOTE_STATS_DEBOUNCE_MS));
 }
 
 export async function encryptContentV2(contentString: string, dek: CryptoKey): Promise<string> {
@@ -386,14 +392,32 @@ export async function decryptNotePayload(params: {
         if (!myAccess?.wrapped_key) throw new Error(`[V2-Load] No access key found for user ${effectiveMyId}.`);
 
         let rawDek = await cryptoV2.unwrapDEKData(myAccess.wrapped_key, effectivePrivKey);
-        if (target.metadata?.has_custom_password) {
-            const { getSessionPin } = await import('@/lib/pinSecurity');
+        const hasCustomPassword = Boolean(parsedTargetMeta?.has_custom_password || target.metadata?.has_custom_password);
+        if (hasCustomPassword) {
+            const { getSessionPin, isItemUnlocked, verifyPin } = await import('@/lib/pinSecurity');
             const sessionPin = getSessionPin(fileId);
-            if (sessionPin && target.metadata.pwd_salt) {
+            const pwdSalt = (parsedTargetMeta?.pwd_salt || target.metadata?.pwd_salt) as string | undefined;
+            if (myAccess.pwd_iv || rawDek.byteLength !== 32) {
+                if (!sessionPin || !pwdSalt) {
+                    throw new Error('PIN_REQUIRED');
+                }
                 try {
-                    const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, cryptoLib.base64ToArrayBuffer(target.metadata.pwd_salt));
+                    const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, cryptoLib.base64ToArrayBuffer(pwdSalt));
                     rawDek = await cryptoV2.unwrapDEKData(cryptoLib.arrayBufferToBase64(rawDek), pwdKey, myAccess.pwd_iv);
-                } catch (pwdErr) { console.warn('[V2-Load] PIN unwrap with session PIN failed:', pwdErr); }
+                } catch (pwdErr) {
+                    throw new Error('PIN_REQUIRED', { cause: pwdErr });
+                }
+            } else {
+                const pinHash = (parsedTargetMeta?.pin_hash || target.metadata?.pin_hash) as string | undefined;
+                const secSettings = parsedTargetMeta?.security_settings || (hasCustomPassword ? parsedTargetMeta : null);
+                if (sessionPin && pwdSalt && pinHash) {
+                    const isValid = await verifyPin(sessionPin, pwdSalt, pinHash);
+                    if (!isValid) {
+                        throw new Error('PIN_REQUIRED');
+                    }
+                } else if (!sessionPin && (!secSettings || !isItemUnlocked(fileId, secSettings))) {
+                    throw new Error('PIN_REQUIRED');
+                }
             }
         }
         const dek = await cryptoV2.importDEK(rawDek);

@@ -10,7 +10,7 @@ import {
   format, isBefore, startOfDay, endOfDay, addDays, addWeeks, addMonths, addYears,
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
-import { useDataStore, TaskItem } from '@/store/useDataStore';
+import { useTasks, TaskItem } from '@/store/useDataStore';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
@@ -37,7 +37,7 @@ export {
 } from './types';
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default' }) => {
-  const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useDataStore();
+  const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
   const isDesktopVariant = variant === 'desktop';
 
   const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');

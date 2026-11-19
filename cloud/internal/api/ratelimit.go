@@ -135,14 +135,14 @@ func RateLimitMiddleware(limiter *IPRateLimiter) func(http.Handler) http.Handler
 	}
 }
 
-// LockoutEntry tracks failed login/sensitive operation attempts for a key.
+// LockoutEntry tracks failed login/sensitive operation attempts for an account key (user.ID).
 type LockoutEntry struct {
 	FailCount   int
 	LockedUntil time.Time
 	LastAttempt time.Time
 }
 
-// FailedAttemptTracker tracks consecutive failed attempts and locks out keys exceeding maxAttempts.
+// FailedAttemptTracker tracks consecutive failed attempts and locks out keys (keyed by user.ID, not IP) exceeding maxAttempts.
 type FailedAttemptTracker struct {
 	mu          sync.Mutex
 	entries     map[string]*LockoutEntry
@@ -176,8 +176,11 @@ func (t *FailedAttemptTracker) cleanupLoop() {
 	}
 }
 
-// IsLocked checks if the key is currently locked out. Returns true and the remaining lockout duration.
+// IsLocked checks if the key (user.ID) is currently locked out. Returns true and the remaining lockout duration.
 func (t *FailedAttemptTracker) IsLocked(key string) (bool, time.Duration) {
+	if key == "" {
+		return false, 0
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	entry, exists := t.entries[key]
@@ -190,8 +193,11 @@ func (t *FailedAttemptTracker) IsLocked(key string) (bool, time.Duration) {
 	return false, 0
 }
 
-// RecordFailure increments failed attempts. If threshold reached, sets LockedUntil. Returns if now locked and remaining attempts before lock.
+// RecordFailure increments failed attempts for the key (user.ID). If threshold reached, sets LockedUntil. Returns if now locked and remaining attempts before lock.
 func (t *FailedAttemptTracker) RecordFailure(key string) (locked bool, remaining int) {
+	if key == "" {
+		return false, t.maxAttempts
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	now := time.Now()
@@ -209,8 +215,11 @@ func (t *FailedAttemptTracker) RecordFailure(key string) (locked bool, remaining
 	return false, t.maxAttempts - entry.FailCount
 }
 
-// RecordSuccess resets failed count for the key.
+// RecordSuccess resets failed count for the key (user.ID).
 func (t *FailedAttemptTracker) RecordSuccess(key string) {
+	if key == "" {
+		return
+	}
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	delete(t.entries, key)

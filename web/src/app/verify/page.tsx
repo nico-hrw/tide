@@ -2,10 +2,7 @@
 
 import { useEffect, useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
-
-const DEV_PHASE_SECRET = "DEV_PHASE_SECRET_FIXED_KEY_123";
 
 function VerifyContent() {
     const router = useRouter();
@@ -21,34 +18,31 @@ function VerifyContent() {
 
         const verifyLogin = async () => {
             try {
-                // 1. Exchange Token for Session & Encrypted Keys
-                const res = await apiFetch(`/api/v1/auth/verify?token=${token}`);
+                // 1. Exchange Token for Session Metadata
+                const res = await apiFetch(`/api/v1/auth/verify?token=${encodeURIComponent(token)}`);
                 if (!res.ok) throw new Error("Verification failed or expired.");
 
                 const data = await res.json().catch(() => null);
                 if (!data) throw new Error("Invalid session data received");
-                // Expect: { session_token, enc_private_key, user_id, email, username }
+                // Expect: { session_token, user_id, email, username, public_key }
 
-                // 2. Decrypt Private Key
-                const encryptedPrivateKey = JSON.parse(data.enc_private_key) as cryptoLib.EncryptedPrivateKey;
-                const privateKey = await cryptoLib.decryptPrivateKey(encryptedPrivateKey, DEV_PHASE_SECRET);
+                // 2. Store non-sensitive session metadata (vault unlock requires user PIN)
+                if (data.email) sessionStorage.setItem("tide_user_email", data.email);
+                if (data.user_id) sessionStorage.setItem("tide_user_id", data.user_id);
+                if (data.public_key) sessionStorage.setItem("tide_user_public_key", data.public_key);
 
-                // 3. Store Session
-                const exportedKey = await window.crypto.subtle.exportKey("jwk", privateKey);
-                sessionStorage.setItem("tide_session_key", JSON.stringify(exportedKey));
-                sessionStorage.setItem("tide_user_email", data.email);
-                sessionStorage.setItem("tide_user_id", data.user_id);
-                sessionStorage.setItem("tide_user_public_key", data.public_key);
-
-                // Signal to other tabs (e.g. the original login tab)
-                // We must pass the session key because sessionStorage is not shared.
-                localStorage.setItem("tide_auth_signal", JSON.stringify({
-                    email: data.email,
-                    sessionKey: JSON.stringify(exportedKey),
-                    publicKey: data.public_key,
-                    userId: data.user_id,
-                    timestamp: Date.now()
-                }));
+                // Signal verification status to other tabs via BroadcastChannel without exposing keys
+                if (typeof BroadcastChannel !== "undefined") {
+                    const channel = new BroadcastChannel("tide_auth_signal");
+                    channel.postMessage({
+                        status: "verified",
+                        email: data.email,
+                        publicKey: data.public_key,
+                        userId: data.user_id,
+                        timestamp: Date.now(),
+                    });
+                    channel.close();
+                }
 
                 setStatus("success");
                 // Don'tredirect immediately, wait for user to close or redirect if they want.

@@ -115,11 +115,23 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
   const activeStrokeMetaRef = useRef<Omit<InkStroke, 'points'> | null>(null);
   const lassoPointsRef = useRef<InkPoint[]>([]);
   const workingStrokesRef = useRef<InkStroke[]>(strokes);
+  const rafIdRef = useRef<number | null>(null);
+  const pendingPointsRef = useRef<InkPoint[]>([]);
+  const dragOffsetRef = useRef<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
 
   const [currentStroke, setCurrentStroke] = useState<InkStroke | null>(null);
   const [eraserCursor, setEraserCursor] = useState<{ x: number; y: number } | null>(null);
-  const [lassoPoints, setLassoPoints] = useState<InkPoint[]>([]);
+  const [lassoState, setLassoState] = useState<{ points: InkPoint[] }>({ points: [] });
   const [dragOffset, setDragOffset] = useState<{ dx: number; dy: number }>({ dx: 0, dy: 0 });
+
+  useEffect(() => {
+    return () => {
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (interactionRef.current !== 'erasing') workingStrokesRef.current = strokes;
@@ -190,6 +202,12 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
       e.stopPropagation();
       try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* synthetic event */ }
 
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      pendingPointsRef.current = [];
+
       activePointerIdRef.current = e.pointerId;
       const pts = extractRelativePoints(e);
       const firstPt = pts[0];
@@ -207,8 +225,8 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
           opacity: isMarker ? 0.35 : 1,
         };
         activeStrokeMetaRef.current = meta;
-        activePointsRef.current = pts;
-        setCurrentStroke({ ...meta, points: pts });
+        activePointsRef.current = [...pts];
+        setCurrentStroke({ ...meta, points: activePointsRef.current });
       } else if (activeTool === 'eraser') {
         interactionRef.current = 'erasing';
         workingStrokesRef.current = strokes;
@@ -225,11 +243,12 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
         if (insideSelection && selectedStrokeIds.length > 0) {
           interactionRef.current = 'moving';
           moveStartRef.current = { x: firstPt.x, y: firstPt.y };
+          dragOffsetRef.current = { dx: 0, dy: 0 };
           setDragOffset({ dx: 0, dy: 0 });
         } else {
           interactionRef.current = 'lassoing';
-          lassoPointsRef.current = pts;
-          setLassoPoints(pts);
+          lassoPointsRef.current = [...pts];
+          setLassoState({ points: lassoPointsRef.current });
           if (selectedStrokeIds.length > 0) onSelectedStrokeIdsChange([]);
         }
       }
@@ -248,6 +267,30 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
     ]
   );
 
+  const flushPendingPoints = useCallback(() => {
+    const pts = pendingPointsRef.current;
+    if (pts.length === 0) return;
+    pendingPointsRef.current = [];
+
+    const modeNow = interactionRef.current;
+    const lastPt = pts[pts.length - 1];
+
+    if (modeNow === 'drawing' && activeStrokeMetaRef.current) {
+      activePointsRef.current.push(...pts);
+      setCurrentStroke({ ...activeStrokeMetaRef.current, points: activePointsRef.current });
+    } else if (modeNow === 'erasing') {
+      setEraserCursor({ x: lastPt.x, y: lastPt.y });
+      eraseAtPoints(pts);
+    } else if (modeNow === 'lassoing') {
+      lassoPointsRef.current.push(...pts);
+      setLassoState({ points: lassoPointsRef.current });
+    } else if (modeNow === 'moving' && moveStartRef.current) {
+      const nextOffset = { dx: lastPt.x - moveStartRef.current.x, dy: lastPt.y - moveStartRef.current.y };
+      dragOffsetRef.current = nextOffset;
+      setDragOffset(nextOffset);
+    }
+  }, [eraseAtPoints]);
+
   const handlePointerMove = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!isDrawInteractive) return;
@@ -259,24 +302,16 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
       e.preventDefault();
       const pts = extractRelativePoints(e);
       if (pts.length === 0) return;
-      const lastPt = pts[pts.length - 1];
 
-      if (modeNow === 'drawing' && activeStrokeMetaRef.current) {
-        const nextPoints = [...activePointsRef.current, ...pts];
-        activePointsRef.current = nextPoints;
-        setCurrentStroke({ ...activeStrokeMetaRef.current, points: nextPoints });
-      } else if (modeNow === 'erasing') {
-        setEraserCursor({ x: lastPt.x, y: lastPt.y });
-        eraseAtPoints(pts);
-      } else if (modeNow === 'lassoing') {
-        const nextLasso = [...lassoPointsRef.current, ...pts];
-        lassoPointsRef.current = nextLasso;
-        setLassoPoints(nextLasso);
-      } else if (modeNow === 'moving' && moveStartRef.current) {
-        setDragOffset({ dx: lastPt.x - moveStartRef.current.x, dy: lastPt.y - moveStartRef.current.y });
+      pendingPointsRef.current.push(...pts);
+      if (rafIdRef.current === null) {
+        rafIdRef.current = requestAnimationFrame(() => {
+          rafIdRef.current = null;
+          flushPendingPoints();
+        });
       }
     },
-    [isDrawInteractive, extractRelativePoints, eraseAtPoints]
+    [isDrawInteractive, extractRelativePoints, flushPendingPoints]
   );
 
   const finishPointerInteraction = useCallback(
@@ -285,6 +320,12 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
         activePenPointerIdRef.current = null;
       }
       if (activePointerIdRef.current !== e.pointerId) return;
+
+      if (rafIdRef.current !== null) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+      flushPendingPoints();
 
       const modeNow = interactionRef.current;
       interactionRef.current = 'none';
@@ -305,21 +346,23 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
         const matchedIds = poly.length >= 3 ? strokes.filter((s) => isStrokeSelectedByLasso(s, poly)).map((s) => s.id) : [];
         onSelectedStrokeIdsChange(matchedIds);
         lassoPointsRef.current = [];
-        setLassoPoints([]);
+        setLassoState({ points: [] });
       } else if (modeNow === 'moving') {
-        if (dragOffset.dx !== 0 || dragOffset.dy !== 0) {
+        const { dx, dy } = dragOffsetRef.current;
+        if (dx !== 0 || dy !== 0) {
           const updated = strokes.map((s) =>
             selectedSet.has(s.id)
-              ? { ...s, points: s.points.map((pt) => ({ ...pt, x: pt.x + dragOffset.dx, y: pt.y + dragOffset.dy })) }
+              ? { ...s, points: s.points.map((pt) => ({ ...pt, x: pt.x + dx, y: pt.y + dy })) }
               : s
           );
           onStrokesChange(updated);
         }
         moveStartRef.current = null;
+        dragOffsetRef.current = { dx: 0, dy: 0 };
         setDragOffset({ dx: 0, dy: 0 });
       }
     },
-    [strokes, onStrokesChange, onSelectedStrokeIdsChange, dragOffset, selectedSet]
+    [strokes, onStrokesChange, onSelectedStrokeIdsChange, selectedSet, flushPendingPoints]
   );
 
   const handleDeleteSelected = useCallback(
@@ -329,14 +372,15 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
       if (selectedSet.size === 0) return;
       onStrokesChange(strokes.filter((s) => !selectedSet.has(s.id)));
       onSelectedStrokeIdsChange([]);
+      dragOffsetRef.current = { dx: 0, dy: 0 };
       setDragOffset({ dx: 0, dy: 0 });
     },
     [selectedSet, strokes, onStrokesChange, onSelectedStrokeIdsChange]
   );
 
   const lassoPolygonPoints = useMemo(
-    () => lassoPoints.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' '),
-    [lassoPoints]
+    () => lassoState.points.map((pt) => `${pt.x.toFixed(1)},${pt.y.toFixed(1)}`).join(' '),
+    [lassoState]
   );
 
   return (
@@ -387,7 +431,7 @@ export const PencilInkLayer: React.FC<PencilInkLayerProps> = ({
           />
         )}
 
-        {lassoPoints.length > 1 && (
+        {lassoState.points.length > 1 && (
           <polygon
             points={lassoPolygonPoints}
             fill="var(--t2-accent)"

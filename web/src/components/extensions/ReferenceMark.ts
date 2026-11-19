@@ -99,7 +99,7 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
             singleton = tippy(document.createElement('div'), {
                 getReferenceClientRect: () => virtualRef.getBoundingClientRect(),
                 content: '',
-                allowHTML: true,
+                allowHTML: false,
                 placement: 'top',
                 animation: 'shift-away',
                 appendTo: () => document.body,
@@ -115,6 +115,16 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                         box.style.border = '1px solid #e5e7eb';
                         box.style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)';
                         box.style.borderRadius = '8px';
+                    }
+                    const content = instance.popper.querySelector('.tippy-content') as HTMLElement | null;
+                    if (content) {
+                        content.style.padding = '6px 10px';
+                        content.style.fontFamily = 'sans-serif';
+                        content.style.fontSize = '13px';
+                        content.style.fontWeight = '500';
+                        content.style.color = '#374151';
+                        content.style.background = '#ffffff';
+                        content.style.borderRadius = '6px';
                     }
                     const arrow = instance.popper.querySelector('.tippy-arrow') as HTMLElement | null;
                     if (arrow) {
@@ -153,10 +163,8 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                             currentTarget = mark;
                             const tip = getOrCreateSingleton();
 
-                            const previewText = reference.previewText || reference.term;
-                            tip.setContent(
-                                `<div style="padding:6px 10px;font-family:sans-serif;font-size:13px;font-weight:500;color:#374151;background:#fff;border-radius:6px;">${previewText}</div>`
-                            );
+                            const previewText = reference.previewText || reference.term || '';
+                            tip.setContent(previewText);
                             tip.show();
 
                             return false;

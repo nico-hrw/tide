@@ -179,6 +179,24 @@ func main() {
 		})
 	})
 
+	// Request body size limits (10MB default, 250MB for upload routes)
+	r.Use(func(next http.Handler) http.Handler {
+		const defaultMaxBodyBytes int64 = 10 << 20 // 10MB
+		const uploadMaxBodyBytes int64 = 250 << 20 // 250MB
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.Body != nil && r.Header.Get("Upgrade") == "" {
+				path := strings.TrimSuffix(r.URL.Path, "/")
+				limit := defaultMaxBodyBytes
+				if strings.HasSuffix(path, "/upload") ||
+					(r.Method == http.MethodPost && strings.HasPrefix(path, "/api/v1/quicknotes/") && strings.HasSuffix(path, "/files")) {
+					limit = uploadMaxBodyBytes
+				}
+				r.Body = http.MaxBytesReader(w, r.Body, limit)
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
+
 	// 4. Register Routes
 	r.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("Tide Cloud Server Running"))

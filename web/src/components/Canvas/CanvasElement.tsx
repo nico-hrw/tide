@@ -30,8 +30,12 @@ interface CanvasElementProps {
 // We use ar.left (not ar.right) because paragraphs span the full container width,
 // making ar.right ~920px off the visible text.
 
-function AnchorLine({ anchorBlockId, elementRef }: {
-    anchorBlockId: string; elementRef: React.RefObject<HTMLDivElement | null>;
+function AnchorLine({ anchorBlockId, elementRef, isDragging, posTop, posLeft }: {
+    anchorBlockId: string;
+    elementRef: React.RefObject<HTMLDivElement | null>;
+    isDragging?: boolean;
+    posTop?: number | null;
+    posLeft?: number | null;
 }) {
     const [pathData, setPathData] = useState<{ d: string; sx: number; sy: number } | null>(null);
     const [isHovered, setIsHovered] = useState(false);
@@ -80,7 +84,7 @@ function AnchorLine({ anchorBlockId, elementRef }: {
                         sy = lastRect.top + (lastRect.height / 2);
                         foundRect = true;
                     }
-                } catch (e) {
+                } catch {
                     // ignore errors
                 }
             }
@@ -99,14 +103,46 @@ function AnchorLine({ anchorBlockId, elementRef }: {
         const ey = er.top + er.height / 2;
 
         const midX = (sx + ex) / 2;
-        setPathData({ d: `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ey}, ${ex} ${ey}`, sx, sy });
+        const d = `M ${sx} ${sy} C ${midX} ${sy}, ${midX} ${ey}, ${ex} ${ey}`;
+        setPathData((prev) => (prev && prev.d === d && prev.sx === sx && prev.sy === sy ? prev : { d, sx, sy }));
     }, [anchorBlockId, elementRef]);
 
-    useEffect(() => {
-        const tick = () => { compute(); rafRef.current = requestAnimationFrame(tick); };
-        rafRef.current = requestAnimationFrame(tick);
-        return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    const scheduleCompute = useCallback(() => {
+        if (rafRef.current !== null) return;
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            compute();
+        });
     }, [compute]);
+
+    useEffect(() => {
+        compute();
+
+        const el = elementRef.current;
+        const shell = el?.closest<HTMLElement>('.canvas-shell') ?? null;
+        const anchor = document.querySelector<HTMLElement>(`[data-anchor-id="${anchorBlockId}"], [data-block-id="${anchorBlockId}"]`);
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleCompute) : null;
+        if (ro) {
+            if (el) ro.observe(el);
+            if (shell) ro.observe(shell);
+            if (anchor) ro.observe(anchor);
+        }
+
+        window.addEventListener('resize', scheduleCompute, { passive: true });
+        window.addEventListener('scroll', scheduleCompute, { capture: true, passive: true });
+        if (isDragging) window.addEventListener('mousemove', scheduleCompute, { passive: true });
+
+        return () => {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+            ro?.disconnect();
+            window.removeEventListener('resize', scheduleCompute);
+            window.removeEventListener('scroll', scheduleCompute, { capture: true });
+            if (isDragging) window.removeEventListener('mousemove', scheduleCompute);
+        };
+    }, [compute, scheduleCompute, anchorBlockId, elementRef, isDragging, posTop, posLeft]);
 
     if (!pathData) return null;
     return (
@@ -294,6 +330,7 @@ export default function CanvasElementComponent({
     const elRef = useRef<HTMLDivElement>(null);
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const [hovered, setHovered] = useState(false);
+    const [isDragging, setIsDragging] = useState(false);
     // Page edges the element touches; hatched while dragging and on hover.
     const [dragEdges, setDragEdges] = useState<SnapEdge[] | null>(null);
     const [pageWidth, setPageWidth] = useState(0);
@@ -307,7 +344,7 @@ export default function CanvasElementComponent({
 
     const isUnbound = !element.anchorBlockId || element.anchorBlockId === '__root__';
 
-    // ── RAF position loop ──────────────────────────────────────────────────────
+    // ── Position calculation ─────────────────────────────────────────────────
     // POSITIONING MODEL:
     //   offsetX = shell-relative horizontal (how many px from the shell's left edge)
     //   offsetY = anchor-relative vertical  (how many px below the anchor block's top)
@@ -348,7 +385,7 @@ export default function CanvasElementComponent({
             top = ar.top - sr.top + element.offsetY;
         }
 
-        // CRITICAL: If we are currently dragging, don't let the RAF loop
+        // CRITICAL: If we are currently dragging, don't let position recomputes
         // snap the element back to its stored properties.
         if (dragState.current) return;
 
@@ -358,11 +395,43 @@ export default function CanvasElementComponent({
         setPos(prev => (prev?.top === top && prev?.left === left) ? prev : { top, left });
     }, [element.anchorBlockId, element.offsetX, element.offsetY, element.snapX, isMobile, isUnbound]);
 
-    useEffect(() => {
-        const tick = () => { computePosition(); rafRef.current = requestAnimationFrame(tick); };
-        rafRef.current = requestAnimationFrame(tick);
-        return () => { if (rafRef.current) cancelAnimationFrame(rafRef.current); };
+    const scheduleCompute = useCallback(() => {
+        if (rafRef.current !== null) return;
+        rafRef.current = requestAnimationFrame(() => {
+            rafRef.current = null;
+            computePosition();
+        });
     }, [computePosition]);
+
+    useEffect(() => {
+        computePosition();
+
+        const el = elRef.current;
+        const shell = el?.closest<HTMLElement>('.canvas-shell') ?? null;
+        const anchor = !isUnbound && element.anchorBlockId
+            ? document.querySelector<HTMLElement>(`[data-block-id="${element.anchorBlockId}"], [data-element-id="${element.anchorBlockId}"], [data-anchor-id="${element.anchorBlockId}"]`)
+            : null;
+
+        const ro = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(scheduleCompute) : null;
+        if (ro) {
+            if (shell) ro.observe(shell);
+            if (el) ro.observe(el);
+            if (anchor) ro.observe(anchor);
+        }
+
+        window.addEventListener('resize', scheduleCompute, { passive: true });
+        window.addEventListener('scroll', scheduleCompute, { capture: true, passive: true });
+
+        return () => {
+            if (rafRef.current !== null) {
+                cancelAnimationFrame(rafRef.current);
+                rafRef.current = null;
+            }
+            ro?.disconnect();
+            window.removeEventListener('resize', scheduleCompute);
+            window.removeEventListener('scroll', scheduleCompute, { capture: true });
+        };
+    }, [computePosition, scheduleCompute, isUnbound, element.anchorBlockId]);
 
     // ── Drag ─────────────────────────────────────────────────────────────────
     // Uses CSS transform on the DOM directly during drag (no React state updates).
@@ -371,6 +440,7 @@ export default function CanvasElementComponent({
     const onMouseDown = useCallback((e: React.MouseEvent) => {
         if (isMobile || isBindingMode || e.button !== 0) return;
         e.preventDefault();
+        setIsDragging(true);
         dragState.current = { startX: e.clientX, startY: e.clientY, initOX: element.offsetX, initOY: element.offsetY };
         const startLeft = pos?.left ?? 0;
         const startTop = pos?.top ?? 0;
@@ -393,6 +463,7 @@ export default function CanvasElementComponent({
             setDragEdges((prev) => (prev && prev.join() === t.edges.join() ? prev : t.edges));
         };
         const onUp = (me: MouseEvent) => {
+            setIsDragging(false);
             if (!dragState.current || !elRef.current) return;
             // Clear the inline transform so React's style (which has rotate-only) takes over.
             elRef.current.style.transform = '';
@@ -507,7 +578,15 @@ export default function CanvasElementComponent({
 
     return (
         <>
-            {showLine && <AnchorLine anchorBlockId={element.anchorBlockId} elementRef={elRef} />}
+            {showLine && (
+                <AnchorLine
+                    anchorBlockId={element.anchorBlockId}
+                    elementRef={elRef}
+                    isDragging={isDragging}
+                    posTop={pos?.top}
+                    posLeft={pos?.left}
+                />
+            )}
             {!isMobile && pos !== null && isImageElement(element) && (dragEdges !== null || hovered) && (
                 <PageEdgeHatch
                     edges={dragEdges ?? (element.snapX ? [element.snapX] : [])}

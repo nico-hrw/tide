@@ -235,15 +235,22 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Inherit access_keys and visibility from parent if not explicitly provided
 	if req.ParentID != nil && *req.ParentID != "" {
-		if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *req.ParentID, ownerID); err == nil {
-			if !store.CanWrite(parentFile.Permission) {
-				http.Error(w, "Forbidden: write permission required on parent file", http.StatusForbidden)
+		parentFile, err := h.Store.GetAccessibleFile(r.Context(), *req.ParentID, ownerID)
+		if err != nil {
+			if errors.Is(err, store.ErrNotFound) {
+				http.Error(w, "Forbidden: parent file not found or access denied", http.StatusForbidden)
 				return
 			}
-			file.Visibility = parentFile.Visibility
-			if req.AccessKeys == nil || len(req.AccessKeys) == 0 || string(req.AccessKeys) == "null" || string(req.AccessKeys) == "{}" {
-				file.AccessKeys = parentFile.AccessKeys
-			}
+			http.Error(w, "Failed to verify parent file access", http.StatusInternalServerError)
+			return
+		}
+		if !store.CanWrite(parentFile.Permission) {
+			http.Error(w, "Forbidden: write permission required on parent file", http.StatusForbidden)
+			return
+		}
+		file.Visibility = parentFile.Visibility
+		if req.AccessKeys == nil || len(req.AccessKeys) == 0 || string(req.AccessKeys) == "null" || string(req.AccessKeys) == "{}" {
+			file.AccessKeys = parentFile.AccessKeys
 		}
 	}
 

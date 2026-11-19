@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"mime"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -24,9 +25,54 @@ import (
 )
 
 var quicknoteUpgrader = websocket.Upgrader{
-	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all origins for shared quicknotes
-	},
+	CheckOrigin: checkQuicknoteOrigin,
+}
+
+// checkQuicknoteOrigin validates the Origin header against trusted origins to prevent CSWSH.
+func checkQuicknoteOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	if origin == "http://"+r.Host || origin == "https://"+r.Host {
+		return true
+	}
+
+	switch origin {
+	case "https://go-tide.app", "https://www.go-tide.app",
+		"https://hrw.rocks", "https://www.hrw.rocks", "https://track.hrw.rocks":
+		return true
+	}
+
+	if os.Getenv("ENV") != "production" {
+		if origin == "http://localhost" || origin == "http://127.0.0.1" ||
+			origin == "https://localhost" || origin == "https://127.0.0.1" ||
+			strings.HasPrefix(origin, "http://localhost:") ||
+			strings.HasPrefix(origin, "http://127.0.0.1:") ||
+			strings.HasPrefix(origin, "https://localhost:") ||
+			strings.HasPrefix(origin, "https://127.0.0.1:") {
+			return true
+		}
+	}
+
+	if appURL := strings.TrimSpace(os.Getenv("APP_URL")); appURL != "" {
+		if origin == strings.TrimRight(appURL, "/") {
+			return true
+		}
+	}
+
+	if envOrigins := os.Getenv("ALLOWED_ORIGINS"); envOrigins != "" {
+		for _, o := range strings.Split(envOrigins, ",") {
+			o = strings.TrimSpace(o)
+			if o != "" && origin == strings.TrimRight(o, "/") {
+				return true
+			}
+		}
+	}
+
+	log.Printf("[Quicknote WS] Rejecting untrusted origin: %s", origin)
+	return false
 }
 
 // QuicknoteHandler provides HTTP endpoints and WebSocket collaboration for Quicknotes.
@@ -442,12 +488,37 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 	}
 	defer rc.Close()
 
+	mediaType, params, err := mime.ParseMediaType(qf.MIMEType)
+	contentType := "application/octet-stream"
+	if err == nil && mediaType != "" {
+		if formatted := mime.FormatMediaType(mediaType, params); formatted != "" {
+			contentType = formatted
+		} else {
+			contentType = mediaType
+		}
+	} else {
+		mediaType = ""
+	}
+
 	disposition := "attachment"
-	if strings.HasPrefix(strings.ToLower(qf.MIMEType), "image/") || r.URL.Query().Get("inline") == "true" || r.URL.Query().Get("inline") == "1" {
+	switch mediaType {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
 		disposition = "inline"
 	}
-	w.Header().Set("Content-Type", qf.MIMEType)
-	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, filepath.Base(qf.Name)))
+
+	safeName := strings.Map(func(r rune) rune {
+		if r == '"' || r == '\\' || r < 0x20 || r == 0x7f {
+			return -1
+		}
+		return r
+	}, filepath.Base(qf.Name))
+	if safeName == "" || safeName == "." || safeName == ".." {
+		safeName = "download"
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, safeName))
 	w.Header().Set("Content-Length", strconv.FormatInt(qf.Size, 10))
 	_, _ = io.Copy(w, rc)
 }
