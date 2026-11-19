@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Tide Notiz-Mockups</title>
+<style>
+/* Layout: one section per question. A: version history. B: options menu. Each variant is a static frame. */
+:root {
+  --bg: #faf9f6; --surface: #ffffff; --sub: #f3f1ec; --hover: #ecEAe3;
+  --line: #e4e1d8; --line-soft: #efece5;
+  --ink: #1f1e1b; --ink-2: #5b5852; --ink-3: #9a968c;
+  --accent: #3f6b8c; --del: #8a3b32; --add: #2f6a4f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171714; --surface: #1f1e1b; --sub: #26241f; --hover: #2c2a25;
+    --line: #37342d; --line-soft: #2a2823;
+    --ink: #eeebe3; --ink-2: #b4afa3; --ink-3: #7d786d;
+    --accent: #8fb8d6; --del: #e0a095; --add: #9ccfb3;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171714; --surface: #1f1e1b; --sub: #26241f; --hover: #2c2a25;
+  --line: #37342d; --line-soft: #2a2823;
+  --ink: #eeebe3; --ink-2: #b4afa3; --ink-3: #7d786d;
+  --accent: #8fb8d6; --del: #e0a095; --add: #9ccfb3;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.5 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 32px;
+}
+h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: -0.01em; }
+h2 { font-size: 16px; margin: 0 0 4px; }
+.lead { color: var(--ink-2); margin: 0 0 32px; max-width: 62ch; }
+.grid { display: grid; gap: 24px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); }
+.card { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); padding: 16px; min-width: 0; }
+.tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.caption { color: var(--ink-2); font-size: 13px; margin: 12px 0 0; }
+section { margin-bottom: 48px; }
+.frame { background: var(--bg); border-radius: 10px; box-shadow: 0 0 0 1px var(--line-soft); padding: 16px; overflow: hidden; }
+/* sheet + right rail */
+.sheet-wrap { display: grid; grid-template-columns: minmax(0, 1fr) 150px; gap: 16px; }
+.sheet { background: var(--surface); border-radius: 4px; box-shadow: 0 0 0 1px var(--line); padding: 20px; min-width: 0; }
+.sheet h3 { font-size: 18px; margin: 0 0 8px; }
+.sheet p { margin: 0 0 8px; color: var(--ink-2); }
+.del { color: var(--del); text-decoration: line-through; text-decoration-color: color-mix(in srgb, var(--del) 60%, transparent); }
+.add { color: var(--add); text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--add) 60%, transparent); text-underline-offset: 3px; }
+.btn { font: inherit; font-size: 12.5px; padding: 5px 10px; border-radius: 8px; background: var(--sub); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line); border: 0; }
+.btn.primary { background: var(--accent); color: var(--bg); box-shadow: none; }
+.btn.ghost { background: transparent; box-shadow: none; color: var(--ink-2); }
+.icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; color: var(--ink-2); font-size: 15px; }
+.icon.on { color: var(--accent); background: var(--sub); }
+/* timeline */
+.tl { position: relative; padding-left: 18px; display: grid; gap: 14px; }
+.tl::before { content: ""; position: absolute; left: 4px; top: 6px; bottom: 6px; width: 1px; background: var(--line); }
+.tl-item { position: relative; font-size: 13px; }
+.tl-item::before { content: ""; position: absolute; left: -18px; top: 5px; width: 9px; height: 9px; border-radius: 50%; background: var(--bg); box-shadow: inset 0 0 0 1.5px var(--ink-3); }
+.tl-item.on::before { background: var(--accent); box-shadow: none; }
+.tl-item .when { font-weight: 600; }
+.tl-item .meta { color: var(--ink-3); font-size: 12px; }
+.sum { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.chip { font-size: 11.5px; padding: 1px 7px; border-radius: 999px; background: var(--sub); color: var(--ink-2); }
+/* options menu */
+.menu { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--line), 0 10px 28px rgba(0,0,0,.08); padding: 8px; width: 240px; }
+.menu .row { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 8px; font-size: 13px; }
+.menu .row:hover { background: var(--hover); }
+.menu .row small { color: var(--ink-3); margin-left: auto; font-size: 11.5px; }
+.menu .sep { height: 1px; background: var(--line-soft); margin: 6px 4px; }
+.kbd { font-size: 11px; color: var(--ink-3); margin-left: auto; }
+.toolbar { display: flex; gap: 2px; background: var(--surface); border-radius: 10px; box-shadow: 0 0 0 1px var(--line); padding: 4px; width: max-content; max-width: 100%; flex-wrap: wrap; }
+.labels { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; font-size: 12.5px; color: var(--ink-2); }
+.rail { display: flex; flex-direction: column; gap: 4px; background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); padding: 6px; width: max-content; }
+.panel { background: var(--surface); border-radius: 12px; box-shadow: 0 0 0 1px var(--line); padding: 14px; font-size: 13px; }
+.panel h4 { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); margin: 12px 0 6px; font-weight: 600; }
+.panel h4:first-child { margin-top: 0; }
+.opt { display: flex; justify-content: space-between; align-items: center; padding: 5px 0; }
+.sw { width: 30px; height: 17px; border-radius: 999px; background: var(--line); position: relative; }
+.sw::after { content: ""; position: absolute; top: 2px; left: 2px; width: 13px; height: 13px; border-radius: 50%; background: var(--surface); }
+.sw.on { background: var(--accent); }
+.sw.on::after { left: 15px; }
+@media (max-width: 560px) {
+  .sheet-wrap { grid-template-columns: 1fr; }
+  .rail { flex-direction: row; width: 100%; justify-content: space-between; }
+}
+</style>
+</head>
+<body>
+
+<h1>Notizen: Versionen und Optionen</h1>
+<p class="lead">Drei Vorschläge für den Versionsverlauf, drei für das Optionsmenü. Jeder Rahmen zeigt die Ansicht ungefähr so, wie sie auf dem Blatt aussehen würde. Die Texte sind Beispiele.</p>
+
+<section>
+  <h2>A. Versionsverlauf</h2>
+  <p class="caption" style="margin:0 0 16px">Heute zeigt der Verlauf nur Zeitstempel und ersetzt dann den Text. Die Änderungen sind nicht zu erkennen.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="tag">Variante A1 · Änderungen im Text</div>
+      <h2 style="margin-top:6px">Der Stand wird im Blatt markiert</h2>
+      <p class="caption" style="margin-top:4px">Ausgewählt: gelöschter Text durchgestrichen, neuer Text unterstrichen. Die Liste steht rechts am Blattrand.</p>
+      <div class="frame" style="margin-top:12px">
+        <div class="sheet-wrap">
+          <div class="sheet">
+            <h3>Konzept</h3>
+            <p>Aktuell mangelt es an <span class="del">Schnittstellen</span><span class="add">Abstimmung</span> zwischen Ärzten und Personal. Die Wartezeit ist <span class="del">intransparent</span> für Patienten.</p>
+            <p>Papierbögen werden <span class="add">zunächst</span> ausgefüllt und später abgetippt.</p>
+            <div style="display:flex;gap:6px;margin-top:12px"><button class="btn primary">Wiederherstellen</button><button class="btn">Schließen</button></div>
+          </div>
+          <div class="tl" aria-label="Versionen">
+            <div class="tl-item on"><div class="when">Gestern, 21:58</div><div class="meta">2 Änderungen</div></div>
+            <div class="tl-item"><div class="when">Heute, 09:21</div><div class="meta">Automatisch</div></div>
+            <div class="tl-item"><div class="when">Heute, 08:10</div><div class="meta">Automatisch</div></div>
+          </div>
+        </div>
+      </div>
+      <p class="caption">Nachteil: Bei langen Texten wird das Blatt unübersichtlich, wenn viele kleine Änderungen markiert sind.</p>
+    </div>
+
+    <div class="card">
+      <div class="tag">Variante A2 · Zwei Spalten</div>
+      <h2 style="margin-top:6px">Vorher und jetzt nebeneinander</h2>
+      <p class="caption" style="margin-top:4px">Links der gewählte Stand, rechts der aktuelle Text. Nur geänderte Absätze sind farbig gekennzeichnet.</p>
+      <div class="frame" style="margin-top:12px">
+        <div class="labels" style="margin-bottom:8px"><span>Stand: Heute, 09:21</span><span style="margin-left:auto">Jetzt</span></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+          <div class="sheet" style="padding:12px;font-size:13px"><p>Aktuell mangelt es an <span class="del">Schnittstellen</span> für Patienten und Personal.</p><p style="color:var(--ink-3)">Der Termin wird am Empfang vergeben.</p></div>
+          <div class="sheet" style="padding:12px;font-size:13px"><p>Aktuell mangelt es an <span class="add">Abstimmung</span> zwischen Ärzten und Personal.</p><p style="color:var(--ink-3)">Der Termin wird am Empfang vergeben.</p></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:12px"><button class="btn primary">Diesen Stand wiederherstellen</button><button class="btn ghost">Zurück</button></div>
+      </div>
+      <p class="caption">Gut für lange Notizen. Auf dem Handy wird daraus ein Umschalter zwischen den beiden Spalten.</p>
+    </div>
+
+    <div class="card">
+      <div class="tag">Variante A3 · Nur Zusammenfassung</div>
+      <h2 style="margin-top:6px">Jeder Stand als kurze Liste</h2>
+      <p class="caption" style="margin-top:4px">Der Verlauf zeigt pro Stand, was sich geändert hat, und nach Tagen gegliedert. Der Text bleibt unverändert.</p>
+      <div class="frame" style="margin-top:12px">
+        <div class="labels" style="margin-bottom:6px;font-weight:600;color:var(--ink)">Heute</div>
+        <div class="tl" style="margin-bottom:12px">
+          <div class="tl-item on"><div class="when">09:21 · Aktuell</div><div class="sum"><span class="chip">+42 Wörter</span><span class="chip">Überschrift geändert</span></div></div>
+          <div class="tl-item"><div class="when">08:10</div><div class="sum"><span class="chip">−3 Absätze</span></div></div>
+        </div>
+        <div class="labels" style="margin-bottom:6px;font-weight:600;color:var(--ink)">Gestern</div>
+        <div class="tl">
+          <div class="tl-item"><div class="when">21:58</div><div class="sum"><span class="chip">Neue Tabelle</span></div></div>
+        </div>
+        <div style="display:flex;gap:6px;margin-top:12px"><button class="btn">Ansehen</button><button class="btn primary">Wiederherstellen</button></div>
+      </div>
+      <p class="caption">Am ruhigsten, aber man sieht nicht, <em>welche</em> Wörter sich geändert haben, bevor man den Stand öffnet.</p>
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>B. Optionen (heute im Drei-Punkte-Menü)</h2>
+  <p class="caption" style="margin:0 0 16px">Die Optionen liegen heute als Knopf am Ende der Kopfzeile, neben dem Titel. Die Vorschläge stellen sie an den Blattrand, ähnlich wie die Icons bei den Todos.</p>
+
+  <div class="grid">
+    <div class="card">
+      <div class="tag">Variante B1 · Icon-Spalte am Blattrand</div>
+      <h2 style="margin-top:6px">Symbole rechts neben dem Blatt</h2>
+      <p class="caption" style="margin-top:4px">Ein Symbol je Funktion, Beschriftung beim Hover. Der Menüknopf entfällt.</p>
+      <div class="frame" style="margin-top:12px;display:flex;gap:12px;align-items:flex-start">
+        <div class="sheet" style="flex:1;min-width:0"><h3>Konzept</h3><p>Text des Blatts …</p></div>
+        <div class="rail">
+          <div class="icon on" title="Versionsverlauf">↺</div>
+          <div class="icon" title="Teilen">⇪</div>
+          <div class="icon" title="Speichern">✓</div>
+          <div class="icon" title="Export">⤓</div>
+          <div class="icon" title="Layout und Papier">▤</div>
+        </div>
+      </div>
+      <p class="caption">Schnell erreichbar. Fünf Symbole sind ohne Text aber nicht immer eindeutig, deshalb die Beschriftung beim Hover.</p>
+    </div>
+
+    <div class="card">
+      <div class="tag">Variante B2 · Leiste über dem Blatt</div>
+      <h2 style="margin-top:6px">Kopfzeile mit Text</h2>
+      <p class="caption" style="margin-top:4px">Links der Speicherstatus mit Zeit, rechts die Funktionen als kurze Beschriftungen. Passt zum Blatt und bleibt im Blickfeld.</p>
+      <div class="frame" style="margin-top:12px">
+        <div class="labels" style="justify-content:space-between;margin-bottom:10px">
+          <span>✓ Gespeichert · Zuletzt bearbeitet vor 1 Std</span>
+          <span class="toolbar" style="box-shadow:none;background:transparent;padding:0">
+            <button class="btn ghost">Verlauf</button><button class="btn ghost">Teilen</button><button class="btn ghost">Export</button><button class="btn ghost">Mehr</button>
+          </span>
+        </div>
+        <div class="sheet"><h3>Konzept</h3><p>Text des Blatts …</p></div>
+      </div>
+      <p class="caption">Klar lesbar. Auf dem Handy braucht die Leiste einen Zeilenumbruch oder ein Overflow-Menü.</p>
+    </div>
+
+    <div class="card">
+      <div class="tag">Variante B3 · Seitenpanel</div>
+      <h2 style="margin-top:6px">Rechts ein Panel mit Abschnitten</h2>
+      <p class="caption" style="margin-top:4px">Ein festes Panel wie das Termin-Detail: Blatt-Layout, Papier, Überschriften und Export. Wie bei den Todos, gleiche Abschnittsform.</p>
+      <div class="frame" style="margin-top:12px;display:flex;gap:12px;align-items:flex-start">
+        <div class="sheet" style="flex:1;min-width:0"><h3>Konzept</h3><p>Text des Blatts …</p></div>
+        <div class="panel" style="width:180px;flex:none">
+          <h4>Blatt</h4>
+          <div class="opt">Seitliche Ränder <span class="sw on"></span></div>
+          <div class="opt">Seitenumbruch zeigen <span class="sw on"></span></div>
+          <h4>Überschriften</h4>
+          <div class="opt">Nummerieren <span class="sw"></span></div>
+          <h4>Export</h4>
+          <div class="opt">PDF <span class="kbd">⌘P</span></div>
+          <div class="opt">Markdown</div>
+        </div>
+      </div>
+      <p class="caption">Die meisten Einstellungen sind sofort sichtbar. Braucht Platz, auf dem Tablet wird es ein Einblend-Panel.</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:24px;display:flex;gap:24px;flex-wrap:wrap;align-items:flex-start">
+    <div>
+      <div class="tag">Referenz · heutiges Menü</div>
+      <p class="caption" style="margin:6px 0 10px">So sieht das Drei-Punkte-Menü heute aus. Die Liste ist lang, und die Trennung ist nicht eindeutig.</p>
+    </div>
+    <div class="menu" style="margin-left:auto">
+      <div class="row">Layout: Normal <small>⌄</small></div>
+      <div class="row">Papier: Blanko <small>⌄</small></div>
+      <div class="sep"></div>
+      <div class="row">A4-Hilfslinien <span class="sw on" style="margin-left:auto"></span></div>
+      <div class="row">Überschriften nummerieren <span class="sw" style="margin-left:auto"></span></div>
+      <div class="sep"></div>
+      <div class="row">Als PDF exportieren</div>
+      <div class="row">Als Markdown exportieren</div>
+      <div class="row">Als Word exportieren</div>
+      <div class="row">Tide-Bundle exportieren</div>
+      <div class="sep"></div>
+      <div class="row">Notiz löschen</div>
+    </div>
+  </div>
+</section>
+
+</body>
+</html>

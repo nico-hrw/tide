@@ -13,7 +13,10 @@ export const DoubleTabPageBreak = Extension.create({
                 const now = Date.now();
                 if (now - lastTab > DOUBLE_TAP_MS) {
                     lastTab = now;
-                    return false; // first Tab keeps its normal meaning
+                    // Lists keep their own Tab (indent). Elsewhere a single Tab stays in the text
+                    // instead of moving focus out of the note.
+                    if (editor.isActive('bulletList') || editor.isActive('orderedList') || editor.isActive('taskList')) return false;
+                    return true;
                 }
                 lastTab = 0;
                 if (!editor.isEditable) return false;
