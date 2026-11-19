@@ -83,14 +83,23 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
 
         <div className="mt-4 flex flex-col">
           <Fact label="Fällig">
-            <input
-              type="date"
-              defaultValue={task.dueDate || task.scheduledDate || ''}
-              onChange={(e) => saveDate(e.target.value)}
-              aria-label="Fälligkeitsdatum"
-              className="w-full bg-transparent text-right text-t2-ink outline-none"
-            />
+            {/* The date is shown centred; a transparent native picker covers it, so a tap still opens the calendar. */}
+            <span className="relative block w-full text-center text-t2-ink">
+              {formatDueDe(task.dueDate || task.scheduledDate) || <span className="text-t2-ink-3">Kein Datum</span>}
+              <input
+                type="date"
+                value={(task.dueDate || task.scheduledDate || '').slice(0, 10)}
+                onChange={(e) => saveDate(e.target.value)}
+                aria-label="Fälligkeitsdatum"
+                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+              />
+            </span>
           </Fact>
+          <div className="mb-2 grid grid-cols-3 gap-2">
+            <button type="button" onClick={() => saveDate(isoDayOf(new Date()))} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Heute</button>
+            <button type="button" onClick={() => saveDate(isoDayOf(new Date(Date.now() + 86400000)))} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Morgen</button>
+            <button type="button" onClick={() => saveDate(new Date().toISOString())} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Jetzt</button>
+          </div>
           <Fact label="Priorität">
             <select
               value={priority}
@@ -155,6 +164,17 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
       </div>
     </div>
   );
+}
+
+/** Local calendar day as yyyy-MM-dd. */
+const isoDayOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+/** Due date for display, e.g. 19.11.2026 (also accepts a full ISO timestamp). */
+function formatDueDe(v?: string): string {
+  if (!v) return '';
+  const d = new Date(v.length === 10 ? `${v}T00:00:00` : v);
+  if (isNaN(d.getTime())) return '';
+  return d.toLocaleDateString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 function Fact({ label, children }: { label: string; children: React.ReactNode }) {

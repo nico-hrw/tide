@@ -2,6 +2,10 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, CheckCheck, ListTodo } from 'lucide-react';
+import { addDays } from 'date-fns';
+
+/** Local calendar day as yyyy-MM-dd (the due date format of the store). */
+const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { buildTaskTree } from './treeUtils';
@@ -83,6 +87,8 @@ export const MobileTodoView: React.FC = () => {
   const tasks = useDataStore((s) => s.tasks) as TaskItem[];
   const toggleTask = useDataStore((s) => s.toggleTask);
   const deleteTask = useDataStore((s) => s.deleteTask);
+  const updateTask = useDataStore((s) => s.updateTask);
+  const [overdueMenuId, setOverdueMenuId] = useState<string | null>(null);
   const [mode, setMode] = useState<'list' | 'folders'>('list');
   /** Ids, deren Untertodo-Liste umgeschaltet wurde (heute: zugeklappt, sonst: aufgeklappt). */
   const [toggled, setToggled] = useState<Set<string>>(new Set());
@@ -171,7 +177,16 @@ export const MobileTodoView: React.FC = () => {
               >
                 {t.title}
               </span>
-              {isOverdue && <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>}
+              {isOverdue && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); setOverdueMenuId((id) => (id === t.id ? null : t.id)); }}
+                  aria-expanded={overdueMenuId === t.id}
+                  className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white"
+                >
+                  Überfällig
+                </button>
+              )}
               <span onClick={(e) => { e.stopPropagation(); toggleAll(t); }} role="presentation">
                 <TodoProgressRing segments={hasKids ? kidList.map((c) => c.isCompleted) : [t.isCompleted]} inverted={isToday} />
               </span>
@@ -187,6 +202,13 @@ export const MobileTodoView: React.FC = () => {
               )}
             </div>
 
+            {isOverdue && overdueMenuId === t.id && (
+              <div className="mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <button type="button" onClick={() => { void updateTask(t.id, { dueDate: isoDay(new Date()), scheduledDate: isoDay(new Date()) }); setOverdueMenuId(null); }} className="rounded-full bg-t2-sub px-3 py-1 text-[12px] font-semibold text-t2-ink">Auf heute</button>
+                <button type="button" onClick={() => { const m = isoDay(addDays(new Date(), 1)); void updateTask(t.id, { dueDate: m, scheduledDate: m }); setOverdueMenuId(null); }} className="rounded-full bg-t2-sub px-3 py-1 text-[12px] font-semibold text-t2-ink">Morgen</button>
+                <button type="button" onClick={() => { toggleOne(t.id); setOverdueMenuId(null); }} className="rounded-full px-3 py-1 text-[12px] font-semibold text-t2-ink-2 ring-1 ring-t2-line">Erledigt</button>
+              </div>
+            )}
             {shown.length > 0 && (
               <div className="mt-2 flex flex-col gap-2">
                 {shown.map((c) => (

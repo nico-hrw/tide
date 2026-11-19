@@ -1683,9 +1683,9 @@ export default function MobileLayout({
               </h1>
             </div>
             </AutoHide>
-            <div className="shrink-0">
+            <AutoHide ms={8000} className="shrink-0">
               <MobileIsland className="-mt-1.5" />
-            </div>
+            </AutoHide>
           </div>
 
           <div>
