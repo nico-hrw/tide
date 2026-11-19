@@ -18,6 +18,7 @@ import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
 import { pickGreetingTemplate, formatGreeting, fireConfetti, AutoHide } from './MobileHeaderWidgets';
+import { getEventGroupIds } from '../../lib/calendarUtils';
 import MobileIsland from '@/components/island/MobileIsland';
 import TodoList from '../Todo/TodoList';
 import MobileTodoView from '../Todo/MobileTodoView';
@@ -915,7 +916,7 @@ export default function MobileLayout({
       .filter((f: any) => f.type !== 'folder')
       .slice()
       .sort((a: any, b: any) => new Date(b.updated_at || b.updatedAt || b.created_at || b.createdAt || 0).getTime() - new Date(a.updated_at || a.updatedAt || a.created_at || a.createdAt || 0).getTime())
-      .slice(0, 3);
+      .slice(0, 12);
     void preloadNotePreviews(latest as Array<Record<string, unknown>>);
   }, [files]);
   const theme = useDataStore(s => s.theme);
@@ -970,6 +971,12 @@ export default function MobileLayout({
   }, [isSearchOpen]);
 
   // ── [RECURRENCE-EXPANSION] ──────────────────────────────────────────────────────────
+  // The event's pattern comes from its group (theme), as on the desktop calendar.
+  const themeEffectFor = (evt: any): string | undefined => {
+    const gid = getEventGroupIds(evt)[0];
+    const t = gid ? (themes || []).find((x) => x.id === gid) : undefined;
+    return t?.effect || evt.effect;
+  };
   const expandedEvents = useMemo(() => {
     const minDate = new Date(activeDate.getFullYear(), activeDate.getMonth() - 2, 1);
     const maxDate = new Date(activeDate.getFullYear(), activeDate.getMonth() + 3, 1);
@@ -999,6 +1006,7 @@ export default function MobileLayout({
 
       expanded.push({
         ...evt,
+        effect: themeEffectFor(evt),
         id: start.getTime() === new Date(evt.start).getTime() ? evt.id : `${evt.id}_${start.getTime()}`,
         start: start.toISOString(),
         end: end.toISOString()
@@ -1058,7 +1066,7 @@ export default function MobileLayout({
     });
 
     return expanded;
-  }, [events, activeDate]);
+  }, [events, activeDate, themes]);
 
   useEffect(() => {
     const handleEditEvent = (e: Event) => {

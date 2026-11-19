@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, CheckCheck, ListTodo } from 'lucide-react';
+import { ChevronDown, CheckCheck, ListTodo, CalendarDays } from 'lucide-react';
 import { addDays } from 'date-fns';
 
 /** Local calendar day as yyyy-MM-dd (the due date format of the store). */
@@ -164,8 +164,8 @@ export const MobileTodoView: React.FC = () => {
           tabIndex={0}
           onClick={() => setDetailId(t.id)}
           onKeyDown={(e) => { if (e.key === 'Enter') setDetailId(t.id); }}
-          className={`flex items-start gap-3 p-3.5 cursor-pointer ${
-            isToday ? 'bg-cal-praktikum text-white' : 'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink'
+          className={`flex items-start gap-3 p-3.5 cursor-pointer rounded-[18px] shadow-[0_1px_2px_rgba(0,0,0,0.05)] transition-transform active:scale-[0.99] ${
+            isToday ? 'bg-cal-praktikum text-white' : 'bg-t2-surface text-t2-ink ring-1 ring-t2-line'
           }`}
         >
           {dateBlock(t, isToday)}
@@ -206,7 +206,15 @@ export const MobileTodoView: React.FC = () => {
               <div className="mt-2 flex flex-wrap gap-1.5" onClick={(e) => e.stopPropagation()}>
                 <button type="button" onClick={() => { void updateTask(t.id, { dueDate: isoDay(new Date()), scheduledDate: isoDay(new Date()) }); setOverdueMenuId(null); }} className="rounded-full bg-t2-sub px-3 py-1 text-[12px] font-semibold text-t2-ink">Auf heute</button>
                 <button type="button" onClick={() => { const m = isoDay(addDays(new Date(), 1)); void updateTask(t.id, { dueDate: m, scheduledDate: m }); setOverdueMenuId(null); }} className="rounded-full bg-t2-sub px-3 py-1 text-[12px] font-semibold text-t2-ink">Morgen</button>
-                <button type="button" onClick={() => { toggleOne(t.id); setOverdueMenuId(null); }} className="rounded-full px-3 py-1 text-[12px] font-semibold text-t2-ink-2 ring-1 ring-t2-line">Erledigt</button>
+                <label aria-label="Anderes Datum wählen" title="Anderes Datum wählen" className="relative grid h-[27px] w-[27px] place-items-center rounded-full bg-t2-sub text-t2-ink-2">
+                  <CalendarDays size={14} />
+                  <input
+                    type="date"
+                    aria-label="Anderes Datum wählen"
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    onChange={(e) => { if (e.target.value) { void updateTask(t.id, { dueDate: e.target.value, scheduledDate: e.target.value }); setOverdueMenuId(null); } }}
+                  />
+                </label>
               </div>
             )}
             {shown.length > 0 && (
