@@ -57,12 +57,14 @@ function getEvInfo(ev: any, now: Date, isToday: boolean, nextUpcomingId: string 
 }
 
 /** Thin line with a dot and the time: where "now" sits in today's list. */
-function NowLine({ time }: { time: Date }) {
+function NowLine({ time, dark }: { time: Date; dark: boolean }) {
+  // Bordeaux on light, a lighter rose on dark, so it stays readable and matches the calm palette.
+  const color = dark ? '#E8909B' : '#7A1F2E';
   return (
     <div className="relative w-full h-4 my-0.5 flex items-center pointer-events-none" aria-label="Jetzt">
-      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: T.accent }} />
-      <span className="flex-1 h-px" style={{ background: T.accent }} />
-      <span className="text-[10px] font-bold px-1.5" style={{ color: T.accent }}>{time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
+      <span className="flex-1 h-px" style={{ background: color }} />
+      <span className="text-[10px] font-bold px-1.5" style={{ color }}>{time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>
   );
 }
@@ -403,7 +405,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
       )}
 
       {clusters.map((cluster, cIdx) => {
-        const nowEl = cIdx === nowIdx ? <NowLine time={now} /> : null;
+        const nowEl = cIdx === nowIdx ? <NowLine time={now} dark={theme === 'dark'} /> : null;
         const gapLabel = cIdx === 0 ? null : formatFree(Math.round((cluster.clusterStart.getTime() - clusters[cIdx - 1].clusterEnd.getTime()) / 60_000));
         const pauseEl = gapLabel ? <FreeGap label={gapLabel} /> : null;
         const todosBefore = timedTodos.filter(t => todoSlot(t.start) === cIdx);
@@ -413,8 +415,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
           const ev = cluster.events[0];
           return (
             <React.Fragment key={ev.id}>
-              {nowEl}{todoEls}
+              {todoEls}
               {pauseEl}
+              {nowEl}
               <TimelineEventItem
                 ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                 theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
@@ -432,8 +435,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
         const columns = columnsFor(cluster.events);
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
-            {nowEl}{todoEls}
+            {todoEls}
             {pauseEl}
+            {nowEl}
             <div className="relative w-full my-1" style={{ height: clusterH }}>
               {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
                 <TimelineEventItem
