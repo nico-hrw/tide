@@ -148,6 +148,8 @@ export const useUiActions = () =>
             showPageBreaks: s.showPageBreaks,
             headingNumbering: s.headingNumbering,
             setHeadingNumbering: s.setHeadingNumbering,
+            a4SideBorders: s.a4SideBorders,
+            setA4SideBorders: s.setA4SideBorders,
             setSettingsModalOpen: s.setSettingsModalOpen,
             setSettingsModalTab: s.setSettingsModalTab,
             setSmartIsland: s.setSmartIsland,

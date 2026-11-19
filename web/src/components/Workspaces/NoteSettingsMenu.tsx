@@ -160,6 +160,8 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const storeShowPageBreaks = useDataStore((s) => s.showPageBreaks);
     const headingNumbering = useDataStore((s) => s.headingNumbering);
     const setHeadingNumbering = useDataStore((s) => s.setHeadingNumbering);
+    const a4SideBorders = useDataStore((s) => s.a4SideBorders);
+    const setA4SideBorders = useDataStore((s) => s.setA4SideBorders);
     const setStoreShowPageBreaks = useDataStore((s) => s.setShowPageBreaks);
     const enabledExtensions = useDataStore((s) => s.enabledExtensions ?? []);
     const activeNoteId = useDataStore((s) => s.activeNoteId);
@@ -621,6 +623,23 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                     </div>
                     <div className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${headingNumbering ? 'bg-t2-accent' : 'bg-t2-line'}`}>
                         <div className={`w-4 h-4 bg-t2-surface rounded-full shadow transition-transform ${headingNumbering ? 'translate-x-4' : ''}`} />
+                    </div>
+                </button>
+            </div>
+
+            {/* A4 sheet: left and right edges on or off (top and bottom edge stay) */}
+            <div className="px-2 py-1 mb-1">
+                <button
+                    type="button"
+                    onClick={() => setA4SideBorders(!a4SideBorders)}
+                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-t2-hover transition-colors text-left"
+                >
+                    <div className="flex flex-col">
+                        <span className="text-xs font-medium text-t2-ink">Seitliche A4-Ränder</span>
+                        <span className="text-[10px] text-t2-ink-3">Aus: nur oben und unten eine Linie</span>
+                    </div>
+                    <div className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${a4SideBorders ? 'bg-t2-accent' : 'bg-t2-line'}`}>
+                        <div className={`w-4 h-4 bg-t2-surface rounded-full shadow transition-transform ${a4SideBorders ? 'translate-x-4' : ''}`} />
                     </div>
                 </button>
             </div>

@@ -1,12 +1,15 @@
 "use client";
 
 import React from "react";
+import { History } from "lucide-react";
 
 interface NoteHistoryLabelProps {
     /** ISO timestamp of the last edit. */
     lastEdited?: string | null;
     open: boolean;
     onToggle: () => void;
+    /** Icon only, for the icon column beside the sheet. */
+    compact?: boolean;
 }
 
 export function formatRelativeDe(iso?: string | null, now: number = Date.now()): string {
@@ -27,8 +30,22 @@ export function formatRelativeDe(iso?: string | null, now: number = Date.now()):
 }
 
 /** "Zuletzt bearbeitet vor …" — toggles the on-page version timeline. */
-export default function NoteHistoryLabel({ lastEdited, open, onToggle }: NoteHistoryLabelProps) {
+export default function NoteHistoryLabel({ lastEdited, open, onToggle, compact = false }: NoteHistoryLabelProps) {
     const rel = formatRelativeDe(lastEdited);
+    if (compact) {
+        return (
+            <button
+                type="button"
+                onClick={onToggle}
+                aria-expanded={open}
+                aria-label="Versionsverlauf ein-/ausblenden"
+                title={rel ? `Zuletzt bearbeitet ${rel} · Versionsverlauf` : "Versionsverlauf"}
+                className={`p-1.5 rounded-lg transition-colors hover:bg-t2-hover ${open ? "text-t2-accent" : "text-t2-ink-2 hover:text-t2-ink"}`}
+            >
+                <History size={16} />
+            </button>
+        );
+    }
     return (
         <button
             type="button"

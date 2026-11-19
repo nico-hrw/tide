@@ -178,6 +178,9 @@ export interface UiSlice {
     /** Numbers headings and sub-headings (1, 1.1, 1.1.1) by CSS counters; the text is not changed. */
     headingNumbering: boolean;
     setHeadingNumbering: (on: boolean) => void;
+    /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
+    a4SideBorders: boolean;
+    setA4SideBorders: (on: boolean) => void;
 }
 
 export interface FsSlice {

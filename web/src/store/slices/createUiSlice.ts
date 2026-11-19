@@ -107,6 +107,12 @@ function getInitialHeadingNumbering(): boolean {
     return localStorage.getItem('tide_heading_numbering') === 'true';
 }
 
+function getInitialA4SideBorders(): boolean {
+    if (typeof window === 'undefined') return true;
+    const stored = localStorage.getItem('tide_a4_side_borders');
+    return stored !== null ? stored === 'true' : true;
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -124,6 +130,12 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
         set(() => {
             if (typeof window !== 'undefined') localStorage.setItem('tide_heading_numbering', String(on));
             return { headingNumbering: on };
+        }),
+    a4SideBorders: getInitialA4SideBorders(),
+    setA4SideBorders: (on: boolean) =>
+        set(() => {
+            if (typeof window !== 'undefined') localStorage.setItem('tide_a4_side_borders', String(on));
+            return { a4SideBorders: on };
         }),
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) =>

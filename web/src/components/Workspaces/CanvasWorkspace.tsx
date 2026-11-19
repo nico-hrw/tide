@@ -292,6 +292,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const paperPattern = useDataStore((s) => s.paperPattern);
     const showPageBreaks = useDataStore((s) => s.showPageBreaks);
     const headingNumbering = useDataStore((s) => s.headingNumbering);
+    const a4SideBorders = useDataStore((s) => s.a4SideBorders);
     const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
@@ -304,24 +305,29 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const setHoveredBlockId = props.setHoveredBlockId || setInternalHoveredBlockId;
 
     const isHidden = isActive !== undefined ? !isActive : (NON_EDITOR_TABS.has(activeTabId) || activeTabId.startsWith('chat-') || activeTabId.startsWith('profile:'));
+    const isA4 = noteLayout === 'a4';
+
+    // The timeline sits beside the right edge of the A4 sheet; other layouts keep it in the top-right corner.
+    const timeline = (
+        <NoteHistoryTimeline
+            open={isHistoryMode}
+            onClose={handleCancelHistory}
+            points={points}
+            activeIndex={activeIndex}
+            onSelectIndex={setActiveIndex}
+            isLoading={isBackupLoading}
+            error={backupError}
+            onView={() => setIsViewingVersion(true)}
+            onRestore={handleApplyHistory}
+            canRestore={!!selectedContent && activeIndex > 0}
+            edge={isA4}
+        />
+    );
 
     return (
         <div className={`flex-1 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''} ${isHidden ? 'hidden' : 'block'}`}>
             {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
-            {!isHidden && !isLoadingContent && (
-                <NoteHistoryTimeline
-                    open={isHistoryMode}
-                    onClose={handleCancelHistory}
-                    points={points}
-                    activeIndex={activeIndex}
-                    onSelectIndex={setActiveIndex}
-                    isLoading={isBackupLoading}
-                    error={backupError}
-                    onView={() => setIsViewingVersion(true)}
-                    onRestore={handleApplyHistory}
-                    canRestore={!!selectedContent && activeIndex > 0}
-                />
-            )}
+            {!isHidden && !isLoadingContent && !isA4 && timeline}
             {isLoadingContent ? (
                 <div className="flex items-center justify-center h-full text-t2-ink-3">Loading content...</div>
             ) : (
@@ -376,10 +382,11 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'} ${headingNumbering ? 'heading-numbered' : ''}`}>
+                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'} ${noteLayout === 'a4' && !a4SideBorders ? 'a4-no-sides' : ''} ${headingNumbering ? 'heading-numbered' : ''}`}>
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}
+                                {isA4 && !isHidden && !isLoadingContent && timeline}
                                 {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
                                     <>
                                         {(() => {
@@ -519,7 +526,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
-                                            <div className="flex items-center gap-1 shrink-0 self-end mb-2">
+                                            {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
+                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:left-full lg:top-24 lg:ml-3 lg:mb-0 lg:flex-col lg:self-auto' : ''}`}>
                                                 {(() => {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
@@ -530,6 +538,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             lastEdited={af?.updated_at || af?.updatedAt}
                                                             open={isHistoryMode}
                                                             onToggle={handleToggleHistory}
+                                                            compact={isA4}
                                                         />
                                                     );
                                                 })()}

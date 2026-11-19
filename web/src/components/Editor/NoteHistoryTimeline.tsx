@@ -18,6 +18,8 @@ interface NoteHistoryTimelineProps {
     canRestore: boolean;
     /** Closes the timeline (close button and Escape). */
     onClose?: () => void;
+    /** Placed beside the right edge of the A4 sheet (true) or in the top-right corner of the note area (false). */
+    edge?: boolean;
 }
 
 const MIN_GAP = 88;
@@ -42,7 +44,7 @@ function sourceOf(p: NoteBackupPoint): string {
 
 /** Vertical on-page timeline: a line grows down the right edge, save points sit at heights proportional to their age. */
 export default function NoteHistoryTimeline({
-    open, points, activeIndex, onSelectIndex, isLoading = false, error, onView, onRestore, canRestore, onClose,
+    open, points, activeIndex, onSelectIndex, isLoading = false, error, onView, onRestore, canRestore, onClose, edge = false,
 }: NoteHistoryTimelineProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const [height, setHeight] = useState(600);
@@ -92,7 +94,7 @@ export default function NoteHistoryTimeline({
         <div className="sticky top-0 h-0 z-30 pointer-events-none">
             <div
                 ref={wrapRef}
-                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
+                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-full lg:right-auto lg:ml-40 lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
                 style={{ height }}
                 role="region"
                 aria-label="Versionsverlauf"

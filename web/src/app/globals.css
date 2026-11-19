@@ -647,9 +647,21 @@ ul[data-type="taskList"] li>div>p {
 .heading-numbered .ProseMirror h1 { counter-increment: hn1; counter-reset: hn2 hn3; }
 .heading-numbered .ProseMirror h2 { counter-increment: hn2; counter-reset: hn3; }
 .heading-numbered .ProseMirror h3 { counter-increment: hn3; }
-.heading-numbered .ProseMirror h1::before { content: counter(hn1) ". "; color: var(--t2-ink-3); font-weight: 500; }
-.heading-numbered .ProseMirror h2::before { content: counter(hn1) "." counter(hn2) " "; color: var(--t2-ink-3); font-weight: 500; }
-.heading-numbered .ProseMirror h3::before { content: counter(hn1) "." counter(hn2) "." counter(hn3) " "; color: var(--t2-ink-3); font-weight: 500; }
+/* The number hangs in the left margin (absolute), so the heading text never moves.
+   The editor wrapper clips horizontally (overflow-x-hidden); lift that clip so the margin number shows. */
+.heading-numbered .overflow-x-hidden { overflow-x: visible; }
+.heading-numbered .ProseMirror h1,
+.heading-numbered .ProseMirror h2,
+.heading-numbered .ProseMirror h3 { position: relative; }
+.heading-numbered .ProseMirror h1::before,
+.heading-numbered .ProseMirror h2::before,
+.heading-numbered .ProseMirror h3::before {
+  position: absolute; right: 100%; margin-right: 0.45em; top: 0.15em;
+  white-space: nowrap; color: var(--t2-ink-3); font-weight: 500; font-size: 0.55em; line-height: 1.9;
+}
+.heading-numbered .ProseMirror h1::before { content: counter(hn1); }
+.heading-numbered .ProseMirror h2::before { content: counter(hn1) "." counter(hn2); }
+.heading-numbered .ProseMirror h3::before { content: counter(hn1) "." counter(hn2) "." counter(hn3); }
 
 /* DIN A4 page: a sheet of 794 px (210 mm at 96 dpi) centred in the note area. The 32 px gutter for
    pins sits to the left of the sheet, outside its edge. */
@@ -667,6 +679,11 @@ ul[data-type="taskList"] li>div>p {
   border-radius: 3px;
   background: var(--t2-surface);
   box-shadow: 0 0 0 1px var(--t2-line), 0 12px 36px rgba(0, 0, 0, 0.07);
+}
+
+/* Setting "Seitliche A4-Ränder" off: only the top and bottom edge of the sheet is drawn. */
+.a4-sheet.a4-no-sides {
+  box-shadow: 0 -1px 0 var(--t2-line), 0 1px 0 var(--t2-line), 0 12px 24px -10px rgba(0, 0, 0, 0.06);
 }
 
 @media (max-width: 860px) {
