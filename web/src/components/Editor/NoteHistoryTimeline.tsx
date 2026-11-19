@@ -90,10 +90,11 @@ export default function NoteHistoryTimeline({
     const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
 
     return (
-        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:-mt-24" : ""}`}>
+        // Beside the sheet it is taken out of the flow (absolute), so the sheet's content keeps its place.
+        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:absolute lg:left-full lg:top-24 lg:ml-6 lg:w-56" : ""}`}>
             <div
                 ref={wrapRef}
-                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-full lg:right-auto lg:ml-10 lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
+                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-0 lg:right-auto lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
                 style={{ height }}
                 role="region"
                 aria-label="Versionsverlauf"

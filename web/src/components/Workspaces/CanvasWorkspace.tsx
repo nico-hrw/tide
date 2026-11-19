@@ -383,7 +383,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0'} ${noteLayout === 'a4' && !a4SideBorders ? 'a4-no-sides' : ''} ${headingNumbering ? 'heading-numbered' : ''}`}>
+                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0 pt-12'} ${noteLayout === 'a4' && !a4SideBorders ? 'a4-no-sides' : ''} ${headingNumbering ? 'heading-numbered' : ''}`}>
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}
@@ -465,7 +465,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                         })()}
 
                                         {/* On the A4 sheet the path sits in the top margin, left; the icons sit in the top margin, right. */}
-                                        <div className={isA4 ? 'lg:absolute lg:top-8 lg:left-24 lg:z-20' : ''}>
+                                        <div className={isA4 ? 'lg:absolute lg:bottom-full lg:left-0 lg:mb-3 lg:z-20' : ''}>
                                             <NoteBreadcrumb noteId={activeNoteId} files={files} />
                                         </div>
                                         <div className="flex items-center gap-2 mb-6">
@@ -531,18 +531,18 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
-                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:top-8 lg:right-24 lg:mb-0 lg:self-auto' : ''}`}>
+                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:bottom-full lg:right-0 lg:mb-3 lg:self-auto' : ''}`}>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
                                                         if (headerShared) setShowSharePanel(true);
                                                         else handleShare({ stopPropagation: () => {} } as any, activeNoteId);
                                                     }}
-                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12.5px] text-t2-ink-2 hover:bg-t2-hover hover:text-t2-ink transition-colors"
+                                                    className="p-1.5 rounded-lg text-t2-ink-2 hover:bg-t2-hover hover:text-t2-ink transition-colors"
                                                     title="Notiz teilen"
+                                                    aria-label="Notiz teilen"
                                                 >
-                                                    <Share2 size={14} />
-                                                    Teilen
+                                                    <Share2 size={16} />
                                                 </button>
                                                 {(() => {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
