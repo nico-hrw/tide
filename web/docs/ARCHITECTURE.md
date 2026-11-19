@@ -24,17 +24,18 @@ web/src/
 │   ├── Calendar/         # Desktop week/month views, DayColumn, event modals
 │   ├── Canvas/           # XYFlow infinite canvas & card components
 │   ├── Chat/             # E2EE chat messages & partner profiles
+│   ├── Dashboard/        # Desktop workspace content, modal host & shared dashboard types
 │   ├── Editor.tsx        # TipTap rich text editor (solo & collaborative modes)
 │   ├── JobPlanner/       # Job & study planner extension
 │   ├── Finance/          # Finance tracker extension
-│   ├── Layout/           # MobileLayout, MobileWeekGrid, Sidebar, TabList, BottomSheet
+│   ├── Layout/           # MobileLayout orchestrator, mobile/* subcomponents, MobileWeekGrid, Sidebar, TabList, BottomSheet
 │   ├── Modals/           # ShareModal, ShareManagementPanel, SettingsModal
 │   ├── Profile/          # User avatar & profile editor
 │   ├── Security/         # Passkey / PIN vault unlock screens
 │   ├── Settings/         # App settings, APIAccessSettings (Personal Access Tokens) & extension manager
 │   ├── Social/           # Contacts & user discovery
 │   └── extensions/       # TipTap editor extensions + SmartIsland
-├── hooks/                # Custom React hooks (useMediaQuery, etc.)
+├── hooks/                # Custom React hooks (dashboard/* orchestration hooks, useMediaQuery, etc.)
 ├── lib/                  # Pure utilities: api.ts, crypto.ts, cryptoV2.ts, designTokens.ts, bundleImportExport.ts
 ├── store/                # Zustand global stores: useDataStore.ts, useSocialStore.ts, useReferenceStore.ts
 └── types/                # Shared TypeScript models (canvas, note, event, sync, bundle)
