@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tide Mobile Todos</title>
+<style>
+:root {
+  --bg: #faf9f6; --surface: #ffffff; --sub: #f3f1ec; --hover: #ecEAe3;
+  --line: #e4e1d8; --line-soft: #efece5;
+  --ink: #1f1e1b; --ink-2: #5b5852; --ink-3: #9a968c;
+  --accent: #3f6b8c; --late: #b5573f;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #171714; --surface: #1f1e1b; --sub: #26241f; --hover: #2c2a25;
+    --line: #37342d; --line-soft: #2a2823;
+    --ink: #eeebe3; --ink-2: #b4afa3; --ink-3: #7d786d;
+    --accent: #8fb8d6; --late: #e0a095;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #171714; --surface: #1f1e1b; --sub: #26241f; --hover: #2c2a25;
+  --line: #37342d; --line-soft: #2a2823;
+  --ink: #eeebe3; --ink-2: #b4afa3; --ink-3: #7d786d;
+  --accent: #8fb8d6; --late: #e0a095;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 14px/1.45 "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px;
+}
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 15px; margin: 0 0 4px; }
+.lead { color: var(--ink-2); margin: 0 0 24px; max-width: 62ch; }
+.grid { display: grid; gap: 20px; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); }
+.phone { background: var(--surface); border-radius: 28px; box-shadow: 0 0 0 1px var(--line); padding: 14px 12px 16px; min-width: 0; }
+.tag { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--ink-3); }
+.caption { color: var(--ink-2); font-size: 12.5px; margin: 10px 2px 0; }
+.todo { display: flex; align-items: center; gap: 10px; background: var(--bg); border-radius: 16px; padding: 12px; margin-bottom: 8px; }
+.ring { width: 22px; height: 22px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px var(--ink-3); flex: none; }
+.ttl { flex: 1; min-width: 0; font-weight: 600; font-size: 14px; }
+.meta { font-size: 11.5px; color: var(--ink-3); }
+.late { color: var(--late); }
+.quick { font: inherit; font-size: 12px; font-weight: 600; padding: 5px 10px; border-radius: 999px; background: var(--sub); color: var(--ink-2); border: 0; white-space: nowrap; }
+.quick.ghost { background: transparent; box-shadow: inset 0 0 0 1px var(--line); }
+.ib { width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; background: transparent; color: var(--ink-2); border: 0; font-size: 15px; flex: none; }
+.dt { text-align: center; padding: 14px 6px; }
+.dt .big { font-size: 26px; font-weight: 700; letter-spacing: -.01em; }
+.dt .small { font-size: 12px; color: var(--ink-3); }
+.field { background: var(--bg); border-radius: 14px; padding: 10px 12px; margin-bottom: 8px; font-size: 13.5px; }
+.field .k { font-size: 11px; color: var(--ink-3); letter-spacing: .04em; text-transform: uppercase; }
+.field input { font: inherit; font-size: 14px; color: var(--ink); background: transparent; border: 0; outline: 0; width: 100%; padding: 2px 0 0; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.chip { font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--sub); color: var(--ink-2); }
+.chip.on { background: var(--accent); color: var(--bg); }
+.row3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 4px; }
+.row3 button { font: inherit; font-size: 13px; font-weight: 600; padding: 9px 0; border-radius: 12px; border: 0; background: var(--sub); color: var(--ink); }
+.row3 button.on { background: var(--accent); color: var(--bg); }
+/* swipe row */
+.swipe { position: relative; border-radius: 16px; overflow: hidden; margin-bottom: 8px; }
+.swipe .under { position: absolute; inset: 0; display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+.swipe .under span { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.swipe .under .ok { color: var(--accent); }
+.swipe .under .no { color: var(--late); }
+.swipe .front { position: relative; background: var(--bg); padding: 12px; display: flex; align-items: center; gap: 10px; transform: translateX(-54px); border-radius: 16px; }
+.wiggle { display: inline-block; animation: wig .5s ease-in-out infinite; }
+@keyframes wig { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-9deg); } 75% { transform: rotate(9deg); } }
+@media (prefers-reduced-motion: reduce) { .wiggle { animation: none; } }
+</style>
+</head>
+<body>
+
+<h1>Mobile Todos: Vorschläge</h1>
+<p class="lead">Drei Punkte aus der Rückmeldung: überfällige Todos schnell auf heute legen, die Detailansicht mit Datum in der Mitte und Schnellwahl, und die Wisch-Symbole in den Theme-Farben.</p>
+
+<div class="grid">
+
+  <!-- 1. Overdue -->
+  <div class="phone">
+    <div class="tag">1 · Überfällig: schnell auf heute</div>
+    <h2 style="margin-top:4px">Variante A · Dezenter Pill-Knopf</h2>
+    <div class="todo">
+      <span class="ring"></span>
+      <div class="ttl">Bericht Praktikum abgeben<div class="meta late">Überfällig · 17.11.</div></div>
+      <button class="quick ghost">Heute</button>
+    </div>
+    <div class="todo">
+      <span class="ring"></span>
+      <div class="ttl">Mail an Prof. Berg<div class="meta">Morgen</div></div>
+    </div>
+    <p class="caption">Der Knopf steht nur bei überfälligen Todos. Er ist ein Umriss, damit er nicht laut wirkt.</p>
+  </div>
+
+  <div class="phone">
+    <div class="tag">1 · Überfällig: schnell auf heute</div>
+    <h2 style="margin-top:4px">Variante B · Rundes Symbol</h2>
+    <div class="todo">
+      <span class="ring"></span>
+      <div class="ttl">Bericht Praktikum abgeben<div class="meta late">Überfällig · 17.11.</div></div>
+      <button class="ib" aria-label="Auf heute legen" title="Auf heute legen">⟳</button>
+    </div>
+    <div class="todo">
+      <span class="ring"></span>
+      <div class="ttl">Mail an Prof. Berg<div class="meta">Morgen</div></div>
+    </div>
+    <p class="caption">Nur ein Symbol, mit Titel beim Halten. Am kleinsten, aber weniger eindeutig.</p>
+  </div>
+
+  <div class="phone">
+    <div class="tag">1 · Überfällig: schnell auf heute</div>
+    <h2 style="margin-top:4px">Variante C · Wisch nach rechts</h2>
+    <div class="swipe">
+      <div class="under"><span class="ok">Heute</span><span class="no">Löschen</span></div>
+      <div class="front"><span class="ring"></span><div class="ttl">Bericht Praktikum abgeben<div class="meta late">Überfällig · 17.11.</div></div></div>
+    </div>
+    <p class="caption">Kein Knopf nötig: Wisch nach links zeigt „Heute“. Passt zur Wisch-Logik der anderen Todos.</p>
+  </div>
+
+  <!-- 2. Detail -->
+  <div class="phone">
+    <div class="tag">2 · Todo öffnen</div>
+    <h2 style="margin-top:4px">Datum mittig, Ordner als Text, Schnellwahl</h2>
+    <div class="dt">
+      <div class="small">Fällig</div>
+      <div class="big">Mo, 24. Nov.</div>
+      <div class="small">in 5 Tagen</div>
+    </div>
+    <div class="row3"><button>Heute</button><button class="on">Morgen</button><button>Jetzt</button></div>
+    <div class="field" style="margin-top:10px"><div class="k">Ordner</div><input value="Studium" aria-label="Ordner"><div class="chips"><span class="chip on">Studium</span><span class="chip">Praktikum</span><span class="chip">Privat</span></div></div>
+    <p class="caption">Datum in der Mitte statt rechtsbündig wie die anderen Zeilen. Der Ordner ist ein Textfeld mit Vorschlägen aus den vorhandenen Ordnern.</p>
+  </div>
+
+  <!-- 3. Swipe icons -->
+  <div class="phone">
+    <div class="tag">3 · Wischen</div>
+    <h2 style="margin-top:4px">Symbole in den Theme-Farben, ohne Hintergrund</h2>
+    <div class="swipe">
+      <div class="under"><span class="ok"><span class="wiggle">✓</span> Fertig</span><span class="no">Löschen <span class="wiggle">🗑</span></span></div>
+      <div class="front" style="transform:translateX(0)"><span class="ring"></span><div class="ttl">Lerngruppe planen</div></div>
+    </div>
+    <p class="caption">Die Symbole sind in der Akzentfarbe (Fertig) und der Warnfarbe (Löschen). Sie wackeln kurz, sobald die Wischgrenze erreicht ist.</p>
+  </div>
+
+</div>
+
+</body>
+</html>

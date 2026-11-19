@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef } from 'react';
+import { Check, Trash2 } from 'lucide-react';
 
 const SWIPE_LIMIT = 120;
 const SWIPE_TRIGGER = 60;
@@ -12,15 +13,37 @@ const SWIPE_TRIGGER = 60;
 export function SwipeRow({
   children, onComplete, onDelete, completeLabel,
 }: { children: React.ReactNode; onComplete: () => void; onDelete: () => void; completeLabel: string }) {
-  const [dx, setDx] = useState(0);
-  const [dragging, setDragging] = useState(false);
-  const dxRef = useRef(0);
+  // The drag runs on the DOM directly (no React state per move), so it stays smooth when the finger
+  // goes back and forth. React only hears about the end of a gesture and the crossing of a trigger.
+  const contentRef = useRef<HTMLDivElement>(null);
+  const doneRef = useRef<HTMLSpanElement>(null);
+  const delRef = useRef<HTMLSpanElement>(null);
   const startRef = useRef<{ x: number; y: number; axis: 'x' | 'y' | null } | null>(null);
+  const dxRef = useRef(0);
+  const armedRef = useRef<'complete' | 'delete' | null>(null);
   const swipedRef = useRef(false);
+
+  const paint = (dx: number) => {
+    if (contentRef.current) contentRef.current.style.transform = `translateX(${dx}px)`;
+    const armed: 'complete' | 'delete' | null = dx > SWIPE_TRIGGER ? 'complete' : dx < -SWIPE_TRIGGER ? 'delete' : null;
+    const show = (el: HTMLSpanElement | null, on: boolean) => {
+      if (!el) return;
+      el.style.opacity = String(Math.min(1, Math.abs(dx) / 40));
+      el.style.transform = `scale(${on ? 1.15 : 0.9})`;
+      el.classList.toggle('tide-wiggle', on);
+    };
+    show(doneRef.current, armed === 'complete' || (dx > 0 && armed === null));
+    show(delRef.current, armed === 'delete' || (dx < 0 && armed === null));
+    if (armed !== armedRef.current) {
+      armedRef.current = armed;
+      if (navigator.vibrate && armed) navigator.vibrate(8);
+    }
+  };
 
   const onTouchStart = (e: React.TouchEvent) => {
     const t = e.touches[0];
     startRef.current = { x: t.clientX, y: t.clientY, axis: null };
+    if (contentRef.current) contentRef.current.style.transition = 'none';
   };
 
   const onTouchMove = (e: React.TouchEvent) => {
@@ -36,8 +59,7 @@ export function SwipeRow({
     if (s.axis !== 'x') return;
     const limited = Math.max(-SWIPE_LIMIT, Math.min(SWIPE_LIMIT, ddx));
     dxRef.current = limited;
-    setDragging(true);
-    setDx(limited);
+    paint(limited);
   };
 
   const onTouchEnd = () => {
@@ -45,8 +67,9 @@ export function SwipeRow({
     startRef.current = null;
     const final = dxRef.current;
     dxRef.current = 0;
-    setDx(0);
-    setDragging(false);
+    if (contentRef.current) contentRef.current.style.transition = 'transform 0.2s ease-out';
+    paint(0);
+    armedRef.current = null;
     if (s?.axis !== 'x') return;
     swipedRef.current = true;
     setTimeout(() => { swipedRef.current = false; }, 300);
@@ -64,18 +87,16 @@ export function SwipeRow({
       onTouchCancel={onTouchEnd}
       onClickCapture={(e) => { if (swipedRef.current) { e.stopPropagation(); e.preventDefault(); } }}
     >
-      <div
-        className={`absolute inset-0 flex items-center justify-between px-5 text-[13px] font-semibold text-white pointer-events-none ${
-          dx > 0 ? 'bg-emerald-500' : dx < 0 ? 'bg-rose-500' : 'bg-transparent'
-        }`}
-      >
-        <span className={dx > 30 ? 'opacity-100' : 'opacity-0'}>{completeLabel}</span>
-        <span className={dx < -30 ? 'opacity-100' : 'opacity-0'}>Löschen</span>
+      {/* Icons in the theme colours, no background behind them. They grow and wiggle once a swipe will trigger. */}
+      <div className="absolute inset-0 flex items-center justify-between px-6 pointer-events-none">
+        <span ref={doneRef} className="flex items-center gap-1.5 text-[12px] font-semibold text-t2-accent opacity-0 transition-transform" style={{ transform: 'scale(0.9)' }}>
+          <Check size={18} strokeWidth={2.6} />{completeLabel}
+        </span>
+        <span ref={delRef} className="flex items-center gap-1.5 text-[12px] font-semibold text-t2-late opacity-0 transition-transform" style={{ transform: 'scale(0.9)' }}>
+          Löschen<Trash2 size={18} strokeWidth={2.4} />
+        </span>
       </div>
-      <div
-        className="relative"
-        style={{ transform: `translateX(${dx}px)`, transition: dragging ? 'none' : 'transform 0.2s ease-out' }}
-      >
+      <div ref={contentRef} className="relative" style={{ transform: 'translateX(0px)', transition: 'transform 0.2s ease-out' }}>
         {children}
       </div>
     </div>

@@ -238,3 +238,25 @@ export function fireConfetti(originEl: HTMLElement): void {
 
   activeConfettiAnimId = requestAnimationFrame(step);
 }
+
+/**
+ * Shows its children for `ms` milliseconds, then fades them out. Shows them again when `watch` changes
+ * (for example when something new arrives), so the header stays calm without hiding news.
+ */
+export function AutoHide({ children, ms = 6000, watch, className = '' }: { children: React.ReactNode; ms?: number; watch?: unknown; className?: string }) {
+  const [visible, setVisible] = React.useState(true);
+  React.useEffect(() => {
+    setVisible(true);
+    const t = window.setTimeout(() => setVisible(false), ms);
+    return () => window.clearTimeout(t);
+  }, [ms, watch]);
+  return (
+    <div
+      aria-hidden={!visible}
+      className={`transition-[opacity,max-height] duration-500 ease-out overflow-hidden ${className}`}
+      style={{ opacity: visible ? 1 : 0, maxHeight: visible ? 240 : 0, pointerEvents: visible ? 'auto' : 'none' }}
+    >
+      {children}
+    </div>
+  );
+}

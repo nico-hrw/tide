@@ -126,7 +126,7 @@ export const getEffectStyle = (effect: string | undefined): React.CSSProperties 
     if (!effect || effect === 'none' || effect === 'dimmed') return undefined;
     
     if (effect === 'stripes') return {
-        backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.25) 0, rgba(255,255,255,0.25) 8px, transparent 8px, transparent 20px)'
+        backgroundImage: 'repeating-linear-gradient(45deg, rgba(255,255,255,0.12) 0, rgba(255,255,255,0.12) 12px, transparent 12px, transparent 30px)'
     };
     if (effect === 'waves') return {
         backgroundImage: 'radial-gradient(circle at 100% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%), radial-gradient(circle at 0% 50%, transparent 20%, rgba(255,255,255,0.25) 21%, rgba(255,255,255,0.25) 34%, transparent 35%)',
@@ -134,17 +134,17 @@ export const getEffectStyle = (effect: string | undefined): React.CSSProperties 
         backgroundPosition: '0 0, 0 20px'
     };
     if (effect === 'dots') return {
-        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.4) 3px, transparent 4px), radial-gradient(circle, rgba(255,255,255,0.3) 4px, transparent 5px), radial-gradient(circle, rgba(255,255,255,0.2) 5px, transparent 6px), radial-gradient(circle, rgba(255,255,255,0.25) 3px, transparent 4px)',
+        backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.16) 3px, transparent 4px), radial-gradient(circle, rgba(255,255,255,0.3) 4px, transparent 5px), radial-gradient(circle, rgba(255,255,255,0.2) 5px, transparent 6px), radial-gradient(circle, rgba(255,255,255,0.25) 3px, transparent 4px)',
         backgroundSize: '40px 40px',
         backgroundPosition: '10px 10px, 25px 25px, 5px 30px, 30px 5px'
     };
     if (effect === 'chess') return {
-        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13)), linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.13) 75%, rgba(0,0,0,0.13))',
-        backgroundSize: '20px 20px',
-        backgroundPosition: '0 0, 10px 10px'
+        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.06) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.06) 75%, rgba(0,0,0,0.06)), linear-gradient(45deg, rgba(0,0,0,0.06) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.06) 75%, rgba(0,0,0,0.06))',
+        backgroundSize: '30px 30px',
+        backgroundPosition: '0 0, 15px 15px'
     };
     if (effect === 'diamonds') return {
-        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.13) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.13) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.13) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.13) 75%)',
+        backgroundImage: 'linear-gradient(45deg, rgba(0,0,0,0.06) 25%, transparent 25%), linear-gradient(-45deg, rgba(0,0,0,0.06) 25%, transparent 25%), linear-gradient(45deg, transparent 75%, rgba(0,0,0,0.06) 75%), linear-gradient(-45deg, transparent 75%, rgba(0,0,0,0.06) 75%)',
         backgroundSize: '100% 100%',
         backgroundPosition: 'center'
     };
@@ -152,7 +152,7 @@ export const getEffectStyle = (effect: string | undefined): React.CSSProperties 
         backgroundImage: 'linear-gradient(120deg, rgba(255,255,255,0.3) 0%, transparent 100%)'
     };
     if (effect === 'bars') return {
-        backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.2) 0, rgba(255,255,255,0.2) 10px, transparent 10px, transparent 20px)'
+        backgroundImage: 'repeating-linear-gradient(90deg, rgba(255,255,255,0.1) 0, rgba(255,255,255,0.1) 16px, transparent 16px, transparent 30px)'
     };
     
     return undefined;

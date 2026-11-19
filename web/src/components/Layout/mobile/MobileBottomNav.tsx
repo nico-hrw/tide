@@ -75,7 +75,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
       className={`fixed bottom-0 left-0 right-0 px-4 pt-1.5 flex items-center gap-2 z-20 pointer-events-none ${className}`}
       style={{ paddingBottom: 'max(10px, env(safe-area-inset-bottom))' }}
     >
-      <div className="pointer-events-auto flex-1 min-w-0 h-[62px] rounded-[24px] bg-t2-bg border border-t2-line shadow-[0_6px_18px_-10px_rgba(0,0,0,0.25)] flex items-center justify-between px-2">
+      <div className="pointer-events-auto flex-1 min-w-0 h-[62px] rounded-[24px] flex items-center justify-between px-2">
         {TABS.map(renderTab)}
         <button
           type="button"

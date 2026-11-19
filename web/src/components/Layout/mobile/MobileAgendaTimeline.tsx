@@ -1,4 +1,5 @@
 import React, { useState, useMemo } from 'react';
+import { getEffectStyle } from '@/components/Calendar/CalendarEventItem';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
@@ -55,9 +56,10 @@ function getEvInfo(ev: any, now: Date, isToday: boolean, nextUpcomingId: string 
   return { evStart, evEnd, durM, durStr, isActive, isNext, remStr, startStr, color: ev.color || T.accent };
 }
 
-function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSProperties): React.CSSProperties {
+function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSProperties, effect?: string): React.CSSProperties {
+  // The event pattern (stripes, dots …) sits on the category colour, as on the desktop.
   return {
-    background: pal.bg, color: pal.ink, border: 'none',
+    background: pal.bg, color: pal.ink, border: 'none', ...(getEffectStyle(effect) ?? {}),
     boxShadow: isActive ? '0 8px 22px -8px rgba(0,0,0,0.35)' : 'none',
     transition: 'box-shadow 0.2s ease', ...extra,
   };
@@ -168,7 +170,7 @@ function TimelineEventItem({
 
   if (isParallel) {
     return (
-      <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(pal, info.isActive, style)}>
+      <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(pal, info.isActive, style, ev.effect)}>
         <button onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
           <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
             <span className="text-[11px] font-bold" style={{ color: pal.ink }}>
@@ -222,7 +224,7 @@ function TimelineEventItem({
   }
 
   return (
-    <div id={`ev-${ev.id}`} className="w-full rounded-xl my-1 relative transition-all overflow-hidden" style={getCardStyle(pal, info.isActive, { minHeight: pHeight, ...style })}>
+    <div id={`ev-${ev.id}`} className="w-full rounded-xl my-1 relative transition-all overflow-hidden" style={getCardStyle(pal, info.isActive, { minHeight: pHeight, ...style }, ev.effect)}>
       <button onClick={onToggleExpand} className="w-full flex text-left p-0 transition-all cursor-pointer items-stretch" style={{ border: 'none', background: 'transparent', minHeight: isExpanded ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
@@ -413,8 +415,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
         const lanes = packLanes(cluster.events, cluster.clusterStart);
         const placed = lanes.flatMap((laneItems, laneIdx) => laneItems.map((item) => ({ ...item, laneIdx })));
         const clusterH = placed.reduce((m, it) => Math.max(m, it.desiredTop + it.height), 0);
-        const laneCount = lanes.length;
-        const OFFSET = 14;
+        const columns = columnsFor(cluster.events);
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
             {todoEls}
@@ -428,10 +429,10 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                   style={{
                     position: 'absolute',
                     top: desiredTop,
-                    left: laneIdx * OFFSET,
-                    width: `calc(100% - ${laneCount * OFFSET + 8}px)`,
+                    left: `${columns.get(ev.id)?.left ?? 0}%`,
+                    width: `calc(${100 - (columns.get(ev.id)?.left ?? 0)}% - 4px)`,
                     minHeight: height,
-                    zIndex: laneIdx + 1,
+                    zIndex: columns.get(ev.id)?.z ?? 1,
                   }}
                 />
               ))}
@@ -445,6 +446,25 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
     </div>
   );
 });
+
+/**
+ * Column for overlapping events. The longer event keeps the full width; a shorter event that overlaps a
+ * longer one moves to the right and gets narrower, more so the more events it sits under. Events that do
+ * not overlap are not narrowed. Later starts are drawn on top.
+ */
+function columnsFor(events: any[]): Map<string, { left: number; z: number }> {
+  const start = (e: any) => new Date(e.start).getTime();
+  const end = (e: any) => new Date(e.end).getTime();
+  const dur = (e: any) => end(e) - start(e);
+  const order = [...events].sort((x, y) => start(x) - start(y));
+  const out = new Map<string, { left: number; z: number }>();
+  order.forEach((e, idx) => {
+    const longer = events.filter(o => o.id !== e.id && start(o) < end(e) && end(o) > start(e)
+      && (dur(o) > dur(e) || (dur(o) === dur(e) && start(o) < start(e)))).length;
+    out.set(e.id, { left: Math.min(longer * 24, 46), z: idx + 1 });
+  });
+  return out;
+}
 
 export type DayItem =
   | { kind: 'day'; date: Date; events: any[]; allDayEvents: any[]; isToday: boolean }

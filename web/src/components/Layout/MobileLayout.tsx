@@ -17,7 +17,7 @@ import MiniCalendar from '../Calendar/MiniCalendar';
 import MobileWeekGrid from './MobileWeekGrid';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import dynamic from 'next/dynamic';
-import { pickGreetingTemplate, formatGreeting, fireConfetti } from './MobileHeaderWidgets';
+import { pickGreetingTemplate, formatGreeting, fireConfetti, AutoHide } from './MobileHeaderWidgets';
 import MobileIsland from '@/components/island/MobileIsland';
 import TodoList from '../Todo/TodoList';
 import MobileTodoView from '../Todo/MobileTodoView';
@@ -1634,17 +1634,18 @@ export default function MobileLayout({
       <div
         className="shrink-0 z-20 sticky top-0"
         style={{
-          paddingTop: 'max(12px, calc(env(safe-area-inset-top) + 4px))',
+          paddingTop: 'max(8px, calc(env(safe-area-inset-top) + 2px))',
           background: T.bg,
         }}
       >
           {/* Row 1: Date & Greeting ("XX. Monat", "Guten Morgen/Mittag/Tag/Abend Name!") */}
-          <div className="px-4 pt-1 pb-1.5 flex items-start justify-between gap-3">
+          <div className="px-4 pt-0.5 pb-1 flex items-start justify-between gap-3">
+            <AutoHide ms={6000} watch={displayName} className="min-w-0 flex-1">
             <div className="min-w-0 flex-1">
               <p className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 flex-wrap" style={{ color: T.mut }}>
                 {format(now, 'd. MMMM', { locale: de })}
               </p>
-              <h1 className="text-[1.7rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
+              <h1 className="text-[1.35rem] font-black tracking-tight line-clamp-2 leading-tight mt-0.5" style={{ color: T.pri }}>
                 {(() => {
                   const trimmed = displayName?.trim();
                   if (!trimmed || !greetingTemplate.includes('{name}')) {
@@ -1681,6 +1682,7 @@ export default function MobileLayout({
                 })()}
               </h1>
             </div>
+            </AutoHide>
             <div className="shrink-0">
               <MobileIsland className="-mt-1.5" />
             </div>
