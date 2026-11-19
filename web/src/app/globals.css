@@ -640,6 +640,28 @@ ul[data-type="taskList"] li>div>p {
   margin: 2.25rem 0;
 }
 
+/* Page break (PageBreakNode): a dashed rule at the top of the break with a small label. Height is set by the node. */
+.tide-page-break {
+  position: relative;
+  user-select: none;
+  margin: 0;
+}
+.tide-page-break::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 0;
+  border-top: 1px dashed var(--t2-line);
+}
+.tide-page-break__label {
+  position: absolute;
+  right: 0;
+  top: 4px;
+  font-size: 11px;
+  color: var(--t2-ink-3);
+}
+
 /* Heading numbering (setting "Überschriften nummerieren"). Counters only change the display. */
 .heading-numbered .ProseMirror {
   counter-reset: hn1 hn2 hn3;

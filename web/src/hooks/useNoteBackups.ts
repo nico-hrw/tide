@@ -224,11 +224,11 @@ export function useNoteBackups(
             return !isNaN(tA) && !isNaN(tB) && tA !== tB ? tB - tA : FIXED_SLOTS.indexOf(a.slot_name!.trim()) - FIXED_SLOTS.indexOf(b.slot_name!.trim());
         });
 
-        // Several slots can hold the same save (no edits in between). Show each save once, under the
-        // newest slot that carries it, so the timeline does not repeat one version four times.
+        // Several slots hold the same save (rotated copies, written within the same minute). Show each
+        // save once, under the newest slot in that minute, so the timeline does not repeat one version.
         const bySavedAt = new Map<string, typeof valid[number]>();
         for (const s of valid) {
-            const key = s.updated_at || "";
+            const key = (s.updated_at || "").slice(0, 16); // YYYY-MM-DDTHH:MM
             if (!key || isNaN(new Date(key).getTime()) || bySavedAt.has(key)) continue;
             bySavedAt.set(key, s);
         }

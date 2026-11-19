@@ -527,7 +527,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
-                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:left-full lg:top-24 lg:ml-3 lg:mb-0 lg:flex-col lg:self-auto' : ''}`}>
+                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:bottom-full lg:left-0 lg:mb-2 lg:self-auto' : ''}`}>
                                                 {(() => {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
@@ -538,7 +538,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             lastEdited={af?.updated_at || af?.updatedAt}
                                                             open={isHistoryMode}
                                                             onToggle={handleToggleHistory}
-                                                            compact={isA4}
                                                         />
                                                     );
                                                 })()}

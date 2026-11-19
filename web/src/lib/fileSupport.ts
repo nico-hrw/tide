@@ -112,7 +112,7 @@ export function tipTapToHtml(doc: TipTapDoc | Record<string, unknown> | unknown,
         if (node.type === 'text') return renderMarks(node.text || '', node.marks);
         if (node.type === 'dateMention') return `<span style="background-color: #e0f2fe; color: #0284c7; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">📅 ${escapeHtml(String(node.attrs?.date || ''))}</span>`;
         if (node.type === 'calendarEventMention') return `<span style="background-color: #f3e8ff; color: #7e22ce; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">🗓️ ${escapeHtml(String(node.attrs?.title || 'Event'))}</span>`;
-        if (node.type === 'taskMention') return `<span style="background-color: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">☑️ ${escapeHtml(String(node.attrs?.title || 'Aufgabe'))}</span>`;
+        if (node.type === 'taskMention') return `<span style="background-color: #dcfce7; color: #15803d; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;">☑️ ${escapeHtml(String(node.attrs?.label || node.attrs?.title || 'Aufgabe'))}</span>`;
         if (node.type === 'mathBlock') return `<div style="text-align: center; margin: 12pt 0; font-family: monospace; background-color: #f8fafc; padding: 8pt; border-radius: 4px;">$$ ${escapeHtml(String(node.attrs?.latex || ''))} $$</div>`;
         if (node.type === 'inlineMath') return `<span style="font-family: monospace; background-color: #f8fafc; padding: 1px 4px; border-radius: 2px;">$${escapeHtml(String(node.attrs?.latex || ''))}$</span>`;
         if (node.type === 'horizontalRule') return `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16pt 0;" />`;

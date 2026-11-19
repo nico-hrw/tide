@@ -91,10 +91,10 @@ export default function NoteHistoryTimeline({
     const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
 
     return (
-        <div className="sticky top-0 h-0 z-30 pointer-events-none">
+        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:-mt-24" : ""}`}>
             <div
                 ref={wrapRef}
-                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-full lg:right-auto lg:ml-40 lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
+                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-full lg:right-auto lg:ml-10 lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
                 style={{ height }}
                 role="region"
                 aria-label="Versionsverlauf"
@@ -103,8 +103,8 @@ export default function NoteHistoryTimeline({
                 <div className={`flex items-center justify-between pb-2 pr-1 ${open ? "" : "hidden"}`}>
                     <span className="text-[12px] font-semibold uppercase tracking-wide text-t2-ink-3">Versionsverlauf</span>
                     {onClose && (
-                        <button type="button" onClick={onClose} aria-label="Versionsverlauf schließen" title="Schließen (Esc)" className="rounded-[8px] p-1 text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink">
-                            <X size={14} />
+                        <button type="button" onClick={onClose} aria-label="Versionsverlauf schließen" title="Schließen (Esc)" className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-t2-line bg-t2-surface text-t2-ink-2 shadow-xs hover:bg-t2-hover hover:text-t2-ink">
+                            <X size={15} />
                         </button>
                     )}
                 </div>

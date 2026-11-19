@@ -28,7 +28,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
   const {
     activeCycleTotal,
     activeCycleCompletedCount,
-    activeCycleOverdueCount,
     archivedCount,
     hideProgress,
     onBack,
@@ -193,16 +192,17 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
 
       {!hideProgress && (
         <>
-          {/* Progress Bar */}
-          <div className="w-full h-2.5 bg-t2-hover  rounded-full overflow-hidden flex">
-            <div
-              className="h-full rounded-full bg-t2-accent transition-all duration-500 ease-out"
-              style={{ width: `${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
-            />
-            <div
-              className="h-full rounded-full bg-red-500 transition-all duration-500 ease-out"
-              style={{ width: `${(activeCycleOverdueCount / Math.max(activeCycleTotal, 1)) * 100}%` }}
-            />
+          {/* Progress circle: the arc fills with the completed share of this cycle */}
+          <div className="flex items-center justify-end pb-1">
+            <svg width="28" height="28" viewBox="0 0 36 36" aria-label={`${Math.round((activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 100)}% erledigt`}>
+              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--t2-line)" strokeWidth="3.5" />
+              <circle
+                cx="18" cy="18" r="15" fill="none" stroke="var(--t2-ink)" strokeWidth="3.5" strokeLinecap="round"
+                strokeDasharray={`${(activeCycleCompletedCount / Math.max(activeCycleTotal, 1)) * 94.25} 94.25`}
+                transform="rotate(-90 18 18)"
+                className="transition-all duration-500 ease-out"
+              />
+            </svg>
           </div>
 
           {/* Counter text */}

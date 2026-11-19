@@ -71,10 +71,13 @@ export function rewriteTipTapReferences(node: any, idMap: Map<string, string>): 
         }
 
         // Task Mention
-        if (cloned.type === 'taskMention' && cloned.attrs.taskId) {
-            const mappedTaskId = idMap.get(cloned.attrs.taskId);
+        // Task mentions store their todo id as attrs.id (taskId: older exports)
+        if (cloned.type === 'taskMention' && (cloned.attrs?.id || cloned.attrs?.taskId)) {
+            const key = cloned.attrs.id ?? cloned.attrs.taskId;
+            const mappedTaskId = idMap.get(key);
             if (mappedTaskId) {
-                cloned.attrs.taskId = mappedTaskId;
+                if (cloned.attrs.id) cloned.attrs.id = mappedTaskId;
+                if (cloned.attrs.taskId) cloned.attrs.taskId = mappedTaskId;
             }
         }
 
@@ -488,8 +491,8 @@ function scanForEventIds(node: any, eventIds: Set<string>): void {
 
 function scanForTaskIds(node: any, taskIds: Set<string>): void {
     if (!node || typeof node !== 'object') return;
-    if (node.type === 'taskMention' && node.attrs?.taskId) {
-        taskIds.add(node.attrs.taskId);
+    if (node.type === 'taskMention' && (node.attrs?.id || node.attrs?.taskId)) {
+        taskIds.add(node.attrs.id ?? node.attrs.taskId);
     }
     if (Array.isArray(node.content)) {
         node.content.forEach((c: any) => scanForTaskIds(c, taskIds));
@@ -543,7 +546,7 @@ export function tipTapToMarkdown(arg1: any, arg2?: any): string {
         }
 
         if (node.type === 'taskMention') {
-            return `☑️ [${node.attrs?.title || 'Aufgabe'}](task:${node.attrs?.taskId || ''}) `;
+            return `☑️ [${node.attrs?.label || node.attrs?.title || 'Aufgabe'}](task:${node.attrs?.id || node.attrs?.taskId || ''}) `;
         }
 
         if (node.type === 'mathBlock') {

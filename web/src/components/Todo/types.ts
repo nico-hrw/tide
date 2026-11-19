@@ -129,7 +129,8 @@ export function getDeadlineInfo(dateStr?: string): { status: 'overdue' | 'today'
 
 export function getDeadlineChipClasses(status: string, isCompleted: boolean): string {
   if (isCompleted) return 'bg-gray-100 dark:bg-white/5 text-gray-400 dark:text-gray-500 border-gray-200 dark:border-white/5';
-  if (status === 'overdue') return 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/30';
+  // Overdue dates stay neutral (black), per the calm Tide 2 look.
+  if (status === 'overdue') return 'bg-t2-hover text-t2-ink border-t2-line';
   if (status === 'today') return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/30';
   if (status === 'tomorrow') return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/30';
   return 'bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-white/10';

@@ -74,8 +74,8 @@ export const TodoCard: React.FC<TodoCardProps> = ({
           <b className="block text-[15px] font-bold">Heute</b>
         ) : (
           <>
-            <b className={`block text-[15px] font-bold ${overdue ? 'text-t2-late' : 'text-t2-ink'}`}>{format(due, 'd', { locale: de })}.</b>
-            <small className={`text-[11px] font-semibold tracking-wide uppercase ${overdue ? 'text-t2-late' : ''}`}>{format(due, 'MMM', { locale: de })}</small>
+            <b className="block text-[15px] font-bold text-t2-ink">{format(due, 'd', { locale: de })}.</b>
+            <small className="text-[11px] font-semibold tracking-wide uppercase text-t2-ink-2">{format(due, 'MMM', { locale: de })}</small>
           </>
         ))}
       </div>

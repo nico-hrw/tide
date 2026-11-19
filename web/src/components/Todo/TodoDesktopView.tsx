@@ -7,6 +7,7 @@ import { TaskItem } from '@/store/useDataStore';
 import { ArchiveTier, ARCHIVE_TIER_CONFIG, FilterStatus, TaskWithChildren, parseDateSafe } from './types';
 import { TodoCard } from './TodoCard';
 import { TodoDetailPane } from './TodoDetailPane';
+import { TodoWeekStats } from './TodoWeekStats';
 
 type Node = TaskWithChildren | TaskItem;
 
@@ -95,10 +96,10 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
     [tasks, selected],
   );
 
+  // One click shows the todo's content on the right at once; a todo with subtasks also unfolds its list.
   const activate = (task: TaskWithChildren) => {
-    if ((task.children?.length ?? 0) > 0 && expandedId !== task.id) {
-      setExpandedId(task.id);
-      return;
+    if ((task.children?.length ?? 0) > 0) {
+      setExpandedId(expandedId === task.id ? null : task.id);
     }
     setSelectedId(task.id);
     onSelectTask?.(task);
@@ -180,7 +181,7 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
           onDelete={onDeleteTask}
         />
       ) : (
-        <div className="border-l border-t2-line px-[34px] py-1.5 text-sm text-t2-ink-3">Todo auswählen, um Details zu sehen.</div>
+        <TodoWeekStats tasks={tasks} />
       )}
     </div>
   );
