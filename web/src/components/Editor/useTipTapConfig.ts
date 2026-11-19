@@ -17,6 +17,7 @@ import { Highlight } from '../extensions/Highlight';
 import { FontSize } from '../extensions/FontSize';
 import { DoubleTabPageBreak } from '../extensions/DoubleTabPageBreak';
 import { PageBreakNode } from '../extensions/PageBreakNode';
+import { CleanClipboard } from '../extensions/CleanClipboard';
 import { AnimatedEmoji } from '../extensions/AnimatedEmoji';
 import Mention from '@tiptap/extension-mention';
 import mentionSuggestion from '../extensions/mentionSuggestion';
@@ -222,7 +223,7 @@ export function useTipTapConfig({
             TiptapItalic.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'italic' } }),
             TiptapBold.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'font-bold' } }),
             TiptapStrike.extend({ addInputRules: () => [], addPasteRules: () => [] }).configure({ HTMLAttributes: { class: 'line-through' } }),
-            TextStyle, Color, Highlight.configure({ multicolor: true }), FontSize, DoubleTabPageBreak, PageBreakNode, AnimatedEmoji,
+            TextStyle, Color, Highlight.configure({ multicolor: true }), FontSize, DoubleTabPageBreak, PageBreakNode, CleanClipboard, AnimatedEmoji,
             Mention.extend({
                 addAttributes: () => ({
                     id: { default: null, parseHTML: el => el.getAttribute('data-id') },

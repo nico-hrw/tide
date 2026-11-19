@@ -15,6 +15,7 @@ import { getCleanDocContent } from './Editor/editorUtils';
 import { MentionNodeView } from './Editor/MentionNodeView';
 import { TableContextMenu } from './Editor/EditorToolbar';
 import { EditorBubbleMenu } from './Editor/EditorBubbleMenu';
+import { FormatSearch } from './Editor/FormatSearch';
 import { EditorInlineSearch } from './Editor/EditorInlineSearch';
 import { useTipTapConfig } from './Editor/useTipTapConfig';
 import {
@@ -588,6 +589,7 @@ function CollaborativeEditor(props: EditorProps) {
 
     return (
         <div className="editor-container w-full max-w-full overflow-x-hidden relative">
+            <FormatSearch editor={editor} />
             <EditorBubbleMenu
                 editor={editor}
                 activeTabId={activeTabId}
