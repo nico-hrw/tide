@@ -7,16 +7,19 @@ export interface CalendarCategory {
     key: 'praktikum' | 'studium' | 'social' | 'uni' | 'geb';
     /** Palette colour name (Balsam, Aquatone, Artemis, Korall, Kupfer). */
     name: string;
+    /** Background and text colour: CSS variables, so each app palette has its own set (app/palettes.css). */
     bg: string;
     ink: string;
+    /** Default-theme hex, used to recognise older events that stored a hex. */
+    hex: string;
 }
 
 export const CALENDAR_CATEGORIES: readonly CalendarCategory[] = [
-    { key: 'praktikum', name: 'Balsam', bg: '#5C6E6C', ink: '#FFFFFF' },
-    { key: 'studium', name: 'Aquatone', bg: '#A6B7A8', ink: '#1C2622' },
-    { key: 'social', name: 'Artemis', bg: '#D2A96A', ink: '#2A1E0B' },
-    { key: 'uni', name: 'Korall', bg: '#D39D87', ink: '#2E1810' },
-    { key: 'geb', name: 'Kupfer', bg: '#A9623F', ink: '#FFFFFF' },
+    { key: 'praktikum', name: 'Balsam', bg: 'var(--cal-praktikum)', ink: 'var(--cal-praktikum-ink)', hex: '#5C6E6C' },
+    { key: 'studium', name: 'Aquatone', bg: 'var(--cal-studium)', ink: 'var(--cal-studium-ink)', hex: '#A6B7A8' },
+    { key: 'social', name: 'Artemis', bg: 'var(--cal-social)', ink: 'var(--cal-social-ink)', hex: '#D2A96A' },
+    { key: 'uni', name: 'Korall', bg: 'var(--cal-uni)', ink: 'var(--cal-uni-ink)', hex: '#D39D87' },
+    { key: 'geb', name: 'Kupfer', bg: 'var(--cal-geb)', ink: 'var(--cal-geb-ink)', hex: '#A9623F' },
 ];
 
 const byKey = (key: string) => CALENDAR_CATEGORIES.find((c) => c.key === key);
@@ -37,7 +40,7 @@ function categoryFromLegacy(col: string): CalendarCategory {
 export function resolveCategory(color?: string | null): CalendarCategory {
     if (!color) return CALENDAR_CATEGORIES[0];
     const raw = color.trim();
-    const hit = byKey(raw) ?? CALENDAR_CATEGORIES.find((c) => c.bg.toLowerCase() === raw.toLowerCase());
+    const hit = byKey(raw) ?? CALENDAR_CATEGORIES.find((c) => c.hex.toLowerCase() === raw.toLowerCase());
     if (hit) return hit;
     return categoryFromLegacy(raw.toLowerCase());
 }

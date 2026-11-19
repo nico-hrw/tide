@@ -82,3 +82,53 @@
   --t2-accent: #8FB0E6;
   --t2-accent-ink: #0C1018;
 }
+
+/* ── Termin-Farben je Palette: der Farbsatz wechselt mit dem Theme ───────── */
+:root[data-palette="warm"] {
+  --cal-praktikum: #6B6A4E;
+  --cal-praktikum-ink: #FFFFFF;
+  --cal-studium: #B9C2A7;
+  --cal-studium-ink: #1F2418;
+  --cal-social: #E0B77C;
+  --cal-social-ink: #2E1E08;
+  --cal-uni: #D9937A;
+  --cal-uni-ink: #2E1610;
+  --cal-geb: #B5583A;
+  --cal-geb-ink: #FFFFFF;
+}
+:root[data-palette="warm"].dark {
+  --cal-praktikum: #6B6A4E;
+  --cal-praktikum-ink: #FFFFFF;
+  --cal-studium: #B9C2A7;
+  --cal-studium-ink: #1F2418;
+  --cal-social: #E0B77C;
+  --cal-social-ink: #2E1E08;
+  --cal-uni: #D9937A;
+  --cal-uni-ink: #2E1610;
+  --cal-geb: #B5583A;
+  --cal-geb-ink: #FFFFFF;
+}
+:root[data-palette="slate"] {
+  --cal-praktikum: #4B5E7A;
+  --cal-praktikum-ink: #FFFFFF;
+  --cal-studium: #9DB4CF;
+  --cal-studium-ink: #0F1A2A;
+  --cal-social: #C8B38A;
+  --cal-social-ink: #2A2110;
+  --cal-uni: #C98E8E;
+  --cal-uni-ink: #2E1414;
+  --cal-geb: #7C6AA8;
+  --cal-geb-ink: #FFFFFF;
+}
+:root[data-palette="slate"].dark {
+  --cal-praktikum: #4B5E7A;
+  --cal-praktikum-ink: #FFFFFF;
+  --cal-studium: #9DB4CF;
+  --cal-studium-ink: #0F1A2A;
+  --cal-social: #C8B38A;
+  --cal-social-ink: #2A2110;
+  --cal-uni: #C98E8E;
+  --cal-uni-ink: #2E1414;
+  --cal-geb: #7C6AA8;
+  --cal-geb-ink: #FFFFFF;
+}

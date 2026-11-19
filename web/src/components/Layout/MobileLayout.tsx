@@ -1202,7 +1202,17 @@ export default function MobileLayout({
   }, [tasks, files]);
 
   const navBadges = useMemo(() => {
-    const openTodos = (tasks || []).filter((t) => !t.isCompleted).length;
+    // Only today's open todos (due or scheduled today) count on the nav badge.
+    const openTodos = (tasks || []).filter((t) => {
+      if (t.isCompleted) return false;
+      const raw = t.dueDate || t.scheduledDate;
+      if (!raw) return false;
+      try {
+        return isSameDay(new Date(raw), new Date());
+      } catch {
+        return false;
+      }
+    }).length;
     const todayEvts = (expandedEvents || []).filter((e: any) => {
       try {
         return isSameDay(new Date(e.start), new Date());
@@ -1300,7 +1310,7 @@ export default function MobileLayout({
             initial={{ x: '-100%' }} animate={{ x: 0 }} exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
             className="fixed left-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
-            style={{ width: 280, background: T.card, borderRight: `1px solid ${T.brd}` }}
+            style={{ width: 280, background: 'var(--t2-bg)', borderRight: '1px solid var(--t2-line)' }}
           >
             <div className="px-5 pt-14 pb-2">
               <p className="text-xl font-extrabold" style={{ color: T.pri }}>tide</p>
@@ -1313,7 +1323,7 @@ export default function MobileLayout({
             <div className="mx-4 mb-2 flex gap-2">
               <button onClick={() => { setIsSidebarOpen(false); onNewNote(); setIsEditingNote(true); }}
                 className="flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl"
-                style={{ background: T.accent, color: '#fff' }}>
+                style={{ background: 'var(--t2-ink)', color: 'var(--t2-bg)' }}>
                 <Plus size={14} /><span className="text-sm font-semibold">Notiz</span>
               </button>
               <button

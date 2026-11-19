@@ -414,7 +414,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             pointerEvents: 'none',
         };
     } else {
-        const baseColor = isActiveParent ? 'transparent' : (effectiveColor || theme.bg);
+        // Always the current theme colour: an old stored hex must not show its old colour.
+        const baseColor = isActiveParent ? 'transparent' : theme.bg;
         style = {
             top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
             height: isTimePoint ? '6px' : `calc(var(--hour-height, 48px) / 60 * ${minRenderedMinutes} - 4px)`,
@@ -651,7 +652,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             title: event.title,
                             start: event.start,
                             end: event.end,
-                            color: effectiveColor || null,
+                            color: theme.bg,
                             description: event.description || '',
                         }));
                         // Drag image: a small pill preview
@@ -659,7 +660,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         ghost.style.cssText = `
                             position: fixed; top: -200px; left: 0;
                             padding: 4px 10px; border-radius: 6px;
-                            background: ${effectiveColor || theme.bg || '#6366f1'};
+                            background: ${theme.bg};
                             color: white; font-size: 12px; font-weight: 600;
                             max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
                             box-shadow: 0 4px 12px rgba(0,0,0,0.3);

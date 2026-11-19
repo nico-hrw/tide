@@ -95,10 +95,13 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
               />
             </span>
           </Fact>
-          <div className="mb-2 grid grid-cols-3 gap-2">
-            <button type="button" onClick={() => saveDate(isoDayOf(new Date()))} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Heute</button>
-            <button type="button" onClick={() => saveDate(isoDayOf(new Date(Date.now() + 86400000)))} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Morgen</button>
-            <button type="button" onClick={() => saveDate(new Date().toISOString())} className="rounded-xl bg-t2-sub py-2 text-[13px] font-semibold text-t2-ink">Jetzt</button>
+          <div className="flex items-center gap-3 border-b border-t2-line-soft py-3 text-[14.5px]">
+            <span className="w-[90px] shrink-0 text-[13px] text-t2-ink-3">Schnell</span>
+            <div className="flex flex-1 justify-end gap-5 text-[14px] font-medium text-t2-accent">
+              <button type="button" onClick={() => saveDate(isoDayOf(new Date()))}>Heute</button>
+              <button type="button" onClick={() => saveDate(isoDayOf(new Date(Date.now() + 86400000)))}>Morgen</button>
+              <button type="button" onClick={() => saveDate(new Date().toISOString())}>Jetzt</button>
+            </div>
           </div>
           <Fact label="Priorität">
             <select
