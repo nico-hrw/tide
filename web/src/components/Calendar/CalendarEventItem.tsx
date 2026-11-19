@@ -8,6 +8,7 @@ import { Layers, Globe, Lock, Users } from 'lucide-react';
 import { useSocialStore } from '@/store/useSocialStore';
 import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
+import { resolveCategory } from '@/lib/calendarColors';
 
 // Assuming types and getEventTheme are available here, either imported or defined
 interface CalendarEvent {
@@ -100,11 +101,9 @@ export const getEventTheme = (evt: CalendarEvent, palette: CalendarColorPalette 
     // Tide 2 Terminfarben (Palette Nr. 1). Farbgruppen werden auf die fünf Kategorien abgebildet:
     // Standard/Grün = Balsam, Blau = Aquatone, Orange = Artemis, Rot = Korall, Pink = Kupfer.
     if (palette === 'balsam') {
-        if (isPink || evt.effect === 'pink') return { bg: '#A9623F', text: '#FFFFFF', border: '#A9623F' };
-        if (isBlue || evt.effect === 'sky') return { bg: '#A6B7A8', text: '#1C2622', border: '#A6B7A8' };
-        if (isOrange || evt.effect === 'orange') return { bg: '#D2A96A', text: '#2A1E0B', border: '#D2A96A' };
-        if (isRed || evt.effect === 'red') return { bg: '#D39D87', text: '#2E1810', border: '#D39D87' };
-        return { bg: '#5C6E6C', text: '#FFFFFF', border: '#5C6E6C' };
+        // Same five colours as the pickers and the mobile view (lib/calendarColors).
+        const cat = resolveCategory(resolvedColor ?? evt.color);
+        return { bg: cat.bg, text: cat.ink, border: cat.bg };
     }
 
     if (palette === 'soft-pastels') {

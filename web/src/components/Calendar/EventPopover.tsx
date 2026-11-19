@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
+import { CALENDAR_CATEGORIES, categoryVar } from "@/lib/calendarColors";
 
 interface CustomDropdownOption {
     value: string;
@@ -138,7 +139,7 @@ export default function EventPopover({
     const [isImportant, setIsImportant] = useState(!!(event as any).is_important);
     const [isTask, setIsTask] = useState(!!event.is_task);
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
-    const [color, setColor] = useState(event.color || '#6366f1');
+    const [color, setColor] = useState(event.color || CALENDAR_CATEGORIES[0].key);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [tags, setTags] = useState<string[]>([
         event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? ''
@@ -186,7 +187,7 @@ export default function EventPopover({
         setIsImportant(!!(event as any).is_important);
         setIsTask(!!event.is_task);
         setIsCompleted(!!event.is_completed);
-        setColor(event.color || '#6366f1');
+        setColor(event.color || CALENDAR_CATEGORIES[0].key);
         setIsCancelled(isThisOccCancelledOrig);
         setTags([event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? '']);
         setSelectedGroupIds(getEventGroupIds(event));
@@ -368,12 +369,13 @@ export default function EventPopover({
             {/* Color picker */}
             {showColorPicker && (
                 <div className="bg-t2-sub  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
-                    {['#ef4444','#f97316','#f59e0b','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#d946ef','#ec4899','#64748b'].map(c => (
+                    {CALENDAR_CATEGORIES.map(cat => cat.key).map(c => (
                         <button
                             key={c}
                             onClick={() => setColor(c)}
                             className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-110'}`}
-                            style={{ backgroundColor: c }}
+                            style={{ backgroundColor: categoryVar(c) }}
+                            title={CALENDAR_CATEGORIES.find(cat => cat.key === c)?.name}
                         />
                     ))}
                     {/* TEMP: Remove legacy shading effect. Next dev can remove this once old data is migrated. */}

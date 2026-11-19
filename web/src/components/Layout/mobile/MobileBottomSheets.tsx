@@ -18,6 +18,7 @@ import {
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useDataStore } from '@/store/useDataStore';
+import { CALENDAR_CATEGORIES, categoryVar } from '@/lib/calendarColors';
 import { T } from './mobileTheme';
 
 export interface OverlayShellProps {
@@ -205,19 +206,8 @@ export const EventSheet = ({
   );
 };
 
-export const COLOR_OPTIONS = [
-  '#ef4444',
-  '#f97316',
-  '#f59e0b',
-  '#10b981',
-  '#06b6d4',
-  '#3b82f6',
-  '#6366f1',
-  '#8b5cf6',
-  '#d946ef',
-  '#ec4899',
-  '#64748b',
-];
+/** Event colours offered on the phone: the five calendar categories (lib/calendarColors). */
+export const COLOR_OPTIONS = CALENDAR_CATEGORIES.map((c) => c.key);
 
 export const RECURRENCE_OPTIONS: Array<{ value: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'; label: string }> = [
   { value: 'none', label: 'Nie' },
@@ -265,7 +255,7 @@ export const MobileNewEventSheet = ({
     const m = Math.floor(initialDate.getMinutes() / 15) * 15;
     return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
   });
-  const [selectedColor, setSelectedColor] = useState(COLOR_OPTIONS[5]);
+  const [selectedColor, setSelectedColor] = useState<string>(COLOR_OPTIONS[0]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [recurrenceFreq, setRecurrenceFreq] = useState<'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'>('none');
   const [recurrenceEndDate, setRecurrenceEndDate] = useState<string>('');
@@ -345,7 +335,7 @@ export const MobileNewEventSheet = ({
             onChange={e => setTitle(e.target.value)}
             placeholder="Titel des Termins…"
             className="w-full px-4 py-3 rounded-2xl text-sm font-semibold outline-none"
-            style={{ background: T.hov, border: `1.5px solid ${selectedColor}`, color: T.pri }}
+            style={{ background: T.hov, border: `1.5px solid ${categoryVar(selectedColor)}`, color: T.pri }}
           />
 
           <div className="flex gap-2">
@@ -446,9 +436,9 @@ export const MobileNewEventSheet = ({
                   onClick={() => setSelectedColor(c)}
                   className="w-7 h-7 rounded-full shrink-0 transition-transform cursor-pointer"
                   style={{
-                    background: c,
+                    background: categoryVar(c),
                     outline: selectedColor === c ? '2.5px solid #fff' : 'none',
-                    boxShadow: selectedColor === c ? `0 0 0 4px ${c}66` : 'none',
+                    boxShadow: selectedColor === c ? `0 0 0 4px ${categoryVar(c)}` : 'none',
                     transform: selectedColor === c ? 'scale(1.15)' : 'scale(1)',
                   }}
                 />
@@ -518,7 +508,7 @@ export const MobileNewEventSheet = ({
           <button
             type="submit"
             className="w-full py-3 rounded-2xl text-sm font-bold shadow-md transition-opacity active:opacity-85 mt-1 shrink-0"
-            style={{ background: selectedColor, color: '#fff' }}
+            style={{ background: categoryVar(selectedColor), color: '#fff' }}
           >
             Termin anlegen
           </button>
