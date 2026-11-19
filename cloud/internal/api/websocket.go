@@ -122,7 +122,9 @@ type Client struct {
 func (c *Client) close() {
 	c.closeOnce.Do(func() {
 		close(c.done)
-		c.conn.Close()
+		if c.conn != nil {
+			c.conn.Close()
+		}
 	})
 }
 

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -207,7 +206,7 @@ func TestPIN_BruteForceLockout(t *testing.T) {
 	r.Post("/api/v1/auth/verify-pin", authHandler.VerifyPin)
 
 	testRemoteAddr := "192.168.1.100:1234"
-	lockKey := fmt.Sprintf("%s:%s", testRemoteAddr, user.ID)
+	lockKey := user.ID
 
 	wrongPinBody, _ := json.Marshal(map[string]string{
 		"email": testEmail,
