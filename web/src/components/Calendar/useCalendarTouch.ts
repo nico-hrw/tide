@@ -336,8 +336,24 @@ export function useCalendarTouch(
             }
 
             const wasSwiping = isSwiping;
+            const tappedEl = touchedEventEl;
+            const tapDuration = performance.now() - touchStartTime;
             isSwiping = false;
             touchedEventEl = null;
+
+            // A short tap on an event selects it right away. Relying on the browser's synthetic click
+            // alone made the first tap do nothing on tablets; the native click that follows is swallowed
+            // so the handlers run exactly once.
+            if (tappedEl && !didMove && !wasSwiping && tapDuration < 500) {
+                const swallowNativeClick = (clickEvent: MouseEvent) => {
+                    clickEvent.stopPropagation();
+                    clickEvent.preventDefault();
+                };
+                window.addEventListener('click', swallowNativeClick, { capture: true, once: true });
+                setTimeout(() => window.removeEventListener('click', swallowNativeClick, { capture: true }), 400);
+                tappedEl.click();
+                return;
+            }
 
             if (!wasSwiping) return;
 
