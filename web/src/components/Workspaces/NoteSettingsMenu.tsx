@@ -20,6 +20,9 @@ import {
     Lock,
     AlertTriangle,
     Loader2,
+    Ruler,
+    ListOrdered,
+    ChevronDown,
     type LucideIcon,
 } from 'lucide-react';
 import { DT } from '@/lib/designTokens';
@@ -31,6 +34,28 @@ import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
 // One look for every section of the note settings: title, divider.
 const NS_TITLE = 'px-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 mb-1.5';
 const NS_DIVIDER = 'my-2 border-t border-t2-line-soft';
+
+/** Section that unfolds on click; the header shows the current value. */
+function NsDisclosure({ label, value, children }: { label: string; value?: string; children: React.ReactNode }) {
+    const [open, setOpen] = useState(false);
+    return (
+        <div className="px-1">
+            <button
+                type="button"
+                aria-expanded={open}
+                onClick={() => setOpen((o) => !o)}
+                className="w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg hover:bg-t2-hover transition-colors text-left"
+            >
+                <span className="text-xs font-medium text-t2-ink">{label}</span>
+                <span className="flex items-center gap-1.5 text-[11.5px] text-t2-ink-3">
+                    {value}
+                    <ChevronDown size={13} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
+                </span>
+            </button>
+            {open && children}
+        </div>
+    );
+}
 
 export interface NoteSettingsMenuProps {
     isOpen: boolean;
@@ -548,11 +573,27 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 onChange={handleFileInputChange}
             />
 
-            {/* SECTION 1: Format selection */}
+            {/* Quick toggles as icons, at the top of the menu */}
+            <div className="grid grid-cols-3 gap-1.5 mb-2">
+                {[
+                    { on: activeShowBreaks, label: "Hilfslinien", Icon: Ruler, onClick: handleToggleGuidelines },
+                    { on: a4SideBorders, label: "Seitenränder", Icon: Square, onClick: () => setA4SideBorders(!a4SideBorders) },
+                    { on: headingNumbering, label: "Nummerierung", Icon: ListOrdered, onClick: () => setHeadingNumbering(!headingNumbering) },
+                ].map((t) => (
+                    <button
+                        key={t.label}
+                        type="button"
+                        aria-pressed={t.on}
+                        onClick={t.onClick}
+                        className={`flex flex-col items-center gap-1 py-2 rounded-lg text-[11px] font-medium transition-colors ${t.on ? "bg-t2-sub text-t2-accent shadow-xs" : "text-t2-ink-2 hover:bg-t2-hover"}`}
+                    >
+                        <t.Icon size={16} />
+                        {t.label}
+                    </button>
+                ))}
+            </div>
+            <NsDisclosure label="Seitenformat" value={LAYOUT_OPTIONS.find((o) => o.id === activeLayout)?.shortLabel ?? ""}>
             <div className="px-2 py-1 mb-1">
-                <div className={NS_TITLE}>
-                    Seitenformat
-                </div>
                 <div className="grid grid-cols-2 gap-1.5">
                     {LAYOUT_OPTIONS.map((opt) => {
                         const Icon = opt.icon;
@@ -580,11 +621,9 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             <div className={NS_DIVIDER} />
 
-            {/* SECTION 2: Paper Pattern */}
+            </NsDisclosure>
+            <NsDisclosure label="Papier" value={PATTERN_OPTIONS.find((o) => o.id === activePattern)?.label ?? ""}>
             <div className="px-2 py-1 mb-1">
-                <div className={NS_TITLE}>
-                    Papier-Muster
-                </div>
                 <div className="grid grid-cols-3 gap-1">
                     {PATTERN_OPTIONS.map((opt) => {
                         const Icon = opt.icon;
@@ -610,79 +649,9 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
 
             <div className={NS_DIVIDER} />
 
-            {/* Heading numbering toggle (1, 1.1, 1.1.1 by CSS counters) */}
-            <div className="px-2 py-1 mb-1">
-                <button
-                    type="button"
-                    onClick={() => setHeadingNumbering(!headingNumbering)}
-                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-t2-hover transition-colors text-left"
-                >
-                    <div className="flex flex-col">
-                        <span className="text-xs font-medium text-t2-ink">Überschriften nummerieren</span>
-                        <span className="text-[10px] text-t2-ink-3">1, 1.1, 1.1.1 – nur Anzeige, der Text bleibt</span>
-                    </div>
-                    <div className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${headingNumbering ? 'bg-t2-accent' : 'bg-t2-line'}`}>
-                        <div className={`w-4 h-4 bg-t2-surface rounded-full shadow transition-transform ${headingNumbering ? 'translate-x-4' : ''}`} />
-                    </div>
-                </button>
-            </div>
-
-            {/* A4 sheet: left and right edges on or off (top and bottom edge stay) */}
-            <div className="px-2 py-1 mb-1">
-                <button
-                    type="button"
-                    onClick={() => setA4SideBorders(!a4SideBorders)}
-                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-t2-hover transition-colors text-left"
-                >
-                    <div className="flex flex-col">
-                        <span className="text-xs font-medium text-t2-ink">Seitliche A4-Ränder</span>
-                        <span className="text-[10px] text-t2-ink-3">Aus: nur oben und unten eine Linie</span>
-                    </div>
-                    <div className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${a4SideBorders ? 'bg-t2-accent' : 'bg-t2-line'}`}>
-                        <div className={`w-4 h-4 bg-t2-surface rounded-full shadow transition-transform ${a4SideBorders ? 'translate-x-4' : ''}`} />
-                    </div>
-                </button>
-            </div>
-
-            {/* SECTION 3: Guidelines toggle */}
-            <div className="px-2 py-1 mb-1">
-                <button
-                    type="button"
-                    onClick={handleToggleGuidelines}
-                    className="w-full flex items-center justify-between gap-2 p-1.5 -mx-1 rounded-lg hover:bg-t2-hover  transition-colors text-left"
-                >
-                    <div className="flex flex-col">
-                        <span className="text-xs font-medium text-t2-ink ">
-                            A4-Hilfslinien anzeigen
-                        </span>
-                        <span className="text-[10px] text-t2-ink-3 ">
-                            Seitenumbrüche & Schnittmarken
-                        </span>
-                    </div>
-                    {/* Toggle Switch */}
-                    <div
-                        className={`w-9 h-5 rounded-full transition-colors relative flex items-center p-0.5 ${
-                            activeShowBreaks
-                                ? 'bg-t2-accent '
-                                : 'bg-t2-line '
-                        }`}
-                    >
-                        <div
-                            className={`w-4 h-4 rounded-full bg-t2-surface shadow-xs transition-transform transform ${
-                                activeShowBreaks ? 'translate-x-4' : 'translate-x-0'
-                            }`}
-                        />
-                    </div>
-                </button>
-            </div>
-
-            <div className={NS_DIVIDER} />
-
-            {/* SECTION 4: Standard File Export */}
+            </NsDisclosure>
+            <NsDisclosure label="Exportieren">
             <div className="px-1 py-1">
-                <div className={NS_TITLE}>
-                    Exportieren
-                </div>
                 <button
                     type="button"
                     onClick={handlePdfExport}
@@ -787,6 +756,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 )}
             </div>
 
+            </NsDisclosure>
             {/* SECTION 5: Extended File Support (active when enabledExtensions.includes('file_support')) */}
             {hasFileSupport && (
                 <>

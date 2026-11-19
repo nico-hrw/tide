@@ -12,7 +12,6 @@ interface NoteHistoryTimelineProps {
     onSelectIndex: (index: number) => void;
     isLoading?: boolean;
     error?: string | null;
-    onView: () => void;
     onRestore: () => void;
     /** Selected version content is loaded and can be restored. */
     canRestore: boolean;
@@ -44,7 +43,7 @@ function sourceOf(p: NoteBackupPoint): string {
 
 /** Vertical on-page timeline: a line grows down the right edge, save points sit at heights proportional to their age. */
 export default function NoteHistoryTimeline({
-    open, points, activeIndex, onSelectIndex, isLoading = false, error, onView, onRestore, canRestore, onClose, edge = false,
+    open, points, activeIndex, onSelectIndex, isLoading = false, error, onRestore, canRestore, onClose, edge = false,
 }: NoteHistoryTimelineProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const [height, setHeight] = useState(600);
@@ -126,13 +125,6 @@ export default function NoteHistoryTimeline({
                                     <small className="block text-[12px] text-t2-ink-3">{sourceOf(p)}</small>
                                     {on && !p.isCurrent && (
                                         <div className="flex gap-1.5 mt-2 justify-end">
-                                            <button
-                                                type="button"
-                                                onClick={(e) => { e.stopPropagation(); onView(); }}
-                                                className="px-2.5 py-1 text-[12.5px] rounded-lg bg-t2-sub text-t2-ink hover:bg-t2-hover ring-1 ring-t2-line"
-                                            >
-                                                Ansehen
-                                            </button>
                                             <button
                                                 type="button"
                                                 disabled={!canRestore || isLoading}

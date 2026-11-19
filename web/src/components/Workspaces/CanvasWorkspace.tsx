@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud } from 'lucide-react';
+import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud, Share2 } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -306,6 +306,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
 
     const isHidden = isActive !== undefined ? !isActive : (NON_EDITOR_TABS.has(activeTabId) || activeTabId.startsWith('chat-') || activeTabId.startsWith('profile:'));
     const isA4 = noteLayout === 'a4';
+    const headerShared = isSharedFile(files.find(f => f.id === activeNoteId), myId);
 
     // The timeline sits beside the right edge of the A4 sheet; other layouts keep it in the top-right corner.
     const timeline = (
@@ -314,10 +315,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             onClose={handleCancelHistory}
             points={points}
             activeIndex={activeIndex}
-            onSelectIndex={setActiveIndex}
+            // Choosing a save shows its changes at once; there is no separate step.
+            onSelectIndex={(i) => { setActiveIndex(i); setIsViewingVersion(i > 0); }}
             isLoading={isBackupLoading}
             error={backupError}
-            onView={() => setIsViewingVersion(true)}
             onRestore={handleApplyHistory}
             canRestore={!!selectedContent && activeIndex > 0}
             edge={isA4}
@@ -463,7 +464,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             );
                                         })()}
 
-                                        <NoteBreadcrumb noteId={activeNoteId} files={files} />
+                                        {/* On the A4 sheet the path sits in the top margin, left; the icons sit in the top margin, right. */}
+                                        <div className={isA4 ? 'lg:absolute lg:top-8 lg:left-24 lg:z-20' : ''}>
+                                            <NoteBreadcrumb noteId={activeNoteId} files={files} />
+                                        </div>
                                         <div className="flex items-center gap-2 mb-6">
                                             <input
                                                 id="note-title-input"
@@ -527,7 +531,19 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
-                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:bottom-full lg:left-0 lg:mb-2 lg:self-auto' : ''}`}>
+                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:top-8 lg:right-24 lg:mb-0 lg:self-auto' : ''}`}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        if (headerShared) setShowSharePanel(true);
+                                                        else handleShare({ stopPropagation: () => {} } as any, activeNoteId);
+                                                    }}
+                                                    className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-[12.5px] text-t2-ink-2 hover:bg-t2-hover hover:text-t2-ink transition-colors"
+                                                    title="Notiz teilen"
+                                                >
+                                                    <Share2 size={14} />
+                                                    Teilen
+                                                </button>
                                                 {(() => {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
