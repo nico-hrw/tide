@@ -1194,7 +1194,7 @@ span.task-mention-pill,
   25% { transform: scale(1.15) rotate(-8deg); }
   75% { transform: scale(1.15) rotate(8deg); }
 }
-.tide-wiggle { animation: tide-wiggle 0.45s ease-in-out infinite; }
+.tide-wiggle { animation: tide-wiggle 0.45s ease-in-out 2; }
 @media (prefers-reduced-motion: reduce) {
   .tide-wiggle { animation: none; }
 }
