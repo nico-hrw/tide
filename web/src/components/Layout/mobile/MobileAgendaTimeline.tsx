@@ -8,7 +8,9 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
 import { paletteFor, type PaletteEntry } from './eventPalette';
-import { AllDayTodoPills, TimedTodoRow, FreeGap, formatFree } from './AgendaParts';
+import { AllDayTodoPills, TimedTodoRow } from './AgendaParts';
+import { blockHeightPx } from './timelineMath';
+import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayNowPlacement, nowFractionIn } from './DayTimelineParts';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -54,19 +56,6 @@ function getEvInfo(ev: any, now: Date, isToday: boolean, nextUpcomingId: string 
   const startM = Math.max(1, Math.round((evStart.getTime() - now.getTime()) / 60000));
   const startStr = startM >= 60 ? `${Math.floor(startM / 60)} Std. ${startM % 60 > 0 ? `${startM % 60} Min.` : ''}`.trim() : `${startM} Min.`;
   return { evStart, evEnd, durM, durStr, isActive, isNext, remStr, startStr, color: ev.color || T.accent };
-}
-
-/** Thin line with a dot and the time: where "now" sits in today's list. */
-function NowLine({ time, dark }: { time: Date; dark: boolean }) {
-  // Bordeaux on light, a lighter rose on dark, so it stays readable and matches the calm palette.
-  const color = dark ? '#E8909B' : '#7A1F2E';
-  return (
-    <div className="relative w-full h-4 my-0.5 flex items-center pointer-events-none" aria-label="Jetzt">
-      <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
-      <span className="flex-1 h-px" style={{ background: color }} />
-      <span className="text-[10px] font-bold px-1.5" style={{ color }}>{time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
-    </div>
-  );
 }
 
 function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSProperties, effect?: string): React.CSSProperties {
@@ -157,7 +146,6 @@ function TimelineEventItem({
   // Der laufende Termin ist invertiert: Hintergrund in der Textfarbe, Text in der Hintergrundfarbe.
   const basePal = paletteFor(ev.color);
   const pal = info.isActive ? { bg: basePal.ink, ink: basePal.bg } : basePal;
-  const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
 
   const isTask = !!(ev.is_task || ev.linkedTaskId);
   const tasks = useDataStore(state => state.tasks);
@@ -237,15 +225,15 @@ function TimelineEventItem({
   }
 
   return (
-    <div id={`ev-${ev.id}`} className="w-full rounded-xl my-1 relative transition-all overflow-hidden" style={getCardStyle(pal, info.isActive, { minHeight: pHeight, ...style }, ev.effect)}>
-      <button onClick={onToggleExpand} className="w-full flex text-left p-0 transition-all cursor-pointer items-stretch" style={{ border: 'none', background: 'transparent', minHeight: isExpanded ? undefined : pHeight }}>
+    <div id={`ev-${ev.id}`} className={`w-full rounded-xl relative transition-all overflow-hidden ${isExpanded ? '' : 'h-full'}`} style={getCardStyle(pal, info.isActive, style, ev.effect)}>
+      <button onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${isExpanded ? '' : 'h-full'}`} style={{ border: 'none', background: 'transparent' }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
           <span className="text-[10px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
         </div>
         <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5 pb-2.5 self-stretch">
           <div className={`w-3 h-3 rounded-full shrink-0 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: pal.ink }} />
-          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: Math.max(16, pHeight - 48), background: pal.ink, opacity: 0.25 }} />
+          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: 8, background: pal.ink, opacity: 0.25 }} />
         </div>
         <div className="flex-1 py-3 pr-3 min-w-0 flex flex-col justify-start">
           <div className="flex items-center justify-between gap-1.5 w-full">
@@ -335,18 +323,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
     return upcoming.length > 0 ? upcoming[0].id : null;
   }, [realEvs, isToday, now]);
 
-  const clusters = useMemo(() => {
-    const list: { events: any[]; clusterStart: Date; clusterEnd: Date }[] = [];
-    for (const ev of realEvs) {
-      const s = new Date(ev.start), e = ev.end ? new Date(ev.end) : new Date(s.getTime() + 3600000);
-      const last = list[list.length - 1];
-      if (last && s.getTime() < last.clusterEnd.getTime() - 60000) {
-        last.events.push(ev);
-        if (e.getTime() > last.clusterEnd.getTime()) last.clusterEnd = e;
-      } else { list.push({ events: [ev], clusterStart: s, clusterEnd: e }); }
-    }
-    return list;
-  }, [realEvs]);
+  const clusters = useMemo(() => buildClusters(realEvs), [realEvs]);
 
   if (dayEvs.length === 0 && allDayEvs.length === 0) {
     return (
@@ -369,8 +346,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   };
 
   let eventCounter = 0;
-  // Index of the first cluster that starts after now: the current-time line goes in front of it.
-  const nowIdx = isToday ? clusters.findIndex(c => c.clusterStart.getTime() > now.getTime()) : -2;
+  // Where "now" sits: inside a block or gap (drawn there, at its share of the height) or before/after all.
+  const placement = dayNowPlacement(clusters, isToday, now);
+  const dark = theme === 'dark';
 
   return (
     <div className="flex flex-col py-1">
@@ -405,11 +383,13 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
       )}
 
       {clusters.map((cluster, cIdx) => {
-        const nowEl = cIdx === nowIdx ? <NowLine time={now} dark={theme === 'dark'} /> : null;
-        const gapLabel = cIdx === 0 ? null : formatFree(Math.round((cluster.clusterStart.getTime() - clusters[cIdx - 1].clusterEnd.getTime()) / 60_000));
-        const pauseEl = gapLabel ? <FreeGap label={gapLabel} /> : null;
+        const nowEl = cIdx === 0 && placement?.kind === 'before-first' ? <NowLine time={now} dark={dark} /> : null;
+        const prev = clusters[cIdx - 1];
+        const pauseEl = prev ? <GapSeg prevEnd={prev.clusterEnd} nextStart={cluster.clusterStart} nowMs={isToday ? now.getTime() : null} nowFraction={nowFractionIn(placement, 'in-gap', cIdx - 1)} now={now} dark={dark} /> : null;
         const todosBefore = timedTodos.filter(t => todoSlot(t.start) === cIdx);
         const todoEls = todosBefore.map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />);
+        const blockH = blockHeightPx(cluster.clusterStart.getTime(), cluster.clusterEnd.getTime());
+        const segProps = { start: cluster.clusterStart, end: cluster.clusterEnd, nowFraction: nowFractionIn(placement, 'in-block', cIdx), now, dark };
 
         if (cluster.events.length === 1) {
           const ev = cluster.events[0];
@@ -418,11 +398,13 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               {todoEls}
               {pauseEl}
               {nowEl}
-              <TimelineEventItem
-                ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
-                theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete}
-              />
+              <BlockSeg {...segProps} height={blockH} grow={expandedEventId === ev.id}>
+                <TimelineEventItem
+                  ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
+                  theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete}
+                />
+              </BlockSeg>
             </React.Fragment>
           );
         }
@@ -438,52 +420,35 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
             {todoEls}
             {pauseEl}
             {nowEl}
-            <div className="relative w-full my-1" style={{ height: clusterH }}>
-              {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
-                <TimelineEventItem
-                  key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
-                  theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
-                  style={{
-                    position: 'absolute',
-                    top: desiredTop,
-                    left: `${columns.get(ev.id)?.left ?? 0}%`,
-                    width: `calc(${100 - (columns.get(ev.id)?.left ?? 0)}% - 4px)`,
-                    minHeight: height,
-                    zIndex: columns.get(ev.id)?.z ?? 1,
-                  }}
-                />
-              ))}
-            </div>
+            <BlockSeg {...segProps} height={Math.max(blockH, clusterH + 2 * SEG_PAD_PX)}>
+              <div className="relative w-full h-full">
+                {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
+                  <TimelineEventItem
+                    key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
+                    theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                    onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
+                    style={{
+                      position: 'absolute',
+                      top: desiredTop,
+                      left: `${columns.get(ev.id)?.left ?? 0}%`,
+                      width: `calc(${100 - (columns.get(ev.id)?.left ?? 0)}% - 4px)`,
+                      minHeight: height,
+                      zIndex: columns.get(ev.id)?.z ?? 1,
+                    }}
+                  />
+                ))}
+              </div>
+            </BlockSeg>
           </React.Fragment>
         );
       })}
+      {placement?.kind === 'after-last' && <NowLine time={now} dark={dark} />}
       {timedTodos
         .filter(t => todoSlot(t.start) === clusters.length)
         .map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />)}
     </div>
   );
 });
-
-/**
- * Column for overlapping events. The longer event keeps the full width; a shorter event that overlaps a
- * longer one moves to the right and gets narrower, more so the more events it sits under. Events that do
- * not overlap are not narrowed. Later starts are drawn on top.
- */
-function columnsFor(events: any[]): Map<string, { left: number; z: number }> {
-  const start = (e: any) => new Date(e.start).getTime();
-  const end = (e: any) => new Date(e.end).getTime();
-  const dur = (e: any) => end(e) - start(e);
-  const order = [...events].sort((x, y) => start(x) - start(y));
-  const out = new Map<string, { left: number; z: number }>();
-  order.forEach((e, idx) => {
-    const longer = events.filter(o => o.id !== e.id && start(o) < end(e) && end(o) > start(e)
-      && (dur(o) > dur(e) || (dur(o) === dur(e) && start(o) < start(e)))).length;
-    // A shifted event is drawn above the wide one it sits on, so its title stays readable.
-    out.set(e.id, { left: Math.min(longer * 24, 46), z: (longer > 0 ? 100 : 1) + idx });
-  });
-  return out;
-}
 
 export type DayItem =
   | { kind: 'day'; date: Date; events: any[]; allDayEvents: any[]; isToday: boolean }

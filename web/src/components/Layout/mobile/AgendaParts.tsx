@@ -4,6 +4,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import { GAP_PX } from './timelineMath';
 
 export const FREE_GAP_MIN = 15;
 const TIME_COL = 58;
@@ -117,10 +118,20 @@ export const TimedTodoRow = React.memo(function TimedTodoRow({
   );
 });
 
-/** Dashed rail line with muted "frei" text between two events. */
-export const FreeGap = React.memo(function FreeGap({ label }: { label: string }) {
+/**
+ * Dashed rail line with muted "frei" text between two events. `height` animates softly; with
+ * `segStart`/`segEnd` (ms) it is marked as a time segment (`data-seg="gap"`) and may hold the now-line.
+ */
+export const FreeGap = React.memo(function FreeGap({ label, height = GAP_PX, segStart, segEnd, children }: {
+  label: string; height?: number; segStart?: number; segEnd?: number; children?: React.ReactNode;
+}) {
+  const seg = segStart !== undefined && segEnd !== undefined;
   return (
-    <div className="flex items-stretch h-[34px]" style={{ color: 'var(--t2-ink-3)', fontSize: 12.5 }}>
+    <div
+      className="relative flex items-stretch"
+      data-seg={seg ? 'gap' : undefined} data-seg-start={seg ? String(segStart) : undefined} data-seg-end={seg ? String(segEnd) : undefined}
+      style={{ color: 'var(--t2-ink-3)', fontSize: 12.5, height, transition: 'height 0.4s ease' }}
+    >
       <div className="shrink-0" style={{ width: TIME_COL }} />
       <div
         className="shrink-0"
@@ -131,6 +142,7 @@ export const FreeGap = React.memo(function FreeGap({ label }: { label: string })
         }}
       />
       <span className="self-center pl-1.5">{label}</span>
+      {children}
     </div>
   );
 });
