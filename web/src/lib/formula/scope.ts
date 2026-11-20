@@ -17,18 +17,41 @@ export interface Definition {
 const DEF_RE = /^(@)?\s*([A-Za-zÄÖÜäöüß_][A-Za-zÄÖÜäöüß0-9_]*)\s*(?:\(([^)]*)\))?\s*=\s*(.+)$/;
 const LOOKS_LIKE_CELL = /^[A-Za-z]{1,2}\d+$/;
 
-export function parseDefinitions(text: string): Definition[] {
-    const out: Definition[] = [];
-    for (const raw of text.split('\n')) {
-        const line = raw.trim();
-        if (!line || line.startsWith('#')) continue;
-        const m = DEF_RE.exec(line);
-        if (!m || LOOKS_LIKE_CELL.test(m[2])) continue;
+/** Definitions with the (0-based) line they came from; blank, comment and unparsable lines are skipped. */
+export function parseDefinitionLines(text: string): Array<{ line: number; def: Definition }> {
+    const out: Array<{ line: number; def: Definition }> = [];
+    text.split('\n').forEach((raw, line) => {
+        const t = raw.trim();
+        if (!t || t.startsWith('#')) return;
+        const m = DEF_RE.exec(t);
+        if (!m || LOOKS_LIKE_CELL.test(m[2])) return;
         const def: Definition = { name: m[2], expr: m[4].trim(), global: m[1] === '@' };
         if (m[3] !== undefined) def.params = m[3].split(/[,;]/).map((p) => p.trim()).filter(Boolean);
-        out.splice(out.length, 0, def.params ? def : { name: def.name, expr: def.expr, global: def.global });
-    }
+        out.push({ line, def });
+    });
     return out;
+}
+
+export function parseDefinitions(text: string): Definition[] {
+    return parseDefinitionLines(text).map((l) => l.def);
+}
+
+/** Sets or clears the "@" (global) marker on one line of a variables block. */
+export function setGlobalAtLine(text: string, line: number, global: boolean): string {
+    const lines = text.split('\n');
+    if (line < 0 || line >= lines.length) return text;
+    const bare = lines[line].replace(/^\s*@\s*/, '');
+    lines[line] = global ? `@${bare}` : bare;
+    return lines.join('\n');
+}
+
+/** Guards data that arrives in a shared note (snapshots): only well-formed definitions pass. */
+export function isDefinition(v: unknown): v is Definition {
+    if (typeof v !== 'object' || v === null) return false;
+    const d = v as Record<string, unknown>;
+    return typeof d.name === 'string' && d.name.length > 0 && d.name.length <= 100
+        && typeof d.expr === 'string' && d.expr.length <= 2000
+        && (d.params === undefined || (Array.isArray(d.params) && d.params.length <= 20 && d.params.every((p) => typeof p === 'string')));
 }
 
 export interface ScopeLayers {

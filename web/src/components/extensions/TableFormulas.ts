@@ -1,4 +1,5 @@
 import { Extension } from '@tiptap/core';
+import type { Node as PmNode } from '@tiptap/pm/model';
 import { Plugin, PluginKey, type EditorState } from '@tiptap/pm/state';
 import type { DecorationSet, EditorView } from '@tiptap/pm/view';
 import { CellSelection } from '@tiptap/pm/tables';
@@ -9,8 +10,8 @@ import { buildFormulaDecorations } from './tableFormulaDecorations';
 import { locateCell, type CellLoc } from './tableFormulaUtils';
 
 export interface TableFormulasOptions {
-    /** Variables and functions available to formulas; read on every recalculation. */
-    getScope: () => CalcScope;
+    /** Variables and functions available to formulas in this document; called on every recalculation. */
+    getScope: (doc: PmNode) => CalcScope;
 }
 
 const key = new PluginKey('tableFormulas');
@@ -86,7 +87,7 @@ export const TableFormulas = Extension.create<TableFormulasOptions>({
                     decorations(state) {
                         const { doc, selection } = state;
                         if (cache && cache.doc === doc && cache.from === selection.from && cache.to === selection.to) return cache.set;
-                        const set = buildFormulaDecorations(state, getScope());
+                        const set = buildFormulaDecorations(state, getScope(doc));
                         cache = { doc, from: selection.from, to: selection.to, set };
                         return set;
                     },
