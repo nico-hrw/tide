@@ -33,8 +33,7 @@ import { CalendarEventMentionExtension } from '../extensions/CalendarEventMentio
 import McpVisualExtension from '../extensions/McpVisualExtension';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
-import { TableHeader } from '@tiptap/extension-table-header';
-import { TableCell } from '@tiptap/extension-table-cell';
+import { TableHeaderAligned, TableCellAligned } from '../extensions/TableCellAttrs';
 import { ReferenceMark } from '../extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from '../extensions/ReferenceModes';
 import { PencilInkExtension, InkStroke, getEditorInkStrokes } from '../extensions/PencilInkExtension';
@@ -246,7 +245,7 @@ export function useTipTapConfig({
             InlineCommentNode, MathBlock, InlineMath,
             BlockId.configure({ onBlocksDeleted: (ids) => onBlocksDeletedRef.current?.(ids) }),
             Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ResizableImage,
-            Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeader, TableCell,
+            Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned,
             Placeholder.configure({ placeholder: () => PLACELHODER_QUOTES[Math.floor(Math.random() * PLACELHODER_QUOTES.length)] }),
             ReferenceMark, PencilInkExtension,
         ];
