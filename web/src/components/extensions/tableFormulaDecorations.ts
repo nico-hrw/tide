@@ -78,8 +78,9 @@ function addReferenceHighlights(decos: Decoration[], cellPos: number, cell: PmNo
     // text positions map linearly only for a single paragraph that holds plain text
     const plain = cell.childCount === 1 && cell.child(0).type.name === 'paragraph' && cell.child(0).childCount <= 1 && (cell.child(0).firstChild?.isText ?? true);
     for (const m of findRefs(text)) {
-        const c0 = Math.min(m.from.col, m.to.col), c1 = Math.max(m.from.col, m.to.col);
-        const r0 = Math.min(m.from.row, m.to.row), r1 = Math.max(m.from.row, m.to.row);
+        // clamp to the table: formula text can come from other people and may name absurd ranges
+        const c0 = Math.min(m.from.col, m.to.col), c1 = Math.min(Math.max(m.from.col, m.to.col), grid.cols - 1);
+        const r0 = Math.min(m.from.row, m.to.row), r1 = Math.min(Math.max(m.from.row, m.to.row), grid.rows - 1);
         for (let r = r0; r <= r1; r++) {
             for (let c = c0; c <= c1; c++) {
                 const off = grid.offset(c, r);

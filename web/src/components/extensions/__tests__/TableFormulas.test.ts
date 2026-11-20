@@ -103,6 +103,18 @@ describe('TableFormulas', () => {
   });
 });
 
+describe('TableFormulas robustness', () => {
+  it('a huge range in a formula does not stall the highlighting', () => {
+    const editor = makeEditor([['1', '2'], ['=SUMME(A1:ZZ2000000)', '']]);
+    const t0 = performance.now();
+    caretInCell(editor, 0, 1);
+    const ms = performance.now() - t0;
+    expect(ms).toBeLessThan(500);
+    // only cells that exist are highlighted: A1, B1 and the (active, skipped) formula cell A2/B2 -> A1, B1, B2
+    expect(editor.view.dom.querySelectorAll('.tt-ref').length).toBe(3);
+  });
+});
+
 describe('insertSumFormula', () => {
   it('writes =SUMME over the numeric run above', () => {
     const editor = makeEditor([['Betrag'], ['10'], ['5'], ['']]);
