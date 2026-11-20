@@ -4,6 +4,7 @@ import React from 'react';
 import { format } from 'date-fns';
 import { Check } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
+import { GAP_PX } from './timelineMath';
 
 export const FREE_GAP_MIN = 15;
 const TIME_COL = 58;
@@ -117,10 +118,20 @@ export const TimedTodoRow = React.memo(function TimedTodoRow({
   );
 });
 
-/** Dashed rail line with muted "frei" text between two events. */
-export const FreeGap = React.memo(function FreeGap({ label }: { label: string }) {
+/**
+ * Dashed rail line with muted "frei" text between two events. `height` animates softly; with
+ * `segStart`/`segEnd` (ms) it is marked as a time segment (`data-seg="gap"`) and may hold the now-line.
+ */
+export const FreeGap = React.memo(function FreeGap({ label, height = GAP_PX, segStart, segEnd, children }: {
+  label: string; height?: number; segStart?: number; segEnd?: number; children?: React.ReactNode;
+}) {
+  const seg = segStart !== undefined && segEnd !== undefined;
   return (
-    <div className="flex items-stretch h-[34px]" style={{ color: 'var(--t2-ink-3)', fontSize: 12.5 }}>
+    <div
+      className="relative flex items-stretch"
+      data-seg={seg ? 'gap' : undefined} data-seg-start={seg ? String(segStart) : undefined} data-seg-end={seg ? String(segEnd) : undefined}
+      style={{ color: 'var(--t2-ink-3)', fontSize: 12.5, height, transition: 'height 0.4s ease' }}
+    >
       <div className="shrink-0" style={{ width: TIME_COL }} />
       <div
         className="shrink-0"
@@ -131,6 +142,19 @@ export const FreeGap = React.memo(function FreeGap({ label }: { label: string })
         }}
       />
       <span className="self-center pl-1.5">{label}</span>
+      {children}
     </div>
   );
 });
+
+/** Gefüllte Icons ohne Hintergrund (Material-Stil), in der Farbe des Termins. */
+export const EDIT_PATH = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
+export const DELETE_PATH = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
+
+export function FilledIcon({ d, size }: { d: string; size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <path d={d} />
+    </svg>
+  );
+}

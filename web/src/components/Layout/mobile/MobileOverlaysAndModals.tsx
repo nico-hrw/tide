@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
@@ -19,6 +19,7 @@ import {
   type MobileEditEventSheetProps,
 } from './MobileBottomSheets';
 import { MobileCreateModal } from './MobileCreateModal';
+import { draftNewEventMeta, isDraftEvent } from './quickEditState';
 import {
   MobileFilterPopover,
   type PriorityOption,
@@ -44,6 +45,9 @@ export interface MobileEventMeta {
   recurrence_rule?: string;
   recurrence_end?: string;
 }
+
+/** Meta accepted by the mobile new-event path (`onNewEvent`). */
+export type NewEventMeta = Partial<MobileEventMeta>;
 
 export type MobileOverlayEvent = MobileEditEventSheetProps['event'];
 
@@ -123,7 +127,7 @@ export interface MobileOverlaysAndModalsProps {
   onCloseCreateModal: () => void;
   isNewEventSheetOpen: boolean;
   onCloseNewEventSheet: () => void;
-  onNewEvent?: (date: Date, endDate?: Date, meta?: MobileEventMeta) => void;
+  onNewEvent?: (date: Date, endDate?: Date, meta?: NewEventMeta) => void;
   pinPromptItem: PinPromptTarget | null;
   userEmail?: string;
   onClosePinPrompt: () => void;
@@ -146,7 +150,18 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
     pinPromptItem, userEmail, onClosePinPrompt,
   } = props;
 
+  // Latest open sheet; the closing sheet keeps an old `onSave` closure during its exit animation.
+  const editingRef = useRef(editingEvent);
+  useEffect(() => { editingRef.current = editingEvent; }, [editingEvent]);
+
   const handleSaveEditedEvent = (id: string, start: Date, end: Date, meta: MobileEventMeta) => {
+    if (!editingRef.current) return; // already saved or closed
+    // A draft (double tap in the day view) is created on save, never updated or renamed.
+    if (isDraftEvent({ id })) {
+      onNewEvent?.(start, end, draftNewEventMeta(meta));
+      onEditEvent(null);
+      return;
+    }
     const payload = {
       title: meta.title,
       start: start.toISOString(),
@@ -261,7 +276,7 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
             key={`edit-${editingEvent.id}`}
             event={editingEvent}
             themes={resolvedThemes}
-            onDelete={(id) => onEventDelete?.(id)}
+            onDelete={isDraftEvent(editingEvent) ? undefined : (id) => onEventDelete?.(id)}
             onSave={handleSaveEditedEvent}
             onDismiss={() => onEditEvent(null)}
           />

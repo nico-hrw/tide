@@ -19,7 +19,7 @@ import { MobileSidebarDrawer } from './mobile/MobileSidebarDrawer';
 import { MobileCalendarTab } from './mobile/MobileCalendarTab';
 import { MobileNotesTab, type MobileNoteItem } from './mobile/MobileNotesTab';
 import { MobileBottomDock } from './mobile/MobileBottomDock';
-import { MobileOverlaysAndModals, type MobileOverlayEvent, type MobileThemeItem } from './mobile/MobileOverlaysAndModals';
+import { MobileOverlaysAndModals, type MobileOverlayEvent, type MobileThemeItem, type NewEventMeta } from './mobile/MobileOverlaysAndModals';
 
 export interface MobileLayoutProps {
   events: CalendarEvent[];
@@ -34,7 +34,7 @@ export interface MobileLayoutProps {
   editorElement: React.ReactNode;
   activeNoteId: string | null;
   activeNoteTitle: string;
-  onNewEvent?: (date: Date, endDate?: Date, meta?: { title?: string; color?: string; description?: string }) => void;
+  onNewEvent?: (date: Date, endDate?: Date, meta?: NewEventMeta) => void;
   onEventClick?: (id: string) => void;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => void;
   onEventSave?: (id: string, updates: Record<string, unknown>) => void;
