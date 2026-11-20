@@ -260,7 +260,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 badges.push({
                     id: `group-${gid}`,
                     label: label.trim(),
-                    color: groupColor || effectiveColor,
+                    color: groupColor ?? effectiveColor,
                 });
             }
         }
@@ -349,7 +349,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const hasChildren = isParent ?? timedEvents.some(e => (e as any).parent_id === event.id);
     const isActiveParent = hasChildren && activeParentId === event.id;
     const isCancelled = !!event.is_cancelled;
-    const zIndex = isActiveParent || isCancelled ? 0 : (isDragging ? 50 : 10 + startMinutes);
+    // Group parents are a backdrop: they must never cover the events that sit inside them.
+    const zIndex = isActiveParent || isCancelled ? 0 : (isDragging ? 50 : hasChildren ? 5 : 10 + startMinutes);
 
     const [localTitle, setLocalTitle] = useState(event.title);
 
@@ -692,7 +693,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 </div>
             ) : isShortEvent ? (
                 /* Short event (< 40 min): Single-row compact layout with clear title & inline time */
-                <div className="relative z-10 flex items-center h-full w-full overflow-hidden gap-1.5 min-w-0">
+                <div className="relative z-10 flex items-center h-full w-full overflow-hidden gap-1.5 min-w-0 pr-5">
                     {event.is_task && (
                         <button
                             onClick={(e) => {
@@ -722,9 +723,15 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Users size={10} />
                         </div>
                     )}
-                    <span className={`text-[11px] font-bold leading-none truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
+                    {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
+                    <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
                     </span>
+                    {durationMinutes >= 25 && (
+                        <span className="text-[10px] leading-[16px] font-semibold opacity-60 tabular-nums shrink-0 pointer-events-none">
+                            {format(start, "HH:mm")}
+                        </span>
+                    )}
                 </div>
             ) : (
             /* Normal event contents */
@@ -783,20 +790,23 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 {/* Sub-titles (Tags) - Feature Requirement */}
                 {displayBadges.length > 0 && durationMinutes > 40 && (
                     <div className="flex flex-wrap gap-1 mt-1 mb-1 relative z-[90]">
-                        {displayBadges.map((badge, idx) => (
-                            <div 
-                                key={badge.id || idx} 
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-black text-white shadow-md border ${isCancelled ? 'line-through opacity-60' : ''}`}
-                                style={{ 
-                                    backgroundColor: badge.color || theme.text,
-                                    borderColor: 'rgba(255,255,255,0.1)',
-                                    backgroundImage: 'linear-gradient(rgba(0,0,0,0.1), rgba(0,0,0,0.15))',
-                                    textShadow: '0 1px 2px rgba(0,0,0,0.2)'
+                        {displayBadges.map((badge, idx) => {
+                            // Badge colours come from the same five calendar colours as the event itself
+                            const badgeCat = resolveCategory(badge.color ?? event.color);
+                            return (
+                            <div
+                                key={badge.id || idx}
+                                className={`px-2 py-0.5 rounded-full text-[9px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
+                                style={{
+                                    backgroundColor: badgeCat.bg,
+                                    color: badgeCat.ink,
+                                    boxShadow: 'inset 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent)',
                                 }}
                             >
                                 {badge.label}
                             </div>
-                        ))}
+                            );
+                        })}
                     </div>
                 )}
 

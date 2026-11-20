@@ -3,6 +3,7 @@ import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
+import { resolveCategory } from "@/lib/calendarColors";
 import type { CalendarViewProps, CalendarViewMode } from "./types";
 
 interface CalendarToolbarProps {
@@ -150,7 +151,7 @@ export function CalendarToolbar({
                         className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${selectedGroupId === group.id ? 'bg-t2-ink text-t2-bg font-bold shadow-sm' : 'bg-t2-hover hover:bg-t2-stage text-t2-ink-2   '}`}
                     >
                         {group.color && (
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: group.color }} />
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: resolveCategory(group.color).bg }} />
                         )}
                         {group.title}
                     </button>

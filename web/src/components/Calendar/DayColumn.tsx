@@ -188,12 +188,26 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
                 });
             });
         } else {
-            const widthPercent = 100 / lanes.length;
+            // Columns like Google Calendar: each event takes its lane and widens to the right
+            // over every lane that is free for the whole duration of that event.
+            const laneCount = lanes.length;
+            const widthPercent = 100 / laneCount;
             cluster.forEach(evt => {
                 const lane = eventLanes.get(evt.id) || 0;
+                const start = new Date(evt.start).getTime();
+                const end = new Date(evt.end).getTime();
+                let span = 1;
+                for (let next = lane + 1; next < laneCount; next++) {
+                    const blocked = cluster.some(other => {
+                        if (other.id === evt.id || eventLanes.get(other.id) !== next) return false;
+                        return new Date(other.start).getTime() < end && new Date(other.end).getTime() > start;
+                    });
+                    if (blocked) break;
+                    span++;
+                }
                 layout.set(evt.id, {
                     left: lane * widthPercent,
-                    width: widthPercent
+                    width: widthPercent * span
                 });
             });
         }
