@@ -360,13 +360,17 @@
       font-variant-numeric: tabular-nums;
     }
 
-    /* Right: Gray Var-Sheet Side-Panel */
+    /* Right: Floating Dock Gray Var-Sheet Side-Panel */
     .varsheet-panel {
       width: 480px;
       max-width: 48vw;
       flex: none;
+      margin: 14px 14px 14px 0;
       background: #f4f5f8;
-      border-left: 1px solid #e3e5ea;
+      border: 1px solid var(--t2-line);
+      border-radius: 14px;
+      overflow: hidden;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06), 0 1px 3px rgba(15, 23, 42, 0.04);
       display: flex;
       flex-direction: column;
       min-height: 0;
@@ -374,6 +378,7 @@
       opacity: 1;
       transition:
         width 320ms var(--ease-slide),
+        margin 320ms var(--ease-slide),
         opacity 240ms ease,
         transform 320ms var(--ease-slide);
     }
@@ -381,8 +386,11 @@
     .workspace:not(.sheet-open) .varsheet-panel {
       width: 0;
       min-width: 0;
+      margin: 14px 0 14px 0;
       opacity: 0;
-      border-left-color: transparent;
+      border-width: 0;
+      border-color: transparent;
+      box-shadow: none;
       transform: translateX(24px);
       overflow: hidden;
       pointer-events: none;
@@ -446,17 +454,22 @@
     .vs-row {
       position: relative;
       display: grid;
-      grid-template-columns: 30px 1fr auto;
+      grid-template-columns: 24px 1fr auto;
       align-items: start;
       gap: 8px;
       padding: 6px 8px 6px 4px;
       border-radius: 7px;
       border: 1px solid transparent;
       background: transparent;
+      cursor: grab;
       transition:
         background 0.12s ease,
         border-color 0.12s ease,
         opacity 0.12s ease;
+    }
+
+    .vs-row:active {
+      cursor: grabbing;
     }
 
     .vs-row:hover {
@@ -507,7 +520,6 @@
       display: flex;
       align-items: center;
       justify-content: flex-end;
-      gap: 3px;
       padding-top: 3px;
       padding-right: 2px;
       font-family: var(--font-mono);
@@ -521,19 +533,6 @@
 
     .vs-handle:active {
       cursor: grabbing;
-    }
-
-    .vs-grip {
-      font-size: 10px;
-      letter-spacing: -1px;
-      color: #a1a1aa;
-      opacity: 0;
-      transition: opacity 0.12s ease;
-    }
-
-    .vs-row:hover .vs-grip,
-    .vs-handle:hover .vs-grip {
-      opacity: 0.85;
     }
 
     .vs-row.is-active .vs-handle {
@@ -554,6 +553,7 @@
       background: transparent;
       resize: none;
       overflow: hidden;
+      cursor: text;
       font-family: var(--font-mono);
       font-size: 12.5px;
       line-height: 1.5;
@@ -603,8 +603,32 @@
     }
 
     .vs-result.is-err {
+      width: 18px;
+      height: 18px;
+      min-width: 18px;
+      padding: 0;
+      margin-top: 2px;
+      margin-left: 8px;
+      justify-self: end;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      background: #fef2f2;
+      border: 1px solid #fecaca;
       color: #dc2626;
-      font-weight: 400;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      font-weight: 700;
+      line-height: 1;
+      text-align: center;
+      overflow: visible;
+      transition: background 0.12s ease, border-color 0.12s ease, box-shadow 0.12s ease;
+    }
+
+    .vs-result.is-err:hover {
+      background: #fee2e2;
+      border-color: #fca5a5;
     }
 
     .vs-result:focus {
@@ -612,6 +636,53 @@
       text-decoration: underline;
       text-underline-offset: 3px;
       text-decoration-color: #a1a1aa;
+    }
+
+    .vs-result.is-err:focus {
+      color: #dc2626;
+      text-decoration: none;
+      box-shadow: 0 0 0 2px rgba(220, 38, 38, 0.22);
+    }
+
+    /* Floating Error Popover */
+    .vs-err-popover {
+      position: fixed;
+      z-index: 9999;
+      max-width: 280px;
+      padding: 8px 11px;
+      border-radius: 9px;
+      background: #18181b;
+      color: #fafafa;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 10px 25px rgba(15, 23, 42, 0.18), 0 2px 6px rgba(15, 23, 42, 0.10);
+      font-family: var(--font-sans);
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: auto;
+      opacity: 0;
+      transform: translateY(3px);
+      transition: opacity 140ms ease, transform 140ms ease;
+    }
+
+    .vs-err-popover.is-visible {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    .vs-err-popover-title {
+      font-weight: 600;
+      font-size: 10.5px;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: #fca5a5;
+      margin-bottom: 3px;
+    }
+
+    .vs-err-popover-msg {
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: #f4f4f5;
+      word-break: break-word;
     }
 
     /* Minimalist Footer */
@@ -1350,6 +1421,7 @@
           if (parsed.kind === 'empty') {
             row.envEntry = null;
             row.resultText = '';
+            row.errorMessage = '';
             row.resultKind = 'empty';
             row.signature = 'empty';
             return;
@@ -1364,6 +1436,7 @@
               closureEnv
             };
             row.resultText = `ƒ(${parsed.params.join(', ')})`;
+            row.errorMessage = '';
             row.resultKind = 'fn';
             row.signature = `fn:${parsed.definedSymbol}(${parsed.params.join(',')}):${parsed.bodySource}|${serializeClosure(row.deps, env)}`;
             return;
@@ -1383,27 +1456,125 @@
 
           row.envEntry = { kind: 'num', value: val };
           row.resultText = formatResultDisplay(row.definedSymbol, val, hasEuroLiteral);
+          row.errorMessage = '';
           row.resultKind = 'val';
           row.signature = `num:${row.definedSymbol || ''}:${val}`;
         } catch (err) {
+          const msg = err && err.message ? err.message : 'Fehler';
           row.definedSymbol = null;
           row.envEntry = null;
           row.deps = row.deps || new Set();
-          row.resultText = '! ' + (err && err.message ? err.message : 'Fehler');
+          row.errorMessage = msg;
+          row.resultText = '! ' + msg;
           row.resultKind = 'err';
           row.signature = 'err:' + row.resultText;
         }
       }
 
+      // --- Floating Error Popover ---
+      const errPopover = document.createElement('div');
+      errPopover.className = 'vs-err-popover';
+      errPopover.setAttribute('role', 'tooltip');
+      errPopover.hidden = true;
+      const errPopoverTitle = document.createElement('div');
+      errPopoverTitle.className = 'vs-err-popover-title';
+      errPopoverTitle.textContent = 'Fehler';
+      const errPopoverMsg = document.createElement('div');
+      errPopoverMsg.className = 'vs-err-popover-msg';
+      errPopover.appendChild(errPopoverTitle);
+      errPopover.appendChild(errPopoverMsg);
+      document.body.appendChild(errPopover);
+
+      let activeErrAnchor = null;
+      let pinnedErrAnchor = null;
+      let errHideTimer = null;
+
+      function positionErrPopover(anchorEl) {
+        const rect = anchorEl.getBoundingClientRect();
+        const popRect = errPopover.getBoundingClientRect();
+        let top = rect.top - popRect.height - 8;
+        if (top < 10) {
+          top = rect.bottom + 8;
+        }
+        let left = rect.right - popRect.width;
+        if (left < 10) left = 10;
+        if (left + popRect.width > window.innerWidth - 10) {
+          left = window.innerWidth - popRect.width - 10;
+        }
+        errPopover.style.top = `${Math.round(top)}px`;
+        errPopover.style.left = `${Math.round(left)}px`;
+      }
+
+      function showErrPopover(anchorEl, msg, pin) {
+        clearTimeout(errHideTimer);
+        activeErrAnchor = anchorEl;
+        if (pin) pinnedErrAnchor = anchorEl;
+        errPopoverMsg.textContent = msg || 'Unbekannter Fehler';
+        errPopover.hidden = false;
+        positionErrPopover(anchorEl);
+        requestAnimationFrame(() => {
+          errPopover.classList.add('is-visible');
+        });
+      }
+
+      function hideErrPopover(force) {
+        clearTimeout(errHideTimer);
+        if (!force && pinnedErrAnchor) return;
+        pinnedErrAnchor = null;
+        activeErrAnchor = null;
+        errPopover.classList.remove('is-visible');
+        errPopover.hidden = true;
+      }
+
+      function scheduleHideErrPopover() {
+        clearTimeout(errHideTimer);
+        if (pinnedErrAnchor) return;
+        errHideTimer = setTimeout(() => hideErrPopover(false), 110);
+      }
+
+      errPopover.addEventListener('mouseenter', () => {
+        clearTimeout(errHideTimer);
+      });
+      errPopover.addEventListener('mouseleave', () => {
+        scheduleHideErrPopover();
+      });
+      document.addEventListener('click', (e) => {
+        if (pinnedErrAnchor && !errPopover.contains(e.target) && !pinnedErrAnchor.contains(e.target)) {
+          hideErrPopover(true);
+        }
+      });
+      vsRowsEl.addEventListener('scroll', () => {
+        if (activeErrAnchor) hideErrPopover(true);
+      });
+      window.addEventListener('resize', () => {
+        if (activeErrAnchor && !errPopover.hidden) positionErrPopover(activeErrAnchor);
+      });
+
       function applyResultToDom(idx) {
         const row = rows[idx];
         const resBtn = vsRowsEl.querySelector(`.vs-row[data-idx="${idx}"] .vs-result`);
         if (!resBtn) return;
-        resBtn.textContent = row.resultText || '—';
+        const isErr = row.resultKind === 'err';
+        resBtn.textContent = isErr ? '!' : (row.resultText || '—');
         resBtn.classList.toggle('has-val', row.resultKind === 'val');
         resBtn.classList.toggle('is-linked', Boolean(row.linked && row.resultKind === 'val'));
         resBtn.classList.toggle('is-fn', row.resultKind === 'fn');
-        resBtn.classList.toggle('is-err', row.resultKind === 'err');
+        resBtn.classList.toggle('is-err', isErr);
+
+        if (isErr) {
+          resBtn.removeAttribute('title');
+          resBtn.setAttribute('aria-label', `Fehler: ${row.errorMessage || 'Fehler'}`);
+          if (activeErrAnchor === resBtn && !errPopover.hidden) {
+            errPopoverMsg.textContent = row.errorMessage || 'Fehler';
+            positionErrPopover(resBtn);
+          }
+        } else {
+          resBtn.title = row.linked ? 'Mit aktiver Notiz verknüpft' : 'Ergebnis';
+          resBtn.removeAttribute('aria-label');
+          if (activeErrAnchor === resBtn) {
+            hideErrPopover(true);
+          }
+        }
       }
 
       function updateFooter() {
@@ -1537,6 +1708,7 @@
         if (open) {
           setTimeout(() => focusRowInput(activeIndex, 'end'), 180);
         } else {
+          hideErrPopover(true);
           notePane.focus();
         }
       }
@@ -1591,6 +1763,7 @@
       }
 
       function renderRows(focusIndex, caretPos) {
+        hideErrPopover(true);
         vsRowsEl.innerHTML = '';
 
         rows.forEach((row, idx) => {
@@ -1598,15 +1771,32 @@
           rowEl.className = 'vs-row' + (idx === activeIndex ? ' is-active' : '');
           rowEl.dataset.idx = String(idx);
           rowEl.setAttribute('role', 'listitem');
+          rowEl.draggable = false;
 
-          // Drag handle + line number
+          // Clean line number in gutter (no grip icon)
           const handleEl = document.createElement('div');
           handleEl.className = 'vs-handle';
-          handleEl.draggable = true;
           handleEl.title = 'Zeile ziehen zum Sortieren';
-          handleEl.innerHTML = `<span class="vs-grip" aria-hidden="true">⋮⋮</span><span>${idx + 1}</span>`;
+          handleEl.textContent = String(idx + 1);
 
-          handleEl.addEventListener('dragstart', (e) => {
+          rowEl.addEventListener('mousedown', (e) => {
+            if (e.target.closest('textarea, button, .vs-result, .vs-err-popover')) {
+              rowEl.draggable = false;
+            } else {
+              rowEl.draggable = true;
+            }
+          });
+
+          rowEl.addEventListener('mouseup', () => {
+            rowEl.draggable = false;
+          });
+
+          rowEl.addEventListener('dragstart', (e) => {
+            if (!rowEl.draggable) {
+              e.preventDefault();
+              return;
+            }
+            hideErrPopover(true);
             dragFromIndex = idx;
             rowEl.classList.add('is-dragging');
             if (e.dataTransfer) {
@@ -1615,7 +1805,8 @@
             }
           });
 
-          handleEl.addEventListener('dragend', () => {
+          rowEl.addEventListener('dragend', () => {
+            rowEl.draggable = false;
             dragFromIndex = null;
             rowEl.classList.remove('is-dragging');
             clearDropIndicators();
@@ -1675,6 +1866,38 @@
           resBtn.type = 'button';
           resBtn.className = 'vs-result';
           resBtn.title = row.linked ? 'Mit aktiver Notiz verknüpft' : 'Ergebnis';
+
+          input.addEventListener('mousedown', () => {
+            rowEl.draggable = false;
+          });
+
+          resBtn.addEventListener('mousedown', () => {
+            rowEl.draggable = false;
+          });
+
+          resBtn.addEventListener('mouseenter', () => {
+            if (row.resultKind === 'err') {
+              if (!pinnedErrAnchor) {
+                showErrPopover(resBtn, row.errorMessage || 'Fehler', false);
+              }
+            }
+          });
+
+          resBtn.addEventListener('mouseleave', () => {
+            if (row.resultKind === 'err') {
+              scheduleHideErrPopover();
+            }
+          });
+
+          resBtn.addEventListener('click', (e) => {
+            if (row.resultKind !== 'err') return;
+            e.stopPropagation();
+            if (pinnedErrAnchor === resBtn) {
+              hideErrPopover(true);
+            } else {
+              showErrPopover(resBtn, row.errorMessage || 'Fehler', true);
+            }
+          });
 
           input.addEventListener('focus', () => {
             updateActiveVisuals(idx);

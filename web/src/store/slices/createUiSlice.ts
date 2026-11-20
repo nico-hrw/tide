@@ -20,6 +20,7 @@ const DEFAULT_ENABLED_EXTENSIONS: string[] = [
     'todos',
     'debug',
     'file_support',
+    'varsheet',
 ];
 
 function applyThemeClass(theme: AppTheme): void {

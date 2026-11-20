@@ -6,6 +6,7 @@ const TEXT: Record<string, string> = {
     job_planner: 'Job & Study Planner Stundenplan',
     summary: 'Daily Summary Tagesrückblick',
     surveys: 'Umfragen & Mood-Tracker',
+    varsheet: 'VarSheet Rechnen mit Variablen',
     smart_island: 'Smart Island Seitenleiste',
     smart_date_detection: 'Smart Date Detection Datum',
     references: 'References Definitionen verlinken',
@@ -54,7 +55,7 @@ describe('Katalog', () => {
     it('enthält jede bisherige Erweiterung genau einmal', () => {
         const ids = EXTENSION_CATALOG.map((e) => e.id).sort();
         expect(ids).toEqual(
-            ['file_support', 'job_planner', 'mcp', 'messenger', 'mobile_connection', 'references', 'smart_date_detection', 'smart_island', 'summary', 'surveys', 'todos'].sort(),
+            ['file_support', 'job_planner', 'mcp', 'messenger', 'mobile_connection', 'references', 'smart_date_detection', 'smart_island', 'summary', 'surveys', 'todos', 'varsheet'].sort(),
         );
     });
 

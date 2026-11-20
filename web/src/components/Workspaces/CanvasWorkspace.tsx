@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import dynamic from 'next/dynamic';
-import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud, Share2 } from 'lucide-react';
+import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud, Share2, Sigma } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -31,6 +31,7 @@ const Editor = dynamic(() => import('@/components/Editor'), {
 });
 const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), { ssr: false });
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
+const VarSheetDock = dynamic(() => import('@/components/VarSheet').then(m => m.VarSheetDock), { ssr: false });
 
 export interface CanvasWorkspaceProps {
     activeTabId: string;
@@ -111,10 +112,16 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         showBackups, onRestoreBackup,
     } = props;
 
+    const enabledExtensions = useDataStore((s) => s.enabledExtensions);
+    const isVarSheetEnabled = enabledExtensions.includes('varsheet');
+
     // The version timeline belongs to one note. It is open only for the note it was opened on,
     // so switching notes never carries it along.
     const [historyNoteId, setHistoryNoteId] = useState<string | null>(null);
     const isHistoryMode = !!activeNoteId && historyNoteId === activeNoteId;
+    // VarSheet dock belongs to one note, and is only active when the varsheet extension is enabled.
+    const [varSheetNoteId, setVarSheetNoteId] = useState<string | null>(null);
+    const isVarSheetOpen = isVarSheetEnabled && !!activeNoteId && varSheetNoteId === activeNoteId;
     // Timeline open = isHistoryMode; the old-version preview (replaces the editor) = isViewingVersion
     const [isViewingVersion, setIsViewingVersion] = useState<boolean>(false);
     const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
@@ -177,11 +184,26 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         const next = !isHistoryMode;
         if (next) {
             captureLiveContent();
+            setVarSheetNoteId(null);
         }
         if (!next) { setIsViewingVersion(false); setActiveIndex(0); }
         setHistoryNoteId(next ? (activeNoteId ?? null) : null);
         setShowBackups?.(next);
-    }, [isHistoryMode, captureLiveContent, setShowBackups]);
+    }, [isHistoryMode, captureLiveContent, setShowBackups, activeNoteId]);
+
+    const handleToggleVarSheet = useCallback(() => {
+        const next = !isVarSheetOpen;
+        if (next) {
+            setHistoryNoteId(null);
+            setIsViewingVersion(false);
+            setShowBackups?.(false);
+        }
+        setVarSheetNoteId(next ? (activeNoteId ?? null) : null);
+    }, [isVarSheetOpen, activeNoteId, setShowBackups]);
+
+    const handleCloseVarSheet = useCallback(() => {
+        setVarSheetNoteId(null);
+    }, []);
 
     // Notes switch the timeline off on their own; the viewed version belongs to the note it was opened on.
     useEffect(() => {
@@ -327,8 +349,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     );
 
     return (
-        <div className={`flex-1 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''} ${isHidden ? 'hidden' : 'block'}`}>
-            {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
+        <div className={`flex-1 min-h-0 relative ${isHidden ? 'hidden' : 'flex flex-col'}`}>
+            <div className={`flex-1 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : isVarSheetOpen ? 'lg:pr-[470px]' : ''}`}>
+                {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
             {!isHidden && !isLoadingContent && !isA4 && timeline}
             {isLoadingContent ? (
                 <div className="flex items-center justify-center h-full text-t2-ink-3">Loading content...</div>
@@ -545,6 +568,22 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 >
                                                     <Share2 size={16} />
                                                 </button>
+                                                {isVarSheetEnabled && !isViewingVersion && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={handleToggleVarSheet}
+                                                        aria-pressed={isVarSheetOpen}
+                                                        className={`p-1.5 rounded-lg transition-colors ${
+                                                            isVarSheetOpen
+                                                                ? 'bg-t2-sub text-t2-accent'
+                                                                : 'text-t2-ink-2 hover:bg-t2-hover hover:text-t2-ink'
+                                                        }`}
+                                                        title="VarSheet ein-/ausblenden (Berechnungen & Variablen)"
+                                                        aria-label="VarSheet ein-/ausblenden (Berechnungen & Variablen)"
+                                                    >
+                                                        <Sigma size={16} />
+                                                    </button>
+                                                )}
                                                 {(() => {
                                                     const af = files.find(f => f.id === activeNoteId) as any;
                                                     const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
@@ -807,6 +846,18 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                             </div>
                         </div>
                     </CanvasLayer>
+                </div>
+            )}
+            </div>
+            {isVarSheetEnabled && isVarSheetOpen && activeNoteId && (
+                <div className="absolute inset-y-0 right-0 z-30 pointer-events-none flex">
+                    <div className="pointer-events-auto my-3.5 mr-3.5 w-[442px] max-w-[calc(100vw-1.75rem)] rounded-2xl border border-t2-line bg-t2-surface shadow-xl overflow-hidden flex flex-col">
+                        <VarSheetDock
+                            noteId={activeNoteId}
+                            onClose={handleCloseVarSheet}
+                            className="h-full w-full"
+                        />
+                    </div>
                 </div>
             )}
         </div>

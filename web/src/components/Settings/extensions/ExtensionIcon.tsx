@@ -1,5 +1,5 @@
 import React from 'react';
-import { Bookmark, Briefcase, FileText, Flame, ListTodo, MessageSquare, Puzzle, Smartphone, Smile, Sparkles, Terminal } from 'lucide-react';
+import { Bookmark, Briefcase, Calculator, FileText, Flame, ListTodo, MessageSquare, Puzzle, Smartphone, Smile, Sparkles, Terminal } from 'lucide-react';
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     todos: ListTodo,
@@ -13,6 +13,7 @@ const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
     file_support: FileText,
     surveys: Smile,
     mcp: Terminal,
+    varsheet: Calculator,
 };
 
 export function ExtensionIcon({ id, className }: { id: string; className?: string }) {

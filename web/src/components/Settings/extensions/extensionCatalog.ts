@@ -19,6 +19,7 @@ export const EXTENSION_CATALOG: readonly ExtensionDef[] = [
     { id: 'job_planner', group: 'productivity', hasPage: true },
     { id: 'summary', group: 'productivity', hasPage: false },
     { id: 'surveys', group: 'productivity', hasPage: true },
+    { id: 'varsheet', group: 'productivity', hasPage: false },
     { id: 'smart_island', group: 'smart', hasPage: true },
     { id: 'smart_date_detection', group: 'smart', hasPage: false },
     { id: 'references', group: 'smart', hasPage: true },
@@ -40,10 +41,10 @@ export interface ExtensionGroupResult<T extends ExtensionDef = ExtensionDef> {
 }
 
 /** Suchtreffer: alle Woerter der Anfrage muessen im Text vorkommen (ohne Gross-/Kleinschreibung). */
-export function matchesQuery(haystack: string, query: string): boolean {
+export function matchesQuery(haystack: string | null | undefined, query: string): boolean {
     const words = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
     if (words.length === 0) return true;
-    const text = haystack.toLowerCase();
+    const text = (haystack ?? '').toLowerCase();
     return words.every((w) => text.includes(w));
 }
 
