@@ -38,6 +38,27 @@ function makeDoc(
     };
 }
 
+function makeTextDoc(
+    paragraphs: string[],
+    blocks: Array<{ code: string; snapshot?: Definition[] }> = [],
+): Record<string, unknown> {
+    const blockNodes = blocks.map((b) => ({
+        type: 'variablesBlock',
+        attrs: b.snapshot !== undefined ? { code: b.code, snapshot: b.snapshot } : { code: b.code },
+    }));
+
+    const paragraphNodes = paragraphs.map((text) =>
+        text
+            ? { type: 'paragraph', content: [{ type: 'text', text }] }
+            : { type: 'paragraph' },
+    );
+
+    return {
+        type: 'doc',
+        content: [...blockNodes, ...paragraphNodes],
+    };
+}
+
 function evalWithScope(formula: string, snapshot: Definition[]): Value {
     const scope = buildScope({ local: [], global: () => [], snapshot });
     return evaluate(parseFormula(formula), { cell: () => '', ...scope });
@@ -101,6 +122,49 @@ describe('findUsedGlobals', () => {
         const docInvalid = makeDoc([['= (1 +', '= "unclosed', '= zins * 2']]);
         expect(() => findUsedGlobals(docInvalid, [zins])).not.toThrow();
         expect(findUsedGlobals(docInvalid, [zins]).usedNames).toEqual(['zins']);
+    });
+
+    it('detects global function/variable in inline ==...== text', () => {
+        const age = def('age', '2026 - year', ['year']);
+        const doc = makeTextDoc(['Ich bin ==age(me)== Jahre alt.']);
+
+        const res = findUsedGlobals(doc, [age]);
+
+        expect(res.usedNames).toEqual(['age']);
+        expect(res.usedDefs).toEqual([age]);
+    });
+
+    it('detects global variable/function with leading @ in inline ==...== text', () => {
+        const age = def('age', '2026 - year', ['year']);
+        const doc = makeTextDoc(['Ich bin ==@age(me)== Jahre alt.']);
+
+        const res = findUsedGlobals(doc, [age]);
+
+        expect(res.usedNames).toEqual(['age']);
+        expect(res.usedDefs).toEqual([age]);
+    });
+
+    it('detects inline ==...== calculation with multiple globals', () => {
+        const kredit = def('kredit', '200000');
+        const zins = def('zins', '3,9 %');
+        const laufzeit = def('laufzeit', '240');
+        const rate = def('rate', 'RMZ(r / 12, n, -b)', ['b', 'r', 'n']);
+        const doc = makeTextDoc(['Kredit: ==rate(kredit, zins, laufzeit)==']);
+
+        const res = findUsedGlobals(doc, [rate, kredit, zins, laufzeit]);
+
+        expect(res.usedNames).toEqual(['kredit', 'zins', 'laufzeit', 'rate']);
+        expect(res.usedDefs).toEqual([kredit, zins, laufzeit, rate]);
+    });
+
+    it('ignores local variable used in inline ==...== text when defined in variablesBlock', () => {
+        const globalZins = def('zins', '3,9 %');
+        const doc = makeTextDoc(['Zins: ==zins * 100=='], [{ code: 'zins = 2,5 %' }]);
+
+        const res = findUsedGlobals(doc, [globalZins]);
+
+        expect(res.usedNames).toEqual([]);
+        expect(res.usedDefs).toEqual([]);
     });
 });
 

@@ -1,17 +1,25 @@
 'use client';
 
-import { useState, type MouseEvent } from 'react';
+import { useEffect, useState, type MouseEvent } from 'react';
 import { NodeViewWrapper, ReactNodeViewRenderer, type ReactNodeViewProps } from '@tiptap/react';
 import { Globe, Variable } from 'lucide-react';
 import { formatResult } from '@/lib/formula/format';
 import { parseDefinitionLines, setGlobalAtLine } from '@/lib/formula/scope';
 import { isErr } from '@/lib/formula/types';
+import { getVariableRegistry } from '@/lib/variableRegistryInstance';
 import { VariablesBlockNode, type VariablesBlockOptions } from './VariablesBlockNode';
 import { scopeForDoc } from './variablesScope';
 
 function VariablesView({ node, updateAttributes, editor, extension }: ReactNodeViewProps) {
     const code = String(node.attrs.code ?? '');
     const [editing, setEditing] = useState(() => !String(node.attrs.code ?? '').trim());
+    const [registryRevision, setRegistryRevision] = useState(0);
+    useEffect(() => {
+        return getVariableRegistry().subscribe(() => {
+            setRegistryRevision((r) => r + 1);
+        });
+    }, []);
+    void registryRevision;
 
     const isEditing = editing && editor.isEditable;
     const scope = isEditing
@@ -58,47 +66,52 @@ function VariablesView({ node, updateAttributes, editor, extension }: ReactNodeV
                 </div>
             ) : (
                 <div>
+                    <div className="grid grid-cols-[minmax(140px,34%)_1fr] bg-t2-sub border-b border-t2-line text-[11px] font-semibold uppercase tracking-wider text-t2-ink-2">
+                        <div className="px-3 py-1.5 border-r border-t2-line-soft">Bezeichnung</div>
+                        <div className="px-3 py-1.5">Inhalt</div>
+                    </div>
                     {lines.map(({ line, def }) => {
                         const val = def.params ? undefined : scope?.variable(def.name);
                         return (
                             <div
-                                key={`${line}-${def.name}`}
-                                className="flex items-center gap-2.5 px-3 py-1.5 text-[13px] font-mono border-b border-t2-line-soft last:border-b-0"
+                                key={line}
+                                className="grid grid-cols-[minmax(140px,34%)_1fr] border-b border-t2-line-soft last:border-b-0"
                             >
-                                <span className="text-t2-ink font-medium min-w-[110px]">
+                                <div className="px-3 py-2 font-mono text-[13px] font-medium text-t2-ink border-r border-t2-line-soft flex items-center min-w-0 truncate">
                                     {def.params ? `${def.name}(${def.params.join(', ')})` : def.name}
-                                </span>
-                                <span className="text-t2-ink-3">=</span>
-                                <span className="flex-1 text-t2-ink min-w-0 truncate">{def.expr}</span>
-                                {def.params ? (
-                                    <span className="text-xs text-t2-ink-2">Funktion</span>
-                                ) : (
-                                    val !== undefined && (
-                                        <span
-                                            className={
-                                                isErr(val)
-                                                    ? 'text-xs text-t2-late font-semibold tabular-nums'
-                                                    : 'text-xs text-t2-ink-2 tabular-nums'
-                                            }
-                                            title={isErr(val) ? val.detail : undefined}
-                                        >
-                                            {isErr(val) ? val.error : `= ${formatResult(val)}`}
-                                        </span>
-                                    )
-                                )}
-                                <button
-                                    type="button"
-                                    disabled={!editor.isEditable}
-                                    onClick={() => updateAttributes({ code: setGlobalAtLine(code, line, !def.global) })}
-                                    className={
-                                        def.global
-                                            ? 'ml-auto flex items-center gap-1.5 text-[11px] font-semibold font-sans rounded-[7px] px-2 py-[3px] bg-t2-accent text-t2-accent-ink transition-colors'
-                                            : 'ml-auto flex items-center gap-1.5 text-[11px] font-semibold font-sans rounded-[7px] px-2 py-[3px] text-t2-ink-2 bg-t2-sub hover:bg-t2-hover transition-colors'
-                                    }
-                                >
-                                    <Globe className="w-3.5 h-3.5" />
-                                    <span>{def.global ? 'global' : 'lokal'}</span>
-                                </button>
+                                </div>
+                                <div className="px-3 py-2 flex items-center justify-between gap-2.5 min-w-0">
+                                    <div className="flex items-baseline gap-2 min-w-0 flex-1 font-mono text-[13px]">
+                                        <span className="text-t2-ink min-w-0 truncate">{def.expr}</span>
+                                        {def.params ? (
+                                            <span className="shrink-0 font-sans text-[11px] text-t2-ink-3">Funktion</span>
+                                        ) : val !== undefined ? (
+                                            <span
+                                                className={
+                                                    isErr(val)
+                                                        ? 'shrink-0 text-xs text-t2-late font-semibold tabular-nums'
+                                                        : 'shrink-0 text-xs text-t2-ink-2 tabular-nums'
+                                                }
+                                                title={isErr(val) ? val.detail : undefined}
+                                            >
+                                                {isErr(val) ? val.error : `= ${formatResult(val)}`}
+                                            </span>
+                                        ) : null}
+                                    </div>
+                                    <button
+                                        type="button"
+                                        disabled={!editor.isEditable}
+                                        onClick={() => updateAttributes({ code: setGlobalAtLine(code, line, !def.global) })}
+                                        className={
+                                            def.global
+                                                ? 'shrink-0 flex items-center gap-1.5 text-[11px] font-semibold font-sans rounded-[7px] px-2 py-[3px] bg-t2-accent text-t2-accent-ink transition-colors'
+                                                : 'shrink-0 flex items-center gap-1.5 text-[11px] font-semibold font-sans rounded-[7px] px-2 py-[3px] text-t2-ink-2 bg-t2-sub hover:bg-t2-hover transition-colors'
+                                        }
+                                    >
+                                        <Globe className="w-3.5 h-3.5" />
+                                        <span>{def.global ? 'global' : 'lokal'}</span>
+                                    </button>
+                                </div>
                             </div>
                         );
                     })}

@@ -51,7 +51,7 @@ export function TableContextMenu({ editor, position, onClose }: TableContextMenu
     if (!position || !editor) return null;
 
     const run = (fn: (c: ReturnType<Editor['chain']>) => { run: () => boolean }) => () => {
-        fn(editor.chain().focus());
+        fn(editor.chain().focus()).run();
         onClose?.();
     };
     const ic = 14;

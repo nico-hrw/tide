@@ -35,6 +35,7 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeaderAligned, TableCellAligned } from '../extensions/TableCellAttrs';
 import { TableFormulas } from '../extensions/TableFormulas';
+import { InlineFormulas } from '../extensions/InlineFormulas';
 import { VariablesBlock } from '../extensions/VariablesBlock';
 import { scopeForDoc } from '../extensions/variablesScope';
 import { ReferenceMark } from '../extensions/ReferenceMark';
@@ -253,6 +254,10 @@ export function useTipTapConfig({
             Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ResizableImage,
             Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned,
             TableFormulas.configure({
+                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions()),
+                subscribe: (cb) => getVariableRegistry().subscribe(cb),
+            }),
+            InlineFormulas.configure({
                 getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions()),
                 subscribe: (cb) => getVariableRegistry().subscribe(cb),
             }),
@@ -695,6 +700,10 @@ export function useTipTapConfig({
             }
         } catch (_) {}
     }, [editor, cleanInitial, ydoc]);
+
+    useEffect(() => {
+        void getVariableRegistry().ensureLoaded();
+    }, []);
 
     useEffect(() => {
         const onBeforeUnload = () => {

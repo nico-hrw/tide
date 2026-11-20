@@ -16,6 +16,7 @@ interface RegistryFileRecord {
     id: string;
     type: string;
     owner_id?: string;
+    blob_path?: string | null;
     content_ciphertext?: string;
     access_keys?: unknown;
     metadata?: unknown;
@@ -81,7 +82,8 @@ export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): Re
         });
         if (!res.ok) return null;
         const created: { id: string } = await res.json();
-        await apiFetch(`/api/v1/files/${created.id}/upload`, { method: 'POST', body: ciphertext });
+        const upRes = await apiFetch(`/api/v1/files/${created.id}/upload`, { method: 'POST', body: ciphertext });
+        if (!upRes.ok) return null;
         return created.id;
     }
 
@@ -96,9 +98,20 @@ export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): Re
             }
             fileId = file.id;
             fileOwnerId = file.owner_id ?? keys.userId;
-            if (!file.content_ciphertext) return [];
+            let ciphertext = file.content_ciphertext;
+            if (!ciphertext) {
+                const dlRes = await apiFetch(`/api/v1/files/${file.id}/download`);
+                if (!dlRes.ok) {
+                    if (dlRes.status === 404 && !file.blob_path) {
+                        return [];
+                    }
+                    throw new Error(`Failed to download variable registry blob: ${dlRes.status}`);
+                }
+                ciphertext = await dlRes.text();
+                if (!ciphertext.trim()) return [];
+            }
             const blob = await cryptoV2.decryptFileV2({
-                content_ciphertext: file.content_ciphertext,
+                content_ciphertext: ciphertext,
                 access_keys: asObject(file.access_keys, {}) as Record<string, never>,
                 metadata: asObject(file.metadata, { has_custom_password: false }) as { has_custom_password: boolean },
                 masterKey: keys.privateKey,

@@ -58,6 +58,15 @@ function extractNodeText(node: unknown): string {
     return node.content.map(extractNodeText).join(sep);
 }
 
+function extractInlineFormulas(text: string, formulaTexts: string[]): void {
+    const re = /(?:^|[^=])==([^=\n]+)==/g;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(text)) !== null) {
+        const cleanExpr = match[1].trim().replace(/^@\s*/, '');
+        if (cleanExpr) formulaTexts.push('=' + cleanExpr);
+    }
+}
+
 function walkJsonNode(node: unknown, formulaTexts: string[], localDefs: Definition[]): void {
     if (Array.isArray(node)) {
         for (const item of node) walkJsonNode(item, formulaTexts, localDefs);
@@ -75,6 +84,12 @@ function walkJsonNode(node: unknown, formulaTexts: string[], localDefs: Definiti
     if (node.type === 'tableCell' || node.type === 'tableHeader') {
         const text = extractNodeText(node);
         if (isFormulaText(text)) formulaTexts.push(text);
+        else extractInlineFormulas(text, formulaTexts);
+        return;
+    }
+
+    if (node.type === 'text' && typeof node.text === 'string') {
+        extractInlineFormulas(node.text, formulaTexts);
         return;
     }
 
@@ -112,12 +127,25 @@ function extractFromInput(docJsonOrText: unknown): { formulaTexts: string[]; loc
                 const text = cell.textContent ?? '';
                 if (isFormulaText(text)) formulaTexts.push(text);
             });
+            if (doc.body) {
+                if (typeof doc.createTreeWalker === 'function' && typeof NodeFilter !== 'undefined') {
+                    const walker = doc.createTreeWalker(doc.body, NodeFilter.SHOW_TEXT);
+                    let current = walker.nextNode();
+                    while (current) {
+                        if (current.nodeValue) extractInlineFormulas(current.nodeValue, formulaTexts);
+                        current = walker.nextNode();
+                    }
+                } else {
+                    extractInlineFormulas(doc.body.textContent ?? '', formulaTexts);
+                }
+            }
             return { formulaTexts, localDefs };
         }
 
         localDefs.push(...parseDefinitions(trimmed));
         for (const line of trimmed.split('\n')) {
             if (isFormulaText(line)) formulaTexts.push(line);
+            else extractInlineFormulas(line, formulaTexts);
         }
         return { formulaTexts, localDefs };
     }
