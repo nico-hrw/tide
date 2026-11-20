@@ -313,6 +313,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
               onDeleteEvent={onEventDelete}
               onEditEvent={onEditEvent}
               onTaskComplete={onTaskComplete}
+              proportional
             />
           </div>
         </div>

@@ -2,7 +2,7 @@ export const SNAP_MIN = 10;
 export const GAP_PX = 34;
 export const DEFAULT_DURATION_MIN = 60;
 export const DAY_PX_PER_MIN = 0.8;
-export const DAY_MIN_BLOCK_PX = 56;
+export const DAY_MIN_BLOCK_PX = 68;
 
 const MIN_MS = 60000;
 

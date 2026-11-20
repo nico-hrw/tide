@@ -9,8 +9,8 @@ import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
 import { paletteFor, type PaletteEntry } from './eventPalette';
 import { AllDayTodoPills, TimedTodoRow } from './AgendaParts';
-import { blockHeightPx } from './timelineMath';
-import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayNowPlacement, nowFractionIn } from './DayTimelineParts';
+import { DAY_MIN_BLOCK_PX, DAY_PX_PER_MIN, blockHeightPx } from './timelineMath';
+import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayNowLayout, nowFractionIn } from './DayTimelineParts';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -27,7 +27,9 @@ export interface LaneItem<T> {
   height: number;
 }
 
-export function packLanes<T extends { id: string; start: string; end?: string }>(events: T[], clusterStart: Date): LaneItem<T>[][] {
+export function packLanes<T extends { id: string; start: string; end?: string }>(
+  events: T[], clusterStart: Date, pxPerMin: number = PX_PER_MIN, minHeight: number = MIN_EVENT_HEIGHT,
+): LaneItem<T>[][] {
   const sorted = [...events].sort((a, b) => {
     const aS = new Date(a.start).getTime(), bS = new Date(b.start).getTime();
     if (aS !== bS) return aS - bS;
@@ -36,8 +38,8 @@ export function packLanes<T extends { id: string; start: string; end?: string }>
   const lanes: { items: LaneItem<T>[]; bottomPx: number }[] = [];
   for (const ev of sorted) {
     const s = new Date(ev.start), e = ev.end ? new Date(ev.end) : new Date(s.getTime() + 3600000);
-    const top = Math.round(Math.max(0, (s.getTime() - clusterStart.getTime()) / 60000) * PX_PER_MIN);
-    const h = Math.max(MIN_EVENT_HEIGHT, Math.round(Math.max(15, (e.getTime() - s.getTime()) / 60000) * PX_PER_MIN));
+    const top = Math.round(Math.max(0, (s.getTime() - clusterStart.getTime()) / 60000) * pxPerMin);
+    const h = Math.max(minHeight, Math.round(Math.max(15, (e.getTime() - s.getTime()) / 60000) * pxPerMin));
     const lane = lanes.find(l => l.bottomPx + 6 <= top);
     if (lane) { lane.items.push({ event: ev, desiredTop: top, height: h }); lane.bottomPx = top + h; }
     else { lanes.push({ items: [{ event: ev, desiredTop: top, height: h }], bottomPx: top + h }); }
@@ -137,15 +139,18 @@ function StatusBadges({ isActive, remStr, durStr, ink }: { isActive: boolean; re
 }
 
 function TimelineEventItem({
-  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, onTaskComplete, isParallel = false, style,
+  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, onTaskComplete, isParallel = false, style, proportional = false,
 }: {
   ev: any; now: Date; isToday: boolean; isEven: boolean; nextUpcomingId: string | null; theme: string;
-  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties;
+  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties; proportional?: boolean;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
   // Der laufende Termin ist invertiert: Hintergrund in der Textfarbe, Text in der Hintergrundfarbe.
   const basePal = paletteFor(ev.color);
   const pal = info.isActive ? { bg: basePal.ink, ink: basePal.bg } : basePal;
+  // Legacy height by duration; in the proportional day view the card fills its segment instead.
+  const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
+  const fill = proportional ? (isExpanded ? '' : 'h-full') : 'my-1';
 
   const isTask = !!(ev.is_task || ev.linkedTaskId);
   const tasks = useDataStore(state => state.tasks);
@@ -225,15 +230,15 @@ function TimelineEventItem({
   }
 
   return (
-    <div id={`ev-${ev.id}`} className={`w-full rounded-xl relative transition-all overflow-hidden ${isExpanded ? '' : 'h-full'}`} style={getCardStyle(pal, info.isActive, style, ev.effect)}>
-      <button onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${isExpanded ? '' : 'h-full'}`} style={{ border: 'none', background: 'transparent' }}>
+    <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden`} style={getCardStyle(pal, info.isActive, proportional ? style : { minHeight: pHeight, ...style }, ev.effect)}>
+      <button onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
           <span className="text-[10px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
         </div>
         <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5 pb-2.5 self-stretch">
           <div className={`w-3 h-3 rounded-full shrink-0 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: pal.ink }} />
-          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: 8, background: pal.ink, opacity: 0.25 }} />
+          <div className="w-[2px] flex-1 mt-1.5 mb-1 rounded-full" style={{ minHeight: proportional ? 8 : Math.max(16, pHeight - 48), background: pal.ink, opacity: 0.25 }} />
         </div>
         <div className="flex-1 py-3 pr-3 min-w-0 flex flex-col justify-start">
           <div className="flex items-center justify-between gap-1.5 w-full">
@@ -289,10 +294,12 @@ export interface DbTimelineDayProps {
   day: Date; dayEvs: any[]; allDayEvs: any[]; isToday: boolean; now: Date;
   theme: string; onSelectEvent?: (ev: any) => void; onNewEvent?: (date: Date) => void; onDeleteEvent?: (id: string) => void;
   onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void;
+  /** Day view only: proportional heights, growing active gap, positioned now-line. Off = legacy list. */
+  proportional?: boolean;
 }
 
 export const DbTimelineDay = React.memo(function DbTimelineDay({
-  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete,
+  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, proportional = false,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const tasks = useDataStore(state => state.tasks);
@@ -347,7 +354,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
 
   let eventCounter = 0;
   // Where "now" sits: inside a block or gap (drawn there, at its share of the height) or before/after all.
-  const placement = dayNowPlacement(clusters, isToday, now);
+  const { placement, flowIdx } = dayNowLayout(clusters, isToday, now, proportional);
   const dark = theme === 'dark';
 
   return (
@@ -383,13 +390,13 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
       )}
 
       {clusters.map((cluster, cIdx) => {
-        const nowEl = cIdx === 0 && placement?.kind === 'before-first' ? <NowLine time={now} dark={dark} /> : null;
+        const nowEl = cIdx === flowIdx ? <NowLine time={now} dark={dark} /> : null;
         const prev = clusters[cIdx - 1];
-        const pauseEl = prev ? <GapSeg prevEnd={prev.clusterEnd} nextStart={cluster.clusterStart} nowMs={isToday ? now.getTime() : null} nowFraction={nowFractionIn(placement, 'in-gap', cIdx - 1)} now={now} dark={dark} /> : null;
+        const pauseEl = prev ? <GapSeg prevEnd={prev.clusterEnd} nextStart={cluster.clusterStart} nowMs={isToday ? now.getTime() : null} nowFraction={nowFractionIn(placement, 'in-gap', cIdx - 1)} now={now} dark={dark} proportional={proportional} /> : null;
         const todosBefore = timedTodos.filter(t => todoSlot(t.start) === cIdx);
         const todoEls = todosBefore.map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />);
         const blockH = blockHeightPx(cluster.clusterStart.getTime(), cluster.clusterEnd.getTime());
-        const segProps = { start: cluster.clusterStart, end: cluster.clusterEnd, nowFraction: nowFractionIn(placement, 'in-block', cIdx), now, dark };
+        const segProps = { start: cluster.clusterStart, end: cluster.clusterEnd, nowFraction: nowFractionIn(placement, 'in-block', cIdx), now, dark, proportional };
 
         if (cluster.events.length === 1) {
           const ev = cluster.events[0];
@@ -402,7 +409,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                 <TimelineEventItem
                   ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                   theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete}
+                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} proportional={proportional}
                 />
               </BlockSeg>
             </React.Fragment>
@@ -411,38 +418,36 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
 
         // Überlappende Termine liegen übereinander, jeder Ebene um ein Stück nach rechts versetzt.
         // Nicht nebeneinander und nicht über die volle Breite.
-        const lanes = packLanes(cluster.events, cluster.clusterStart);
+        const lanes = proportional ? packLanes(cluster.events, cluster.clusterStart, DAY_PX_PER_MIN, DAY_MIN_BLOCK_PX) : packLanes(cluster.events, cluster.clusterStart);
         const placed = lanes.flatMap((laneItems, laneIdx) => laneItems.map((item) => ({ ...item, laneIdx })));
         const clusterH = placed.reduce((m, it) => Math.max(m, it.desiredTop + it.height), 0);
-        const columns = columnsFor(cluster.events);
+        const columns = columnsFor(cluster.events, !proportional);
         return (
           <React.Fragment key={`cluster-${cluster.clusterStart.toISOString()}-${cIdx}`}>
             {todoEls}
             {pauseEl}
             {nowEl}
-            <BlockSeg {...segProps} height={Math.max(blockH, clusterH + 2 * SEG_PAD_PX)}>
-              <div className="relative w-full h-full">
-                {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
-                  <TimelineEventItem
-                    key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
-                    theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                    onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
-                    style={{
-                      position: 'absolute',
-                      top: desiredTop,
-                      left: `${columns.get(ev.id)?.left ?? 0}%`,
-                      width: `calc(${100 - (columns.get(ev.id)?.left ?? 0)}% - 4px)`,
-                      minHeight: height,
-                      zIndex: columns.get(ev.id)?.z ?? 1,
-                    }}
-                  />
-                ))}
-              </div>
+            <BlockSeg {...segProps} cluster height={proportional ? Math.max(blockH, clusterH + 2 * SEG_PAD_PX) : clusterH}>
+              {placed.map(({ event: ev, desiredTop, height, laneIdx }) => (
+                <TimelineEventItem
+                  key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
+                  theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
+                  style={{
+                    position: 'absolute',
+                    top: desiredTop,
+                    left: `${columns.get(ev.id)?.left ?? 0}%`,
+                    width: `calc(${100 - (columns.get(ev.id)?.left ?? 0)}% - 4px)`,
+                    minHeight: height,
+                    zIndex: columns.get(ev.id)?.z ?? 1,
+                  }}
+                />
+              ))}
             </BlockSeg>
           </React.Fragment>
         );
       })}
-      {placement?.kind === 'after-last' && <NowLine time={now} dark={dark} />}
+      {flowIdx === clusters.length && <NowLine time={now} dark={dark} />}
       {timedTodos
         .filter(t => todoSlot(t.start) === clusters.length)
         .map(t => <TimedTodoRow key={`tt-${t.id}`} ev={t} onTaskComplete={onTaskComplete} />)}

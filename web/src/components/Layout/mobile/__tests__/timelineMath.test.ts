@@ -35,6 +35,7 @@ describe('gapHeightPx', () => {
 describe('blockHeightPx', () => {
   it('clamps short blocks to the minimum', () => {
     expect(blockHeightPx(0, 15 * MIN)).toBe(DAY_MIN_BLOCK_PX);
+    expect(blockHeightPx(0, 15 * MIN)).toBe(68);
   });
   it('scales long blocks', () => {
     expect(blockHeightPx(0, 2 * H)).toBeCloseTo(96);

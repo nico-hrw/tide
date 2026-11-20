@@ -2,7 +2,8 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { DbTimelineDay } from '../MobileAgendaTimeline';
-import { GAP_PX, blockHeightPx, gapHeightPx } from '../timelineMath';
+import { DAY_MIN_BLOCK_PX, DAY_PX_PER_MIN, GAP_PX, blockHeightPx, gapHeightPx } from '../timelineMath';
+import { SEG_PAD_PX } from '../DayTimelineParts';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -28,10 +29,11 @@ describe('DbTimelineDay proportional layout and now-line', () => {
     host.remove();
   });
 
-  function render(now: Date, dayEvs: unknown[] = EVENTS) {
+  function render(now: Date, dayEvs: unknown[] = EVENTS, opts: { proportional?: boolean; allDayEvs?: unknown[] } = {}) {
     act(() => {
       root.render(React.createElement(DbTimelineDay, {
-        day: DAY, dayEvs: dayEvs as never[], allDayEvs: [], isToday: true, now, theme: 'light',
+        day: DAY, dayEvs: dayEvs as never[], allDayEvs: (opts.allDayEvs ?? []) as never[], isToday: true, now, theme: 'light',
+        proportional: opts.proportional ?? true,
       }));
     });
   }
@@ -100,5 +102,93 @@ describe('DbTimelineDay proportional layout and now-line', () => {
     expect(bs).toHaveLength(2);
     expect(h(bs[0])).toBeCloseTo(blockHeightPx(at(9).getTime(), at(10).getTime()));
     expect(h(bs[1])).toBeGreaterThan(0);
+  });
+
+  it('marks the now-line as an image for assistive tech', () => {
+    render(at(11));
+    expect(nowLine()!.getAttribute('role')).toBe('img');
+  });
+
+  it('sizes an overlap cluster on the day scale and puts the now-line inside it', () => {
+    // 9–11 and 10–12 overlap: one cluster 9–12, now at 11:00 = 2/3 of the way.
+    render(at(11), [ev('a', 9, 11), ev('b', 10, 12)]);
+    const bs = blocks();
+    expect(bs).toHaveLength(1);
+    expect(bs[0].dataset.segStart).toBe(String(at(9).getTime()));
+    expect(bs[0].dataset.segEnd).toBe(String(at(12).getTime()));
+    // Lanes on the day scale: b starts 60 min in, lasts 120 min -> bottom 60*0.8 + max(68, 120*0.8).
+    const laneBottom = 60 * DAY_PX_PER_MIN + Math.max(DAY_MIN_BLOCK_PX, 120 * DAY_PX_PER_MIN);
+    const expected = Math.max(blockHeightPx(at(9).getTime(), at(12).getTime()), laneBottom + 2 * SEG_PAD_PX);
+    expect(h(bs[0])).toBeCloseTo(expected);
+    const line = nowLine()!;
+    expect(bs[0].contains(line)).toBe(true);
+    expect(parseFloat(line.style.top)).toBeCloseTo(200 / 3, 3);
+  });
+
+  it('drops the fixed height of an expanded card', () => {
+    render(at(11));
+    const card = host.querySelector<HTMLElement>('#ev-a')!;
+    act(() => { card.querySelector('button')!.click(); });
+    const seg = blocks()[0];
+    expect(seg.style.height).toBe('');
+    expect(h({ style: { height: seg.style.minHeight } } as HTMLElement)).toBeCloseTo(blockHeightPx(at(9).getTime(), at(10).getTime()));
+  });
+
+  it('still renders timed todo rows and all-day todo pills', () => {
+    const todo = { id: 't', title: 'Zeit-Todo', start: at(12).toISOString(), is_task: true };
+    const pill = { id: 'p', title: 'Ganztags-Todo', start: at(0).toISOString(), allDay: true, is_task: true };
+    render(at(11), [...EVENTS, todo], { allDayEvs: [pill] });
+    expect(host.textContent).toContain('Zeit-Todo');
+    expect(host.textContent).toContain('Ganztags-Todo');
+    expect(blocks()).toHaveLength(2);
+  });
+});
+
+describe('DbTimelineDay legacy layout (proportional off: month and agenda views)', () => {
+  let root: Root;
+  let host: HTMLDivElement;
+
+  beforeEach(() => {
+    host = document.createElement('div');
+    document.body.appendChild(host);
+    root = createRoot(host);
+  });
+
+  afterEach(() => {
+    act(() => root.unmount());
+    host.remove();
+  });
+
+  it('keeps fixed card heights, 34px gaps and the line before the next cluster', () => {
+    act(() => {
+      root.render(React.createElement(DbTimelineDay, {
+        day: DAY, dayEvs: EVENTS as never[], allDayEvs: [], isToday: true, now: at(11), theme: 'light',
+      }));
+    });
+    expect(host.querySelectorAll('[data-seg]')).toHaveLength(0);
+    const a = host.querySelector<HTMLElement>('#ev-a')!;
+    const b = host.querySelector<HTMLElement>('#ev-b')!;
+    expect(a.style.height).toBe('');
+    expect(a.style.minHeight).toBe(`${Math.max(54, Math.min(180, 44 + 60 * 0.6))}px`);
+    expect(a.className).toContain('my-1');
+    const fixedGaps = Array.from(host.querySelectorAll<HTMLElement>('div')).filter(d => d.textContent === '4 h frei' && d.style.height);
+    expect(fixedGaps).toHaveLength(1);
+    expect(fixedGaps[0].style.height).toBe(`${GAP_PX}px`);
+    const line = host.querySelector<HTMLElement>('[aria-label="Jetzt"]')!;
+    expect(line).not.toBeNull();
+    expect(line.style.top).toBe('');
+    expect(fixedGaps[0].contains(line)).toBe(false);
+    expect(a.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(line.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(fixedGaps[0].compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('shows no now-line after the last event, as before', () => {
+    act(() => {
+      root.render(React.createElement(DbTimelineDay, {
+        day: DAY, dayEvs: EVENTS as never[], allDayEvs: [], isToday: true, now: at(16), theme: 'light',
+      }));
+    });
+    expect(host.querySelector('[aria-label="Jetzt"]')).toBeNull();
   });
 });
