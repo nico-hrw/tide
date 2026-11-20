@@ -113,7 +113,8 @@ export const MobileEditEventSheet = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const cleanTitle = title.trim();
-    if (!cleanTitle) return;
+    // A draft (empty id) may stay unnamed; the save path names it.
+    if (!cleanTitle && event.id !== '') return;
 
     const [sH, sM] = startTime.split(':').map(Number);
     const [eH, eM] = endTime.split(':').map(Number);

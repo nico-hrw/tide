@@ -12,6 +12,9 @@ import { computeWeekAllDayRows, type CalendarEvent } from './expandMobileEvents'
 import { T } from './mobileTheme';
 import type { MobileCalViewMode } from './MobileTopHeader';
 import { useMobileSwipeGestures } from './useMobileSwipeGestures';
+import { QuickEditGrid } from './QuickEditGrid';
+import type { NewEventMeta } from './MobileOverlaysAndModals';
+import { confirmQuickEdit, quickEditContext, quickEditForDraft, quickEditForEvent, type QuickEditState } from './quickEditState';
 
 export interface MobileCalendarTabProps {
   activeDate: Date;
@@ -25,7 +28,7 @@ export interface MobileCalendarTabProps {
   setDayViewDays?: React.Dispatch<React.SetStateAction<Date[]>>;
   onSelectEvent?: (event: CalendarEvent) => void;
   onEditEvent?: (event: CalendarEvent) => void;
-  onNewEvent?: (date: Date, endDate?: Date, meta?: { title?: string; color?: string; description?: string }) => void;
+  onNewEvent?: (date: Date, endDate?: Date, meta?: NewEventMeta) => void;
   onCreateEvent?: (date: Date) => void;
   onEventClick?: (id: string) => void;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => void;
@@ -150,6 +153,26 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
     [onCreateEvent, onNewEvent],
   );
 
+  // Quick edit grid (day view only): hold a card = edit, double tap = draft.
+  const [quickEdit, setQuickEdit] = useState<QuickEditState>(null);
+  const quickEditCtx = useMemo(
+    () => (quickEdit ? quickEditContext(dayEvs, quickEdit.target.id) : []),
+    [quickEdit, dayEvs],
+  );
+  const handleQuickEdit = useCallback((ev: CalendarEvent) => setQuickEdit(quickEditForEvent(ev)), []);
+  const handleDraftAt = useCallback((start: Date, end: Date) => setQuickEdit(quickEditForDraft(start, end)), []);
+  const handleQuickEditConfirm = useCallback(
+    (start: Date, end: Date) => {
+      if (!quickEdit) return;
+      const out = confirmQuickEdit(quickEdit, start, end);
+      setQuickEdit(null);
+      if (out.kind === 'update') onEventUpdate?.(out.id, out.start, out.end);
+      else if (out.kind === 'draft') onEditEvent?.(out.event);
+    },
+    [quickEdit, onEventUpdate, onEditEvent],
+  );
+  const handleQuickEditCancel = useCallback(() => setQuickEdit(null), []);
+
   const handleTodayClick = useCallback(() => {
     if (onTodayClick) {
       onTodayClick();
@@ -164,6 +187,8 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
     });
   }, [onTodayClick, setActiveDate, setDayViewDays, weekStartsOn]);
 
+  // Touches in the grid portal bubble up here; no day change while the grid is open.
+  const swipeOn = (calViewMode === 'week' || calViewMode === 'day') && !quickEdit;
   const swipeTransform =
     snapping === 'left' ? 'translateX(-100%)' : snapping === 'right' ? 'translateX(100%)' : `translateX(${swipeDx * 0.4}px)`;
   const swipeTransition = snapping
@@ -176,9 +201,9 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
     <div
       className="flex flex-col"
       style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
-      onTouchStart={calViewMode === 'week' || calViewMode === 'day' ? onSwipeStart : undefined}
-      onTouchMove={calViewMode === 'week' || calViewMode === 'day' ? onSwipeMove : undefined}
-      onTouchEnd={calViewMode === 'week' || calViewMode === 'day' ? onSwipeEnd : undefined}
+      onTouchStart={swipeOn ? onSwipeStart : undefined}
+      onTouchMove={swipeOn ? onSwipeMove : undefined}
+      onTouchEnd={swipeOn ? onSwipeEnd : undefined}
     >
       {calViewMode === 'week' ? (
         <div
@@ -314,8 +339,21 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
               onEditEvent={onEditEvent}
               onTaskComplete={onTaskComplete}
               proportional
+              onQuickEdit={handleQuickEdit}
+              onDraftAt={handleDraftAt}
             />
           </div>
+          {/* Sibling of the list, not inside it: the list's click-block must not swallow the grid's taps. */}
+          {quickEdit && (
+            <QuickEditGrid
+              day={activeDate}
+              context={quickEditCtx}
+              target={quickEdit.target}
+              mode={quickEdit.mode}
+              onConfirm={handleQuickEditConfirm}
+              onCancel={handleQuickEditCancel}
+            />
+          )}
         </div>
       ) : (
         <MobileAgendaTimeline

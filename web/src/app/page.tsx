@@ -430,7 +430,7 @@ export default function Dashboard() {
                     onNoteSelect={(id: string, title: string) => handleFileSelect(id, title)}
                     onNewNote={() => handleNewNote()}
                     onDeleteNote={(id: string) => handleDeleteNote({ stopPropagation: () => {} } as React.MouseEvent, id)}
-                    onNewEvent={(date: Date, endDate?: Date, meta?: { title?: string; color?: string; description?: string }) =>
+                    onNewEvent={(date: Date, endDate?: Date, meta?: import("@/components/Layout/mobile/MobileOverlaysAndModals").NewEventMeta) =>
                         handleEventCreate(date, endDate || new Date(date.getTime() + 3_600_000), false, meta || { title: "Neuer Termin" })}
                     onEventClick={(_id: string) => {}}
                     onEventUpdate={(id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) =>
