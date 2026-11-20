@@ -8,9 +8,10 @@ import {
 import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
 import { paletteFor, type PaletteEntry } from './eventPalette';
-import { AllDayTodoPills, TimedTodoRow } from './AgendaParts';
+import { AllDayTodoPills, DELETE_PATH, EDIT_PATH, FilledIcon, TimedTodoRow } from './AgendaParts';
 import { DAY_MIN_BLOCK_PX, DAY_PX_PER_MIN, blockHeightPx } from './timelineMath';
 import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayNowLayout, nowFractionIn } from './DayTimelineParts';
+import { useDayListGestures } from './useDayListGestures';
 
 const T = {
   bg: 'var(--background)', card: 'var(--sidebar-bg)', pri: 'var(--foreground)',
@@ -67,18 +68,6 @@ function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSPro
     boxShadow: isActive ? '0 8px 22px -8px rgba(0,0,0,0.35)' : 'none',
     transition: 'box-shadow 0.2s ease', ...extra,
   };
-}
-
-/** Gefüllte Icons ohne Hintergrund (Material-Stil), in der Farbe des Termins. */
-const EDIT_PATH = 'M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z';
-const DELETE_PATH = 'M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z';
-
-function FilledIcon({ d, size }: { d: string; size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
-      <path d={d} />
-    </svg>
-  );
 }
 
 function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; ink?: string; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
@@ -177,7 +166,7 @@ function TimelineEventItem({
   if (isParallel) {
     return (
       <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(pal, info.isActive, style, ev.effect)}>
-        <button onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
+        <button data-card-body onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
           <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
             <span className="text-[11px] font-bold" style={{ color: pal.ink }}>
               {format(info.evStart, 'HH:mm')} – {format(info.evEnd, 'HH:mm')}
@@ -231,7 +220,7 @@ function TimelineEventItem({
 
   return (
     <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden`} style={getCardStyle(pal, info.isActive, proportional ? style : { minHeight: pHeight, ...style }, ev.effect)}>
-      <button onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
+      <button data-card-body onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
           <span className="text-[10px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
@@ -296,18 +285,18 @@ export interface DbTimelineDayProps {
   onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void;
   /** Day view only: proportional heights, growing active gap, positioned now-line. Off = legacy list. */
   proportional?: boolean;
+  /** Day view gestures (only with `proportional`): hold a card = quick edit, double tap = draft at that time. */
+  onQuickEdit?: (ev: DbTimelineDayProps['dayEvs'][number]) => void; onDraftAt?: (start: Date, end: Date) => void;
 }
 
 export const DbTimelineDay = React.memo(function DbTimelineDay({
-  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, proportional = false,
+  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, proportional = false, onQuickEdit, onDraftAt,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const tasks = useDataStore(state => state.tasks);
 
   const regularAllDay = useMemo(() => allDayEvs.filter(e => !e.is_task && !e.linkedTaskId), [allDayEvs]);
   const allDayTodos = useMemo(() => allDayEvs.filter(e => e.is_task || e.linkedTaskId), [allDayEvs]);
-
-  type TimelineEventItemType = DbTimelineDayProps['allDayEvs'][number];
 
   const sortedAllDayTodos = useMemo(() => {
     // Only top-level todos appear in the calendar. Subtodos are never shown on their own;
@@ -331,10 +320,11 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   }, [realEvs, isToday, now]);
 
   const clusters = useMemo(() => buildClusters(realEvs), [realEvs]);
+  const gestureProps = useDayListGestures({ enabled: proportional && !!(onQuickEdit || onDraftAt), day, now, events: realEvs, expandedEventId, setExpandedEventId, onQuickEdit, onDraftAt });
 
   if (dayEvs.length === 0 && allDayEvs.length === 0) {
     return (
-      <div className="py-8 flex flex-col items-center justify-center text-center">
+      <div className="py-8 flex flex-col items-center justify-center text-center" {...gestureProps}>
         <p className="text-xs font-medium mb-3" style={{ color: T.mut }}>Keine Termine an diesem Tag</p>
         {onNewEvent && (
           <button onClick={() => onNewEvent(day)} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold active:scale-95 transition-transform" style={{ background: `${T.accent}14`, color: T.accent }}>
@@ -358,7 +348,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   const dark = theme === 'dark';
 
   return (
-    <div className="flex flex-col py-1">
+    <div className="flex flex-col py-1" {...gestureProps}>
       {allDayEvs.length > 0 && (
         <div className="flex flex-col gap-1.5 mb-2.5 w-full">
           <AllDayTodoPills todos={sortedAllDayTodos} onTaskComplete={onTaskComplete} />
