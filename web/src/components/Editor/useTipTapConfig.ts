@@ -55,10 +55,21 @@ import { encryptAssetWithNewBEK } from '@/lib/assetCrypto';
 import { apiFetch } from '@/lib/api';
 import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
 import { getVariableRegistry } from '@/lib/variableRegistryInstance';
+import { getNoteBindings, subscribeNoteBindings } from '@/lib/varsheet/noteBindings';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
 import { isDocEmpty, getCleanDocContent } from './editorUtils';
+
+/** Symbols the note's VarSheet publishes for formulas in this note. */
+const noteSheet = (noteId: string | null | undefined) => (noteId ? getNoteBindings(noteId) : undefined);
+
+/** Formulas recalculate when the central registry or a VarSheet changes. */
+const subscribeFormulaSources = (cb: () => void): (() => void) => {
+    const offRegistry = getVariableRegistry().subscribe(cb);
+    const offSheet = subscribeNoteBindings(cb);
+    return () => { offRegistry(); offSheet(); };
+};
 
 export { isDocEmpty, getCleanDocContent, PLACELHODER_QUOTES };
 
@@ -255,12 +266,12 @@ export function useTipTapConfig({
             Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ResizableImage,
             Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned,
             TableFormulas.configure({
-                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions()),
-                subscribe: (cb) => getVariableRegistry().subscribe(cb),
+                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions(), noteSheet(activeTabIdRef.current)),
+                subscribe: subscribeFormulaSources,
             }),
             InlineFormulas.configure({
-                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions()),
-                subscribe: (cb) => getVariableRegistry().subscribe(cb),
+                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions(), noteSheet(activeTabIdRef.current)),
+                subscribe: subscribeFormulaSources,
             }),
             VariablesBlock.configure({
                 getGlobals: () => getVariableRegistry().definitions(),

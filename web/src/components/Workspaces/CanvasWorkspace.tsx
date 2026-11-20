@@ -23,6 +23,7 @@ import NoteHistoryTimeline from '@/components/Editor/NoteHistoryTimeline';
 import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
 import NoteSettingsMenuComponent from './NoteSettingsMenu';
+import { useVarSheetBindings } from '@/components/VarSheet/useVarSheetBindings';
 const NoteSettingsMenu = NoteSettingsMenuComponent as React.ComponentType<any>;
 
 const Editor = dynamic(() => import('@/components/Editor'), {
@@ -122,6 +123,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     // VarSheet dock belongs to one note, and is only active when the varsheet extension is enabled.
     const [varSheetNoteId, setVarSheetNoteId] = useState<string | null>(null);
     const isVarSheetOpen = isVarSheetEnabled && !!activeNoteId && varSheetNoteId === activeNoteId;
+    // The note's formulas read the VarSheet's variables, whether or not the panel is open.
+    useVarSheetBindings(activeNoteId, isVarSheetEnabled);
     // Timeline open = isHistoryMode; the old-version preview (replaces the editor) = isViewingVersion
     const [isViewingVersion, setIsViewingVersion] = useState<boolean>(false);
     const [isDraggingEditorFile, setIsDraggingEditorFile] = useState(false);
@@ -350,7 +353,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
 
     return (
         <div className={`flex-1 min-h-0 relative ${isHidden ? 'hidden' : 'flex flex-col'}`}>
-            <div className={`flex-1 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : isVarSheetOpen ? 'lg:pr-[470px]' : ''}`}>
+            {/* Note and VarSheet sit side by side: the sheet takes its own column, so it can never cover the page. */}
+            <div className="flex-1 min-h-0 relative flex">
+            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''}`}>
                 {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
             {!isHidden && !isLoadingContent && !isA4 && timeline}
             {isLoadingContent ? (
@@ -850,16 +855,13 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             )}
             </div>
             {isVarSheetEnabled && isVarSheetOpen && activeNoteId && (
-                <div className="absolute inset-y-0 right-0 z-30 pointer-events-none flex">
-                    <div className="pointer-events-auto my-3.5 mr-3.5 w-[442px] max-w-[calc(100vw-1.75rem)] rounded-2xl border border-t2-line bg-t2-surface shadow-xl overflow-hidden flex flex-col">
-                        <VarSheetDock
-                            noteId={activeNoteId}
-                            onClose={handleCloseVarSheet}
-                            className="h-full w-full"
-                        />
+                <div className="absolute inset-y-0 right-0 z-30 p-3.5 pointer-events-none flex items-start lg:static lg:z-auto lg:shrink-0 lg:py-3.5 lg:pl-3 lg:pr-3.5">
+                    <div className="pointer-events-auto flex w-[360px] max-w-[calc(100vw-1.75rem)] max-h-full">
+                        <VarSheetDock noteId={activeNoteId} onClose={handleCloseVarSheet} />
                     </div>
                 </div>
             )}
+            </div>
         </div>
     );
 }

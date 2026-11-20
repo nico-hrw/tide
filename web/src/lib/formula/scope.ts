@@ -61,6 +61,11 @@ export interface ScopeLayers {
     global: () => Definition[];
     /** Copy of used globals stored in a shared note. */
     snapshot: Definition[];
+    /**
+     * Evaluated symbols of the note's VarSheet (numbers, strings and callable functions).
+     * Looked up after the local definitions and before the central registry.
+     */
+    sheet?: ReadonlyMap<string, unknown>;
 }
 
 /** Maximum nesting of user-function calls before giving up with #ZIRKEL. */
@@ -68,7 +73,7 @@ const MAX_CALL_DEPTH = 50;
 /** Total user-function calls per scope. Depth alone does not stop exponential branching like f(n-1)+f(n-1). */
 const MAX_TOTAL_CALLS = 20_000;
 
-/** Resolution order: local, global, snapshot, stdlib. Values are evaluated lazily and cached per scope. */
+/** Resolution order: local, VarSheet, global, snapshot, stdlib. Values are evaluated lazily and cached per scope. */
 export function buildScope(layers: ScopeLayers): CalcScope {
     let globalDefs: Definition[] | null = null;
     const globalGet = () => (globalDefs ??= layers.global());
@@ -78,8 +83,44 @@ export function buildScope(layers: ScopeLayers): CalcScope {
     let depth = 0;
     let calls = 0;
 
-    const find = (match: (d: Definition) => boolean): Definition | undefined =>
-        layers.local.find(match) ?? globalGet().find(match) ?? layers.snapshot.find(match);
+    /** A number or string from the VarSheet; exact name first, then ignoring case. */
+    function sheetValue(name: string): Value | undefined {
+        const sheet = layers.sheet;
+        if (!sheet || sheet.size === 0) return undefined;
+        let raw = sheet.get(name);
+        if (raw === undefined) {
+            const lower = name.toLowerCase();
+            for (const [k, v] of sheet) if (k.toLowerCase() === lower) { raw = v; break; }
+        }
+        if (typeof raw === 'number') return Number.isFinite(raw) ? raw : err('#WERT', `${name} ist keine endliche Zahl`);
+        if (typeof raw === 'string') return raw;
+        return undefined;
+    }
+
+    /** A function defined in the VarSheet, called with numbers; anything else becomes #WERT. */
+    function sheetFunction(upperName: string): ((args: Value[]) => Value) | undefined {
+        const sheet = layers.sheet;
+        if (!sheet) return undefined;
+        for (const [k, v] of sheet) {
+            if (typeof v !== 'function' || k.toUpperCase() !== upperName) continue;
+            const fn = v as (...a: number[]) => unknown;
+            return (args) => {
+                const nums: number[] = [];
+                for (const a of args) {
+                    if (typeof a !== 'number') return err('#WERT', `${k} erwartet Zahlen`);
+                    nums.push(a);
+                }
+                if (++calls > MAX_TOTAL_CALLS) return err('#WERT', 'Zu viele Funktionsaufrufe');
+                try {
+                    const out = fn(...nums);
+                    return typeof out === 'number' && Number.isFinite(out) ? out : err('#WERT', `${k} liefert keine Zahl`);
+                } catch (e) {
+                    return err('#WERT', e instanceof Error ? e.message : `${k} fehlgeschlagen`);
+                }
+            };
+        }
+        return undefined;
+    }
 
     function exprOf(d: Definition): { expr: Expr } | { error: ErrorValue } {
         let p = parsed.get(d);
@@ -106,7 +147,13 @@ export function buildScope(layers: ScopeLayers): CalcScope {
         if (params?.has(name)) return params.get(name);
         const cached = values.get(name);
         if (cached !== undefined) return cached;
-        const d = find((x) => !x.params && x.name === name);
+        const isVar = (x: Definition) => !x.params && x.name === name;
+        const local = layers.local.find(isVar);
+        if (!local) {
+            const sv = sheetValue(name);
+            if (sv !== undefined) { values.set(name, sv); return sv; }
+        }
+        const d = local ?? globalGet().find(isVar) ?? layers.snapshot.find(isVar);
         if (!d) return STDLIB_CONSTANTS[name];
         if (visiting.has(name)) return err('#ZIRKEL', `Zirkelbezug bei ${name}`);
         visiting.add(name);
@@ -120,7 +167,13 @@ export function buildScope(layers: ScopeLayers): CalcScope {
     }
 
     function userFunction(upperName: string): ((args: Value[]) => Value) | undefined {
-        const d = find((x) => !!x.params && x.name.toUpperCase() === upperName);
+        const isFn = (x: Definition) => !!x.params && x.name.toUpperCase() === upperName;
+        const local = layers.local.find(isFn);
+        if (!local) {
+            const sf = sheetFunction(upperName);
+            if (sf) return sf;
+        }
+        const d = local ?? globalGet().find(isFn) ?? layers.snapshot.find(isFn);
         if (!d || !d.params) return undefined;
         const params = d.params;
         return (args) => {

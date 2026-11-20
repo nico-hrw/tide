@@ -23,8 +23,11 @@ export function collectDocDefinitions(doc: PmNode): { local: Definition[]; snaps
     return { local, snapshot };
 }
 
-/** Scope for formulas in this document: local, then the central registry (lazy), then the shared copy, then stdlib. */
-export function scopeForDoc(doc: PmNode, global: () => Definition[]): CalcScope {
+/**
+ * Scope for formulas in this document: local, then the note's VarSheet, then the central registry (lazy),
+ * then the shared copy, then stdlib.
+ */
+export function scopeForDoc(doc: PmNode, global: () => Definition[], sheet?: ReadonlyMap<string, unknown>): CalcScope {
     const { local, snapshot } = collectDocDefinitions(doc);
-    return buildScope({ local, global, snapshot });
+    return buildScope({ local, global, snapshot, sheet });
 }

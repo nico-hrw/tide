@@ -415,7 +415,7 @@ export function VarSheetDock({ noteId, engine, isOpen = true, onClose, initialCo
         <aside
             aria-label="VarSheet"
             className={[
-                'flex flex-col w-[340px] max-w-full max-h-[75vh] rounded-[14px] border border-t2-line bg-t2-surface shadow-float overflow-hidden',
+                'flex flex-col w-full min-h-[240px] max-h-[min(70vh,640px)] rounded-[14px] border border-t2-line bg-t2-surface shadow-float overflow-hidden',
                 className,
             ].join(' ')}
         >

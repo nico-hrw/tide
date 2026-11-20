@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EvaluationResult, ExecutionScope, VarSheetEngine } from '@/lib/varsheet/types';
+import { notifySheetChanged } from '@/lib/varsheet/noteBindings';
 
 export interface VarSheetRow {
     readonly id: string;
@@ -106,7 +107,7 @@ function parsePersistedRows(rawRows: unknown): VarSheetRow[] {
     return rows;
 }
 
-function loadPersistedSheet(
+export function loadPersistedSheet(
     noteId: string | null | undefined,
     initialCodes?: readonly string[],
 ): { tabs: VarSheetTab[]; activeTabId: string } {
@@ -171,6 +172,7 @@ function savePersistedSheet(
             })),
         };
         window.localStorage.setItem(storageKeyFor(noteId), JSON.stringify(payload));
+        notifySheetChanged(noteId);
     } catch {
         // Ignore storage quota or private-mode errors.
     }
