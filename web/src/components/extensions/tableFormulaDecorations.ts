@@ -60,7 +60,6 @@ export function buildFormulaDecorations(state: EditorState, scope: CalcScope): D
     for (const table of tables) {
         const results = allResults.get(table.id) ?? new Map<string, Value>();
         const activeHere = activeFormula && activeFormula.tablePos === table.pos ? activeFormula : null;
-        if (!activeFormula && results.size === 0) continue;
 
         if (activeFormula) {
             decos.push(Decoration.node(table.pos, table.pos + table.node.nodeSize, { 'data-table-id': table.id }));
@@ -86,7 +85,13 @@ export function buildFormulaDecorations(state: EditorState, scope: CalcScope): D
                 }
 
                 const text = grid.text(c, r);
-                if (!isFormulaText(text) || isActive) continue;
+                if (!isFormulaText(text)) {
+                    if (parseNumber(text) !== null) {
+                        decos.push(Decoration.node(cellPos, end, { class: 'tt-num' }));
+                    }
+                    continue;
+                }
+                if (isActive) continue;
                 const v = results.get(refKey(c, r));
                 if (v === undefined) continue;
                 const classes = ['tt-formula-cell'];

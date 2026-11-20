@@ -1,5 +1,5 @@
 import { apiFetch } from '@/lib/api';
-import type { DataItem, DataStoreSlice, NoteLayout, NotesSlice } from './types';
+import type { DataItem, DataStoreSlice, NoteLayout, NoteMargin, NotesSlice } from './types';
 
 export function loadCachedNotes(): DataItem[] {
     if (typeof window === 'undefined') return [];
@@ -40,12 +40,22 @@ function getInitialNoteLayout(): NoteLayout {
     return 'a4';
 }
 
+function getInitialNoteMargin(): NoteMargin {
+    if (typeof window === 'undefined') return 'normal';
+    const saved = localStorage.getItem('tide_note_margin');
+    if (saved === 'compact' || saved === 'normal' || saved === 'wide') {
+        return saved;
+    }
+    return 'normal';
+}
+
 export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
     notes: loadCachedNotes(),
     orderedNoteIds: loadCachedOrderedNoteIds(),
     activeNoteId: null,
     activeParentId: null,
     noteLayout: getInitialNoteLayout(),
+    noteMargin: getInitialNoteMargin(),
     noteCaretPositions: {},
 
     setNotes: (notes: DataItem[]) => {
@@ -76,6 +86,13 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             }
             return { noteLayout: next };
         }),
+
+    setNoteMargin: (margin: NoteMargin) => {
+        if (typeof window !== 'undefined') {
+            localStorage.setItem('tide_note_margin', margin);
+        }
+        set({ noteMargin: margin });
+    },
 
     setNoteCaretPosition: (noteId: string, pos: { from: number; to: number }) =>
         set((s) => ({

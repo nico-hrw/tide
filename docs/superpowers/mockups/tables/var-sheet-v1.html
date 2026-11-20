@@ -1,0 +1,1185 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tide · Var-Sheet Mockup v1 (Workspace + Neuseeland-Finanzplan)</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --t2-bg: #ffffff;
+      --t2-surface: #ffffff;
+      --t2-sub: #f4f5f8;
+      --t2-stage: #ededf0;
+      --t2-ink: #0e0e10;
+      --t2-ink-2: #5e5e66;
+      --t2-ink-3: #9a9aa3;
+      --t2-line: #e3e5ea;
+      --t2-line-soft: #eef0f4;
+      --t2-hover: #f1f2f6;
+      --t2-accent: #2f3138;
+      --t2-accent-ink: #ffffff;
+      --var-accent: #6d28d9;
+      --var-accent-soft: #f5f0ff;
+      --var-accent-border: #ddd6fe;
+      --var-badge-bg: #ede9fe;
+      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
+      --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.06);
+      --font-sans: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --ease-slide: cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: var(--font-sans);
+      color: var(--t2-ink);
+      background: var(--t2-bg);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* App Shell */
+    .app-shell {
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
+      overflow: hidden;
+      background: var(--t2-bg);
+    }
+
+    /* Top Navigation Bar */
+    .topbar {
+      height: 52px;
+      flex: none;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 20px;
+      border-bottom: 1px solid var(--t2-line);
+      background: rgba(255, 255, 255, 0.92);
+      backdrop-filter: blur(12px);
+      z-index: 20;
+    }
+
+    .topbar-left {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: var(--t2-accent);
+      color: var(--t2-accent-ink);
+      display: grid;
+      place-items: center;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      flex: none;
+    }
+
+    .breadcrumb {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      color: var(--t2-ink-2);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .breadcrumb strong {
+      color: var(--t2-ink);
+      font-weight: 600;
+    }
+
+    .topbar-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .pill-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11.5px;
+      font-weight: 500;
+      color: var(--t2-ink-2);
+      background: var(--t2-sub);
+      border: 1px solid var(--t2-line);
+      padding: 5px 10px;
+      border-radius: 999px;
+    }
+
+    .pill-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: #10b981;
+    }
+
+    .btn-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+      height: 32px;
+      padding: 0 12px;
+      border-radius: 8px;
+      border: 1px solid var(--t2-line);
+      background: var(--t2-bg);
+      color: var(--t2-ink);
+      font-family: inherit;
+      font-size: 12.5px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+
+    .btn-toggle:hover {
+      background: var(--t2-hover);
+    }
+
+    .btn-toggle.is-active {
+      background: var(--t2-accent);
+      border-color: var(--t2-accent);
+      color: var(--t2-accent-ink);
+    }
+
+    /* Main Split Workspace */
+    .workspace {
+      flex: 1;
+      display: flex;
+      min-height: 0;
+      overflow: hidden;
+      position: relative;
+      background: var(--t2-bg);
+    }
+
+    /* Left: Active Note Pane (slides left when Var-Sheet opens) */
+    .note-pane {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow-y: auto;
+      background: var(--t2-bg);
+      transition: padding 320ms var(--ease-slide);
+      padding: 36px 40px 80px;
+    }
+
+    .workspace.sheet-open .note-pane {
+      padding: 32px 36px 80px 36px;
+    }
+
+    .note-canvas {
+      max-width: 820px;
+      margin: 0 auto;
+      transition: margin 320ms var(--ease-slide), max-width 320ms var(--ease-slide);
+    }
+
+    /* Slid left alignment when Var-Sheet is open */
+    .workspace.sheet-open .note-canvas {
+      margin: 0;
+      max-width: 780px;
+    }
+
+    .note-kicker {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--t2-ink-3);
+      font-weight: 600;
+      margin: 0 0 6px;
+    }
+
+    .note-title {
+      font-size: 24px;
+      line-height: 1.25;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--t2-ink);
+      margin: 0 0 8px;
+    }
+
+    .note-meta {
+      font-size: 13px;
+      color: var(--t2-ink-2);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 20px;
+      margin-bottom: 24px;
+      border-bottom: 1.5px solid var(--t2-ink);
+    }
+
+    .num {
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .var-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: var(--var-accent-soft);
+      color: var(--var-accent);
+      border: 1px solid var(--var-accent-border);
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s ease, transform 0.1s ease;
+    }
+
+    .var-chip:hover {
+      background: var(--var-badge-bg);
+    }
+
+    .section-block {
+      margin-bottom: 30px;
+    }
+
+    .section-heading {
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 700;
+      color: var(--t2-ink);
+      margin: 0 0 10px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .note-table-wrap {
+      border: 1px solid var(--t2-line);
+      border-radius: 10px;
+      overflow: hidden;
+      background: var(--t2-bg);
+    }
+
+    table.fin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+      text-align: left;
+    }
+
+    table.fin-table thead tr {
+      background: #fafafa;
+      border-bottom: 1.5px solid var(--t2-ink);
+    }
+
+    table.fin-table th {
+      padding: 9px 12px;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      font-weight: 600;
+      color: var(--t2-ink-2);
+    }
+
+    table.fin-table td {
+      padding: 9px 12px;
+      border-bottom: 1px solid var(--t2-line-soft);
+      color: var(--t2-ink);
+      vertical-align: top;
+    }
+
+    table.fin-table tbody tr:hover td {
+      background: #fafbfc;
+    }
+
+    table.fin-table tbody tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.fin-table tfoot tr.total-row td {
+      border-top: 1.5px solid var(--t2-ink);
+      background: #f8f9fb;
+      font-weight: 700;
+      color: var(--t2-ink);
+    }
+
+    table.fin-table tfoot tr.sub-row td {
+      border-top: 1px solid var(--t2-line);
+      font-size: 12px;
+      color: var(--t2-ink-2);
+      background: #fcfcfd;
+    }
+
+    .r { text-align: right; }
+    .muted { color: var(--t2-ink-2); }
+    .subtle { color: var(--t2-ink-3); }
+
+    .linked-cell {
+      position: relative;
+      font-weight: 600;
+    }
+
+    .linked-cell::after {
+      content: '';
+      position: absolute;
+      right: 12px;
+      bottom: 5px;
+      left: auto;
+      width: 44px;
+      height: 2px;
+      border-radius: 2px;
+      background: linear-gradient(90deg, #7c3aed, #3b82f6);
+      opacity: 0.45;
+    }
+
+    .balance-card {
+      border: 1px solid var(--t2-line);
+      border-radius: 10px;
+      background: #fafbfc;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .balance-card strong {
+      font-size: 16px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Right: Gray Var-Sheet Side-Panel */
+    .varsheet-panel {
+      width: 480px;
+      max-width: 48vw;
+      flex: none;
+      background: #f4f5f8;
+      border-left: 1px solid #e3e5ea;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      transform: translateX(0);
+      opacity: 1;
+      transition:
+        width 320ms var(--ease-slide),
+        opacity 240ms ease,
+        transform 320ms var(--ease-slide);
+    }
+
+    .workspace:not(.sheet-open) .varsheet-panel {
+      width: 0;
+      min-width: 0;
+      opacity: 0;
+      border-left-color: transparent;
+      transform: translateX(24px);
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    /* Var-Sheet Header */
+    .vs-header {
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid #e3e5ea;
+      background: #f4f5f8;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex: none;
+    }
+
+    .vs-title-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-width: 0;
+    }
+
+    .vs-icon {
+      width: 26px;
+      height: 26px;
+      border-radius: 7px;
+      background: #ffffff;
+      border: 1px solid #e3e5ea;
+      color: var(--var-accent);
+      display: grid;
+      place-items: center;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      flex: none;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .vs-title {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: var(--t2-ink);
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .vs-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--var-accent);
+      background: var(--var-badge-bg);
+      border: 1px solid var(--var-accent-border);
+      padding: 2px 8px;
+      border-radius: 999px;
+      white-space: nowrap;
+      flex: none;
+    }
+
+    .vs-close {
+      width: 28px;
+      height: 28px;
+      border-radius: 7px;
+      border: 1px solid transparent;
+      background: transparent;
+      color: var(--t2-ink-2);
+      cursor: pointer;
+      display: grid;
+      place-items: center;
+      font-size: 15px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+
+    .vs-close:hover {
+      background: #e9ebf0;
+      color: var(--t2-ink);
+    }
+
+    /* Column Subheader */
+    .vs-colbar {
+      display: grid;
+      grid-template-columns: 36px 1fr 142px;
+      gap: 8px;
+      padding: 7px 16px;
+      border-bottom: 1px solid #e3e5ea;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: var(--t2-ink-3);
+      background: #eff1f5;
+      flex: none;
+    }
+
+    .vs-colbar span:last-child {
+      text-align: right;
+    }
+
+    /* Scrollable Jupyter Rows Area (lines start at top and migrate downward) */
+    .vs-rows-scroll {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 12px 12px 24px;
+      scroll-padding-bottom: 24px;
+      scroll-padding-top: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    /* Individual Jupyter-like Row */
+    .vs-row {
+      display: grid;
+      grid-template-columns: 30px 1fr auto;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 10px;
+      border: 1px solid transparent;
+      background: rgba(255, 255, 255, 0.52);
+      transition:
+        background 0.14s ease,
+        border-color 0.14s ease,
+        box-shadow 0.14s ease;
+    }
+
+    .vs-row:hover {
+      background: rgba(255, 255, 255, 0.85);
+      border-color: #e3e5ea;
+    }
+
+    .vs-row.is-active {
+      background: #ffffff;
+      border-color: #c4b5fd;
+      box-shadow: 0 2px 10px rgba(109, 40, 217, 0.08), 0 0 0 2px rgba(124, 58, 237, 0.12);
+    }
+
+    .vs-row.is-flash {
+      animation: rowFlash 1.2s ease-out;
+    }
+
+    @keyframes rowFlash {
+      0% { box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35); background: #faf5ff; }
+      100% { box-shadow: 0 2px 10px rgba(109, 40, 217, 0.08); background: #ffffff; }
+    }
+
+    .vs-ln {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--t2-ink-3);
+      text-align: right;
+      padding-right: 4px;
+      user-select: none;
+    }
+
+    .vs-row.is-active .vs-ln {
+      color: var(--var-accent);
+      font-weight: 600;
+    }
+
+    .vs-expr-wrap {
+      display: flex;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .vs-input {
+      width: 100%;
+      border: none;
+      outline: none;
+      background: transparent;
+      font-family: var(--font-mono);
+      font-size: 13px;
+      line-height: 1.45;
+      color: var(--t2-ink);
+      padding: 4px 4px;
+      border-radius: 5px;
+    }
+
+    .vs-input::placeholder {
+      color: #b0b4be;
+    }
+
+    .vs-result {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 500;
+      font-variant-numeric: tabular-nums;
+      color: var(--t2-ink-2);
+      background: #f0f1f5;
+      border: 1px solid #e3e5ea;
+      padding: 4px 9px;
+      border-radius: 7px;
+      white-space: nowrap;
+      max-width: 152px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      cursor: pointer;
+      outline: none;
+      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+    }
+
+    .vs-result.has-val {
+      color: #1f2430;
+      background: #f7f8fa;
+    }
+
+    .vs-result.is-linked {
+      color: var(--var-accent);
+      background: var(--var-accent-soft);
+      border-color: var(--var-accent-border);
+    }
+
+    .vs-result:focus {
+      border-color: var(--var-accent);
+      box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.18);
+      background: #ffffff;
+    }
+
+    .vs-add-hint {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      margin-top: 2px;
+      border-radius: 9px;
+      border: 1px dashed #d3d7e0;
+      color: var(--t2-ink-3);
+      font-size: 12px;
+      cursor: pointer;
+      background: transparent;
+      font-family: inherit;
+      text-align: left;
+      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
+    }
+
+    .vs-add-hint:hover {
+      border-color: #b8becb;
+      color: var(--t2-ink-2);
+      background: rgba(255, 255, 255, 0.6);
+    }
+
+    /* Bottom Keyboard Shortcut Bar */
+    .vs-footer {
+      flex: none;
+      padding: 10px 14px;
+      border-top: 1px solid #e3e5ea;
+      background: #eff1f5;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--t2-ink-2);
+    }
+
+    .kbd-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    kbd {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      padding: 1px 5px;
+      border-radius: 4px;
+      background: #ffffff;
+      border: 1px solid #d7dae2;
+      box-shadow: 0 1px 0 #d7dae2;
+      color: var(--t2-ink);
+    }
+
+    @media (max-width: 960px) {
+      .varsheet-panel {
+        width: 390px;
+      }
+      .note-pane {
+        padding: 24px 20px 60px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <!-- Top Workspace Bar -->
+    <header class="topbar">
+      <div class="topbar-left">
+        <div class="brand-mark">T</div>
+        <div class="breadcrumb">
+          <span>Notizen</span>
+          <span class="subtle">/</span>
+          <span>Studium &amp; Reisen</span>
+          <span class="subtle">/</span>
+          <strong>Neuseeland – Kosten &amp; Finanzierung</strong>
+        </div>
+      </div>
+
+      <div class="topbar-actions">
+        <span class="pill-status">
+          <span class="pill-dot"></span>
+          Synchronisiert
+        </span>
+        <button id="toggleSheetBtn" type="button" class="btn-toggle is-active" aria-expanded="true">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <rect x="3" y="3" width="18" height="18" rx="3"></rect>
+            <path d="M15 3v18"></path>
+          </svg>
+          <span id="toggleBtnLabel">Var-Sheet schließen</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Split Workspace -->
+    <div id="workspace" class="workspace sheet-open">
+      <!-- Left: Note Content (slid left when Var-Sheet is visible) -->
+      <main id="notePane" class="note-pane" tabindex="-1">
+        <article class="note-canvas">
+          <p class="note-kicker">Finanzplan &amp; Kalkulation</p>
+          <h1 class="note-title">Kosten- &amp; Finanzierungsübersicht – Auslandstrimester Neuseeland</h1>
+          <div class="note-meta">
+            <span>Zeitraum: Trimester 1 (ab Anfang Februar, 125 Tage / ca. 4 Monate)</span>
+            <span class="subtle">|</span>
+            <span>Kalkulationskurs: <button type="button" class="var-chip" data-jump-var="kurs_nzd">kurs_nzd = 0,5014 €</button></span>
+          </div>
+
+          <!-- Section 1 -->
+          <section class="section-block">
+            <h2 class="section-heading">
+              <span>1. Gesamtkosten (Aufschlüsselung)</span>
+              <span class="subtle" style="font-weight:500;text-transform:none;letter-spacing:0">Werte aus Var-Sheet verknüpft</span>
+            </h2>
+            <div class="note-table-wrap">
+              <table class="fin-table">
+                <thead>
+                  <tr>
+                    <th>Posten</th>
+                    <th>Details / Berechnung</th>
+                    <th class="r">Betrag (NZD)</th>
+                    <th class="r">Betrag (EUR)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Studiengebühren</strong></td>
+                    <td class="muted">Trimester 1 (Vorkasse erforderlich)</td>
+                    <td class="r num muted">NZ $10.762,00</td>
+                    <td class="r num linked-cell">5.396,07 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Unterkunft (Whanau Marama)</strong></td>
+                    <td class="muted">Apartment Single, 125 Tage (4 × NZ $1.736 + Restrate NZ $806)</td>
+                    <td class="r num muted">NZ $7.750,00</td>
+                    <td class="r num linked-cell">3.885,85 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Lebenshaltung &amp; Aktivitäten</strong></td>
+                    <td class="muted">Kalkuliert mit 500,00 € / Monat (<button type="button" class="var-chip" data-jump-var="monate">monate</button>)</td>
+                    <td class="r num subtle">—</td>
+                    <td class="r num">2.000,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Flüge (Hin- &amp; Rückflug)</strong></td>
+                    <td class="muted">Basispreis via <button type="button" class="var-chip" data-jump-var="flug">flug</button> (Spanne 1.500 – 2.000 €)</td>
+                    <td class="r num subtle">—</td>
+                    <td class="r num linked-cell">1.750,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Auslandskrankenversicherung</strong></td>
+                    <td class="muted">Schätzwert ca. 50,00 € / Monat (4 Monate)</td>
+                    <td class="r num subtle">—</td>
+                    <td class="r num">200,00 €</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td colspan="2">Gesamtkosten (inkl. Studiengebühren)</td>
+                    <td class="r num subtle">—</td>
+                    <td class="r num">13.231,92 €</td>
+                  </tr>
+                  <tr class="sub-row">
+                    <td colspan="3">Davon Kosten ohne Studiengebühren (Wohnen, Leben, Reise):</td>
+                    <td class="r num"><strong>7.835,85 €</strong></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+
+          <!-- Section 2 -->
+          <section class="section-block">
+            <h2 class="section-heading">
+              <span>2. Finanzierung – Auslands-BAföG (Höchstsatz, 4 Monate) &amp; Kindergeld</span>
+            </h2>
+            <div class="note-table-wrap">
+              <table class="fin-table">
+                <thead>
+                  <tr>
+                    <th>Finanzierungsbaustein</th>
+                    <th>Regelung / Satz</th>
+                    <th class="r">Gesamt (EUR)</th>
+                    <th class="r">Zuschuss</th>
+                    <th class="r">Darlehen (0 %)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td><strong>Studiengebühren (BAföG)</strong></td>
+                    <td class="muted">Bis max. 5.600 € (100 % Vollzuschuss)</td>
+                    <td class="r num">5.396,07 €</td>
+                    <td class="r num">5.396,07 €</td>
+                    <td class="r num subtle">0,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Grundbedarf &amp; Wohnen (BAföG)</strong></td>
+                    <td class="muted">4 × 855,00 € (475 € Bedarf + 380 € Wohnen)</td>
+                    <td class="r num">3.420,00 €</td>
+                    <td class="r num">1.710,00 €</td>
+                    <td class="r num">1.710,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Reisekostenzuschuss (BAföG)</strong></td>
+                    <td class="muted">Pauschale außerhalb Europas (2 × 500 €)</td>
+                    <td class="r num">1.000,00 €</td>
+                    <td class="r num">500,00 €</td>
+                    <td class="r num">500,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Auslandskrankenversicherung</strong></td>
+                    <td class="muted">4 × 102,00 € Pauschale (50/50)</td>
+                    <td class="r num">408,00 €</td>
+                    <td class="r num">204,00 €</td>
+                    <td class="r num">204,00 €</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Kindergeld</strong></td>
+                    <td class="muted">4 × 255,00 € (anrechnungsfrei)</td>
+                    <td class="r num">1.020,00 €</td>
+                    <td class="r num">1.020,00 €</td>
+                    <td class="r num subtle">0,00 €</td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="total-row">
+                    <td>Gesamtsumme Finanzierung</td>
+                    <td class="muted" style="font-weight:400;font-size:12px">BAföG (Höchstsatz) + Kindergeld</td>
+                    <td class="r num">11.244,07 €</td>
+                    <td class="r num">8.830,07 €</td>
+                    <td class="r num">2.414,00 €</td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </section>
+
+          <!-- Section 3 -->
+          <section class="section-block">
+            <h2 class="section-heading"><span>3. Bilanz &amp; Bedarf Eltern-Unterstützung</span></h2>
+            <div class="balance-card">
+              <div>
+                <div style="font-size:13px;font-weight:600;color:var(--t2-ink)">Restbetrag nach Auslands-BAföG &amp; Kindergeld</div>
+                <div style="font-size:12px;color:var(--t2-ink-2);margin-top:2px">
+                  Berechnet aus <button type="button" class="var-chip" data-jump-var="summe">summe(kosten)</button> − Finanzierung (11.244,07 €)
+                </div>
+              </div>
+              <strong>1.987,85 €</strong>
+            </div>
+          </section>
+        </article>
+      </main>
+
+      <!-- Right: Gray Var-Sheet Side-Panel -->
+      <aside id="varsheetPanel" class="varsheet-panel" aria-label="Var-Sheet Side-Panel">
+        <div class="vs-header">
+          <div class="vs-title-group">
+            <div class="vs-icon">fx</div>
+            <h2 class="vs-title">Var-Sheet (Live-Berechnungen)</h2>
+          </div>
+          <div style="display:flex;align-items:center;gap:6px;flex:none">
+            <span class="vs-badge">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
+              </svg>
+              Mit Notiz verknüpft
+            </span>
+            <button id="closeSheetBtn" type="button" class="vs-close" title="Var-Sheet schließen (Esc)" aria-label="Var-Sheet schließen">✕</button>
+          </div>
+        </div>
+
+        <div class="vs-colbar">
+          <span>#</span>
+          <span>Ausdruck / Eingabe</span>
+          <span>Auswirkung</span>
+        </div>
+
+        <div id="vsRows" class="vs-rows-scroll" role="list"></div>
+
+        <div class="vs-footer">
+          <div class="kbd-row">
+            <span><kbd>Enter</kbd> Neue Zeile</span>
+            <span><kbd>↑</kbd><kbd>↓</kbd> Wechseln</span>
+            <span><kbd>←</kbd><kbd>→</kbd> / <kbd>Tab</kbd> Ergebnis</span>
+            <span><kbd>⌫</kbd> Leer löschen</span>
+          </div>
+          <span id="rowCountLabel" style="font-family:var(--font-mono);color:var(--t2-ink-3)">0 Zeilen</span>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      const workspace = document.getElementById('workspace');
+      const toggleSheetBtn = document.getElementById('toggleSheetBtn');
+      const toggleBtnLabel = document.getElementById('toggleBtnLabel');
+      const closeSheetBtn = document.getElementById('closeSheetBtn');
+      const vsRowsEl = document.getElementById('vsRows');
+      const rowCountLabel = document.getElementById('rowCountLabel');
+      const notePane = document.getElementById('notePane');
+
+      // Preset Jupyter-style lines (no extra syntax needed)
+      const rows = [
+        { id: 1, expr: 'x = 1.250', result: '1.250,00 €', linked: false },
+        { id: 2, expr: 'flug = 1.850,50', result: '1.850,50 €', linked: true, key: 'flug' },
+        { id: 3, expr: 'flug * 1,19', result: '2.202,10 €', linked: false },
+        { id: 4, expr: 'kurs_nzd = 0,5014', result: '0,5014 €/NZ$', linked: true, key: 'kurs_nzd' },
+        { id: 5, expr: 'monate = 4', result: '4 Monate', linked: true, key: 'monate' },
+        { id: 6, expr: 'studiengebuehren = 10762 * kurs_nzd', result: '5.396,07 €', linked: true },
+        { id: 7, expr: 'unterkunft = 7750 * kurs_nzd', result: '3.885,85 €', linked: true },
+        { id: 8, expr: 'summe(kosten)', result: '13.231,92 €', linked: true, key: 'summe' },
+        { id: 9, expr: '', result: '—', linked: false }
+      ];
+
+      let nextId = 10;
+      let activeIndex = rows.length - 1; // Starts ready to type at the bottom active line
+
+      // Purely visual mockup evaluator (no full math engine needed; gives natural feedback while typing)
+      function mockEvaluate(expr, fallbackResult) {
+        const clean = expr.trim();
+        if (!clean) return '—';
+        if (clean === 'x = 1.250') return '1.250,00 €';
+        if (clean === 'flug = 1.850,50') return '1.850,50 €';
+        if (clean === 'flug * 1,19') return '2.202,10 €';
+        if (clean === 'kurs_nzd = 0,5014') return '0,5014 €/NZ$';
+        if (clean === 'monate = 4') return '4 Monate';
+        if (clean === 'studiengebuehren = 10762 * kurs_nzd') return '5.396,07 €';
+        if (clean === 'unterkunft = 7750 * kurs_nzd') return '3.885,85 €';
+        if (clean === 'summe(kosten)') return '13.231,92 €';
+
+        // Simple visual preview for newly typed lines
+        const assignMatch = clean.match(/^([a-zA-ZäöüÄÖÜ_][\wäöüÄÖÜ]*)\s*=\s*(.+)$/);
+        if (assignMatch) {
+          const rhs = assignMatch[2].trim();
+          const numCandidate = rhs.replace(/\./g, '').replace(',', '.');
+          if (/^-?\d+(\.\d+)?$/.test(numCandidate)) {
+            const val = Number(numCandidate);
+            return val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+          }
+          return '→ ' + rhs;
+        }
+        const rawNum = clean.replace(/\./g, '').replace(',', '.');
+        if (/^-?\d+(\.\d+)?$/.test(rawNum)) {
+          return Number(rawNum).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+        if (fallbackResult && fallbackResult !== '—') return fallbackResult;
+        return '≈ Live-Wert';
+      }
+
+      function setSheetOpen(open) {
+        workspace.classList.toggle('sheet-open', open);
+        toggleSheetBtn.classList.toggle('is-active', open);
+        toggleSheetBtn.setAttribute('aria-expanded', String(open));
+        toggleBtnLabel.textContent = open ? 'Var-Sheet schließen' : 'Var-Sheet öffnen';
+        if (open) {
+          setTimeout(() => focusRowInput(activeIndex, 'end'), 180);
+        } else {
+          notePane.focus();
+        }
+      }
+
+      toggleSheetBtn.addEventListener('click', () => {
+        setSheetOpen(!workspace.classList.contains('sheet-open'));
+      });
+
+      closeSheetBtn.addEventListener('click', () => setSheetOpen(false));
+
+      function updateActiveVisuals(index) {
+        activeIndex = Math.max(0, Math.min(index, rows.length - 1));
+        const rowEls = vsRowsEl.querySelectorAll('.vs-row');
+        rowEls.forEach((el, idx) => {
+          el.classList.toggle('is-active', idx === activeIndex);
+        });
+        const activeEl = rowEls[activeIndex];
+        if (activeEl) {
+          activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+      }
+
+      function focusRowInput(index, caretPos) {
+        const clamped = Math.max(0, Math.min(index, rows.length - 1));
+        updateActiveVisuals(clamped);
+        const input = vsRowsEl.querySelector(`.vs-row[data-idx="${clamped}"] .vs-input`);
+        if (!input) return;
+        input.focus();
+        const len = input.value.length;
+        if (caretPos === 'start') {
+          input.setSelectionRange(0, 0);
+        } else if (caretPos === 'end') {
+          input.setSelectionRange(len, len);
+        }
+      }
+
+      function focusRowResult(index) {
+        const clamped = Math.max(0, Math.min(index, rows.length - 1));
+        updateActiveVisuals(clamped);
+        const resBtn = vsRowsEl.querySelector(`.vs-row[data-idx="${clamped}"] .vs-result`);
+        if (resBtn) resBtn.focus();
+      }
+
+      function renderRows(focusIndex, caretPos) {
+        vsRowsEl.innerHTML = '';
+
+        rows.forEach((row, idx) => {
+          const rowEl = document.createElement('div');
+          rowEl.className = 'vs-row' + (idx === activeIndex ? ' is-active' : '');
+          rowEl.dataset.idx = String(idx);
+          rowEl.setAttribute('role', 'listitem');
+
+          const lnEl = document.createElement('span');
+          lnEl.className = 'vs-ln';
+          lnEl.textContent = String(idx + 1);
+
+          const exprWrap = document.createElement('div');
+          exprWrap.className = 'vs-expr-wrap';
+
+          const input = document.createElement('input');
+          input.type = 'text';
+          input.className = 'vs-input';
+          input.value = row.expr;
+          input.placeholder = idx === rows.length - 1 ? 'Neue Berechnung oder x = 120 …' : 'Ausdruck eingeben …';
+          input.setAttribute('aria-label', `Zeile ${idx + 1} Ausdruck`);
+
+          const resBtn = document.createElement('button');
+          resBtn.type = 'button';
+          resBtn.className = 'vs-result' + (row.result !== '—' ? ' has-val' : '') + (row.linked ? ' is-linked' : '');
+          resBtn.textContent = row.result;
+          resBtn.title = row.linked ? 'Mit aktiver Notiz verknüpft (← zurück zur Eingabe)' : 'Ergebnis / Auswirkung (← zurück zur Eingabe)';
+
+          input.addEventListener('focus', () => {
+            updateActiveVisuals(idx);
+          });
+
+          input.addEventListener('input', () => {
+            row.expr = input.value;
+            row.result = mockEvaluate(row.expr, null);
+            resBtn.textContent = row.result;
+            resBtn.classList.toggle('has-val', row.result !== '—');
+          });
+
+          input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const newRow = { id: nextId++, expr: '', result: '—', linked: false };
+              rows.splice(idx + 1, 0, newRow);
+              renderRows(idx + 1, 'start');
+              return;
+            }
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              if (idx < rows.length - 1) {
+                focusRowInput(idx + 1, 'end');
+              }
+              return;
+            }
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              if (idx > 0) {
+                focusRowInput(idx - 1, 'end');
+              }
+              return;
+            }
+            if (e.key === 'ArrowRight') {
+              // At end of expression, ArrowRight enters the result cell
+              if (input.selectionStart === input.value.length && input.selectionEnd === input.value.length) {
+                e.preventDefault();
+                focusRowResult(idx);
+              }
+              return;
+            }
+            if (e.key === 'Tab' && !e.shiftKey) {
+              e.preventDefault();
+              focusRowResult(idx);
+              return;
+            }
+            if ((e.key === 'Backspace' || e.key === 'Delete') && input.value === '' && rows.length > 1) {
+              e.preventDefault();
+              rows.splice(idx, 1);
+              const nextFocus = idx > 0 ? idx - 1 : 0;
+              renderRows(nextFocus, 'end');
+              return;
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setSheetOpen(false);
+            }
+          });
+
+          resBtn.addEventListener('focus', () => {
+            updateActiveVisuals(idx);
+          });
+
+          resBtn.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
+              e.preventDefault();
+              focusRowInput(idx, 'end');
+              return;
+            }
+            if (e.key === 'ArrowDown') {
+              e.preventDefault();
+              if (idx < rows.length - 1) focusRowResult(idx + 1);
+              return;
+            }
+            if (e.key === 'ArrowUp') {
+              e.preventDefault();
+              if (idx > 0) focusRowResult(idx - 1);
+              return;
+            }
+            if (e.key === 'Enter') {
+              e.preventDefault();
+              const newRow = { id: nextId++, expr: '', result: '—', linked: false };
+              rows.splice(idx + 1, 0, newRow);
+              renderRows(idx + 1, 'start');
+              return;
+            }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              setSheetOpen(false);
+            }
+          });
+
+          exprWrap.appendChild(input);
+          rowEl.appendChild(lnEl);
+          rowEl.appendChild(exprWrap);
+          rowEl.appendChild(resBtn);
+          vsRowsEl.appendChild(rowEl);
+        });
+
+        // Quick-add line trigger at bottom
+        const addBtn = document.createElement('button');
+        addBtn.type = 'button';
+        addBtn.className = 'vs-add-hint';
+        addBtn.innerHTML = '<span style="font-family:var(--font-mono);font-weight:600">+</span><span>Neue Zeile hinzufügen (oder Enter in einer Zeile drücken)</span>';
+        addBtn.addEventListener('click', () => {
+          rows.push({ id: nextId++, expr: '', result: '—', linked: false });
+          renderRows(rows.length - 1, 'start');
+        });
+        vsRowsEl.appendChild(addBtn);
+
+        rowCountLabel.textContent = `${rows.length} Zeilen`;
+
+        if (typeof focusIndex === 'number') {
+          focusRowInput(focusIndex, caretPos || 'end');
+        }
+      }
+
+      // Clicking a variable chip inside the note opens Var-Sheet & highlights that row
+      document.querySelectorAll('[data-jump-var]').forEach((chip) => {
+        chip.addEventListener('click', () => {
+          const key = chip.getAttribute('data-jump-var');
+          if (!workspace.classList.contains('sheet-open')) {
+            setSheetOpen(true);
+          }
+          const idx = rows.findIndex((r) => r.key === key || r.expr.startsWith(key));
+          if (idx >= 0) {
+            focusRowInput(idx, 'end');
+            const rowEl = vsRowsEl.querySelector(`.vs-row[data-idx="${idx}"]`);
+            if (rowEl) {
+              rowEl.classList.remove('is-flash');
+              void rowEl.offsetWidth;
+              rowEl.classList.add('is-flash');
+            }
+          }
+        });
+      });
+
+      renderRows(activeIndex, 'end');
+    })();
+  </script>
+</body>
+</html>

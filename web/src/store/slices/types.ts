@@ -58,6 +58,7 @@ export type SettingsModalTab =
     | 'debug';
 
 export type NoteLayout = 'thin' | 'normal' | 'wide' | 'extra-wide' | 'a4';
+export type NoteMargin = 'compact' | 'normal' | 'wide';
 export type PaperPattern = 'blanko' | 'ruled' | 'grid';
 export type ThemePreference = 'light' | 'dark' | 'system';
 export type { AppPalette };
@@ -77,6 +78,7 @@ export interface NotesSlice {
     activeNoteId: string | null;
     activeParentId: string | null;
     noteLayout: NoteLayout;
+    noteMargin: NoteMargin;
     noteCaretPositions: Record<string, { from: number; to: number }>;
 
     setNotes: (notes: DataItem[]) => void;
@@ -86,6 +88,7 @@ export interface NotesSlice {
     setNoteLayout: (
         layout: NoteLayout | ((prev: NoteLayout) => NoteLayout)
     ) => void;
+    setNoteMargin: (margin: NoteMargin) => void;
     setNoteCaretPosition: (
         noteId: string,
         pos: { from: number; to: number }

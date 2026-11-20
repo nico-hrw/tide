@@ -28,7 +28,7 @@ import {
 import { DT } from '@/lib/designTokens';
 import { apiFetch, getApiBase } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
-import type { NoteLayout, PaperPattern } from '@/store/slices/types';
+import type { NoteLayout, NoteMargin, PaperPattern } from '@/store/slices/types';
 import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
 
 // One look for every section of the note settings: title, divider.
@@ -66,6 +66,8 @@ export interface NoteSettingsMenuProps {
     noteContent?: unknown;
     noteLayout?: NoteLayout;
     onSetNoteLayout?: (layout: NoteLayout) => void;
+    noteMargin?: NoteMargin;
+    onSetNoteMargin?: (margin: NoteMargin) => void;
     paperPattern?: PaperPattern;
     onSetPaperPattern?: (pattern: PaperPattern) => void;
     showPageBreaks?: boolean;
@@ -139,6 +141,16 @@ const LAYOUT_OPTIONS: Array<{
     { id: 'extra-wide', label: 'Vollbild', shortLabel: 'Vollbild', icon: Maximize2 },
 ];
 
+const MARGIN_OPTIONS: Array<{
+    id: NoteMargin;
+    label: string;
+    hint: string;
+}> = [
+    { id: 'compact', label: 'Kompakt', hint: '48px / schmal' },
+    { id: 'normal', label: 'Normal', hint: '96px / Standard' },
+    { id: 'wide', label: 'Breit', hint: '130px / großzügig' },
+];
+
 const PATTERN_OPTIONS: Array<{
     id: PaperPattern;
     label: string;
@@ -158,6 +170,8 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     noteContent,
     noteLayout: propNoteLayout,
     onSetNoteLayout,
+    noteMargin: propNoteMargin,
+    onSetNoteMargin,
     paperPattern: propPaperPattern,
     onSetPaperPattern,
     showPageBreaks: propShowPageBreaks,
@@ -180,6 +194,8 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     // Fallbacks from Zustand store
     const storeNoteLayout = useDataStore((s) => s.noteLayout);
     const setStoreNoteLayout = useDataStore((s) => s.setNoteLayout);
+    const storeNoteMargin = useDataStore((s) => s.noteMargin);
+    const setStoreNoteMargin = useDataStore((s) => s.setNoteMargin);
     const storePaperPattern = useDataStore((s) => s.paperPattern);
     const setStorePaperPattern = useDataStore((s) => s.setPaperPattern);
     const storeShowPageBreaks = useDataStore((s) => s.showPageBreaks);
@@ -193,6 +209,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const notes = useDataStore((s) => s.notes);
 
     const activeLayout: NoteLayout = propNoteLayout ?? storeNoteLayout ?? 'normal';
+    const activeMargin: NoteMargin = propNoteMargin ?? storeNoteMargin ?? 'normal';
     const activePattern: PaperPattern = propPaperPattern ?? storePaperPattern ?? 'blanko';
     const activeShowBreaks: boolean = propShowPageBreaks ?? storeShowPageBreaks ?? false;
     const hasFileSupport = enabledExtensions.includes('file_support');
@@ -249,6 +266,14 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             onSetNoteLayout(layout);
         } else if (typeof setStoreNoteLayout === 'function') {
             setStoreNoteLayout(layout);
+        }
+    };
+
+    const handleSelectMargin = (margin: NoteMargin) => {
+        if (onSetNoteMargin) {
+            onSetNoteMargin(margin);
+        } else if (typeof setStoreNoteMargin === 'function') {
+            setStoreNoteMargin(margin);
         }
     };
 
@@ -616,6 +641,30 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                             </button>
                         );
                     })}
+                </div>
+                <div className="mt-2 pt-2 border-t border-t2-line-soft">
+                    <div className="text-[11px] font-medium text-t2-ink-3 mb-1.5 px-0.5">Seitenrand</div>
+                    <div className="grid grid-cols-3 gap-1">
+                        {MARGIN_OPTIONS.map((opt) => {
+                            const isSelected = activeMargin === opt.id;
+                            return (
+                                <button
+                                    key={opt.id}
+                                    type="button"
+                                    onClick={() => handleSelectMargin(opt.id)}
+                                    className={`flex flex-col items-center justify-center py-1.5 px-1.5 text-xs font-medium rounded-lg transition-all border ${
+                                        isSelected
+                                            ? 'bg-t2-sub  text-t2-accent  border-t2-line  shadow-xs'
+                                            : 'bg-transparent hover:bg-t2-hover  text-t2-ink  border-transparent'
+                                    }`}
+                                    title={`${opt.label} (${opt.hint})`}
+                                >
+                                    <span>{opt.label}</span>
+                                    <span className="text-[10px] text-t2-ink-3 font-normal leading-tight">{opt.hint.split(' / ')[0]}</span>
+                                </button>
+                            );
+                        })}
+                    </div>
                 </div>
             </div>
 

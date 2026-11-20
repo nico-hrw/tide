@@ -293,6 +293,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const showPageBreaks = useDataStore((s) => s.showPageBreaks);
     const headingNumbering = useDataStore((s) => s.headingNumbering);
     const a4SideBorders = useDataStore((s) => s.a4SideBorders);
+    const noteMargin = useDataStore((s) => s.noteMargin);
     const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
@@ -334,7 +335,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             ) : (
                 <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
                     noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
-                }`}>
+                } margin-${noteMargin || 'normal'}`}>
                     <CanvasLayer
                         elements={canvasSidecar.elements}
                         isLoaded={canvasSidecar.isLoaded}
@@ -383,7 +384,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 isLinkingMode={isLinkingMode}
                                 contentVersion={editorVersion}
                             />
-                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? 'a4-sheet' : 'flex-1 min-w-0 pt-12'} ${noteLayout === 'a4' && !a4SideBorders ? 'a4-no-sides' : ''} ${headingNumbering ? 'heading-numbered' : ''}`}>
+                            <div className={`relative flex flex-col paper-${paperPattern || 'blanko'} ${noteLayout === 'a4' ? `a4-sheet margin-${noteMargin || 'normal'}` : 'flex-1 min-w-0 pt-12'} ${noteLayout === 'a4' && !a4SideBorders ? 'a4-no-sides' : ''} ${headingNumbering ? 'heading-numbered' : ''}`}>
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}
