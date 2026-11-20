@@ -12,6 +12,8 @@ import { locateCell, type CellLoc } from './tableFormulaUtils';
 export interface TableFormulasOptions {
     /** Variables and functions available to formulas in this document; called on every recalculation. */
     getScope: (doc: PmNode) => CalcScope;
+    /** Called to learn when variables changed outside the document (e.g. the registry finished loading). Returns an unsubscribe function. */
+    subscribe?: (onChange: () => void) => () => void;
 }
 
 const key = new PluginKey('tableFormulas');
@@ -78,11 +80,19 @@ export const TableFormulas = Extension.create<TableFormulasOptions>({
     },
 
     addProseMirrorPlugins() {
-        const getScope = this.options.getScope;
+        const { getScope, subscribe } = this.options;
         let cache: { doc: unknown; from: number; to: number; set: DecorationSet } | null = null;
         return [
             new Plugin({
                 key,
+                view: (editorView) => {
+                    const unsubscribe = subscribe?.(() => {
+                        if (editorView.isDestroyed) return;
+                        cache = null;
+                        editorView.dispatch(editorView.state.tr.setMeta(key, 'refresh'));
+                    });
+                    return { destroy: () => unsubscribe?.() };
+                },
                 props: {
                     decorations(state) {
                         const { doc, selection } = state;

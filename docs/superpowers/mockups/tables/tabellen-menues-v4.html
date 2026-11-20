@@ -1,0 +1,119 @@
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="i-al" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 10h10M4 14h16M4 18h10"/></symbol>
+  <symbol id="i-ac" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M7 10h10M4 14h16M7 18h10"/></symbol>
+  <symbol id="i-ar" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M10 10h10M4 14h16M10 18h10"/></symbol>
+  <symbol id="i-vt" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 4h16M8 8v11M16 8v6"/></symbol>
+  <symbol id="i-vm" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h16M8 5v14M16 8v8"/></symbol>
+  <symbol id="i-vb" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h16M8 5v11M16 10v6"/></symbol>
+  <symbol id="i-merge" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M8 12h8M10.5 9.5 8 12l2.5 2.5M13.5 9.5 16 12l-2.5 2.5"/></symbol>
+  <symbol id="i-split" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M12 5v14M6.5 12h2.5M15 12h2.5"/></symbol>
+  <symbol id="i-head" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2.5"/><path d="M3 10h18" stroke-width="3"/></symbol>
+  <symbol id="i-cl" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="10" y="4" width="11" height="16" rx="2.5"/><path d="M3 12h5M5.5 9.5v5"/></symbol>
+  <symbol id="i-cr" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="11" height="16" rx="2.5"/><path d="M16 12h5M18.5 9.5v5"/></symbol>
+  <symbol id="i-ru" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="11" rx="2.5"/><path d="M12 2.5v5M9.5 5h5"/></symbol>
+  <symbol id="i-rd" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="11" rx="2.5"/><path d="M12 16.5v5M9.5 19h5"/></symbol>
+  <symbol id="i-trash" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 12.5h10L18 7M9 7V4h6v3"/></symbol>
+  <symbol id="i-sum" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5H6l6.5 7L6 19h12"/></symbol>
+</defs></svg>
+
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=DM+Mono:wght@500&display=swap');
+  .m{font-family:'DM Sans',ui-sans-serif,system-ui;color:#1f2430}
+  .i{width:16px;height:16px;display:block}
+  .tbl{border-collapse:collapse;width:100%;font-size:13px;background:#fff;color:#1f2430;font-family:Inter,system-ui,sans-serif}
+  .tbl td,.tbl th{padding:7px 10px;height:30px;border:none;border-bottom:1px solid #eceef2}
+  .tbl th{color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #1f2430;text-align:left}
+  .tbl tbody tr:nth-child(even) td{background:#fafbfc}
+  .r{text-align:right;font-variant-numeric:tabular-nums}
+  .sel{outline:2px solid #7c3aed;outline-offset:-2px;background:#f5f0ff !important}
+  .stage{position:relative;padding:54px 0 150px}
+  .bar{position:absolute;display:flex;align-items:center;gap:2px;background:#fff;border:1px solid #e3e5ea;border-radius:10px;padding:3px;box-shadow:0 8px 24px rgba(20,24,40,.14);z-index:4}
+  .bar i{width:1px;height:18px;background:#e8eaee;margin:0 3px}
+  .b{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;color:#4b5563}
+  .b:hover{background:#f3f4f6}
+  .b.on{background:#ede9fe;color:#6d28d9}
+  .b.dg{color:#dc2626}
+  .b.dg:hover{background:#fef2f2}
+  .lab{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af}
+  /* zweites, kleines Menü beim Rechtsklick: zwei Spalten statt Liste */
+  .ctx{position:absolute;background:#fff;border:1px solid #e3e5ea;border-radius:12px;padding:6px;box-shadow:0 14px 34px rgba(20,24,40,.2);z-index:5;display:flex;gap:6px}
+  .ctx .col{display:flex;flex-direction:column;gap:2px}
+  .ctx .hd{padding:2px 6px 4px}
+  .ctx .it{display:flex;align-items:center;gap:7px;padding:5px 8px;border-radius:7px;font-size:11.5px;font-weight:600;color:#374151;white-space:nowrap}
+  .ctx .it:hover{background:#f3f4f6}
+  .ctx .it svg{width:15px;height:15px;color:#6b7280}
+  .ctx .it.dg,.ctx .it.dg svg{color:#dc2626}
+  .ctx .vs{width:1px;background:#eef0f3}
+  .step{font-family:'DM Mono',monospace;font-size:11px;color:#6b7280;margin-bottom:8px}
+</style>
+
+<h2>Zwei kleine Menüs statt einem großen Block</h2>
+<p class="subtitle">Linksklick zeigt nur die schmale Leiste zum Bearbeiten der Zelle. Rechtsklick zeigt zusätzlich ein zweites Menü für Spalten, Zeilen und die ganze Tabelle. Dort stehen Spalte und Zeile nebeneinander.</p>
+
+<div class="split">
+  <div class="mockup m">
+    <div class="mockup-header">1 · Linksklick auf eine Zelle: nur die Leiste</div>
+    <div class="mockup-body" style="background:#eef0f4">
+      <div class="stage" style="padding-bottom:70px">
+        <div class="bar" style="left:35%;top:6px">
+          <span class="b"><svg class="i"><use href="#i-al"/></svg></span><span class="b"><svg class="i"><use href="#i-ac"/></svg></span><span class="b on"><svg class="i"><use href="#i-ar"/></svg></span>
+          <i></i>
+          <span class="b"><svg class="i"><use href="#i-vt"/></svg></span><span class="b on"><svg class="i"><use href="#i-vm"/></svg></span><span class="b"><svg class="i"><use href="#i-vb"/></svg></span>
+          <i></i>
+          <span class="b"><svg class="i"><use href="#i-merge"/></svg></span><span class="b"><svg class="i"><use href="#i-split"/></svg></span><span class="b"><svg class="i"><use href="#i-sum"/></svg></span>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Posten</th><th class="r">Betrag</th><th class="r">Rate</th></tr></thead>
+          <tbody>
+          <tr><td>Auto</td><td class="r">12.000,00 €</td><td class="r">224,10 €</td></tr>
+          <tr><td>Möbel</td><td class="r">4.500,00 €</td><td class="r sel">98,40 €</td></tr>
+          <tr><td><b>Summe</b></td><td class="r"><b>16.500,00 €</b></td><td class="r"><b>322,50 €</b></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="mockup m">
+    <div class="mockup-header">2 · Rechtsklick: Leiste und zweites Menü</div>
+    <div class="mockup-body" style="background:#eef0f4">
+      <div class="stage" style="padding-bottom:150px">
+        <div class="bar" style="left:35%;top:6px">
+          <span class="b"><svg class="i"><use href="#i-al"/></svg></span><span class="b"><svg class="i"><use href="#i-ac"/></svg></span><span class="b on"><svg class="i"><use href="#i-ar"/></svg></span>
+          <i></i>
+          <span class="b"><svg class="i"><use href="#i-vt"/></svg></span><span class="b on"><svg class="i"><use href="#i-vm"/></svg></span><span class="b"><svg class="i"><use href="#i-vb"/></svg></span>
+          <i></i>
+          <span class="b"><svg class="i"><use href="#i-merge"/></svg></span><span class="b"><svg class="i"><use href="#i-split"/></svg></span><span class="b"><svg class="i"><use href="#i-sum"/></svg></span>
+        </div>
+        <table class="tbl">
+          <thead><tr><th>Posten</th><th class="r">Betrag</th><th class="r">Rate</th></tr></thead>
+          <tbody>
+          <tr><td>Auto</td><td class="r">12.000,00 €</td><td class="r">224,10 €</td></tr>
+          <tr><td>Möbel</td><td class="r">4.500,00 €</td><td class="r sel">98,40 €</td></tr>
+          <tr><td><b>Summe</b></td><td class="r"><b>16.500,00 €</b></td><td class="r"><b>322,50 €</b></td></tr>
+          </tbody>
+        </table>
+        <div class="ctx" style="left:48%;top:140px">
+          <div class="col"><span class="lab hd">Spalte</span>
+            <span class="it"><svg viewBox="0 0 24 24"><use href="#i-cl"/></svg>Links einfügen</span>
+            <span class="it"><svg viewBox="0 0 24 24"><use href="#i-cr"/></svg>Rechts einfügen</span>
+            <span class="it dg"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg>Löschen</span>
+          </div>
+          <div class="vs"></div>
+          <div class="col"><span class="lab hd">Zeile</span>
+            <span class="it"><svg viewBox="0 0 24 24"><use href="#i-ru"/></svg>Oben einfügen</span>
+            <span class="it"><svg viewBox="0 0 24 24"><use href="#i-rd"/></svg>Unten einfügen</span>
+            <span class="it dg"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg>Löschen</span>
+          </div>
+          <div class="vs"></div>
+          <div class="col"><span class="lab hd">Tabelle</span>
+            <span class="it"><svg viewBox="0 0 24 24"><use href="#i-head"/></svg>Kopfzeile</span>
+            <span class="it dg"><svg viewBox="0 0 24 24"><use href="#i-trash"/></svg>Löschen</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<p style="font-size:13px;color:#6b7280;margin-top:14px">Das Rechtsklick-Menü ersetzt das bisherige englische Menü. Die Leiste erscheint über der Zelle und verdeckt nichts. Das zweite Menü ist breit statt hoch, weil Spalte, Zeile und Tabelle nebeneinander stehen.</p>

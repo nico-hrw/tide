@@ -1,0 +1,77 @@
+<style>
+  .tbl{border-collapse:collapse;width:100%;font-size:13px;background:#fff;color:#1f2430}
+  .tbl td,.tbl th{padding:7px 10px;border:1px solid #e3e5ea;height:30px}
+  .tbl th{background:#f4f5f8;font-weight:600;text-align:left}
+  .r{text-align:right;font-variant-numeric:tabular-nums}
+  .c{text-align:center}
+  .sel{outline:2px solid #7c3aed;outline-offset:-2px;background:#f5f0ff}
+  .tb{display:inline-flex;gap:2px;align-items:center;background:#1f2430;color:#fff;border-radius:8px;padding:4px 6px;font-size:12px;box-shadow:0 4px 14px rgba(0,0,0,.25)}
+  .tb span{padding:3px 7px;border-radius:5px}
+  .tb span.on{background:#7c3aed}
+  .tb i{width:1px;height:16px;background:#555;margin:0 3px}
+  .zebra tbody tr:nth-child(even) td{background:#fafbfc}
+  .soft td,.soft th{border:none;border-bottom:1px solid #eceef2}
+  .soft th{background:none;color:#6b7280;font-size:11px;text-transform:uppercase;letter-spacing:.04em;border-bottom:2px solid #1f2430}
+  .ref1{outline:2px solid #2563eb;outline-offset:-2px;background:#eff6ff;box-shadow:0 0 10px rgba(37,99,235,.45)}
+  .ref2{outline:2px solid #f59e0b;outline-offset:-2px;background:#fffbeb;box-shadow:0 0 10px rgba(245,158,11,.5)}
+  .cand{box-shadow:inset 0 0 0 1px #c4b5fd;background:#faf7ff}
+  .f1{color:#2563eb;font-weight:600}.f2{color:#d97706;font-weight:600}
+  .hint{font-size:12px;color:#6b7280;margin-top:8px}
+  .formula-bar{display:flex;gap:8px;align-items:center;font-family:ui-monospace,Menlo,monospace;font-size:13px;background:#fff;border:1px solid #e3e5ea;border-radius:6px;padding:6px 10px;margin-bottom:10px;color:#1f2430}
+</style>
+
+<h2>Tabellen: Aussehen und Zellen-Werkzeuge</h2>
+<p class="subtitle">Titel sind jetzt linksbündig, Zahlen rechtsbündig. Verbundene Zellen sind möglich (hier "Kreditübersicht" über 4 Spalten). Welcher Stil gefällt dir? Klicke auf A oder B.</p>
+
+<div class="cards">
+  <div class="card" data-choice="A-linien" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#eef0f4">
+      <div style="margin-bottom:8px;text-align:center"><div class="tb"><span class="on">⇤ Links</span><span>≡ Mitte</span><span>⇥ Rechts</span><i></i><span>⤒</span><span>⊟</span><span>⤓</span><i></i><span>Verbinden</span><span>Teilen</span><i></i><span>Σ</span></div></div>
+      <table class="tbl">
+        <thead><tr><th colspan="4" style="font-size:14px">Kreditübersicht</th></tr>
+        <tr><th>Posten</th><th class="r">Betrag</th><th class="r">Zins</th><th class="r">Rate</th></tr></thead>
+        <tbody>
+        <tr><td>Auto</td><td class="r">12.000,00 €</td><td class="r">3,9 %</td><td class="r">224,10 €</td></tr>
+        <tr><td>Möbel</td><td class="r">4.500,00 €</td><td class="r">2,5 %</td><td class="r sel">98,40 €</td></tr>
+        <tr><td><b>Summe</b></td><td class="r"><b>16.500,00 €</b></td><td></td><td class="r"><b>322,50 €</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body"><h3>A · Klassisch mit Linien</h3><p>Volle Zellrahmen, Kopfzeile grau hinterlegt. Am nächsten an Excel.</p></div>
+  </div>
+
+  <div class="card" data-choice="B-leicht" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:14px;background:#eef0f4">
+      <div style="margin-bottom:8px;text-align:center"><div class="tb"><span class="on">⇤ Links</span><span>≡ Mitte</span><span>⇥ Rechts</span><i></i><span>⤒</span><span>⊟</span><span>⤓</span><i></i><span>Verbinden</span><span>Teilen</span><i></i><span>Σ</span></div></div>
+      <table class="tbl soft zebra">
+        <thead><tr><th colspan="4" style="font-size:13px;color:#1f2430;text-transform:none;letter-spacing:0">Kreditübersicht</th></tr>
+        <tr><th>Posten</th><th class="r">Betrag</th><th class="r">Zins</th><th class="r">Rate</th></tr></thead>
+        <tbody>
+        <tr><td>Auto</td><td class="r">12.000,00 €</td><td class="r">3,9 %</td><td class="r">224,10 €</td></tr>
+        <tr><td>Möbel</td><td class="r">4.500,00 €</td><td class="r">2,5 %</td><td class="r sel">98,40 €</td></tr>
+        <tr><td><b>Summe</b></td><td class="r"><b>16.500,00 €</b></td><td></td><td class="r"><b>322,50 €</b></td></tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="card-body"><h3>B · Leicht und modern</h3><p>Nur Trennlinien, Zebra-Streifen, Kopfzeile als kleine Kapitälchen. Rahmen erscheinen beim Hover/Auswählen.</p></div>
+  </div>
+</div>
+
+<h2 style="margin-top:32px">Formelmodus: Zellen leuchten auf</h2>
+<p class="subtitle">Du tippst <code>=</code> in die Zelle <b>D2</b>. Alle Zellen mit Zahlen leuchten schwach auf. Ein Klick fügt den Bezug ein, und die Zelle bekommt eine eigene Farbe, die auch in der Formel erscheint.</p>
+
+<div class="mockup">
+  <div class="mockup-header">Beispiel: Monatsrate = Betrag × Zins ÷ 12</div>
+  <div class="mockup-body" style="background:#eef0f4">
+    <div class="formula-bar"><span style="color:#6b7280">D2</span><span>=<span class="f1">B2</span>*<span class="f2">C2</span>/12<span style="border-left:2px solid #7c3aed;margin-left:1px"></span></span></div>
+    <table class="tbl">
+      <thead><tr><th></th><th class="c" style="color:#6b7280">A</th><th class="c" style="color:#6b7280">B</th><th class="c" style="color:#6b7280">C</th><th class="c" style="color:#6b7280">D</th></tr></thead>
+      <tbody>
+      <tr><td class="c" style="color:#6b7280;background:#f4f5f8">1</td><th>Posten</th><th class="r">Betrag</th><th class="r">Zins</th><th class="r">Monatszins</th></tr>
+      <tr><td class="c" style="color:#6b7280;background:#f4f5f8">2</td><td>Auto</td><td class="r ref1">12.000,00 €</td><td class="r ref2">3,9 %</td><td class="r sel"><span class="f1">=B2</span>*<span class="f2">C2</span>/12</td></tr>
+      <tr><td class="c" style="color:#6b7280;background:#f4f5f8">3</td><td>Möbel</td><td class="r cand">4.500,00 €</td><td class="r cand">2,5 %</td><td class="r">9,38 €</td></tr>
+      </tbody>
+    </table>
+    <p class="hint">Hell-violett umrandet: Zellen, die man anklicken kann. Blau und Orange: bereits in der Formel genutzte Zellen. Ziehen über mehrere Zellen ergibt einen Bereich wie <code>B2:B9</code>. Wenn die Zelle nicht mehr fokussiert ist, steht dort nur das Ergebnis (<b>39,00 €</b>).</p>
+  </div>
+</div>

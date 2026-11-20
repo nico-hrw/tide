@@ -1,0 +1,103 @@
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="v-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+  <symbol id="v-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="v-fx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4C7 4 8 9 7 12s-1 5-4 5M5 10h6M14 10l6 8M20 10l-6 8"/></symbol>
+  <symbol id="v-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1M14 10a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/></symbol>
+</defs></svg>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  .m{font-family:'DM Sans',ui-sans-serif,system-ui;color:#1f2430}
+  .ic{width:15px;height:15px;display:inline-block;vertical-align:-3px}
+  .mono{font-family:'DM Mono',ui-monospace,monospace}
+  .lab{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af}
+  /* Variablenblock in der Notiz */
+  .vb{background:#fff;border:1px solid #e3e5ea;border-radius:12px;overflow:hidden}
+  .vb-h{display:flex;align-items:center;gap:8px;padding:8px 12px;background:#faf9fc;border-bottom:1px solid #eef0f3;font-size:12px;font-weight:600;color:#6d28d9}
+  .vl{display:flex;align-items:center;gap:10px;padding:6px 12px;font-size:13px;border-bottom:1px solid #f3f4f6}
+  .vl:last-child{border:none}
+  .vl .n{color:#7c3aed;font-weight:500;min-width:110px}
+  .vl .eq{color:#9ca3af}
+  .vl .v{flex:1}
+  .vl .res{color:#6b7280;font-size:12px}
+  .pin{margin-left:auto;display:flex;align-items:center;gap:5px;font-size:11px;font-weight:600;border-radius:7px;padding:3px 8px;color:#6b7280;background:#f3f4f6}
+  .pin.on{background:#ede9fe;color:#6d28d9}
+  .err{color:#dc2626;font-weight:600}
+  /* Tab Globale Variablen */
+  .reg{background:#fff;border:1px solid #e3e5ea;border-radius:12px;overflow:hidden}
+  .reg h4{margin:0;padding:10px 14px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;background:#f7f8fa;border-bottom:1px solid #eef0f3}
+  .reg h4 small{font-weight:500;color:#9ca3af;margin-left:auto}
+  .rr{display:grid;grid-template-columns:130px 1fr 130px;gap:10px;padding:7px 14px;font-size:13px;border-bottom:1px solid #f3f4f6;align-items:center}
+  .rr:last-child{border:none}
+  .rr .n{color:#7c3aed;font-weight:500}
+  .rr .src{font-size:11.5px;color:#6b7280;display:flex;align-items:center;gap:5px;justify-content:flex-end}
+  .rr .src.sys{color:#9ca3af}
+  /* Teilen-Dialog */
+  .dlg{background:#fff;border:1px solid #e3e5ea;border-radius:16px;padding:18px;box-shadow:0 20px 50px rgba(20,24,40,.2);max-width:420px}
+  .dlg h3{margin:0 0 4px;font-size:15px}
+  .dlg p{margin:0 0 12px;font-size:12.5px;color:#6b7280;line-height:1.5}
+  .chk{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border:1px solid #eef0f3;border-radius:10px;margin-bottom:6px;font-size:12.5px}
+  .chk .bx{width:16px;height:16px;border-radius:5px;background:#7c3aed;color:#fff;font-size:11px;text-align:center;line-height:16px;flex:none;margin-top:1px}
+  .chk .bx.off{background:#fff;border:1.5px solid #cbd0d8}
+  .btns{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+  .btn{font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:9px;background:#f3f4f6;color:#374151}
+  .btn.p{background:#1f2430;color:#fff}
+</style>
+
+<h2>Variablen: Block, Register und Teilen</h2>
+<p class="subtitle">Drei Stellen: der Block in der Notiz (lokal), der Tab für globale Variablen und die Rückfrage beim Teilen.</p>
+
+<div class="mockup m">
+  <div class="mockup-header">1 · Variablenblock in der Notiz. Standard ist lokal, die Weltkugel macht eine Zeile global.</div>
+  <div class="mockup-body" style="background:#eef0f4">
+    <div class="vb">
+      <div class="vb-h"><svg class="ic"><use href="#v-fx"/></svg>Variablen dieser Notiz</div>
+      <div class="vl mono"><span class="n">kurs_usd</span><span class="eq">=</span><span class="v">0,92</span><span class="res">€ je USD</span><span class="pin on"><svg class="ic"><use href="#v-globe"/></svg>global</span></div>
+      <div class="vl mono"><span class="n">zins</span><span class="eq">=</span><span class="v">3,9 %</span><span class="res">= 0,039</span><span class="pin on"><svg class="ic"><use href="#v-globe"/></svg>global</span></div>
+      <div class="vl mono"><span class="n">laufzeit</span><span class="eq">=</span><span class="v">48</span><span class="res">Monate</span><span class="pin"><svg class="ic"><use href="#v-globe"/></svg>lokal</span></div>
+      <div class="vl mono"><span class="n">rate(b, z, n)</span><span class="eq">=</span><span class="v">RMZ(z / 12, n, -b)</span><span class="res">Funktion</span><span class="pin"><svg class="ic"><use href="#v-globe"/></svg>lokal</span></div>
+      <div class="vl mono"><span class="n">u_pi</span><span class="eq">=</span><span class="v">U / d</span><span class="res">→ 3,1416</span><span class="pin"><svg class="ic"><use href="#v-globe"/></svg>lokal</span></div>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin:10px 2px 0">In einer Tabellenzelle: <span class="mono" style="color:#1f2430">=rate(B2, zins, laufzeit)</span> ergibt <b>224,10 €</b>. Lokale Variablen gelten nur in dieser Notiz. Heißt eine lokale wie eine globale, gewinnt die lokale.</p>
+  </div>
+</div>
+
+<div class="mockup m" style="margin-top:20px">
+  <div class="mockup-header">2 · Tab „Variablen“ (zentrales Register)</div>
+  <div class="mockup-body" style="background:#eef0f4;display:grid;gap:14px">
+    <div class="reg">
+      <h4><svg class="ic"><use href="#v-globe"/></svg>Meine globalen Variablen<small>2 Werte · 1 Funktion</small></h4>
+      <div class="rr mono"><span class="n">kurs_usd</span><span>0,92</span><span class="src"><svg class="ic"><use href="#v-link"/></svg>Kredit Auto</span></div>
+      <div class="rr mono"><span class="n">zins</span><span>3,9 %</span><span class="src"><svg class="ic"><use href="#v-link"/></svg>Kredit Auto</span></div>
+      <div class="rr mono"><span class="n">mwst</span><span>19 %</span><span class="src"><svg class="ic"><use href="#v-link"/></svg>Steuern 2026</span></div>
+    </div>
+    <div class="reg">
+      <h4><svg class="ic"><use href="#v-lock"/></svg>Standard (Tide)<small>überall verfügbar</small></h4>
+      <div class="rr mono"><span class="n">pi</span><span>3,14159…</span><span class="src sys">Konstante</span></div>
+      <div class="rr mono"><span class="n">SUMME(…)</span><span>Summe von Zellen oder Bereichen</span><span class="src sys">Funktion</span></div>
+      <div class="rr mono"><span class="n">RMZ(z, n, b)</span><span>Rate pro Periode</span><span class="src sys">Finanzen</span></div>
+      <div class="rr mono"><span class="n">RUNDEN(x, n)</span><span>Auf n Stellen runden</span><span class="src sys">Funktion</span></div>
+    </div>
+    <p style="font-size:12px;color:#6b7280;margin:0 2px">Ein Wert wird immer dort bearbeitet, wo er definiert wurde (Link zur Notiz). Im Register ändert man ihn nur direkt, wenn er keiner Notiz gehört.</p>
+  </div>
+</div>
+
+<div class="mockup m" style="margin-top:20px">
+  <div class="mockup-header">3 · Teilen einer Notiz, die globale Variablen benutzt</div>
+  <div class="mockup-body" style="background:#eef0f4;display:flex;gap:30px;flex-wrap:wrap;align-items:flex-start">
+    <div class="dlg">
+      <h3>„Kredit Auto“ teilen</h3>
+      <p>Diese Notiz nutzt globale Variablen. Sollen sie mitgeteilt werden?</p>
+      <div class="chk"><span class="bx">✓</span><div><b class="mono">zins</b>, <b class="mono">kurs_usd</b><br><span style="color:#6b7280">Werte werden verschlüsselt in der Notiz abgelegt, die andere Person kann damit rechnen.</span></div></div>
+      <div class="chk"><span class="bx off"></span><div><b>Ohne Variablen teilen</b><br><span style="color:#6b7280">Formeln bleiben erhalten, zeigen bei der anderen Person aber <span class="err">#VAR</span>.</span></div></div>
+      <div class="btns"><span class="btn">Abbrechen</span><span class="btn p">Teilen</span></div>
+    </div>
+    <div style="flex:1;min-width:230px">
+      <div class="lab" style="margin-bottom:6px">So sieht es die andere Person ohne Variablen</div>
+      <table style="border-collapse:collapse;width:100%;font-size:13px;background:#fff">
+        <tr><th style="text-align:left;padding:7px 10px;font-size:11px;color:#6b7280;border-bottom:2px solid #1f2430">POSTEN</th><th style="text-align:right;padding:7px 10px;font-size:11px;color:#6b7280;border-bottom:2px solid #1f2430">BETRAG</th><th style="text-align:right;padding:7px 10px;font-size:11px;color:#6b7280;border-bottom:2px solid #1f2430">RATE</th></tr>
+        <tr><td style="padding:7px 10px;border-bottom:1px solid #eceef2">Auto</td><td style="padding:7px 10px;text-align:right;border-bottom:1px solid #eceef2">12.000,00 €</td><td style="padding:7px 10px;text-align:right;border-bottom:1px solid #eceef2"><span class="err">#VAR</span></td></tr>
+      </table>
+      <p style="font-size:12px;color:#6b7280;margin-top:8px">Fährt man mit der Maus über <span class="err">#VAR</span>, steht dort: „Variable <span class="mono">zins</span> nicht verfügbar. Frag den Besitzer nach den Variablen.“</p>
+    </div>
+  </div>
+</div>

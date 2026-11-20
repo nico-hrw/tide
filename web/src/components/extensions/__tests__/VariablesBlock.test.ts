@@ -94,3 +94,61 @@ describe('variables in the document', () => {
     expect(attrs.snapshot).toEqual([{ name: 'm', expr: '2', global: true }]);
   });
 });
+
+describe('definition change reporting', () => {
+  function withReporter(content: unknown) {
+    const calls: Array<{ names: string[]; prev: string[] | null }> = [];
+    const element = document.body.appendChild(document.createElement('div'));
+    const editor = new Editor({
+      element,
+      extensions: [Document, Paragraph, Text, VariablesBlockNode.configure({
+        onDefinitionsChange: (defs, prev) => calls.push({ names: defs.map((d) => d.name), prev: prev ? prev.map((d) => d.name) : null }),
+      })],
+      content: content as never,
+    });
+    editors.push(editor);
+    return { editor, calls };
+  }
+
+  const doc = (code: string) => ({ type: 'doc', content: [{ type: 'variablesBlock', attrs: { code, snapshot: [] } }, { type: 'paragraph' }] });
+
+  it('reports the initial definitions once on mount', () => {
+    const { calls } = withReporter(doc('a = 1\n@b = 2'));
+    expect(calls).toEqual([{ names: ['a', 'b'], prev: null }]);
+  });
+
+  it('reports again with the previous state when the block changes, but not for unrelated edits', () => {
+    const { editor, calls } = withReporter(doc('a = 1'));
+    editor.commands.insertContentAt(editor.state.doc.content.size - 1, 'hello'); // text in the paragraph
+    expect(calls).toHaveLength(1);
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(0, undefined, { code: 'a = 1\nc = 3', snapshot: [] }));
+    expect(calls).toHaveLength(2);
+    expect(calls[1]).toEqual({ names: ['a', 'c'], prev: ['a'] });
+  });
+});
+
+describe('registry refresh', () => {
+  it('re-evaluates formulas when the subscription fires', () => {
+    let globals: { name: string; expr: string; global: boolean }[] = [];
+    let notify = () => {};
+    const element = document.body.appendChild(document.createElement('div'));
+    const editor = new Editor({
+      element,
+      extensions: [
+        Document, Paragraph, Text, Table, TableRow, TableHeaderAligned, TableCellAligned,
+        TableFormulas.configure({
+          getScope: (doc) => scopeForDoc(doc, () => globals),
+          subscribe: (cb) => { notify = cb; return () => {}; },
+        }),
+      ],
+      content: { type: 'doc', content: [table(['=g*2', 'x'])] } as never,
+    });
+    editors.push(editor);
+    editor.commands.setTextSelection(editor.state.doc.content.size - 3);
+    const cell = () => editor.view.dom.querySelector('td') as HTMLElement;
+    expect(cell().getAttribute('data-result')).toBe('#VAR');
+    globals = [{ name: 'g', expr: '21', global: true }];
+    notify();
+    expect(cell().getAttribute('data-result')).toBe('42');
+  });
+});

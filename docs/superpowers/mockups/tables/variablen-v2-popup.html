@@ -1,0 +1,78 @@
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+  <symbol id="v-globe" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3 3 15 0 18M12 3c-3 3-3 15 0 18"/></symbol>
+  <symbol id="v-lock" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2.5"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="v-fx" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 4C7 4 8 9 7 12s-1 5-4 5M5 10h6M14 10l6 8M20 10l-6 8"/></symbol>
+  <symbol id="v-link" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10 14a4 4 0 0 0 5.6 0l3-3a4 4 0 0 0-5.6-5.6l-1 1M14 10a4 4 0 0 0-5.6 0l-3 3a4 4 0 0 0 5.6 5.6l1-1"/></symbol>
+  <symbol id="v-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+  <symbol id="v-search" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></symbol>
+  <symbol id="v-sigma" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 5H6l6.5 7L6 19h12"/></symbol>
+</defs></svg>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700&family=DM+Mono:wght@400;500&display=swap');
+  .scrim{background:rgba(20,24,40,.35);border-radius:10px;padding:26px 20px;display:flex;justify-content:center}
+  .modal{font-family:'DM Sans',ui-sans-serif,system-ui;color:#1f2430;display:flex;width:100%;max-width:1060px;height:560px;background:#fff;border-radius:20px;overflow:hidden;box-shadow:0 30px 80px rgba(20,24,40,.35);position:relative;font-size:14px}
+  .side{width:240px;flex:none;background:#f4f5f8;padding:14px 10px;display:flex;flex-direction:column;gap:2px}
+  .side .t{font-size:15px;font-weight:700;padding:6px 10px 12px}
+  .nv{display:flex;align-items:center;gap:9px;padding:8px 10px;border-radius:9px;font-weight:600;font-size:13px;color:#4b5563}
+  .nv.on{background:#fff;color:#1f2430;box-shadow:0 1px 3px rgba(0,0,0,.08)}
+  .nv .ic{width:16px;height:16px;flex:none}
+  .nv small{margin-left:auto;font-size:11px;color:#9ca3af;font-weight:500}
+  .main{flex:1;min-width:0;overflow:hidden;position:relative}
+  .inner{max-width:660px;margin:0 auto;padding:30px 40px}
+  .close{position:absolute;right:14px;top:14px;width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#6b7280}
+  h1{font-size:20px;margin:0 0 4px}
+  .sub{font-size:12.5px;color:#6b7280;margin:0 0 16px;line-height:1.5}
+  .search{display:flex;align-items:center;gap:8px;background:#f4f5f8;border-radius:10px;padding:8px 12px;font-size:13px;color:#9ca3af;margin-bottom:14px}
+  .lab{font-family:'DM Mono',monospace;font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:#9ca3af;margin:14px 0 6px}
+  .list{border:1px solid #e8eaee;border-radius:12px;overflow:hidden}
+  .rr{display:grid;grid-template-columns:120px 1fr auto;gap:10px;padding:9px 14px;font-size:13px;border-bottom:1px solid #f0f1f4;align-items:center;font-family:'DM Mono',monospace}
+  .rr:last-child{border:none}
+  .rr .n{color:#7c3aed;font-weight:500}
+  .rr .src{font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:600;color:#6b7280;background:#f4f5f8;border-radius:7px;padding:3px 8px;display:flex;align-items:center;gap:5px}
+  .rr .src svg{width:13px;height:13px}
+  .btn{display:inline-flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;padding:7px 12px;border-radius:9px;background:#1f2430;color:#fff;margin-top:12px}
+  .ic{width:15px;height:15px;display:inline-block}
+</style>
+
+<h2>Tab „Variablen“ als Popup in Einstellungsgröße</h2>
+<p class="subtitle">Gleiche Größe wie die Einstellungen am PC (max. 1060 × 760 px, Seitenleiste 240 px, Inhalt höchstens 660 px breit), gleiche Seitenleiste mit Navigation, gleiches Schließen-Symbol. Die Höhe ist hier zum Anschauen gekürzt.</p>
+
+<div class="scrim">
+  <div class="modal">
+    <aside class="side">
+      <div class="t">Variablen</div>
+      <div class="nv on"><svg class="ic"><use href="#v-globe"/></svg>Meine globalen<small>3</small></div>
+      <div class="nv"><svg class="ic"><use href="#v-fx"/></svg>Funktionen<small>1</small></div>
+      <div class="nv"><svg class="ic"><use href="#v-lock"/></svg>Standard (Tide)</div>
+    </aside>
+    <div class="main">
+      <div class="close"><svg class="ic" style="width:18px;height:18px"><use href="#v-x"/></svg></div>
+      <div class="inner">
+        <h1>Meine globalen Variablen</h1>
+        <p class="sub">Überall in deinen Notizen und Tabellen verfügbar. Jeder Wert gehört zu der Notiz, in der er definiert wurde, und wird dort geändert.</p>
+        <div class="search"><svg class="ic"><use href="#v-search"/></svg>Variable suchen…</div>
+
+        <div class="lab">Werte</div>
+        <div class="list">
+          <div class="rr"><span class="n">kurs_usd</span><span>0,92</span><span class="src"><svg><use href="#v-link"/></svg>Kredit Auto</span></div>
+          <div class="rr"><span class="n">zins</span><span>3,9 %</span><span class="src"><svg><use href="#v-link"/></svg>Kredit Auto</span></div>
+          <div class="rr"><span class="n">mwst</span><span>19 %</span><span class="src"><svg><use href="#v-link"/></svg>Steuern 2026</span></div>
+        </div>
+
+        <div class="lab">Ohne Notiz</div>
+        <div class="list">
+          <div class="rr"><span class="n">sparquote</span><span>12 %</span><span class="src" style="background:#ede9fe;color:#6d28d9">hier bearbeitbar</span></div>
+        </div>
+        <span class="btn">+ Neue Variable</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="mockup" style="margin-top:20px">
+  <div class="mockup-header">Die anderen zwei Seiten</div>
+  <div class="mockup-body" style="font-size:13px;line-height:1.7">
+    <b>Funktionen:</b> gleiche Liste, z. B. <code>rate(b, z, n) = RMZ(z / 12, n, -b)</code> mit Herkunftsnotiz.<br>
+    <b>Standard (Tide):</b> schreibgeschützt: <code>pi</code>, <code>SUMME</code>, <code>RUNDEN</code>, <code>RMZ</code>, … mit kurzer Erklärung pro Eintrag. Wer sie überschreiben will, definiert eine eigene Variable mit demselben Namen (lokal gewinnt vor global, global vor Standard).
+  </div>
+</div>
