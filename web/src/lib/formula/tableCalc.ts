@@ -14,6 +14,8 @@ export interface CellGrid {
 /** A grid backed by a ProseMirror table; `offset` locates the cell node (relative to the table node start). */
 export interface PmGrid extends CellGrid {
     offset(col: number, row: number): number | null;
+    /** nodeSize of the cell whose top-left corner is (col, row); 0 for covered coordinates. */
+    cellSize(col: number, row: number): number;
 }
 
 /** Variable and function resolution for formulas in this table. */
@@ -40,6 +42,10 @@ export function gridFromPmTable(table: PmNode): PmGrid {
         rows: map.height,
         cols: map.width,
         offset: topLeft,
+        cellSize: (c, r) => {
+            const pos = topLeft(c, r);
+            return pos === null ? 0 : (table.nodeAt(pos)?.nodeSize ?? 0);
+        },
         text: (c, r) => {
             const pos = topLeft(c, r);
             if (pos === null) return '';

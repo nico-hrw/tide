@@ -6,9 +6,10 @@ import { CellSelection } from '@tiptap/pm/tables';
 import {
     AlignLeft, AlignCenter, AlignRight,
     AlignVerticalJustifyStart, AlignVerticalJustifyCenter, AlignVerticalJustifyEnd,
-    Merge, Split,
+    Merge, Split, Sigma,
 } from 'lucide-react';
 import type { CellTextAlign, CellVerticalAlign } from '../extensions/TableCellAttrs';
+import { insertSumFormula } from '../extensions/TableFormulas';
 import { setCellAlign, canMerge, canSplit, mergeSelectedCells, splitSelectedCell } from './tableCommands';
 
 interface BarState {
@@ -109,6 +110,8 @@ export function TableCellBar({ editor }: { editor: Editor | null }) {
             <Sep />
             <Btn label="Zellen verbinden" disabled={!state.merge} onClick={() => mergeSelectedCells(editor)}><Merge size={ic} /></Btn>
             <Btn label="Zelle teilen" disabled={!state.split} onClick={() => splitSelectedCell(editor)}><Split size={ic} /></Btn>
+            <Sep />
+            <Btn label="Summe einfügen" onClick={() => insertSumFormula(editor.view)}><Sigma size={ic} /></Btn>
         </div>
     );
 }
