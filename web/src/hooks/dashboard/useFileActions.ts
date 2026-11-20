@@ -5,6 +5,7 @@ import { apiFetch } from "@/lib/api";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
 import type { Tab } from "@/components/Layout/TabList";
 import { useDataStore, type DataItem } from "@/store/useDataStore";
+import { getVariableRegistry } from "@/lib/variableRegistryInstance";
 import {
     asRecord,
     buildEncryptedRenamePayload,
@@ -97,6 +98,7 @@ export function useFileActions({
             if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
 
             useDataStore.getState().setNotes(freshNotes.filter((f) => f.id !== fileId));
+            void getVariableRegistry().removeNote(fileId);
             handleTabClose(null, fileId);
         } catch (err) {
             console.error("Delete failed:", err);

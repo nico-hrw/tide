@@ -1,4 +1,4 @@
-import { Extension } from '@tiptap/core';
+import { Extension, type Editor, type Range } from '@tiptap/core';
 import Suggestion from '@tiptap/suggestion';
 import { ReactRenderer } from '@tiptap/react';
 import tippy from 'tippy.js';
@@ -13,7 +13,8 @@ import {
     Italic,
     Strikethrough,
     Bookmark,
-    CalendarSearch
+    CalendarSearch,
+    Variable
 } from 'lucide-react';
 
 import { useDataStore } from '@/store/useDataStore';
@@ -138,6 +139,16 @@ const getSuggestionItems = ({ query }: { query: string }) => {
             icon: <Strikethrough size={16} />,
             command: ({ editor, range }: any) => {
                 editor.chain().focus().deleteRange(range).toggleStrike().run();
+            },
+        },
+        {
+            title: 'Variablen',
+            aliases: ['variable', 'var', 'variablen', 'formel', 'rechnen'],
+            icon: <Variable size={16} />,
+            command: ({ editor, range }: { editor: Editor; range: Range }) => {
+                (editor.chain().focus().deleteRange(range) as unknown as {
+                    insertVariablesBlock: (code?: string) => ReturnType<Editor['chain']>;
+                }).insertVariablesBlock('zins = 3,9 %\n').run();
             },
         }
     ];

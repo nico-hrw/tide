@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
-interface FakeFile { id: string; type: string; content_ciphertext?: string; access_keys?: unknown; metadata?: unknown }
+interface FakeFile { id: string; type: string; owner_id?: string; content_ciphertext?: string; access_keys?: unknown; metadata?: unknown }
 const server = vi.hoisted(() => ({ files: [] as FakeFile[], calls: [] as string[], seq: 0 }));
 
 vi.mock('../api', () => ({
@@ -79,5 +79,32 @@ describe('createApiRegistryStorage', () => {
     const s = createApiRegistryStorage(() => keys);
     await Promise.all([s.save([entry('a', 'n1')]), s.save([entry('a', 'n1'), entry('b', 'n1')])]);
     expect(server.files).toHaveLength(1);
+  });
+
+  it('picks the user own file when foreign owner_id files are also returned', async () => {
+    await createApiRegistryStorage(() => other).save([entry('foreign', 'n9')]);
+    server.files[0].owner_id = other.userId;
+
+    await createApiRegistryStorage(() => keys).save([entry('mine', 'n1')]);
+    server.files[1].owner_id = keys.userId;
+
+    expect(await createApiRegistryStorage(() => keys).load()).toEqual([entry('mine', 'n1')]);
+  });
+
+  it('ignores foreign-only files on load without decrypting or overwriting them, and creates a new owned file on save', async () => {
+    await createApiRegistryStorage(() => other).save([entry('foreign', 'n9')]);
+    server.files[0].owner_id = other.userId;
+    const foreignCipher = server.files[0].content_ciphertext;
+
+    const s = createApiRegistryStorage(() => keys);
+    expect(await s.load()).toEqual([]);
+
+    await s.save([entry('mine', 'n1')]);
+    expect(server.files).toHaveLength(2);
+    expect(server.calls.filter((c) => c.startsWith('PUT '))).toHaveLength(0);
+    expect(server.files[0].content_ciphertext).toBe(foreignCipher);
+    expect(Object.keys(server.files[1].access_keys as Record<string, unknown>)).toEqual([keys.userId]);
+    expect(await createApiRegistryStorage(() => keys).load()).toEqual([entry('mine', 'n1')]);
+    expect(await createApiRegistryStorage(() => other).load()).toEqual([entry('foreign', 'n9')]);
   });
 });

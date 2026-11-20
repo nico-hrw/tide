@@ -19,7 +19,8 @@ import {
     Folder,
     Puzzle,
     ChevronDown,
-    Smile
+    Smile,
+    Variable
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
@@ -419,6 +420,18 @@ export default function TabList({
                                     </button>
                                 </>
                             )}
+
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setIsPluginMenuOpen(false);
+                                    useDataStore.getState().setVariablesModalOpen(true);
+                                }}
+                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-t2-ink hover:bg-t2-hover rounded-ui transition-colors text-left"
+                            >
+                                <Variable size={15} className="text-t2-ink-2" />
+                                <span>Variablen</span>
+                            </button>
                         </div>
                     )}
                 </div>

@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, UserMinus, Loader2, ShieldCheck } from "lucide-react";
+import { X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, UserMinus, Loader2, ShieldCheck, Variable } from "lucide-react";
 import { useState, useEffect, useCallback } from "react";
 import * as Y from "yjs";
 import { apiFetch } from "@/lib/api";
@@ -9,6 +9,9 @@ import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { useSocialStore } from "@/store/useSocialStore";
 import { generateAndWrapRotatedDEK, base64ToArrayBuffer, arrayBufferToBase64 } from "@/lib/crypto";
 import { encryptSnapshot } from "@/lib/e2eeFraming";
+import { getVariableRegistry } from "@/lib/variableRegistryInstance";
+import { findUsedGlobals, applySnapshotToDocJson, applySnapshotToEditor } from "@/lib/formula/usedGlobals";
+import type { Definition } from "@/lib/formula/scope";
 
 export type SharePermission = 'view' | 'edit' | 'share';
 
@@ -30,6 +33,14 @@ interface ExistingShare {
     avatar_seed?: string;
     avatar_salt?: string;
     avatar_style?: string;
+}
+
+interface TideEditorLike {
+    getJSON?: () => Record<string, unknown>;
+}
+
+interface TideEditorWindow {
+    __tideEditor?: TideEditorLike | null;
 }
 
 interface ShareModalProps {
@@ -76,6 +87,11 @@ export default function ShareModal({
     // Linked files / dependencies state
     const [dependencies, setDependencies] = useState<{ id: string; title: string; type: string }[]>([]);
     const [selectedDepIds, setSelectedDepIds] = useState<Set<string>>(new Set());
+
+    // Variable snapshot prompt state
+    const [usedGlobals, setUsedGlobals] = useState<{ defs: Definition[]; names: string[] }>({ defs: [], names: [] });
+    const [pendingShareContact, setPendingShareContact] = useState<Contact | null>(null);
+    const [includeVariables, setIncludeVariables] = useState(true);
 
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -146,11 +162,45 @@ export default function ShareModal({
         setSelectedDepIds(new Set(foundDeps.map(d => d.id)));
     }, [fileId]);
 
+    const getActiveEditorForFile = useCallback((): TideEditorLike | null => {
+        if (typeof window === "undefined") return null;
+        const activeNoteId = useActiveNoteStore.getState().activeNoteId;
+        if (activeNoteId && activeNoteId !== fileId) return null;
+        return (window as unknown as TideEditorWindow).__tideEditor ?? null;
+    }, [fileId]);
+
+    const scanUsedGlobals = useCallback(() => {
+        const backupStr = typeof window !== "undefined" ? localStorage.getItem(`tide_backup_${fileId}`) : null;
+        const editorJson = getActiveEditorForFile()?.getJSON?.();
+        const docContent: unknown = editorJson ?? backupStr;
+        if (!docContent) {
+            setUsedGlobals({ defs: [], names: [] });
+            return;
+        }
+        const registry = getVariableRegistry();
+        const { usedDefs, usedNames } = findUsedGlobals(docContent, registry.definitions());
+        setUsedGlobals({ defs: usedDefs, names: usedNames });
+    }, [fileId, getActiveEditorForFile]);
+
     useEffect(() => {
         loadContacts();
         scanDependencies();
         loadExistingShares();
     }, [fileId, loadExistingShares, scanDependencies]);
+
+    useEffect(() => {
+        scanUsedGlobals();
+        const registry = getVariableRegistry();
+        const unsubscribe = typeof registry.subscribe === "function"
+            ? registry.subscribe(scanUsedGlobals)
+            : undefined;
+        if (typeof registry.ensureLoaded === "function") {
+            void registry.ensureLoaded();
+        }
+        return () => {
+            unsubscribe?.();
+        };
+    }, [scanUsedGlobals]);
 
     const loadContacts = async () => {
         try {
@@ -233,11 +283,34 @@ export default function ShareModal({
         return false;
     };
 
-    const handleShareWithContact = async (contact: Contact) => {
+    const applySnapshotBeforeShare = (snapshot: Definition[]) => {
+        const editor = getActiveEditorForFile();
+        if (editor) {
+            applySnapshotToEditor(editor, snapshot);
+        }
+        if (typeof window === "undefined") return;
+        try {
+            const backupKey = `tide_backup_${fileId}`;
+            const backupStr = localStorage.getItem(backupKey);
+            if (!backupStr) return;
+            const parsed: unknown = JSON.parse(backupStr);
+            if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+                const updated = applySnapshotToDocJson(parsed as Record<string, unknown>, snapshot);
+                localStorage.setItem(backupKey, JSON.stringify(updated));
+            }
+        } catch {
+            // Ignore non-JSON or inaccessible backup entries
+        }
+    };
+
+    const executeShare = async (contact: Contact) => {
         setSharing(true);
         try {
+            const snapshot = includeVariables ? usedGlobals.defs : [];
+            applySnapshotBeforeShare(snapshot);
             setSharedContactId(contact.id);
             await onShare(contact.id, contact.email, contact.public_key, permission, Array.from(selectedDepIds), canReshare);
+            setPendingShareContact(null);
             setTimeout(() => {
                 onClose();
             }, 600);
@@ -247,6 +320,15 @@ export default function ShareModal({
         } finally {
             setSharing(false);
         }
+    };
+
+    const handleShareWithContact = async (contact: Contact) => {
+        if (usedGlobals.names.length > 0) {
+            setIncludeVariables(true);
+            setPendingShareContact(contact);
+            return;
+        }
+        await executeShare(contact);
     };
 
     /**
@@ -459,6 +541,113 @@ export default function ShareModal({
                 </div>
 
                 <div className="max-h-[520px] overflow-y-auto">
+                    {pendingShareContact ? (
+                        <div className="p-6 space-y-4">
+                            <div className="flex items-start gap-2.5">
+                                <div className="w-8 h-8 rounded-[10px] bg-t2-sub border border-t2-line flex items-center justify-center text-t2-ink shrink-0">
+                                    <Variable size={16} />
+                                </div>
+                                <div className="min-w-0">
+                                    <h3 className="text-sm font-bold text-t2-ink">„{fileName}“ teilen</h3>
+                                    <p className="text-xs text-t2-ink-2 mt-1 leading-relaxed">
+                                        Diese Notiz nutzt globale Variablen. Sollen sie mitgeteilt werden?
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="space-y-2">
+                                <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setIncludeVariables(true)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            setIncludeVariables(true);
+                                        }
+                                    }}
+                                    className={`flex gap-3 items-start p-3 rounded-[12px] border cursor-pointer transition-colors ${
+                                        includeVariables
+                                            ? "border-t2-accent bg-t2-sub"
+                                            : "border-t2-line bg-t2-surface hover:bg-t2-hover"
+                                    }`}
+                                >
+                                    <span
+                                        className={`w-4 h-4 rounded-[5px] flex items-center justify-center shrink-0 mt-0.5 border transition-colors ${
+                                            includeVariables
+                                                ? "bg-t2-accent text-t2-accent-ink border-t2-accent"
+                                                : "bg-t2-surface border-t2-line"
+                                        }`}
+                                    >
+                                        {includeVariables && <Check size={12} />}
+                                    </span>
+                                    <div className="min-w-0 text-xs leading-relaxed">
+                                        <div className="font-mono font-semibold text-t2-ink break-words">
+                                            {usedGlobals.names.join(', ')}
+                                        </div>
+                                        <div className="text-t2-ink-2 mt-0.5">
+                                            Werte werden verschlüsselt in der Notiz abgelegt, die andere Person kann damit rechnen.
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div
+                                    role="button"
+                                    tabIndex={0}
+                                    onClick={() => setIncludeVariables(false)}
+                                    onKeyDown={(e) => {
+                                        if (e.key === "Enter" || e.key === " ") {
+                                            e.preventDefault();
+                                            setIncludeVariables(false);
+                                        }
+                                    }}
+                                    className={`flex gap-3 items-start p-3 rounded-[12px] border cursor-pointer transition-colors ${
+                                        !includeVariables
+                                            ? "border-t2-accent bg-t2-sub"
+                                            : "border-t2-line bg-t2-surface hover:bg-t2-hover"
+                                    }`}
+                                >
+                                    <span
+                                        className={`w-4 h-4 rounded-[5px] flex items-center justify-center shrink-0 mt-0.5 border transition-colors ${
+                                            !includeVariables
+                                                ? "bg-t2-accent text-t2-accent-ink border-t2-accent"
+                                                : "bg-t2-surface border-t2-line"
+                                        }`}
+                                    >
+                                        {!includeVariables && <Check size={12} />}
+                                    </span>
+                                    <div className="min-w-0 text-xs leading-relaxed">
+                                        <div className="font-semibold text-t2-ink">Ohne Variablen teilen</div>
+                                        <div className="text-t2-ink-2 mt-0.5">
+                                            Formeln bleiben erhalten, zeigen bei der anderen Person aber{" "}
+                                            <span className="font-semibold text-t2-late">#VAR</span>.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2">
+                                <button
+                                    type="button"
+                                    disabled={sharing}
+                                    onClick={() => setPendingShareContact(null)}
+                                    className="px-3.5 py-2 rounded-[10px] text-xs font-semibold bg-t2-sub hover:bg-t2-hover text-t2-ink border border-t2-line transition-colors disabled:opacity-50"
+                                >
+                                    Abbrechen
+                                </button>
+                                <button
+                                    type="button"
+                                    disabled={sharing}
+                                    onClick={() => executeShare(pendingShareContact)}
+                                    className="px-4 py-2 rounded-[10px] text-xs font-semibold bg-t2-accent text-t2-accent-ink hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
+                                >
+                                    {sharing && <Loader2 size={13} className="animate-spin" />}
+                                    <span>Teilen</span>
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                    <>
                     {/* Existing Collaborators Section (Owner only) */}
                     {callerPermission === 'owner' && existingShares.length > 0 && (
                         <div className="p-6 border-b border-t2-line  bg-[#f9fafb]/50 dark:bg-zinc-800/30">
@@ -720,6 +909,8 @@ export default function ShareModal({
                             )}
                         </div>
                     </div>
+                    </>
+                    )}
                 </div>
             </div>
         </div>

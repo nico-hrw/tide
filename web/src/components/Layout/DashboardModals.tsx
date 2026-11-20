@@ -7,6 +7,7 @@ import SettingsModal from "@/components/Settings/SettingsModal";
 import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import DailySummary from "@/components/Calendar/DailySummary";
 import ConfirmModal from "@/components/Modals/ConfirmModal";
+import VariablesModal from "@/components/Variables/VariablesModal";
 import { useDataStore } from "@/store/useDataStore";
 import type { NoteLayout } from "@/store/slices/types";
 
@@ -156,6 +157,8 @@ export function DashboardModals({
     onConfirmDeleteError,
     onCancelDeleteError,
 }: DashboardModalsProps) {
+    const isVariablesModalOpen = useDataStore((s) => s.isVariablesModalOpen);
+
     return (
         <>
             {/* Share Modal */}
@@ -241,6 +244,16 @@ export function DashboardModals({
                 cancelText={deleteError?.isCorrupt ? "Abbrechen" : undefined}
                 onConfirm={onConfirmDeleteError}
                 onCancel={onCancelDeleteError}
+            />
+
+            {/* Variables Modal */}
+            <VariablesModal
+                isOpen={isVariablesModalOpen}
+                onClose={() => useDataStore.getState().setVariablesModalOpen(false)}
+                onOpenNote={(noteId) => {
+                    window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { noteId } }));
+                    useDataStore.getState().setVariablesModalOpen(false);
+                }}
             />
         </>
     );

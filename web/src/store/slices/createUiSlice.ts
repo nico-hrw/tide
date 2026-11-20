@@ -116,6 +116,7 @@ function getInitialA4SideBorders(): boolean {
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
+    isVariablesModalOpen: false,
     smartIslandState: null,
     enabledExtensions: getInitialExtensions(),
     theme: getInitialTheme(),
@@ -146,6 +147,9 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
 
     setSettingsModalTab: (tab: SettingsModalTab) =>
         set({ settingsModalTab: tab }),
+
+    setVariablesModalOpen: (open) =>
+        set({ isVariablesModalOpen: open }),
 
     setSmartIsland: (state: SmartIslandState | null) =>
         set({ smartIslandState: state }),

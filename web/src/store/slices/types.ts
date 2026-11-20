@@ -153,6 +153,7 @@ export interface TodosSlice {
 export interface UiSlice {
     isSettingsModalOpen: boolean;
     settingsModalTab: SettingsModalTab;
+    isVariablesModalOpen: boolean;
     smartIslandState: SmartIslandState | null;
     enabledExtensions: string[];
     theme: AppTheme;
@@ -165,6 +166,7 @@ export interface UiSlice {
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) => void;
     setSettingsModalTab: (tab: SettingsModalTab) => void;
+    setVariablesModalOpen: (open: boolean) => void;
     setSmartIsland: (state: SmartIslandState | null) => void;
     setEnabledExtensions: (
         extensions: string[] | ((prev: string[]) => string[])

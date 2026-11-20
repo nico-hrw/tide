@@ -35,6 +35,8 @@ import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableHeaderAligned, TableCellAligned } from '../extensions/TableCellAttrs';
 import { TableFormulas } from '../extensions/TableFormulas';
+import { VariablesBlock } from '../extensions/VariablesBlock';
+import { scopeForDoc } from '../extensions/variablesScope';
 import { ReferenceMark } from '../extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from '../extensions/ReferenceModes';
 import { PencilInkExtension, InkStroke, getEditorInkStrokes } from '../extensions/PencilInkExtension';
@@ -50,6 +52,7 @@ import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { encryptAssetWithNewBEK } from '@/lib/assetCrypto';
 import { apiFetch } from '@/lib/api';
 import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
+import { getVariableRegistry } from '@/lib/variableRegistryInstance';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
@@ -199,6 +202,8 @@ export function useTipTapConfig({
     const onLinkClickRef = useRef(onLinkClick); onLinkClickRef.current = onLinkClick;
     const onEventClickRef = useRef(onEventClick); onEventClickRef.current = onEventClick;
     const onBlocksDeletedRef = useRef(onBlocksDeleted); onBlocksDeletedRef.current = onBlocksDeleted;
+    const isSharedRef = useRef(isShared); isSharedRef.current = isShared;
+    const canEditRef = useRef(editable);
     const referencePreviewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // BUG-13: Reactive userProfile awareness sync
@@ -246,7 +251,21 @@ export function useTipTapConfig({
             InlineCommentNode, MathBlock, InlineMath,
             BlockId.configure({ onBlocksDeleted: (ids) => onBlocksDeletedRef.current?.(ids) }),
             Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ResizableImage,
-            Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned, TableFormulas,
+            Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned,
+            TableFormulas.configure({
+                getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions()),
+                subscribe: (cb) => getVariableRegistry().subscribe(cb),
+            }),
+            VariablesBlock.configure({
+                getGlobals: () => getVariableRegistry().definitions(),
+                onDefinitionsChange: (defs, prev) => {
+                    if (!canEditRef.current || isSharedRef.current) return;
+                    const noteId = activeTabIdRef.current;
+                    if (noteId) {
+                        void getVariableRegistry().syncNote(noteId, defs, { force: !!prev?.some((d) => d.global) });
+                    }
+                },
+            }),
             Placeholder.configure({ placeholder: () => PLACELHODER_QUOTES[Math.floor(Math.random() * PLACELHODER_QUOTES.length)] }),
             ReferenceMark, PencilInkExtension,
         ];
@@ -343,6 +362,7 @@ export function useTipTapConfig({
 
     const livePermission = useActiveNoteStore((s) => s.permission);
     const canEdit = editable && livePermission !== 'view';
+    canEditRef.current = canEdit;
 
     const editor = useEditor({
         extensions,
@@ -675,6 +695,20 @@ export function useTipTapConfig({
             }
         } catch (_) {}
     }, [editor, cleanInitial, ydoc]);
+
+    useEffect(() => {
+        const onBeforeUnload = () => {
+            void getVariableRegistry().flush();
+        };
+        window.addEventListener('beforeunload', onBeforeUnload);
+        return () => window.removeEventListener('beforeunload', onBeforeUnload);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            void getVariableRegistry().flush();
+        };
+    }, [activeTabId]);
 
     return { editor, cleanInitial, userHasTypedRef: userHasTyped, contentInitialized: contentInit };
 }

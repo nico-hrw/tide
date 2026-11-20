@@ -15,6 +15,7 @@ export interface RegistryKeys {
 interface RegistryFileRecord {
     id: string;
     type: string;
+    owner_id?: string;
     content_ciphertext?: string;
     access_keys?: unknown;
     metadata?: unknown;
@@ -41,6 +42,7 @@ function toEntries(raw: unknown): RegistryEntry[] {
  */
 export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): RegistryStorage {
     let fileId: string | null = null;
+    let fileOwnerId: string | null = null;
     let queue: Promise<unknown> = Promise.resolve();
 
     const requireKeys = (): RegistryKeys => {
@@ -49,11 +51,17 @@ export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): Re
         return k;
     };
 
-    async function findFile(): Promise<RegistryFileRecord | null> {
+    async function findFile(keys: RegistryKeys): Promise<RegistryFileRecord | null> {
         const res = await apiFetch(`/api/v1/files?type=${REGISTRY_FILE_TYPE}&recursive=true`);
         if (!res.ok) throw new Error('[variables] could not list files');
         const files: RegistryFileRecord[] = await res.json().catch(() => []);
-        return files.find((f) => f.type === REGISTRY_FILE_TYPE) ?? null;
+        return (
+            files.find(
+                (f) =>
+                    f.type === REGISTRY_FILE_TYPE &&
+                    (f.owner_id === undefined || f.owner_id === keys.userId)
+            ) ?? null
+        );
     }
 
     async function create(ciphertext: string, metadata: unknown, accessKeys: unknown): Promise<string | null> {
@@ -80,9 +88,14 @@ export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): Re
     return {
         async load() {
             const keys = requireKeys();
-            const file = await findFile();
-            if (!file) return [];
+            const file = await findFile(keys);
+            if (!file) {
+                fileId = null;
+                fileOwnerId = null;
+                return [];
+            }
             fileId = file.id;
+            fileOwnerId = file.owner_id ?? keys.userId;
             if (!file.content_ciphertext) return [];
             const blob = await cryptoV2.decryptFileV2({
                 content_ciphertext: file.content_ciphertext,
@@ -106,14 +119,18 @@ export function createApiRegistryStorage(getKeys: () => RegistryKeys | null): Re
         const keys = requireKeys();
         const enc = await cryptoV2.encryptFileV2(JSON.stringify(entries), keys.publicKey);
         const accessKeys = { [keys.userId]: enc.encrypted_dek };
-        if (!fileId) {
-            const existing = await findFile();
+        if (!fileId || fileOwnerId !== keys.userId) {
+            fileId = null;
+            fileOwnerId = null;
+            const existing = await findFile(keys);
             if (existing) {
                 fileId = existing.id;
+                fileOwnerId = existing.owner_id ?? keys.userId;
             } else {
                 const id = await create(enc.content_ciphertext, enc.metadata, accessKeys);
                 if (!id) throw new Error('[variables] could not create registry file');
                 fileId = id;
+                fileOwnerId = keys.userId;
                 return; // the new file already holds this content
             }
         }
