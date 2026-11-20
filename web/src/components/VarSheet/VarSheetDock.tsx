@@ -1,9 +1,10 @@
 'use client';
 
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Plus, X } from 'lucide-react';
 import { getDefaultEngine } from '@/lib/varsheet';
 import type { EvaluationResult, VarSheetEngine } from '@/lib/varsheet/types';
-import { useVarSheetRunner, type VarSheetRow } from './useVarSheetRunner';
+import { useVarSheetRunner, type VarSheetRow, type VarSheetTab } from './useVarSheetRunner';
 
 export interface VarSheetDockProps {
     readonly noteId?: string | null;
@@ -217,33 +218,112 @@ function VarSheetRowItem({
     );
 }
 
+interface VarSheetTabStripProps {
+    readonly tabs: readonly VarSheetTab[];
+    readonly activeTabId: string;
+    readonly onSelectTab: (tabId: string) => void;
+    readonly onCreateTab: () => void;
+    readonly onRenameTab: (tabId: string, newName: string) => void;
+    readonly onDeleteTab: (tabId: string) => void;
+}
+
+function VarSheetTabStrip({ tabs, activeTabId, onSelectTab, onCreateTab, onRenameTab, onDeleteTab }: VarSheetTabStripProps) {
+    const [editingTabId, setEditingTabId] = useState<string | null>(null);
+    const [editingName, setEditingName] = useState('');
+    const inputRef = useRef<HTMLInputElement | null>(null);
+    const skipBlurSaveRef = useRef(false);
+
+    useEffect(() => {
+        if (!editingTabId) return;
+        inputRef.current?.focus();
+        inputRef.current?.select();
+    }, [editingTabId]);
+
+    const startRename = (tab: VarSheetTab) => {
+        skipBlurSaveRef.current = false;
+        setEditingTabId(tab.id);
+        setEditingName(tab.name);
+    };
+    const commitRename = (tabId: string) => {
+        if (skipBlurSaveRef.current) { skipBlurSaveRef.current = false; return; }
+        const trimmed = editingName.trim();
+        if (trimmed) onRenameTab(tabId, trimmed);
+        setEditingTabId(null);
+    };
+    const cancelRename = () => { skipBlurSaveRef.current = true; setEditingTabId(null); };
+
+    return (
+        <div role="tablist" aria-label="VarSheet Tabs" className="border-b border-t2-line-soft bg-t2-sub/30 px-3 py-1.5 flex items-center gap-1 overflow-x-auto text-xs">
+            {tabs.map((tab) => {
+                const isActive = tab.id === activeTabId;
+                const isEditing = tab.id === editingTabId;
+                return (
+                    <div
+                        key={tab.id}
+                        role="tab"
+                        aria-selected={isActive}
+                        onClick={() => { if (!isEditing) onSelectTab(tab.id); }}
+                        onDoubleClick={(e) => { e.stopPropagation(); startRename(tab); }}
+                        className={[
+                            'group flex items-center gap-1 shrink-0 rounded-md px-2 py-0.5 transition-colors cursor-pointer select-none',
+                            isActive ? 'bg-t2-surface text-t2-ink border border-t2-line shadow-xs font-medium' : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-hover/60 border border-transparent',
+                        ].join(' ')}
+                    >
+                        {isEditing ? (
+                            <input
+                                ref={inputRef}
+                                type="text"
+                                value={editingName}
+                                onChange={(e) => setEditingName(e.target.value)}
+                                onClick={(e) => e.stopPropagation()}
+                                onDoubleClick={(e) => e.stopPropagation()}
+                                onBlur={() => commitRename(tab.id)}
+                                onKeyDown={(e) => {
+                                    if (e.key === 'Enter') { e.preventDefault(); commitRename(tab.id); }
+                                    else if (e.key === 'Escape') { e.preventDefault(); cancelRename(); }
+                                }}
+                                aria-label="Tab umbenennen"
+                                className="bg-t2-sub px-1 py-0.5 rounded text-xs outline-none border border-t2-accent w-20 text-t2-ink"
+                            />
+                        ) : (
+                            <>
+                                <span className="max-w-[110px] truncate">{tab.name}</span>
+                                <button
+                                    type="button"
+                                    onClick={(e) => { e.stopPropagation(); onDeleteTab(tab.id); }}
+                                    aria-label={`Tab ${tab.name} schließen`}
+                                    title={tabs.length === 1 ? 'Tab zurücksetzen' : 'Tab schließen'}
+                                    className={['rounded p-0.5 text-t2-ink-3 hover:text-t2-ink hover:bg-t2-hover transition-opacity', isActive ? 'opacity-70 hover:opacity-100' : 'opacity-0 group-hover:opacity-70 hover:!opacity-100'].join(' ')}
+                                >
+                                    <X size={12} />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                );
+            })}
+            <button
+                type="button"
+                onClick={() => { setEditingTabId(null); onCreateTab(); }}
+                aria-label="Neuen Tab erstellen"
+                title="Neuer Tab"
+                className="shrink-0 flex items-center justify-center w-5 h-5 rounded-md text-t2-ink-2 hover:text-t2-ink hover:bg-t2-hover/60 transition-colors"
+            >
+                <Plus size={13} />
+            </button>
+        </div>
+    );
+}
+
 /**
  * Floating VarSheet calculation side-panel with reactive top-down evaluation and drag reordering.
  */
-export function VarSheetDock({
-    noteId,
-    engine,
-    isOpen = true,
-    onClose,
-    initialCodes,
-    initialBindings,
-    className = '',
-}: VarSheetDockProps) {
+export function VarSheetDock({ noteId, engine, isOpen = true, onClose, initialCodes, initialBindings, className = '' }: VarSheetDockProps) {
     const activeEngine = engine ?? getDefaultEngine();
     const {
-        rows,
-        variableCount,
-        isEvaluating,
-        updateRow,
-        insertRowAfter,
-        deleteRow,
-        moveRow,
-    } = useVarSheetRunner({
-        noteId,
-        engine: activeEngine,
-        initialCodes,
-        initialBindings,
-    });
+        tabs, activeTabId, rows, variableCount, isEvaluating,
+        selectTab, createTab, renameTab, deleteTab, updateRow, insertRowAfter, deleteRow, moveRow,
+    } = useVarSheetRunner({ noteId, engine: activeEngine, initialCodes, initialBindings });
 
     const textareaMapRef = useRef<Map<string, HTMLTextAreaElement>>(new Map());
     const pendingFocusIdRef = useRef<string | null>(null);
@@ -281,33 +361,21 @@ export function VarSheetDock({
         (e: React.KeyboardEvent<HTMLTextAreaElement>, row: VarSheetRow, index: number) => {
             if (e.key === 'Enter' && !e.shiftKey) {
                 e.preventDefault();
-                const newId = insertRowAfter(row.id);
-                pendingFocusIdRef.current = newId;
+                pendingFocusIdRef.current = insertRowAfter(row.id);
                 return;
             }
-
             if (e.key === 'ArrowUp' && isCursorOnFirstLine(e.currentTarget)) {
-                if (index > 0) {
-                    e.preventDefault();
-                    focusRowById(rows[index - 1].id, true);
-                }
+                if (index > 0) { e.preventDefault(); focusRowById(rows[index - 1].id, true); }
                 return;
             }
-
             if (e.key === 'ArrowDown' && isCursorOnLastLine(e.currentTarget)) {
-                if (index < rows.length - 1) {
-                    e.preventDefault();
-                    focusRowById(rows[index + 1].id, false);
-                }
+                if (index < rows.length - 1) { e.preventDefault(); focusRowById(rows[index + 1].id, false); }
                 return;
             }
-
             if (e.key === 'Backspace' && row.code === '' && rows.length > 1) {
                 e.preventDefault();
                 const focusTarget = index > 0 ? rows[index - 1].id : rows[index + 1]?.id;
-                if (focusTarget) {
-                    pendingFocusIdRef.current = focusTarget;
-                }
+                if (focusTarget) pendingFocusIdRef.current = focusTarget;
                 deleteRow(row.id);
             }
         },
@@ -315,44 +383,28 @@ export function VarSheetDock({
     );
 
     const handleDragStart = useCallback((e: React.DragEvent<HTMLDivElement>, index: number) => {
-        if (e.target instanceof HTMLTextAreaElement) {
-            e.preventDefault();
-            return;
-        }
+        if (e.target instanceof HTMLTextAreaElement) { e.preventDefault(); return; }
         setDragIndex(index);
         setDropIndex(index);
         e.dataTransfer.effectAllowed = 'move';
         e.dataTransfer.setData('text/plain', String(index));
     }, []);
 
-    const handleDragOver = useCallback(
-        (e: React.DragEvent<HTMLDivElement>, index: number) => {
-            if (dragIndex === null) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (dropIndex !== index) {
-                setDropIndex(index);
-            }
-        },
-        [dragIndex, dropIndex],
-    );
+    const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>, index: number) => {
+        if (dragIndex === null) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        if (dropIndex !== index) setDropIndex(index);
+    }, [dragIndex, dropIndex]);
 
-    const handleDrop = useCallback(
-        (e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
-            e.preventDefault();
-            if (dragIndex !== null && dragIndex !== targetIndex) {
-                moveRow(dragIndex, targetIndex);
-            }
-            setDragIndex(null);
-            setDropIndex(null);
-        },
-        [dragIndex, moveRow],
-    );
-
-    const handleDragEnd = useCallback(() => {
+    const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>, targetIndex: number) => {
+        e.preventDefault();
+        if (dragIndex !== null && dragIndex !== targetIndex) moveRow(dragIndex, targetIndex);
         setDragIndex(null);
         setDropIndex(null);
-    }, []);
+    }, [dragIndex, moveRow]);
+
+    const handleDragEnd = useCallback(() => { setDragIndex(null); setDropIndex(null); }, []);
 
     if (!isOpen) return null;
 
@@ -394,6 +446,15 @@ export function VarSheetDock({
                     </button>
                 )}
             </header>
+
+            <VarSheetTabStrip
+                tabs={tabs}
+                activeTabId={activeTabId}
+                onSelectTab={selectTab}
+                onCreateTab={() => { createTab(); }}
+                onRenameTab={renameTab}
+                onDeleteTab={deleteTab}
+            />
 
             <div className="flex-1 overflow-y-auto px-2 py-2.5 space-y-0.5">
                 {rows.map((row, index) => (

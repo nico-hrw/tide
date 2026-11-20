@@ -4,4 +4,5 @@ export {
     type UseVarSheetRunnerOptions,
     type UseVarSheetRunnerReturn,
     type VarSheetRow,
+    type VarSheetTab,
 } from './useVarSheetRunner';
