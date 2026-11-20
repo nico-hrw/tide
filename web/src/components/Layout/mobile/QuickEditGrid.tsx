@@ -7,7 +7,7 @@ import { de } from 'date-fns/locale';
 import { Check, X } from 'lucide-react';
 import { DT } from '@/lib/designTokens';
 import { paletteFor } from './eventPalette';
-import { moveRange, pxToMin, resizeEnd, resizeStart, type Range } from './quickEditMath';
+import { moveRange, pxToMin, resizeEnd, resizeStart, visibleRange, type Range } from './quickEditMath';
 
 export interface QuickEditTarget {
   id: string | null;
@@ -35,13 +35,23 @@ const SCROLL_ZONE = 60;
 const MIN_MS = 60000;
 const DAY_MS = 24 * 60 * MIN_MS;
 
+/** Body grab area that every block keeps, however short it is. */
+const MIN_BODY_PX = 24;
+/** Vertical movement before a drag changes anything (taps and jitter keep off-grid times). */
+const DEAD_ZONE_PX = 6;
+
 type DragKind = 'move' | 'start' | 'end';
-interface Drag { kind: DragKind; startY: number; startScroll: number; origin: Range }
+interface Drag { kind: DragKind; touchId: number; startY: number; startScroll: number; origin: Range }
 
 const minToPx = (min: number) => (min / 60) * QE_HOUR_PX;
 
 function clockLabel(ms: number, dayStartMs: number): string {
-  return ms - dayStartMs >= DAY_MS ? '24:00' : format(new Date(ms), 'HH:mm');
+  return ms - dayStartMs === DAY_MS ? '24:00' : format(new Date(ms), 'HH:mm');
+}
+
+function findTouch(list: TouchList, id: number): Touch | null {
+  for (let i = 0; i < list.length; i++) if (list[i].identifier === id) return list[i];
+  return null;
 }
 
 function durationLabel(mins: number): string {
@@ -51,23 +61,15 @@ function durationLabel(mins: number): string {
   return `${h} h${m > 0 ? ` ${m} Min.` : ''}`;
 }
 
-/** Clips the target into the day so the block always starts inside the grid. */
-function initialRange(target: QuickEditTarget, dayStartMs: number): Range {
-  return resizeEnd(
-    { start: target.start.getTime(), end: target.end.getTime() },
-    0,
-    dayStartMs,
-  );
-}
-
 /**
  * Full-screen overlay with a day grid (56 px per hour) for moving and resizing one event.
  * Body drag moves the block, the top/bottom handles change start/end, all snapped to 10 min.
+ * State holds the TRUE range (it may cross midnight); only drawing is clipped to the day.
  * Nothing is persisted here: ✓ reports the current range, ✕ cancels.
  */
 export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel }: QuickEditGridProps) {
   const dayStartMs = useMemo(() => startOfDay(day).getTime(), [day]);
-  const [range, setRange] = useState<Range>(() => initialRange(target, dayStartMs));
+  const [range, setRange] = useState<Range>(() => ({ start: target.start.getTime(), end: target.end.getTime() }));
   const [dragging, setDragging] = useState(false);
   const rangeRef = useRef(range);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -80,8 +82,8 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
   useLayoutEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    el.scrollTop = Math.max(0, topOf(rangeRef.current.start) - el.clientHeight / 3);
-  }, [topOf]);
+    el.scrollTop = Math.max(0, topOf(visibleRange(rangeRef.current, dayStartMs).start) - el.clientHeight / 3);
+  }, [topOf, dayStartMs]);
 
   // Unmount during a drag: drop the document listeners.
   useEffect(() => () => cleanupRef.current?.(), []);
@@ -92,6 +94,7 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
     const scroller = scrollRef.current;
     const drag: Drag = {
       kind,
+      touchId: e.touches[0].identifier,
       startY: e.touches[0].clientY,
       startScroll: scroller?.scrollTop ?? 0,
       origin: rangeRef.current,
@@ -99,10 +102,13 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
     let lastY = drag.startY;
     let frame = 0;
     let autoFrame = 0;
+    let live = false; // set once the finger left the dead zone
 
     const apply = () => {
       frame = 0;
       const dy = lastY - drag.startY + ((scroller?.scrollTop ?? 0) - drag.startScroll);
+      if (!live && Math.abs(dy) < DEAD_ZONE_PX) return;
+      live = true;
       const delta = pxToMin(dy, QE_HOUR_PX);
       const fn = kind === 'move' ? moveRange : kind === 'start' ? resizeStart : resizeEnd;
       const next = fn(drag.origin, delta, dayStartMs);
@@ -118,6 +124,7 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
       autoFrame = 0;
       if (!scroller) return;
       const rect = scroller.getBoundingClientRect();
+      if (rect.height <= 0) return; // no layout (hidden or test DOM)
       const fromTop = lastY - rect.top;
       const fromBottom = rect.bottom - lastY;
       let step = 0;
@@ -130,10 +137,12 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
       autoFrame = requestAnimationFrame(autoScroll);
     };
 
+    // Only the finger that started the drag counts; other fingers are ignored.
     const onMove = (evt: TouchEvent) => {
-      if (evt.touches.length === 0) return;
+      const t = findTouch(evt.touches, drag.touchId);
+      if (!t) return;
       evt.preventDefault();
-      lastY = evt.touches[0].clientY;
+      lastY = t.clientY;
       schedule();
       if (!autoFrame) autoFrame = requestAnimationFrame(autoScroll);
     };
@@ -150,8 +159,15 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
       cleanupRef.current = null;
     };
 
-    function onEnd() {
-      if (frame) { cancelAnimationFrame(frame); apply(); }
+    // touchend commits, touchcancel (system interruption) reverts to the drag origin.
+    function onEnd(evt: TouchEvent) {
+      if (!findTouch(evt.changedTouches, drag.touchId)) return; // another finger lifted
+      if (evt.type === 'touchcancel') {
+        rangeRef.current = drag.origin;
+      } else if (frame) {
+        cancelAnimationFrame(frame);
+        apply();
+      }
       cleanup();
       flushSync(() => { setRange(rangeRef.current); setDragging(false); });
       // iOS: preventDefault() during the drag can freeze UIScrollView. Jiggling scrollTop re-enables it.
@@ -166,9 +182,14 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
     setDragging(true);
   };
 
-  const blockTop = topOf(range.start);
-  const blockH = topOf(range.end) - blockTop;
-  const handleInset = Math.min(10, blockH / 3);
+  const shown = visibleRange(range, dayStartMs);
+  const blockTop = topOf(shown.start);
+  const blockH = topOf(shown.end) - blockTop;
+  // Handle hit areas (44 px) reach 10 px into the block only when the body keeps >= 24 px;
+  // otherwise they sit entirely outside. Blocks under 24 px get an invisible body hit area of
+  // 24 px (`bodyExt` above and below), and the handles move out by the same amount.
+  const handleInset = blockH - 20 >= MIN_BODY_PX ? 10 : 0;
+  const bodyExt = Math.max(0, (MIN_BODY_PX - blockH) / 2);
   const durMin = (range.end - range.start) / MIN_MS;
   const title = target.title || (mode === 'draft' ? 'Neuer Termin' : 'Ohne Titel');
   const timeText = `${clockLabel(range.start, dayStartMs)} – ${clockLabel(range.end, dayStartMs)} · ${durationLabel(durMin)}`;
@@ -319,25 +340,35 @@ export function QuickEditGrid({ day, context, target, mode, onConfirm, onCancel 
                   {dragging ? timeText : 'Ziehen zum Verschieben'}
                 </small>
               )}
+              {bodyExt > 0 && (
+                // Invisible extension of the body's touch area for very short blocks; touches bubble to the block.
+                <div
+                  data-qe="body-hit"
+                  aria-hidden
+                  style={{ position: 'absolute', left: 0, right: 0, top: -bodyExt, height: blockH + 2 * bodyExt, touchAction: 'none' }}
+                />
+              )}
               {(['start', 'end'] as const).map(kind => (
-                // Hit area: 44 px, mostly outside the block so the body stays grabbable on short blocks.
-                // The visible pill is centred on the block edge.
+                // Hit area: 44 px, see handleInset/bodyExt above. The visible pill is centred on the
+                // block edge and ignores touches, so where it overlaps the body the body wins.
                 <div
                   key={kind}
                   data-qe={`handle-${kind}`}
                   onTouchStart={beginDrag(kind)}
                   style={{
                     position: 'absolute', left: 0, right: 0, height: HANDLE_HIT_PX, touchAction: 'none',
-                    ...(kind === 'start' ? { top: handleInset - HANDLE_HIT_PX } : { bottom: handleInset - HANDLE_HIT_PX }),
+                    ...(kind === 'start'
+                      ? { top: handleInset - HANDLE_HIT_PX - bodyExt }
+                      : { bottom: handleInset - HANDLE_HIT_PX - bodyExt }),
                   }}
                 >
                   <span
                     aria-hidden
                     style={{
                       position: 'absolute', left: '50%', marginLeft: -22, width: 44, height: 20, borderRadius: 99,
-                      background: palette.bg, border: '3px solid var(--t2-surface)',
+                      background: palette.bg, border: '3px solid var(--t2-surface)', pointerEvents: 'none',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      ...(kind === 'start' ? { bottom: handleInset - 10 } : { top: handleInset - 10 }),
+                      ...(kind === 'start' ? { bottom: handleInset - 10 - bodyExt } : { top: handleInset - 10 - bodyExt }),
                     }}
                   >
                     <span style={{ width: 14, height: 2, borderRadius: 2, background: palette.ink, opacity: 0.8 }} />

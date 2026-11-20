@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { moveRange, pxToMin, resizeEnd, resizeStart, type Range } from '../quickEditMath';
+import { moveRange, pxToMin, resizeEnd, resizeStart, visibleRange, type Range } from '../quickEditMath';
 import { SNAP_MIN } from '../timelineMath';
 
 const dayStart = new Date(2026, 10, 20).getTime();
@@ -80,6 +80,49 @@ describe('resizeStart', () => {
     const out = resizeStart(r(9, 3, 10, 7), 61, dayStart);
     expect(out).toEqual(r(9, 57, 10, 7));
     expectValid(out);
+  });
+});
+
+describe('ranges that leave the day (true range is kept)', () => {
+  // 22:00 today -> 02:00 tomorrow, and 22:00 yesterday -> 02:00 today.
+  const lateCross = r(22, 0, 26, 0);
+  const earlyCross = r(-2, 0, 2, 0);
+
+  it('delta 0 returns the exact original, even outside the day', () => {
+    expect(moveRange(lateCross, 0, dayStart)).toEqual(lateCross);
+    expect(resizeStart(earlyCross, 0, dayStart)).toEqual(earlyCross);
+    expect(resizeEnd(r(30, 0, 31, 0), 0, dayStart)).toEqual(r(30, 0, 31, 0));
+  });
+  it('moving a midnight-crossing event keeps its full length, start stays in the day', () => {
+    expect(moveRange(lateCross, 60, dayStart)).toEqual(r(23, 0, 27, 0));
+    expect(moveRange(lateCross, 600, dayStart)).toEqual(r(23, 50, 27, 50));
+    expect(moveRange(earlyCross, 37, dayStart)).toEqual(r(0, 0, 4, 0));
+    expect(moveRange(earlyCross, -120, dayStart)).toEqual(r(0, 0, 4, 0));
+  });
+  it('resizing the visible end keeps the true start', () => {
+    expect(resizeEnd(earlyCross, -60, dayStart)).toEqual(r(-2, 0, 1, 0));
+    expect(resizeEnd(lateCross, -60, dayStart)).toEqual(r(22, 0, 23, 0));
+  });
+  it('resizing the clipped end towards the day end keeps the true end', () => {
+    expect(resizeEnd(lateCross, 30, dayStart)).toEqual(lateCross);
+  });
+  it('resizing the visible start keeps the true end', () => {
+    expect(resizeStart(lateCross, 60, dayStart)).toEqual(r(23, 0, 26, 0));
+    expect(resizeStart(earlyCross, 60, dayStart)).toEqual(r(1, 0, 2, 0));
+    expect(resizeStart(earlyCross, -30, dayStart)).toEqual(earlyCross);
+  });
+});
+
+describe('visibleRange', () => {
+  it('clips to the day', () => {
+    expect(visibleRange(r(22, 0, 26, 0), dayStart)).toEqual(r(22, 0, 24, 0));
+    expect(visibleRange(r(-2, 0, 2, 0), dayStart)).toEqual(r(0, 0, 2, 0));
+    expect(visibleRange(r(9, 0, 10, 0), dayStart)).toEqual(r(9, 0, 10, 0));
+  });
+  it('draws a minimal block at the nearest day edge when the range is outside', () => {
+    expect(visibleRange(r(30, 0, 31, 0), dayStart)).toEqual(r(23, 50, 24, 0));
+    expect(visibleRange(r(-5, 0, -4, 0), dayStart)).toEqual(r(0, 0, 0, 10));
+    expect(visibleRange({ start: t(9), end: t(9) }, dayStart)).toEqual(r(9, 0, 9, 10));
   });
 });
 

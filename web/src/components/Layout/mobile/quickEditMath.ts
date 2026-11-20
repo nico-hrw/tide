@@ -17,41 +17,71 @@ function snap(ms: number, dayStartMs: number): number {
   return dayStartMs + Math.round((ms - dayStartMs) / SNAP_MS) * SNAP_MS;
 }
 
-/** Forces a range into the day with at least SNAP_MIN length. Valid ranges stay unchanged. */
-function normalize(r: Range, dayStartMs: number): Range {
+/**
+ * The part of a range that is drawn in the day grid: clipped to the day and at least SNAP_MIN long.
+ * A range entirely outside the day becomes a SNAP_MIN block at the nearest day edge.
+ */
+export function visibleRange(r: Range, dayStartMs: number): Range {
   const dayEnd = dayStartMs + DAY_MS;
-  const start = clamp(r.start, dayStartMs, dayEnd - SNAP_MS);
-  const end = clamp(r.end, start + SNAP_MS, dayEnd);
+  const s = Math.max(r.start, dayStartMs);
+  const e = Math.min(r.end, dayEnd);
+  if (e - s >= SNAP_MS) return { start: s, end: e };
+  if (r.end <= dayStartMs) return { start: dayStartMs, end: dayStartMs + SNAP_MS };
+  if (r.start >= dayEnd) return { start: dayEnd - SNAP_MS, end: dayEnd };
+  const start = clamp(s, dayStartMs, dayEnd - SNAP_MS);
+  return { start, end: start + SNAP_MS };
+}
+
+/** True start lies before the day, but the range reaches into it. */
+const crossesDayStart = (r: Range, dayStartMs: number) => r.start < dayStartMs && r.end > dayStartMs;
+/** True end lies after the day, but the range starts inside it. */
+const crossesDayEnd = (r: Range, dayStartMs: number) => r.start < dayStartMs + DAY_MS && r.end > dayStartMs + DAY_MS;
+
+/**
+ * Moves the whole range by a raw minute delta (measured from the drag start). The new start
+ * snaps to SNAP_MIN and the length stays.
+ * - Range inside the day: the whole range stays inside the day.
+ * - Range leaving the day (e.g. 22:00-02:00): the full length is kept and only the START is
+ *   clamped into [dayStart, dayEnd - SNAP_MIN], so the end may lie in the next day.
+ * Delta 0 returns the range unchanged.
+ */
+export function moveRange(r: Range, deltaMin: number, dayStartMs: number): Range {
+  if (deltaMin === 0) return { ...r };
+  const dayEnd = dayStartMs + DAY_MS;
+  const len = Math.max(SNAP_MS, r.end - r.start);
+  const raw = snap(r.start + deltaMin * MIN_MS, dayStartMs);
+  const inDay = r.start >= dayStartMs && r.end <= dayEnd;
+  const start = clamp(raw, dayStartMs, inDay ? dayEnd - len : dayEnd - SNAP_MS);
+  return { start, end: start + len };
+}
+
+/**
+ * Changes the visible start by a raw minute delta: snapped, inside the day, at least SNAP_MIN
+ * before the visible end. A true end after the day is kept; a true start before the day is kept
+ * when the new start would sit on the day start again. Delta 0 returns the range unchanged.
+ */
+export function resizeStart(r: Range, deltaMin: number, dayStartMs: number): Range {
+  if (deltaMin === 0) return { ...r };
+  const v = visibleRange(r, dayStartMs);
+  const start = clamp(snap(v.start + deltaMin * MIN_MS, dayStartMs), dayStartMs, v.end - SNAP_MS);
+  const end = crossesDayEnd(r, dayStartMs) ? r.end : v.end;
+  if (start === dayStartMs && crossesDayStart(r, dayStartMs)) return { start: r.start, end };
   return { start, end };
 }
 
 /**
- * Moves the whole range by a raw minute delta (measured from the drag start). The new start
- * snaps to SNAP_MIN, the length stays, and the range stays inside the day.
+ * Changes the visible end by a raw minute delta: snapped, inside the day, at least SNAP_MIN
+ * after the visible start. A true start before the day is kept; a true end after the day is kept
+ * when the new end would sit on the day end again. Delta 0 returns the range unchanged.
  */
-export function moveRange(r: Range, deltaMin: number, dayStartMs: number): Range {
-  const base = normalize(r, dayStartMs);
-  if (deltaMin === 0) return base;
-  const len = base.end - base.start;
-  const dayEnd = dayStartMs + DAY_MS;
-  const start = clamp(snap(base.start + deltaMin * MIN_MS, dayStartMs), dayStartMs, dayEnd - len);
-  return { start, end: start + len };
-}
-
-/** Changes the start by a raw minute delta; snapped, at least SNAP_MIN before the end, not before the day. */
-export function resizeStart(r: Range, deltaMin: number, dayStartMs: number): Range {
-  const base = normalize(r, dayStartMs);
-  if (deltaMin === 0) return base;
-  const start = clamp(snap(base.start + deltaMin * MIN_MS, dayStartMs), dayStartMs, base.end - SNAP_MS);
-  return { start, end: base.end };
-}
-
-/** Changes the end by a raw minute delta; snapped, at least SNAP_MIN after the start, not after the day. */
 export function resizeEnd(r: Range, deltaMin: number, dayStartMs: number): Range {
-  const base = normalize(r, dayStartMs);
-  if (deltaMin === 0) return base;
-  const end = clamp(snap(base.end + deltaMin * MIN_MS, dayStartMs), base.start + SNAP_MS, dayStartMs + DAY_MS);
-  return { start: base.start, end };
+  if (deltaMin === 0) return { ...r };
+  const dayEnd = dayStartMs + DAY_MS;
+  const v = visibleRange(r, dayStartMs);
+  const end = clamp(snap(v.end + deltaMin * MIN_MS, dayStartMs), v.start + SNAP_MS, dayEnd);
+  const start = crossesDayStart(r, dayStartMs) ? r.start : v.start;
+  if (end === dayEnd && crossesDayEnd(r, dayStartMs)) return { start, end: r.end };
+  return { start, end };
 }
 
 /** Converts a vertical pixel distance to minutes for the given hour height. */
