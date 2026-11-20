@@ -101,6 +101,50 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     expect(onDraftAt).not.toHaveBeenCalled();
   });
 
+  it('does not open quick edit on a hold on an occurrence of a recurring event', () => {
+    render({ dayEvs: [{ ...ev('r', 9, 10), id: 'r_1763625600000' }, { ...ev('w', 14, 15), recurrence: 'weekly' }] });
+    for (const id of ['r_1763625600000', 'w']) {
+      const body = host.querySelector(`[id="ev-${id}"] button`)!;
+      touch(body, 'touchstart', 50, 120);
+      act(() => { vi.advanceTimersByTime(450); });
+      touch(body, 'touchend', 50, 120);
+    }
+    expect(onQuickEdit).not.toHaveBeenCalled();
+  });
+
+  it('suppresses selection, callout and context menu in the day view only', () => {
+    const overlapping = [ev('a', 9, 10), ev('p', 9, 11), ev('q', 10, 12)];
+    const propsOf = (el: Element) => {
+      const k = Object.keys(el).find(key => key.startsWith('__reactProps'))!;
+      return (el as unknown as Record<string, { style?: Record<string, unknown> }>)[k];
+    };
+    const ctx = (el: Element) => {
+      const e = new Event('contextmenu', { bubbles: true, cancelable: true });
+      act(() => { el.dispatchEvent(e); });
+      return e.defaultPrevented;
+    };
+    for (const dayEvs of [EVENTS, overlapping]) {
+      const rootEl = render({ dayEvs });
+      expect(ctx(host.querySelector('[id^="ev-"] button')!)).toBe(true);
+      expect(propsOf(rootEl).style).toMatchObject({ WebkitTouchCallout: 'none', userSelect: 'none' });
+      const cards = host.querySelectorAll('[id^="ev-"]');
+      expect(cards.length).toBe(dayEvs.length);
+      cards.forEach(c => {
+        expect(c.classList.contains('select-none')).toBe(true);
+        expect(propsOf(c).style).toMatchObject({ WebkitTouchCallout: 'none' });
+      });
+    }
+    for (const dayEvs of [EVENTS, overlapping]) {
+      const rootEl = render({ dayEvs, proportional: false });
+      expect(ctx(host.querySelector('[id^="ev-"] button')!)).toBe(false);
+      expect(propsOf(rootEl).style).toBeUndefined();
+      host.querySelectorAll('[id^="ev-"]').forEach(c => {
+        expect(c.classList.contains('select-none')).toBe(false);
+        expect(propsOf(c).style?.WebkitTouchCallout).toBeUndefined();
+      });
+    }
+  });
+
   it('ignores a double tap and a hold on the delete button of a card', () => {
     render();
     act(() => { (host.querySelector('#ev-a button') as HTMLElement).click(); });

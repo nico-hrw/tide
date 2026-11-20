@@ -7,6 +7,11 @@ import { FreeGap, formatFree } from './AgendaParts';
 /** Inner vertical padding of a block segment; replaces the old `my-1` so DOM height = computed height. */
 export const SEG_PAD_PX = 4;
 
+/** Day view only: no text selection and no iOS callout, so a long press reaches the hold gesture. */
+export const NO_CALLOUT_STYLE: React.CSSProperties = { WebkitTouchCallout: 'none', WebkitUserSelect: 'none', userSelect: 'none' };
+/** Card style in the day view: the extra style plus the callout guard; other views get `extra` unchanged. */
+export const dayCardStyle = (proportional: boolean, extra?: React.CSSProperties) => (proportional ? { ...extra, ...NO_CALLOUT_STYLE } : extra);
+
 const MIN_MS = 60_000;
 
 interface TimedLike { id: string; start: string; end?: string }

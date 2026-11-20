@@ -1,6 +1,6 @@
 "use client";
 
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft } from 'lucide-react';
@@ -150,7 +150,12 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
     pinPromptItem, userEmail, onClosePinPrompt,
   } = props;
 
+  // Latest open sheet; the closing sheet keeps an old `onSave` closure during its exit animation.
+  const editingRef = useRef(editingEvent);
+  useEffect(() => { editingRef.current = editingEvent; }, [editingEvent]);
+
   const handleSaveEditedEvent = (id: string, start: Date, end: Date, meta: MobileEventMeta) => {
+    if (!editingRef.current) return; // already saved or closed
     // A draft (double tap in the day view) is created on save, never updated or renamed.
     if (isDraftEvent({ id })) {
       onNewEvent?.(start, end, draftNewEventMeta(meta));

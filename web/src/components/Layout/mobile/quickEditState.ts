@@ -74,6 +74,16 @@ export function isDraftEvent(ev: { id: string }): boolean {
   return ev.id === '';
 }
 
+/**
+ * Occurrence of a recurring event: an expanded instance (`${id}_${ms}`) or a series with a recurrence.
+ * Quick edit would move the whole series, so a hold on one of these opens nothing.
+ */
+export function isRecurringOccurrence(ev: { id: string; recurrence?: string; recurrence_rule?: string }): boolean {
+  if (ev.id.includes('_')) return true;
+  if (ev.recurrence && ev.recurrence !== 'none') return true;
+  return /FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/i.test(ev.recurrence_rule ?? '');
+}
+
 /** Meta for `onNewEvent` when a draft is saved from the edit form. */
 export function draftNewEventMeta(meta: MobileEventMeta): NewEventMeta {
   return { ...meta, title: meta.title.trim() || DRAFT_DEFAULT_TITLE };

@@ -5,6 +5,7 @@ import {
   confirmQuickEdit,
   draftNewEventMeta,
   isDraftEvent,
+  isRecurringOccurrence,
   quickEditContext,
   quickEditForDraft,
   quickEditForEvent,
@@ -69,5 +70,15 @@ describe('quick edit state', () => {
     expect(draftNewEventMeta(meta)).toEqual({ ...meta, title: DRAFT_DEFAULT_TITLE });
     expect(DRAFT_DEFAULT_TITLE).toBe('Neuer Termin');
     expect(draftNewEventMeta({ ...meta, title: 'Kino' }).title).toBe('Kino');
+  });
+
+  it('recognises occurrences of recurring events (instance id, recurrence or rule)', () => {
+    expect(isRecurringOccurrence({ id: 'abc_1763625600000' })).toBe(true);
+    expect(isRecurringOccurrence({ id: 'abc', recurrence: 'weekly' })).toBe(true);
+    expect(isRecurringOccurrence({ id: 'abc', recurrence_rule: 'FREQ=DAILY;INTERVAL=2' })).toBe(true);
+    expect(isRecurringOccurrence({ id: 'abc' })).toBe(false);
+    expect(isRecurringOccurrence({ id: 'abc', recurrence: 'none', recurrence_rule: 'none' })).toBe(false);
+    expect(isRecurringOccurrence({ id: 'abc', recurrence_rule: 'FREQ=NONE;INTERVAL=1' })).toBe(false);
+    expect(isRecurringOccurrence({ id: 'abc', recurrence_rule: '' })).toBe(false);
   });
 });

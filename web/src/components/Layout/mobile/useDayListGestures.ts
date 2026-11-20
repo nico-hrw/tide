@@ -4,6 +4,8 @@ import type React from 'react';
 import { useEffect, useMemo, useRef } from 'react';
 import { createListGestures, emptyDayDraft, isInteractiveTarget } from './listGestures';
 import { DAY_PX_PER_MIN, draftRangeFromTime, timeFromTap, type SegRect } from './timelineMath';
+import { isRecurringOccurrence } from './quickEditState';
+import { NO_CALLOUT_STYLE } from './DayTimelineParts';
 
 /** How long after a hold or double tap the next click on the list is swallowed. */
 const CLICK_SUPPRESS_MS = 600;
@@ -22,7 +24,7 @@ export interface DayListGestureOptions<E extends { id: string }> {
 }
 
 export type DayListGestureHandlers = Pick<React.HTMLAttributes<HTMLElement>,
-  'onTouchStart' | 'onTouchMove' | 'onTouchEnd' | 'onTouchCancel' | 'onClickCapture'>;
+  'onTouchStart' | 'onTouchMove' | 'onTouchEnd' | 'onTouchCancel' | 'onClickCapture' | 'onContextMenu' | 'style'>;
 
 /** All `[data-seg]` segments under `root` with their time range and top relative to `root`, sorted by top. */
 export function collectSegRects(root: HTMLElement): SegRect[] {
@@ -59,7 +61,8 @@ export function useDayListGestures<E extends { id: string }>(o: DayListGestureOp
         const card = (target as Element | null)?.closest?.('[id^="ev-"]');
         if (!onQuickEdit || !root || !card || !root.contains(card)) return;
         const ev = events.find(e => `ev-${e.id}` === card.id);
-        if (!ev) return;
+        // Quick edit would move the whole series; occurrences of recurring events stay untouched.
+        if (!ev || isRecurringOccurrence(ev)) return;
         fired.current = true;
         onQuickEdit(ev);
       },
@@ -114,6 +117,9 @@ export function useDayListGestures<E extends { id: string }>(o: DayListGestureOp
       e.preventDefault();
       e.stopPropagation();
     },
+    // A long press must reach the 450 ms hold: no context menu, text selection or iOS callout first.
+    onContextMenu: e => e.preventDefault(),
+    style: NO_CALLOUT_STYLE,
   }), []);
 
   return o.enabled ? handlers : undefined;

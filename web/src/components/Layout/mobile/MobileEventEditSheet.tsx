@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { motion } from 'framer-motion';
 import { X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 import { paletteFor } from './eventPalette';
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -88,8 +89,13 @@ export const MobileEditEventSheet = ({
     return isNaN(d.getTime()) ? new Date(initialStart.getTime() + 3_600_000) : d;
   }, [event.end, initialStart]);
 
-  const pal = paletteFor(event.color);
+  const isDraft = event.id === '';
+  // Drafts pick their colour here (stored as the category hex, like the create modal stores a hex).
+  const [color, setColor] = useState(event.color);
+  const pal = paletteFor(isDraft ? color : event.color);
   const rec = parseRecurrence(event);
+  // A draft is created on save; the sheet stays mounted during its exit animation, so it submits only once.
+  const submittedRef = useRef(false);
 
   const [title, setTitle] = useState(event.title || '');
   const [dateStr, setDateStr] = useState(() => format(initialStart, 'yyyy-MM-dd'));
@@ -104,9 +110,9 @@ export const MobileEditEventSheet = ({
   const durationMin = useMemo(() => {
     const [sh, sm] = startTime.split(':').map(Number);
     const [eh, em] = endTime.split(':').map(Number);
-    const m = (eh * 60 + em) - (sh * 60 + sm);
+    const m = ((isDraft && eh === 0 && em === 0 && sh * 60 + sm > 0) ? 24 * 60 : eh * 60 + em) - (sh * 60 + sm);
     return m > 0 ? m : 0;
-  }, [startTime, endTime]);
+  }, [startTime, endTime, isDraft]);
 
   const fmtDuration = (m: number) => (m >= 60 ? `${Math.floor(m / 60)} Std.${m % 60 ? ` ${m % 60} Min.` : ''}` : `${m} Min.`);
 
@@ -114,7 +120,8 @@ export const MobileEditEventSheet = ({
     e.preventDefault();
     const cleanTitle = title.trim();
     // A draft (empty id) may stay unnamed; the save path names it.
-    if (!cleanTitle && event.id !== '') return;
+    if (!cleanTitle && !isDraft) return;
+    if (isDraft && submittedRef.current) return;
 
     const [sH, sM] = startTime.split(':').map(Number);
     const [eH, eM] = endTime.split(':').map(Number);
@@ -126,15 +133,22 @@ export const MobileEditEventSheet = ({
     } else {
       start.setHours(sH || 0, sM || 0, 0, 0);
       end.setHours(eH || 1, eM || 0, 0, 0);
+      // A draft ending at 24:00 (grid end of day) ends at midnight of the next day.
+      if (isDraft && endTime === '00:00' && start.getHours() * 60 + start.getMinutes() > 0) {
+        end.setTime(start.getTime());
+        end.setDate(end.getDate() + 1);
+        end.setHours(0, 0, 0, 0);
+      }
       if (end <= start) end.setTime(start.getTime() + 3_600_000);
     }
+    if (isDraft) submittedRef.current = true;
 
     const recurrenceRule = freq !== 'none'
       ? `FREQ=${freq.toUpperCase()}${every > 1 ? `;INTERVAL=${every}` : ''}`
       : 'none';
     onSave(event.id, start, end, {
       title: cleanTitle,
-      color: event.color || pal.bg,
+      color: (isDraft ? color : event.color) || pal.bg,
       description: description.trim() || undefined,
       parent_id: groupId || null,
       groupIds: groupId ? [groupId] : [],
@@ -238,6 +252,29 @@ export const MobileEditEventSheet = ({
                 <input type="time" value={startTime} onChange={(e) => setStartTime(e.target.value)} aria-label="Beginn" className={inputClass} />
                 <span className="text-t2-ink-3">Ende</span>
                 <input type="time" value={endTime} onChange={(e) => setEndTime(e.target.value)} aria-label="Ende" className={inputClass} />
+              </div>
+            )}
+
+            {isDraft && (
+              <div className={rowClass}>
+                <span className={keyClass}>Farbe</span>
+                <div role="radiogroup" aria-label="Farbe" className="flex-1 flex justify-end gap-2.5">
+                  {CALENDAR_CATEGORIES.map((c) => {
+                    const selected = resolveCategory(color).key === c.key;
+                    return (
+                      <button
+                        key={c.key}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        aria-label={c.name}
+                        onClick={() => setColor(c.hex)}
+                        className={`h-6 w-6 rounded-full shrink-0 transition-transform active:scale-90 ${selected ? 'ring-2 ring-t2-ink ring-offset-2 ring-offset-t2-bg' : ''}`}
+                        style={{ background: paletteFor(c.key).bg }}
+                      />
+                    );
+                  })}
+                </div>
               </div>
             )}
 

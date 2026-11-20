@@ -327,13 +327,15 @@ Gilt nur für die Tagesansicht der mobilen Liste (`DbTimelineDay` mit `proportio
 
 | Geste | Schwelle | Wirkung |
 |-------|----------|---------|
-| Halten | 450 ms ohne Bewegung | `onQuickEdit(ev)` für die Terminkarte unter dem Finger |
+| Halten | 450 ms ohne Bewegung | `onQuickEdit(ev)` für die Terminkarte unter dem Finger; nicht bei Vorkommen wiederkehrender Termine (`isRecurringOccurrence`) |
 | Doppeltipp | zweiter Tipp binnen 300 ms, höchstens 24 px vom ersten entfernt | `onDraftAt(start, end)` |
 | Abbruch | mehr als 10 px Bewegung | beendet Halten und Tipp-Verfolgung; Scrollen und Tages-Swipe laufen ungestört weiter |
 
 Der Detektor beobachtet nur: er ruft nie `preventDefault` auf `touchstart`/`touchmove` und blockiert deshalb weder vertikales Scrollen noch den horizontalen Tageswechsel. Mehr als ein Finger bricht ab.
 
-**Ignoriert** werden Touches auf Bedienelementen (`button, a, input, textarea, [role=button]`), also Löschen, Erledigt-Haken, Bearbeiten usw. Ausnahme: der Kartenkörper ist selbst ein Button, trägt aber `data-card-body` und zählt mit. Todos und Ganztags-Pills sind keine `events` für den Hook; Halten auf ihnen öffnet nichts (der Treffer wird über `[id^="ev-"]` gegen die echten Termine geprüft).
+**Ignoriert** werden Touches auf Bedienelementen (`button, a, input, textarea, [role=button]`), also Löschen, Erledigt-Haken, Bearbeiten usw. Ausnahme: der Kartenkörper ist selbst ein Button, trägt aber `data-card-body` und zählt mit. Todos und Ganztags-Pills sind keine `events` für den Hook; Halten auf ihnen öffnet nichts (der Treffer wird über `[id^="ev-"]` gegen die echten Termine geprüft). **Wiederkehrende Termine** (Instanz-ID `${id}_${ms}` aus `expandMobileEvents`, oder `recurrence`/`recurrence_rule` gesetzt) öffnen beim Halten nichts, weil das Schnellbearbeiten die ganze Serie verschieben würde; Doppeltipp/Entwurf und das Ziehen in der Wochenansicht bleiben unverändert.
+
+**Langes Drücken:** Die Listenwurzel bekommt (nur mit aktiven Gesten) `onContextMenu` → `preventDefault` und `NO_CALLOUT_STYLE` (`user-select: none`, `-webkit-touch-callout: none`); die Terminkarten tragen in der Tagesansicht zusätzlich `select-none` und denselben Stil. So kommen Androids Kontextmenü/Textauswahl (~400 ms) und das iOS-Callout dem 450-ms-Halten nicht zuvor. Monat und Agenda bleiben unverändert.
 
 ### Klick-Unterdrückung und Expand-Rückgängig
 
@@ -365,11 +367,12 @@ Der Detektor beobachtet nur: er ruft nie `preventDefault` auf `touchstart`/`touc
 
 ### Entwurfs-Ablauf
 
-Doppeltipp → `onDraftAt` → `quickEditForDraft` → `QuickEditGrid` (gestrichelter Block) → ✓ `confirmQuickEdit` → vorhandenes Bearbeiten-Sheet (`MobileEditEventSheet`) mit Event `id: ''` → Speichern ruft `onNewEvent(start, end, meta)` (leerer Titel wird zu "Neuer Termin"; kein Löschen, kein Store-Update). Beim Halten auf einen echten Termin: ✓ ruft `onEventUpdate(id, start, end)`, nur wenn sich die Spanne geändert hat.
+Doppeltipp → `onDraftAt` → `quickEditForDraft` → `QuickEditGrid` (gestrichelter Block) → ✓ `confirmQuickEdit` → vorhandenes Bearbeiten-Sheet (`MobileEditEventSheet`) mit Event `id: ''` → Speichern ruft `onNewEvent(start, end, meta)` (leerer Titel wird zu "Neuer Termin"; kein Löschen, kein Store-Update). Nur bei Entwürfen zeigt das Sheet eine Zeile **Farbe** mit den fünf Kalenderfarben (`CALENDAR_CATEGORIES`); gespeichert wird deren Hex in `meta.color` (wie das Create-Modal einen Hex speichert, `paletteFor` löst ihn exakt auf), die Vorschau oben übernimmt die Farbe. Endet ein Entwurf um 24:00 (Ende `00:00`, Start später als `00:00`), wird das Ende als Mitternacht des Folgetags gespeichert statt auf Start + 1 h gesetzt; bestehende Termine behalten das alte Verhalten. Ein Entwurf wird höchstens einmal abgeschickt (`submittedRef` im Sheet; zusätzlich ignoriert `handleSaveEditedEvent` Speichern, wenn `editingEvent` schon `null` ist, z. B. aus dem Sheet in der Exit-Animation). Beim Halten auf einen echten Termin: ✓ ruft `onEventUpdate(id, start, end)`, nur wenn sich die Spanne geändert hat.
 
 ### Bekannte Grenzen / noch am Gerät zu prüfen
 
-- Noch kein Test auf echten Geräten: iOS-Textauswahl/Callout beim langen Halten, die Klick-Unterdrückung und das Gefühl von Swipe/Scroll sind nur per Unit-Tests abgedeckt.
+- Noch kein Test auf echten Geräten: ob Callout-/Kontextmenü-Unterdrückung das Halten auf iOS und Android wirklich sichert (Android könnte trotz `preventDefault` auf `contextmenu` ein `touchcancel` senden), die Klick-Unterdrückung und das Gefühl von Swipe/Scroll sind nur per Unit-Tests abgedeckt.
 - Maßstab (`DAY_PX_PER_MIN`) und Mindesthöhe (`DAY_MIN_BLOCK_PX`) sind Tuning-Werte.
 - `quickEdit` wird bei externem Ansichts- oder Datumswechsel nicht zurückgesetzt.
 - Ganztägig wird bei Entwürfen nicht als ganztägig gespeichert.
+- Vorkommen wiederkehrender Termine lassen sich in der Tagesansicht nicht schnellbearbeiten (nur über das Bearbeiten-Sheet, das weiterhin die Serie ändert).

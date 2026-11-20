@@ -10,7 +10,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { paletteFor, type PaletteEntry } from './eventPalette';
 import { AllDayTodoPills, DELETE_PATH, EDIT_PATH, FilledIcon, TimedTodoRow } from './AgendaParts';
 import { DAY_MIN_BLOCK_PX, DAY_PX_PER_MIN, blockHeightPx } from './timelineMath';
-import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayNowLayout, nowFractionIn } from './DayTimelineParts';
+import { BlockSeg, GapSeg, NowLine, SEG_PAD_PX, buildClusters, columnsFor, dayCardStyle, dayNowLayout, nowFractionIn } from './DayTimelineParts';
 import { useDayListGestures } from './useDayListGestures';
 
 const T = {
@@ -165,7 +165,7 @@ function TimelineEventItem({
 
   if (isParallel) {
     return (
-      <div id={`ev-${ev.id}`} className="w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden" style={getCardStyle(pal, info.isActive, style, ev.effect)}>
+      <div id={`ev-${ev.id}`} className={`w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden${proportional ? ' select-none' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, style), ev.effect)}>
         <button data-card-body onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
           <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
             <span className="text-[11px] font-bold" style={{ color: pal.ink }}>
@@ -219,7 +219,7 @@ function TimelineEventItem({
   }
 
   return (
-    <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden`} style={getCardStyle(pal, info.isActive, proportional ? style : { minHeight: pHeight, ...style }, ev.effect)}>
+    <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden${proportional ? ' select-none' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, proportional ? style : { minHeight: pHeight, ...style }), ev.effect)}>
       <button data-card-body onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
@@ -422,7 +422,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                 <TimelineEventItem
                   key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                   theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
-                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel
+                  onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel proportional={proportional}
                   style={{
                     position: 'absolute',
                     top: desiredTop,

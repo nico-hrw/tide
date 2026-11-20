@@ -79,6 +79,73 @@ describe('saving a draft from the edit form', () => {
     expect(onEditEvent).toHaveBeenCalledWith(null);
   });
 
+  const submit = () => {
+    const form = document.getElementById('edit-event-form') as HTMLFormElement;
+    act(() => { form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true })); });
+  };
+
+  it('creates a draft only once when it is submitted twice in a row', () => {
+    const onNewEvent = vi.fn();
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: draft, onNewEvent })} />); });
+    submit();
+    submit();
+    expect(onNewEvent).toHaveBeenCalledTimes(1);
+  });
+
+  it('ignores a save from the closing sheet once the edit state is cleared', () => {
+    const onNewEvent = vi.fn();
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: draft, onNewEvent })} />); });
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: null, onNewEvent })} />); });
+    // The sheet is still mounted for its exit animation, with its old onSave.
+    expect(document.getElementById('edit-event-form')).not.toBeNull();
+    submit();
+    expect(onNewEvent).not.toHaveBeenCalled();
+  });
+
+  it('saves the colour picked in the draft colour row and shows it in the preview', () => {
+    const onNewEvent = vi.fn();
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: draft, onNewEvent })} />); });
+    const row = document.querySelector('[role="radiogroup"][aria-label="Farbe"]')!;
+    expect(row.querySelectorAll('[role="radio"]').length).toBe(5);
+    const korall = row.querySelector<HTMLButtonElement>('[aria-label="Korall"]')!;
+    act(() => { korall.click(); });
+    expect(korall.getAttribute('aria-checked')).toBe('true');
+    const title = document.querySelector<HTMLInputElement>('input[aria-label="Titel"]')!;
+    expect((title.parentElement as HTMLElement).style.background).toBe('var(--cal-uni)');
+    submit();
+    expect(onNewEvent.mock.calls[0][2]).toMatchObject({ color: '#D39D87' });
+  });
+
+  it('shows no colour row when editing an existing event', () => {
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: { ...draft, id: 'x', title: 'X' }, onEventSave: vi.fn() })} />); });
+    expect(document.querySelector('[aria-label="Farbe"]')).toBeNull();
+  });
+
+  it('saves a draft ending at 24:00 with its end at midnight of the next day', () => {
+    const onNewEvent = vi.fn();
+    const late = { ...draft, start: at(22).toISOString(), end: new Date(2026, 10, 21).toISOString() };
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: late, onNewEvent })} />); });
+    submit();
+    const [start, end] = onNewEvent.mock.calls[0];
+    expect(start).toEqual(at(22));
+    expect(end).toEqual(new Date(2026, 10, 21));
+  });
+
+  it('keeps a 09:00–10:00 draft unchanged', () => {
+    const onNewEvent = vi.fn();
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: { ...draft, start: at(9).toISOString(), end: at(10).toISOString() }, onNewEvent })} />); });
+    submit();
+    expect(onNewEvent.mock.calls[0].slice(0, 2)).toEqual([at(9), at(10)]);
+  });
+
+  it('keeps the one-hour fallback for an existing event ending at 00:00', () => {
+    const onEventUpdate = vi.fn();
+    const existing = { ...draft, id: 'x', title: 'X', start: at(22).toISOString(), end: new Date(2026, 10, 21).toISOString() };
+    act(() => { root.render(<MobileOverlaysAndModals {...baseProps({ editingEvent: existing, onEventUpdate })} />); });
+    submit();
+    expect(onEventUpdate.mock.calls[0].slice(1, 3)).toEqual([at(22), at(23)]);
+  });
+
   it('cancel closes the draft without creating anything', () => {
     const onNewEvent = vi.fn();
     const onEditEvent = vi.fn();
