@@ -9,7 +9,7 @@ type Tok =
 const NUM_RE = /^(?:\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?)/;
 const ID_RE = /^[A-Za-zÄÖÜäöüß_][A-Za-zÄÖÜäöüß0-9_]*/;
 const REF_RE = /^([A-Za-z]{1,2})(\d+)$/;
-const OPS = ['<>', '<=', '>=', '+', '-', '*', '/', '^', '(', ')', ',', ';', ':', '%', '=', '<', '>'];
+const OPS = ['<>', '<=', '>=', '+', '-', '*', '/', '^', '(', ')', ',', ';', ':', '%', '=', '<', '>', '!'];
 
 /** German number text ("1.234,5", "3,9 %", "12.000,00 €") to a number; null when it is not one. */
 export function parseNumber(text: string): number | null {
@@ -37,6 +37,35 @@ function tokenize(src: string): Tok[] {
             if (end < 0) throw new FormulaError('#WERT', 'Text nicht geschlossen');
             out.push({ t: 'str', v: rest.slice(1, end) });
             i += end + 1;
+            continue;
+        }
+        if (ch === "'") {
+            let content = '';
+            let j = i + 1;
+            let closed = false;
+            while (j < src.length) {
+                const c = src[j];
+                if (c === '\\' && j + 1 < src.length) {
+                    content += src[j + 1];
+                    j += 2;
+                    continue;
+                }
+                if (c === "'") {
+                    if (src[j + 1] === "'") {
+                        content += "'";
+                        j += 2;
+                        continue;
+                    }
+                    closed = true;
+                    j++;
+                    break;
+                }
+                content += c;
+                j++;
+            }
+            if (!closed) throw new FormulaError('#WERT', 'Tabellenname nicht geschlossen');
+            out.push({ t: 'id', v: content });
+            i = j;
             continue;
         }
         const num = NUM_RE.exec(rest);
@@ -80,6 +109,13 @@ class Parser {
     private expectOp(op: string) {
         if (this.peekOp(op) === null) throw new FormulaError('#WERT', `"${op}" erwartet`);
         this.p++;
+    }
+
+    private consumeId(errorMessage: string): string {
+        const tok = this.toks[this.p];
+        if (!tok || tok.t !== 'id') throw new FormulaError('#BEZUG', errorMessage);
+        this.p++;
+        return tok.v;
     }
 
     private cmp(): Expr {
@@ -137,7 +173,28 @@ class Parser {
             if (t.v === '(') { const e = this.cmp(); this.expectOp(')'); return e; }
             throw new FormulaError('#WERT', `Unerwartetes "${t.v}"`);
         }
-        // identifier: call, cell reference / range, or variable
+        // identifier: table-qualified ref/range, call, cell reference / range, or variable
+        if (this.peekOp('!')) {
+            this.p++;
+            const tableName = t.v;
+            const refErr = `Ungültiger Zellbezug nach "${tableName}!"`;
+            const fromRef = toRef(this.consumeId(refErr));
+            if (!fromRef) throw new FormulaError('#BEZUG', refErr);
+            if (this.peekOp(':')) {
+                this.p++;
+                const rangeErr = `Ungültiger Bereichsbezug in "${tableName}!"`;
+                let toId = this.consumeId(rangeErr);
+                if (this.peekOp('!')) {
+                    // Case like T1!A1:T1!B5
+                    this.p++;
+                    toId = this.consumeId(rangeErr);
+                }
+                const toRefCell = toRef(toId);
+                if (!toRefCell) throw new FormulaError('#BEZUG', rangeErr);
+                return { k: 'range', table: tableName, from: fromRef, to: toRefCell };
+            }
+            return { k: 'ref', table: tableName, col: fromRef.col, row: fromRef.row };
+        }
         if (this.peekOp('(')) {
             this.p++;
             const args: Expr[] = [];

@@ -27,15 +27,32 @@ function activeFormulaCell(state: EditorState): CellLoc | null {
     return isFormulaText(loc.cell.textContent) ? loc : null;
 }
 
+/** Returns the 1-based table identifier ("T1", "T2", ...) for the table node at `tablePos`. */
+function getTableId(doc: PmNode, tablePos: number): string {
+    let idx = 1;
+    let found = 'T1';
+    doc.descendants((node, pos) => {
+        if (node.type.spec.tableRole === 'table') {
+            if (pos === tablePos) {
+                found = `T${idx}`;
+                return false;
+            }
+            idx++;
+        }
+        return true;
+    });
+    return found;
+}
+
 /** Replaces the text of the range [from,to] with `text` only if it still reads `expected`. */
 function replaceIfUnchanged(view: EditorView, from: number, to: number, expected: string, text: string) {
     if (to > view.state.doc.content.size || view.state.doc.textBetween(from, to) !== expected) return;
     view.dispatch(view.state.tr.insertText(text, from, to));
 }
 
-function startRefInsert(view: EditorView, active: CellLoc, target: CellLoc) {
+function startRefInsert(view: EditorView, target: CellLoc, tablePrefix: string) {
     const { from, to } = view.state.selection;
-    const startKey = refKey(target.col, target.row);
+    const startKey = `${tablePrefix}${refKey(target.col, target.row)}`;
     view.dispatch(view.state.tr.insertText(startKey, from, to));
     const insertFrom = from;
     const insertTo = from + startKey.length;
@@ -46,11 +63,11 @@ function startRefInsert(view: EditorView, active: CellLoc, target: CellLoc) {
         if (!el) return;
         let endLoc: CellLoc | null = null;
         try { endLoc = locateCell(view.state.doc, view.posAtDOM(el, 0)); } catch { return; }
-        if (!endLoc || endLoc.tablePos !== active.tablePos) return;
+        if (!endLoc || endLoc.tablePos !== target.tablePos) return;
         if (endLoc.col === target.col && endLoc.row === target.row) return;
         const a = { col: Math.min(target.col, endLoc.col), row: Math.min(target.row, endLoc.row) };
         const b = { col: Math.max(target.col, endLoc.col), row: Math.max(target.row, endLoc.row) };
-        replaceIfUnchanged(view, insertFrom, insertTo, startKey, `${refKey(a.col, a.row)}:${refKey(b.col, b.row)}`);
+        replaceIfUnchanged(view, insertFrom, insertTo, startKey, `${tablePrefix}${refKey(a.col, a.row)}:${refKey(b.col, b.row)}`);
     };
     document.addEventListener('mouseup', onUp, true);
 }
@@ -64,11 +81,12 @@ function handleMouseDown(view: EditorView, event: MouseEvent): boolean {
     if (!el) return false;
     let target: CellLoc | null = null;
     try { target = locateCell(view.state.doc, view.posAtDOM(el, 0)); } catch { return false; }
-    if (!target || target.tablePos !== active.tablePos || target.cellPos === active.cellPos) return false;
+    if (!target || (target.tablePos === active.tablePos && target.cellPos === active.cellPos)) return false;
     const before = view.state.doc.textBetween(active.cellPos + 1, view.state.selection.from, '\n');
     if (!canInsertRefAt(before)) return false;
     event.preventDefault();
-    startRefInsert(view, active, target);
+    const tablePrefix = target.tablePos !== active.tablePos ? `${getTableId(view.state.doc, target.tablePos)}!` : '';
+    startRefInsert(view, target, tablePrefix);
     return true;
 }
 

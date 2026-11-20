@@ -16,13 +16,17 @@ export const isErr = (v: unknown): v is ErrorValue =>
 export const err = (error: ErrorCode, detail?: string): ErrorValue => ({ error, detail });
 
 /** 0-based cell coordinate. */
-export interface CellRef { col: number; row: number }
+export interface CellRef {
+    table?: string;
+    col: number;
+    row: number;
+}
 
 export type Expr =
     | { k: 'num'; v: number }
     | { k: 'str'; v: string }
-    | { k: 'ref'; col: number; row: number }
-    | { k: 'range'; from: CellRef; to: CellRef }
+    | { k: 'ref'; table?: string; col: number; row: number }
+    | { k: 'range'; table?: string; from: CellRef; to: CellRef }
     | { k: 'var'; name: string }
     | { k: 'call'; name: string; args: Expr[] }
     | { k: 'bin'; op: string; l: Expr; r: Expr }

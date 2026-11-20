@@ -9,32 +9,41 @@ export interface RefMatch {
     /** Offsets in the formula text. */
     start: number;
     end: number;
+    table?: string;
     from: CellRef;
     to: CellRef;
     /** Highlight colour index (same reference text = same colour). */
     color: number;
 }
 
-const REF_RE = /(?<![A-Za-z0-9_])([A-Za-z]{1,2})(\d+)(?::([A-Za-z]{1,2})(\d+))?(?![A-Za-z0-9_(])/g;
+const REF_RE = /(?<![A-Za-zÄÖÜäöüß0-9_])(?:(?:'([^']+)'|([A-Za-zÄÖÜäöüß_][A-Za-zÄÖÜäöüß0-9_]*))!)?([A-Za-z]{1,2})(\d+)(?::([A-Za-z]{1,2})(\d+))?(?![A-Za-z0-9_(])/g;
 
 export function findRefs(text: string): RefMatch[] {
     const colors = new Map<string, number>();
     const out: RefMatch[] = [];
     for (const m of text.matchAll(REF_RE)) {
-        const from = { col: lettersToCol(m[1]), row: Number(m[2]) - 1 };
-        const to = m[3] ? { col: lettersToCol(m[3]), row: Number(m[4]) - 1 } : from;
+        const table = m[1] ?? m[2];
+        const from = { col: lettersToCol(m[3]), row: Number(m[4]) - 1 };
+        const to = m[5] ? { col: lettersToCol(m[5]), row: Number(m[6]) - 1 } : from;
         if (from.row < 0 || to.row < 0) continue;
         const key = m[0].toUpperCase();
         if (!colors.has(key)) colors.set(key, colors.size % REF_COLOR_COUNT);
-        out.push({ start: m.index!, end: m.index! + m[0].length, from, to, color: colors.get(key)! });
+        out.push({
+            start: m.index!,
+            end: m.index! + m[0].length,
+            ...(table !== undefined ? { table } : {}),
+            from,
+            to,
+            color: colors.get(key)!,
+        });
     }
     return out;
 }
 
-/** True when the caret sits where a reference is expected: right after "=", an operator, "(" or a separator. */
+/** True when the caret sits where a reference is expected: right after "=", an operator, "(", a separator, or "!". */
 export function canInsertRefAt(textBeforeCaret: string): boolean {
     const t = textBeforeCaret.trimEnd();
-    return t.startsWith('=') && /[=+\-*/^(;,<>]$/.test(t);
+    return t.startsWith('=') && /[=+\-*/^(;,<>!]$/.test(t);
 }
 
 function numericLike(text: string): boolean {

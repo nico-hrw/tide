@@ -37,6 +37,7 @@ import { TableHeaderAligned, TableCellAligned } from '../extensions/TableCellAtt
 import { TableFormulas } from '../extensions/TableFormulas';
 import { InlineFormulas } from '../extensions/InlineFormulas';
 import { VariablesBlock } from '../extensions/VariablesBlock';
+import { FormulaSuggestion } from '../extensions/FormulaSuggestionPlugin';
 import { scopeForDoc } from '../extensions/variablesScope';
 import { ReferenceMark } from '../extensions/ReferenceMark';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from '../extensions/ReferenceModes';
@@ -270,6 +271,9 @@ export function useTipTapConfig({
                         void getVariableRegistry().syncNote(noteId, defs, { force: !!prev?.some((d) => d.global) });
                     }
                 },
+            }),
+            FormulaSuggestion.configure({
+                getActiveNoteId: () => activeTabIdRef.current ?? null,
             }),
             Placeholder.configure({ placeholder: () => PLACELHODER_QUOTES[Math.floor(Math.random() * PLACELHODER_QUOTES.length)] }),
             ReferenceMark, PencilInkExtension,

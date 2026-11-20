@@ -3,8 +3,8 @@ import { parseNumber } from './parser';
 import { ALIASES, BUILTINS, toNum, type Arg } from './functions';
 
 export interface EvalContext {
-    /** Already computed value of a cell (0-based col/row). Empty cells return "". */
-    cell(col: number, row: number): Value;
+    /** Already computed value of a cell (0-based col/row, optional table qualifier). Empty cells return "". */
+    cell: (col: number, row: number, table?: string) => Value;
     /** Resolved value of a variable, or undefined when it is not available. */
     variable(name: string): Value | undefined;
     /** A user-defined function (case-insensitive name, upper-cased by the parser), if any. */
@@ -14,12 +14,12 @@ export interface EvalContext {
 /** Largest range a single reference may expand to. */
 export const MAX_RANGE_CELLS = 10_000;
 
-function expandRange(from: { col: number; row: number }, to: { col: number; row: number }, ctx: EvalContext): Value[] {
-    const c0 = Math.min(from.col, to.col), c1 = Math.max(from.col, to.col);
-    const r0 = Math.min(from.row, to.row), r1 = Math.max(from.row, to.row);
+function expandRange(e: Extract<Expr, { k: 'range' }>, ctx: EvalContext): Value[] {
+    const c0 = Math.min(e.from.col, e.to.col), c1 = Math.max(e.from.col, e.to.col);
+    const r0 = Math.min(e.from.row, e.to.row), r1 = Math.max(e.from.row, e.to.row);
     if ((c1 - c0 + 1) * (r1 - r0 + 1) > MAX_RANGE_CELLS) throw new FormulaError('#BEZUG', 'Bereich zu groß');
     const out: Value[] = [];
-    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.push(ctx.cell(c, r));
+    for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) out.push(ctx.cell(c, r, e.table));
     return out;
 }
 
@@ -47,8 +47,8 @@ function evalRaw(e: Expr, ctx: EvalContext): Value | Value[] {
     switch (e.k) {
         case 'num': return e.v;
         case 'str': return e.v;
-        case 'ref': return ctx.cell(e.col, e.row);
-        case 'range': return expandRange(e.from, e.to, ctx);
+        case 'ref': return ctx.cell(e.col, e.row, e.table);
+        case 'range': return expandRange(e, ctx);
         case 'var': {
             const v = ctx.variable(e.name);
             if (v === undefined) throw new FormulaError('#VAR', `Variable ${e.name} nicht verfügbar`);

@@ -1,4 +1,6 @@
 import { ReactRenderer } from '@tiptap/react';
+import type { Range } from '@tiptap/core';
+import type { EditorState } from '@tiptap/pm/state';
 import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
@@ -560,6 +562,25 @@ const MentionList = forwardRef((props: any, ref) => {
 MentionList.displayName = 'MentionList';
 
 export default {
+    allow: ({ state, range }: { state: EditorState; range: Range }) => {
+        // Suppress mention if cursor is in a table cell that starts with '='
+        const $pos = state.doc.resolve(range.from);
+        for (let d = $pos.depth; d > 0; d--) {
+            const node = $pos.node(d);
+            if (node.type.spec.tableRole === 'cell' || node.type.spec.tableRole === 'header_cell') {
+                if (node.textContent.trimStart().startsWith('=')) {
+                    return false;
+                }
+            }
+        }
+        // Suppress mention if text before range on current textblock is inside unclosed '=='
+        const textBefore = $pos.parent.textBetween(0, $pos.parentOffset, undefined, '\uFFFC');
+        if (/==([^=\n]*)$/.test(textBefore.replace(/==[^=\n]*==/g, ''))) {
+            return false;
+        }
+        return true;
+    },
+
     items: ({ query }: { query: string }) => {
         const isQuicknote = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
         if (isQuicknote) {

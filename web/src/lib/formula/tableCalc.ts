@@ -55,49 +55,105 @@ export function gridFromPmTable(table: PmNode): PmGrid {
     };
 }
 
+export interface TableEntry {
+    id: string; // canonical ID, e.g. "T1"
+    aliases: string[]; // e.g. ["t1", "tabelle1", "table1", "tabelle 1", "table 1"]
+    grid: CellGrid;
+}
+
 /**
- * Computes every formula cell of a table. The result is keyed by cell name ("B2") and contains formula cells only.
+ * Computes every formula cell across all tables in a document, supporting cross-table references.
+ * Returns a map keyed by canonical table `id`, mapping each formula cell name ("B2") to its computed `Value`.
  * Reference cycles yield #ZIRKEL for every cell on or depending on the cycle.
  */
-export function computeTable(grid: CellGrid, scope: CalcScope): Map<string, Value> {
+export function computeDocumentTables(
+    tables: TableEntry[],
+    scope: CalcScope,
+): Map<string, Map<string, Value>> {
+    const aliasMap = new Map<string, TableEntry>();
+    for (const entry of tables) {
+        aliasMap.set(entry.id.toLowerCase().trim(), entry);
+        for (const alias of entry.aliases) {
+            aliasMap.set(alias.toLowerCase().trim(), entry);
+        }
+    }
+
     const memo = new Map<string, Value>();
     const stack = new Set<string>();
+    const ctxCache = new Map<string, EvalContext>();
 
-    const ctx: EvalContext = {
-        cell: (c, r) => valueAt(c, r),
-        variable: scope.variable,
-        userFunction: scope.userFunction,
-    };
+    function getCtx(entry: TableEntry): EvalContext {
+        let ctx = ctxCache.get(entry.id);
+        if (!ctx) {
+            ctx = {
+                cell: (c, r, targetTable) => evalCell(entry, c, r, targetTable),
+                variable: scope.variable,
+                userFunction: scope.userFunction,
+            };
+            ctxCache.set(entry.id, ctx);
+        }
+        return ctx;
+    }
 
-    function valueAt(col: number, row: number): Value {
-        if (col < 0 || row < 0 || col >= grid.cols || row >= grid.rows) return '';
-        const text = grid.text(col, row);
-        if (!isFormulaText(text)) return parseNumber(text) ?? text;
+    function evalCell(current: TableEntry, col: number, row: number, targetTable?: string): Value {
+        let target: TableEntry;
+        if (targetTable) {
+            const found = aliasMap.get(targetTable.toLowerCase().trim());
+            if (!found) return err('#BEZUG', `Tabelle "${targetTable}" nicht gefunden`);
+            target = found;
+        } else {
+            target = current;
+        }
 
-        const key = refKey(col, row);
+        if (col < 0 || row < 0 || col >= target.grid.cols || row >= target.grid.rows) {
+            return err('#BEZUG', 'Zelle außerhalb der Tabelle');
+        }
+
+        const key = `${target.id}!${refKey(col, row)}`;
         const cached = memo.get(key);
         if (cached !== undefined) return cached;
-        if (stack.has(key)) return err('#ZIRKEL', 'Zirkelbezug');
+        if (stack.has(key)) return err('#ZIRKEL', 'Zirkulärer Bezug');
 
-        stack.add(key);
+        const text = target.grid.text(col, row);
         let v: Value;
-        try {
-            v = evaluate(parseFormula(text), ctx);
-        } catch (e) {
-            if (!(e instanceof FormulaError)) throw e;
-            v = err(e.code, e.message);
-        } finally {
-            stack.delete(key);
+        if (!isFormulaText(text)) {
+            v = parseNumber(text) ?? text;
+        } else {
+            stack.add(key);
+            try {
+                v = evaluate(parseFormula(text), getCtx(target));
+            } catch (e) {
+                if (!(e instanceof FormulaError)) throw e;
+                v = err(e.code, e.message);
+            } finally {
+                stack.delete(key);
+            }
         }
         memo.set(key, v);
         return v;
     }
 
-    const out = new Map<string, Value>();
-    for (let r = 0; r < grid.rows; r++) {
-        for (let c = 0; c < grid.cols; c++) {
-            if (isFormulaText(grid.text(c, r))) out.set(refKey(c, r), valueAt(c, r));
+    const result = new Map<string, Map<string, Value>>();
+    for (const entry of tables) {
+        const out = new Map<string, Value>();
+        for (let r = 0; r < entry.grid.rows; r++) {
+            for (let c = 0; c < entry.grid.cols; c++) {
+                if (isFormulaText(entry.grid.text(c, r))) {
+                    out.set(refKey(c, r), evalCell(entry, c, r));
+                }
+            }
         }
+        result.set(entry.id, out);
     }
-    return out;
+    return result;
+}
+
+/**
+ * Computes every formula cell of a table. The result is keyed by cell name ("B2") and contains formula cells only.
+ * Reference cycles yield #ZIRKEL for every cell on or depending on the cycle.
+ */
+export function computeTable(grid: CellGrid, scope: CalcScope): Map<string, Value> {
+    const entry: TableEntry = { id: 'T1', aliases: ['t1', 'tabelle1', 'table1'], grid };
+    const res = computeDocumentTables([entry], scope);
+    return res.get('T1') ?? new Map();
 }
