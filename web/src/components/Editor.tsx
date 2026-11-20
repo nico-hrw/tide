@@ -12,8 +12,9 @@ import type { EditorProps } from './Editor/types';
 import { COLORS } from './Editor/editorConstants';
 import { getCleanDocContent } from './Editor/editorUtils';
 import { MentionNodeView } from './Editor/MentionNodeView';
-import { TableContextMenu } from './Editor/EditorToolbar';
+import { TableContextMenu } from './Editor/TableContextMenu';
 import { EditorBubbleMenu } from './Editor/EditorBubbleMenu';
+import { TableCellBar } from './Editor/TableCellBar';
 import { FormatSearch } from './Editor/FormatSearch';
 import { EditorInlineSearch } from './Editor/EditorInlineSearch';
 import { useTipTapConfig } from './Editor/useTipTapConfig';
@@ -558,6 +559,7 @@ function CollaborativeEditor(props: EditorProps) {
     return (
         <div className="editor-container w-full max-w-full overflow-x-hidden relative">
             <FormatSearch editor={editor} />
+            <TableCellBar editor={editor} />
             <EditorBubbleMenu
                 editor={editor}
                 activeTabId={activeTabId}
@@ -646,7 +648,7 @@ function CollaborativeEditor(props: EditorProps) {
             )}
 
             {tableMenuData && (
-                <TableContextMenu editor={editor} position={tableMenuData} />
+                <TableContextMenu editor={editor} position={tableMenuData} onClose={() => setTableMenuData(null)} />
             )}
 
             <EditorInlineSearch editor={editor} />

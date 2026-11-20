@@ -42,4 +42,29 @@ describe('TableCellAligned', () => {
     const editor = makeEditor('<table><tr><th style="text-align:center"><p>T</p></th></tr></table>');
     expect(firstCell(editor).attrs!.textAlign).toBe('center');
   });
+
+  it('never renders attribute values outside the allowlist', () => {
+    const editor = new Editor({
+      extensions: [Document, Paragraph, Text, Table, TableRow, TableHeaderAligned, TableCellAligned],
+      content: {
+        type: 'doc',
+        content: [{
+          type: 'table',
+          content: [{
+            type: 'tableRow',
+            content: [{
+              type: 'tableCell',
+              attrs: { textAlign: 'right; background: url(https://evil.example/x)', verticalAlign: 'top; position: fixed' },
+              content: [{ type: 'paragraph' }],
+            }],
+          }],
+        }],
+      },
+    });
+    const html = editor.getHTML();
+    expect(html).not.toContain('evil.example');
+    expect(html).not.toContain('position');
+    expect(html).not.toContain('text-align');
+    expect(html).not.toContain('vertical-align');
+  });
 });

@@ -11,19 +11,23 @@ function pick<T extends string>(raw: string | undefined, allowed: readonly strin
     return raw && allowed.includes(raw) ? (raw as T) : null;
 }
 
-/** Shared attribute definitions: text-align and vertical-align stored as cell attrs. */
+/** Shared attribute definitions. Values are allowlisted on parse AND render, since attrs can arrive via Yjs/JSON. */
 const alignAttributes = {
     textAlign: {
         default: null as CellTextAlign | null,
         parseHTML: (el: HTMLElement) => pick<CellTextAlign>(el.style.textAlign, H_VALUES),
-        renderHTML: (attrs: Record<string, unknown>) =>
-            attrs.textAlign ? { style: `text-align: ${attrs.textAlign}` } : {},
+        renderHTML: (attrs: Record<string, unknown>) => {
+            const v = pick<CellTextAlign>(attrs.textAlign as string | undefined, H_VALUES);
+            return v ? { style: `text-align: ${v}` } : {};
+        },
     },
     verticalAlign: {
         default: null as CellVerticalAlign | null,
         parseHTML: (el: HTMLElement) => pick<CellVerticalAlign>(el.style.verticalAlign, V_VALUES),
-        renderHTML: (attrs: Record<string, unknown>) =>
-            attrs.verticalAlign ? { style: `vertical-align: ${attrs.verticalAlign}` } : {},
+        renderHTML: (attrs: Record<string, unknown>) => {
+            const v = pick<CellVerticalAlign>(attrs.verticalAlign as string | undefined, V_VALUES);
+            return v ? { style: `vertical-align: ${v}` } : {};
+        },
     },
 };
 

@@ -141,6 +141,10 @@
 | NoteBreadcrumb | `web/src/components/Editor/NoteBreadcrumb.tsx` | Small pale folder path above the note title (`text-t2-ink-3`). |
 | TextStyleButtons | `web/src/components/Editor/TextStyleButtons.tsx` | Text / H1 / H2 / H3 buttons at the start of the bubble menu; act on the whole block around the selection. Heading sizes come from `.ProseMirror h1-h3` in `globals.css` (Tailwind preflight resets headings to body size). |
 | noteChrome.css | `web/src/components/Editor/noteChrome.css` | Keyframes/styles for the three components above, using `--t2-*` tokens. |
+| TableCellAttrs | `web/src/components/extensions/TableCellAttrs.ts` | `TableCellAligned` / `TableHeaderAligned`: TipTap table cells with `textAlign` (left/center/right) and `verticalAlign` (top/middle/bottom) attrs. Values are allowlisted on parse **and** render (attrs can arrive through Yjs). Old docs without attrs render unchanged. |
+| tableCommands | `web/src/components/Editor/tableCommands.ts` | `setCellAlign`, `canMerge/canSplit`, `mergeSelectedCells`, `splitSelectedCell` — thin wrappers over TipTap table commands (work on a cell or a `CellSelection`). |
+| TableCellBar | `web/src/components/Editor/TableCellBar.tsx` | Slim floating bar above the cell with the caret (hidden for text selections, the bubble menu owns those): horizontal/vertical alignment, merge, split. Left click only. |
+| TableContextMenu | `web/src/components/Editor/TableContextMenu.tsx` | Right-click menu: Spalte · Zeile · Tabelle side by side (insert/delete, header row toggle). Replaces the old English menu in the removed `EditorToolbar.tsx`; closes on action, outside click, Escape. Table style B lives in `globals.css` ("Table style B"). |
 
 ## Smart Island
 
