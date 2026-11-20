@@ -1,0 +1,259 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tide Mobile Schnellbearbeitung</title>
+<style>
+:root {
+  --bg:#FFFFFF; --surface:#FFFFFF; --sub:#F6F6F7; --ink:#0E0E10; --ink-2:#5E5E66; --ink-3:#9A9AA3;
+  --line:#E9E9EC; --accent:#2F3138; --accent-ink:#FFFFFF; --now:#7A1F2E;
+  --c-praktikum:#5C6E6C; --c-praktikum-ink:#FFFFFF; --c-studium:#A6B7A8; --c-studium-ink:#1C2622;
+  --c-social:#D2A96A; --c-social-ink:#2A1E0B; --c-uni:#D39D87; --c-uni-ink:#2E1810;
+  --c-geb:#A9623F; --c-geb-ink:#FFFFFF;
+  color-scheme: light;
+}
+* { box-sizing:border-box; margin:0; }
+body { background:#E4E4E8; font-family:Inter,system-ui,-apple-system,sans-serif; color:var(--ink); padding:24px; }
+h1 { font-size:20px; margin-bottom:4px; }
+.lead { color:var(--ink-2); font-size:13px; margin-bottom:20px; }
+.row { display:flex; gap:28px; flex-wrap:wrap; align-items:flex-start; margin-bottom:36px; }
+.group-title { font-size:14px; font-weight:700; margin:8px 0 12px; color:var(--ink-2); text-transform:uppercase; letter-spacing:.06em; }
+figure { width:390px; }
+figcaption { font-size:13px; color:var(--ink-2); margin-top:14px; line-height:1.4; }
+figcaption b { color:var(--ink); }
+.phone { position:relative; width:390px; height:760px; background:var(--bg); border-radius:36px; overflow:hidden; box-shadow:0 24px 64px rgba(17,24,39,.16), 0 0 0 8px #1b1b1f; }
+.status { height:44px; display:flex; justify-content:space-between; align-items:flex-end; padding:0 26px 6px; font-size:13px; font-weight:600; }
+.dayhead { padding:8px 16px 10px; font-size:22px; font-weight:700; }
+.dayhead small { display:block; font-size:12px; font-weight:500; color:var(--ink-3); }
+.list { padding:0 12px; }
+
+.card { display:flex; border-radius:12px; margin:4px 0; overflow:hidden; position:relative; }
+.card .t { width:58px; flex-shrink:0; text-align:right; padding:14px 8px 0 0; }
+.card .t b { display:block; font-size:12px; line-height:1; }
+.card .t span { display:block; font-size:10px; font-weight:500; margin-top:4px; }
+.card .r { width:24px; flex-shrink:0; display:flex; flex-direction:column; align-items:center; padding:14px 0 10px; }
+.card .r i { width:12px; height:12px; border-radius:50%; background:currentColor; }
+.card .r u { width:2px; flex:1; margin-top:6px; background:currentColor; opacity:.25; border-radius:2px; }
+.card .b { flex:1; padding:12px 12px 8px 0; min-width:0; }
+.card .b strong { font-size:14px; display:block; }
+.badge { display:inline-block; font-size:10px; font-weight:600; padding:2px 7px; border-radius:6px; background:rgba(128,128,128,.22); margin-top:5px; }
+.praktikum { background:var(--c-praktikum); color:var(--c-praktikum-ink); }
+.studium { background:var(--c-studium); color:var(--c-studium-ink); }
+.social { background:var(--c-social); color:var(--c-social-ink); }
+.uni { background:var(--c-uni); color:var(--c-uni-ink); }
+.geb { background:var(--c-geb); color:var(--c-geb-ink); }
+.inv-studium { background:var(--c-studium-ink); color:var(--c-studium); box-shadow:0 8px 22px -8px rgba(0,0,0,.35); }
+
+.gap { display:flex; height:34px; font-size:12.5px; color:var(--ink-3); }
+.gap .tc { width:58px; flex-shrink:0; }
+.gap .rail { width:24px; flex-shrink:0; opacity:.55; background:repeating-linear-gradient(to bottom,var(--ink-3) 0 3px,transparent 3px 7px) center/1.5px 100% no-repeat; }
+.gap span { align-self:center; padding-left:6px; }
+.gap.active { height:64px; background:var(--sub); border-radius:10px; }
+.gap.active .mid { flex:1; position:relative; }
+.gap.active .mid span { position:absolute; left:6px; top:8px; padding:0; }
+.nowline { position:absolute; left:-12px; right:0; top:34px; display:flex; align-items:center; color:var(--now); pointer-events:none; }
+.nowline i { width:10px; height:10px; border-radius:50%; background:var(--now); flex-shrink:0; }
+.nowline u { flex:1; height:1px; background:var(--now); }
+.nowline em { font-style:normal; font-size:10px; font-weight:700; padding:0 6px; }
+.nowline.in-card { left:0; right:0; z-index:2; color:currentColor; }
+.nowline.in-card i, .nowline.in-card u { background:#fff; }
+.nowline.in-card em { color:#fff; background:var(--now); border-radius:6px; margin:0 8px; padding:1px 6px; }
+
+.tap { position:absolute; width:46px; height:46px; border-radius:50%; border:2px solid var(--accent); background:rgba(47,49,56,.14); }
+.tap::after { content:""; position:absolute; inset:-9px; border-radius:50%; border:2px solid var(--accent); opacity:.4; }
+.tapnote { position:absolute; font-size:11px; font-weight:600; background:var(--accent); color:var(--accent-ink); padding:3px 9px; border-radius:99px; white-space:nowrap; }
+
+.dim { position:absolute; inset:0; background:rgba(14,14,16,.38); }
+.sheetgrid { position:absolute; left:0; right:0; top:44px; bottom:0; background:var(--surface); border-radius:22px 22px 0 0; overflow:hidden; }
+.gridhead { height:48px; display:flex; align-items:center; justify-content:space-between; padding:0 14px; border-bottom:1px solid var(--line); font-size:14px; font-weight:700; }
+.gridhead small { font-weight:500; color:var(--ink-3); font-size:12px; margin-left:6px; }
+.btn { width:36px; height:36px; border-radius:50%; display:inline-flex; align-items:center; justify-content:center; font-size:18px; font-weight:700; }
+.btn.ok { background:var(--accent); color:var(--accent-ink); }
+.btn.no { background:var(--sub); color:var(--ink-2); margin-right:8px; }
+.gridbody { position:relative; height:calc(100% - 48px); }
+.hr { position:absolute; left:0; right:0; border-top:1px solid var(--line); }
+.hr span { position:absolute; left:10px; top:-7px; font-size:11px; color:var(--ink-3); background:var(--surface); padding-right:4px; }
+.ev { position:absolute; left:62px; right:14px; border-radius:8px; padding:5px 9px; font-size:12px; font-weight:600; opacity:.35; overflow:hidden; }
+.block { position:absolute; left:58px; right:10px; border-radius:10px; border:2px solid var(--accent); background:color-mix(in srgb,var(--accent) 16%,var(--surface)); box-shadow:0 8px 22px -8px rgba(0,0,0,.35); padding:8px 12px; font-size:13px; font-weight:700; }
+.block.draft { border-style:dashed; padding:3px 12px; }
+.block small { display:block; font-weight:500; color:var(--ink-2); font-size:11px; margin-top:2px; }
+.handle { position:absolute; left:50%; width:44px; height:20px; margin-left:-22px; border-radius:99px; background:var(--accent); border:3px solid var(--surface); }
+.handle.top { top:-12px; } .handle.bot { bottom:-12px; }
+.handle::after { content:""; position:absolute; left:14px; right:14px; top:5px; height:2px; background:var(--accent-ink); border-radius:2px; opacity:.8; }
+.timelabel { position:absolute; right:14px; font-size:12px; font-weight:700; background:var(--ink); color:#fff; padding:3px 9px; border-radius:8px; }
+
+.form { position:absolute; left:0; right:0; bottom:0; background:var(--surface); border-radius:24px 24px 0 0; padding:10px 18px 24px; box-shadow:0 -24px 64px rgba(17,24,39,.16); }
+.grab { width:40px; height:4px; border-radius:4px; background:var(--line); margin:0 auto 14px; }
+.form h3 { font-size:16px; margin-bottom:12px; }
+.lbl { font-size:11px; font-weight:600; color:var(--ink-3); text-transform:uppercase; letter-spacing:.05em; margin:12px 0 6px; }
+.input { background:var(--sub); border-radius:10px; padding:12px 14px; font-size:15px; }
+.input.ph { color:var(--ink-3); }
+.swatches { display:flex; gap:10px; }
+.sw { width:34px; height:34px; border-radius:50%; }
+.sw.sel { outline:2px solid var(--accent); outline-offset:3px; }
+.seg { display:flex; background:var(--sub); border-radius:10px; padding:3px; gap:2px; }
+.seg span { flex:1; text-align:center; font-size:13px; padding:8px 0; border-radius:8px; color:var(--ink-2); }
+.seg span.on { background:var(--surface); color:var(--ink); font-weight:600; box-shadow:0 1px 2px rgba(0,0,0,.08); }
+.actions { display:flex; gap:10px; margin-top:18px; }
+.actions .primary { flex:1; text-align:center; background:var(--accent); color:var(--accent-ink); padding:13px; border-radius:12px; font-weight:600; font-size:15px; }
+.actions .ghost { padding:13px 18px; border-radius:12px; background:var(--sub); color:var(--ink-2); font-size:15px; }
+</style>
+</head>
+<body>
+<h1>Schnellbearbeitung im Kalender (Handy)</h1>
+<p class="lead">Vorschau der Optik, kein funktionierender Prototyp. Beispieltag: Freitag, 20. November. Farben aus der Balsam-Palette (Tide 2, hell).</p>
+
+<div class="group-title">Liste</div>
+<div class="row">
+
+<figure>
+<div class="phone">
+  <div class="status"><span>11:20</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="list">
+    <div class="card praktikum" style="height:78px"><div class="t"><b>08:00</b><span>09:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Praktikum Labor</strong><span class="badge">1 h</span></div></div>
+    <div class="gap"><div class="tc"></div><div class="rail"></div><span>1 h 30 Min. frei</span></div>
+    <div class="card uni" style="height:70px"><div class="t"><b>10:30</b><span>10:55</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Statistik Vorlesung</strong><span class="badge">25 Min.</span></div></div>
+    <div class="gap active">
+      <div class="tc"></div><div class="rail"></div>
+      <div class="mid"><span>35 Min. frei</span>
+        <div class="nowline"><i></i><u></u><em>11:20</em></div></div>
+    </div>
+    <div class="card studium" style="height:132px"><div class="t"><b>11:30</b><span>13:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Lerngruppe Mathe</strong><span class="badge">1 h 30 Min.</span></div></div>
+    <div class="gap"><div class="tc"></div><div class="rail"></div><span>1 h frei</span></div>
+    <div class="card social" style="height:60px"><div class="t"><b>14:00</b><span>14:30</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Kaffee mit Jonas</strong></div></div>
+  </div>
+</div>
+<figcaption><b>(a) Zeit liegt in einer Pause.</b> Termine maßstäblich in der Höhe, Pausen immer 34 px. Nur die aktive Pause wächst, damit die bordeauxrote Zeitlinie mit Uhrzeit darin Platz hat.</figcaption>
+</figure>
+
+<figure>
+<div class="phone">
+  <div class="status"><span>10:42</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="list">
+    <div class="card praktikum" style="height:78px"><div class="t"><b>08:00</b><span>09:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Praktikum Labor</strong><span class="badge">1 h</span></div></div>
+    <div class="gap"><div class="tc"></div><div class="rail"></div><span>1 h 30 Min. frei</span></div>
+    <div class="card inv-studium" style="height:160px">
+      <div class="t"><b style="font-size:13px">10:30</b><span>11:30</span></div><div class="r"><i></i><u></u></div>
+      <div class="b"><strong>Lerngruppe Mathe</strong><span class="badge">läuft, noch 48 Min.</span></div>
+      <div class="nowline in-card" style="top:72px"><i style="margin-left:6px"></i><u></u><em>10:42</em></div>
+    </div>
+    <div class="gap"><div class="tc"></div><div class="rail"></div><span>30 Min. frei</span></div>
+    <div class="card uni" style="height:90px"><div class="t"><b>12:00</b><span>13:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Statistik Übung</strong><span class="badge">1 h</span></div></div>
+  </div>
+</div>
+<figcaption><b>(b) Zeit liegt in einem laufenden Termin.</b> Die Karte ist wie in der App invertiert (Text- und Hintergrundfarbe getauscht). Die Zeitlinie läuft quer durch die Karte auf Höhe des Fortschritts; Pausen bleiben bei 34 px.</figcaption>
+</figure>
+</div>
+
+<div class="group-title">Raster-Overlay (Termin verschieben und Dauer ändern)</div>
+<div class="row">
+
+<figure>
+<div class="phone">
+  <div class="status"><span>11:20</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="list">
+    <div class="card uni" style="height:70px"><div class="t"><b>10:30</b><span>10:55</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Statistik Vorlesung</strong></div></div>
+    <div class="card studium" style="height:132px"><div class="t"><b>11:30</b><span>13:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Lerngruppe Mathe</strong></div></div>
+  </div>
+  <div class="dim"></div>
+  <div class="sheetgrid">
+    <div class="gridhead"><span>Lerngruppe Mathe<small>Fr, 20.11.</small></span><span><span class="btn no">✕</span><span class="btn ok">✓</span></span></div>
+    <div class="gridbody">
+      <div class="hr" style="top:8px"><span>09:00</span></div>
+      <div class="hr" style="top:64px"><span>10:00</span></div>
+      <div class="hr" style="top:120px"><span>11:00</span></div>
+      <div class="hr" style="top:176px"><span>12:00</span></div>
+      <div class="hr" style="top:232px"><span>13:00</span></div>
+      <div class="hr" style="top:288px"><span>14:00</span></div>
+      <div class="hr" style="top:344px"><span>15:00</span></div>
+      <div class="hr" style="top:400px"><span>16:00</span></div>
+      <div class="ev praktikum" style="top:8px;height:50px">Praktikum Labor</div>
+      <div class="ev uni" style="top:92px;height:24px">Statistik Vorlesung</div>
+      <div class="ev social" style="top:344px;height:52px">Kaffee mit Jonas</div>
+      <div class="timelabel" style="top:128px">11:30 – 13:00 · 1 h 30 Min.</div>
+      <div class="block" style="top:162px;height:92px">Lerngruppe Mathe<small>Ziehen zum Verschieben</small>
+        <div class="handle top"></div><div class="handle bot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<figcaption><b>(c) Aktiver Block.</b> Liste dahinter abgedunkelt. Griffe oben und unten ändern Start bzw. Ende, der Block selbst lässt sich verschieben. Die Zeit-Anzeige läuft live mit. ✓ übernimmt, ✕ verwirft. Andere Termine erscheinen blass als Orientierung.</figcaption>
+</figure>
+</div>
+
+<div class="group-title">Neuer Termin per Doppeltipp</div>
+<div class="row">
+
+<figure>
+<div class="phone">
+  <div class="status"><span>11:20</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="list">
+    <div class="card uni" style="height:70px"><div class="t"><b>10:30</b><span>10:55</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Statistik Vorlesung</strong></div></div>
+    <div class="gap"><div class="tc"></div><div class="rail"></div><span>35 Min. frei</span></div>
+    <div class="card studium" style="height:132px"><div class="t"><b>11:30</b><span>13:00</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Lerngruppe Mathe</strong></div></div>
+    <div class="gap" style="height:90px"><div class="tc"></div><div class="rail"></div><span>1 h frei</span></div>
+    <div class="card social" style="height:60px"><div class="t"><b>14:00</b><span>14:30</span></div><div class="r"><i></i><u></u></div><div class="b"><strong>Kaffee mit Jonas</strong></div></div>
+  </div>
+  <div class="tap" style="left:190px;top:438px"></div>
+  <div class="tapnote" style="left:120px;top:500px">Doppeltipp in freier Zeit</div>
+</div>
+<figcaption><b>(d1) Doppeltipp.</b> Doppeltipp auf eine freie Stelle der Liste (der Kreis zeigt den Tipp, er ist kein dauerhaftes Element). Die Tippposition bestimmt die Startzeit.</figcaption>
+</figure>
+
+<figure>
+<div class="phone">
+  <div class="status"><span>11:20</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="dim"></div>
+  <div class="sheetgrid">
+    <div class="gridhead"><span>Neuer Termin<small>Fr, 20.11.</small></span><span><span class="btn no">✕</span><span class="btn ok">✓</span></span></div>
+    <div class="gridbody">
+      <div class="hr" style="top:8px"><span>11:00</span></div>
+      <div class="hr" style="top:64px"><span>12:00</span></div>
+      <div class="hr" style="top:120px"><span>13:00</span></div>
+      <div class="hr" style="top:176px"><span>14:00</span></div>
+      <div class="hr" style="top:232px"><span>15:00</span></div>
+      <div class="hr" style="top:288px"><span>16:00</span></div>
+      <div class="ev studium" style="top:36px;height:84px">Lerngruppe Mathe</div>
+      <div class="ev social" style="top:176px;height:28px">Kaffee mit Jonas</div>
+      <div class="timelabel" style="top:92px">13:20 – 14:00 · 40 Min.</div>
+      <div class="block draft" style="top:132px;height:44px">Neuer Termin
+        <div class="handle top"></div><div class="handle bot"></div>
+      </div>
+    </div>
+  </div>
+</div>
+<figcaption><b>(d2) Entwurf im Raster.</b> Gestrichelter Block mit Standarddauer, Start an der Tippposition (auf 5 Minuten gerundet). Griffe und Verschieben wie bei (c). ✓ öffnet das Formular.</figcaption>
+</figure>
+
+<figure>
+<div class="phone">
+  <div class="status"><span>11:20</span><span>5G 87%</span></div>
+  <div class="dayhead">Heute<small>Freitag, 20. November</small></div>
+  <div class="dim" style="background:rgba(14,14,16,.5)"></div>
+  <div class="form" style="top:140px">
+    <div class="grab"></div>
+    <h3>Neuer Termin · 13:20 – 14:00</h3>
+    <div class="lbl">Name</div>
+    <div class="input">Sprechstunde Prof. Weber</div>
+    <div class="lbl">Farbe</div>
+    <div class="swatches">
+      <div class="sw praktikum"></div><div class="sw studium"></div><div class="sw social"></div><div class="sw uni sel"></div><div class="sw geb"></div>
+    </div>
+    <div class="lbl">Beschreibung</div>
+    <div class="input ph" style="min-height:64px">Optional</div>
+    <div class="lbl">Wiederholen</div>
+    <div class="seg"><span class="on">Nie</span><span>Täglich</span><span>Wöchentlich</span><span>Monatlich</span></div>
+    <div class="actions"><div class="ghost">Zurück</div><div class="primary">Speichern</div></div>
+  </div>
+</div>
+<figcaption><b>(d3) Formular.</b> Nach ✓ erscheint das Blatt mit Name, Farbe (fünf Balsam-Farben), Beschreibung und Wiederholung. Die Zeit kommt aus dem Raster; „Zurück“ führt ins Raster.</figcaption>
+</figure>
+</div>
+</body>
+</html>
