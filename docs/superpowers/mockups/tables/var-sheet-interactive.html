@@ -3,31 +3,26 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Tide · Var-Sheet Interaktiver UX-Playground</title>
+  <title>Tide · VarSheet</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
-      --t2-bg: #ffffff;
-      --t2-sub: #f4f5f8;
-      --t2-stage: #ededf0;
-      --t2-ink: #0e0e10;
-      --t2-ink-2: #5e5e66;
-      --t2-ink-3: #9a9aa3;
-      --t2-line: #e3e5ea;
-      --t2-line-soft: #eef0f4;
-      --t2-hover: #f1f2f6;
-      --t2-accent: #2f3138;
-      --t2-accent-ink: #ffffff;
-      --var-accent: #6d28d9;
-      --var-accent-soft: #f5f0ff;
-      --var-accent-border: #ddd6fe;
-      --var-badge-bg: #ede9fe;
-      --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
-      --shadow-float: 0 8px 24px rgba(15, 23, 42, 0.08);
-      --font-sans: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
-      --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --bg: #ffffff;
+      --stage-bg: #fafafa;
+      --panel-bg: #f4f4f5;
+      --panel-hover: #eceef1;
+      --ink: #18181b;
+      --ink-2: #52525b;
+      --ink-3: #a1a1aa;
+      --head-ink: #27272a;
+      --head-muted: #3f3f46;
+      --line: #e4e4e7;
+      --line-soft: #f0f0f3;
+      --accent: #3f3f46;
+      --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
       --ease-slide: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
@@ -38,177 +33,46 @@
       padding: 0;
       height: 100%;
       font-family: var(--font-sans);
-      color: var(--t2-ink);
-      background: var(--t2-stage);
+      color: var(--ink);
+      background: var(--bg);
       -webkit-font-smoothing: antialiased;
     }
 
-    .shell {
-      display: flex;
-      flex-direction: column;
+    .stage {
       height: 100vh;
+      display: flex;
       overflow: hidden;
+      background: var(--bg);
+      position: relative;
     }
 
-    /* Instructions & Shortcut Banner */
-    .shortcut-banner {
-      flex: none;
-      background: #1f2430;
-      color: #f4f4f5;
-      padding: 9px 18px;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
+    /* Discrete floating toggle when panel is closed or open */
+    .sheet-toggle {
+      position: fixed;
+      top: 14px;
+      right: 16px;
+      z-index: 40;
+      height: 28px;
+      padding: 0 10px;
+      border-radius: 6px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.88);
+      backdrop-filter: blur(8px);
+      color: var(--head-muted);
+      font-family: var(--font-sans);
       font-size: 12px;
-      z-index: 30;
-    }
-
-    .banner-left {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 14px;
-    }
-
-    .banner-tag {
-      font-family: var(--font-mono);
-      font-size: 10.5px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      padding: 2px 7px;
-      border-radius: 5px;
-      background: rgba(124, 58, 237, 0.28);
-      border: 1px solid rgba(196, 181, 253, 0.45);
-      color: #e9d5ff;
-      font-weight: 600;
-    }
-
-    .shortcut-list {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      color: #d4d4d8;
-    }
-
-    .shortcut-list span {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-    }
-
-    .shortcut-banner kbd {
-      font-family: var(--font-mono);
-      font-size: 10.5px;
-      padding: 1px 6px;
-      border-radius: 4px;
-      background: #2f3545;
-      border: 1px solid #454d63;
-      color: #ffffff;
-    }
-
-    .hud-pill {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: #e4e4e7;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      padding: 3px 9px;
-      border-radius: 999px;
-      white-space: nowrap;
-    }
-
-    /* Playground Toolbar */
-    .toolbar {
-      flex: none;
-      height: 50px;
-      background: rgba(255, 255, 255, 0.94);
-      backdrop-filter: blur(12px);
-      border-bottom: 1px solid var(--t2-line);
-      padding: 0 18px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      z-index: 20;
-    }
-
-    .toolbar-left {
-      display: flex;
-      align-items: center;
-      gap: 10px;
-      min-width: 0;
-    }
-
-    .tide-dot {
-      width: 24px;
-      height: 24px;
-      border-radius: 7px;
-      background: var(--t2-accent);
-      color: #fff;
-      display: grid;
-      place-items: center;
-      font-size: 12px;
-      font-weight: 700;
-      flex: none;
-    }
-
-    .toolbar-title {
-      font-size: 13px;
-      font-weight: 600;
-      color: var(--t2-ink);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .toolbar-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      flex-wrap: wrap;
-    }
-
-    .btn {
-      height: 31px;
-      padding: 0 11px;
-      border-radius: 8px;
-      border: 1px solid var(--t2-line);
-      background: #ffffff;
-      color: var(--t2-ink);
-      font-family: inherit;
-      font-size: 12px;
-      font-weight: 600;
+      font-weight: 500;
       cursor: pointer;
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      transition: background 0.14s ease, border-color 0.14s ease, transform 0.1s ease;
+      transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
     }
 
-    .btn:hover { background: var(--t2-hover); }
-    .btn:active { transform: translateY(0.5px); }
-
-    .btn-primary {
-      background: var(--t2-accent);
-      border-color: var(--t2-accent);
-      color: var(--t2-accent-ink);
-    }
-
-    .btn-primary:hover {
-      background: #1d1f24;
-    }
-
-    /* Split Workspace with Smooth Slide */
-    .stage {
-      flex: 1;
-      min-height: 0;
-      display: flex;
-      overflow: hidden;
-      background: var(--t2-bg);
-      position: relative;
+    .sheet-toggle:hover {
+      background: #f4f4f5;
+      color: var(--head-ink);
+      border-color: #d4d4d8;
     }
 
     /* Main Note Container */
@@ -216,110 +80,75 @@
       flex: 1 1 auto;
       min-width: 0;
       overflow-y: auto;
-      background: var(--t2-bg);
-      padding: 36px 32px 72px;
+      background: var(--bg);
+      padding: 48px 40px 80px;
       display: flex;
       justify-content: center;
-      transition:
-        padding 360ms var(--ease-slide),
-        background 220ms ease;
+      transition: padding 360ms var(--ease-slide);
       outline: none;
     }
 
-    .note-area.is-focused-note {
-      box-shadow: inset 0 0 0 2px rgba(47, 49, 56, 0.16);
-    }
-
-    /* Note Card slides smoothly from centered to left-aligned when Var-Sheet opens */
     .note-sheet {
       width: 100%;
-      max-width: 720px;
+      max-width: 680px;
       margin-left: auto;
       margin-right: auto;
       transition:
         margin 380ms var(--ease-slide),
-        transform 380ms var(--ease-slide),
         max-width 380ms var(--ease-slide);
     }
 
     .stage.sheet-open .note-area {
       justify-content: flex-start;
-      padding: 32px 32px 72px 36px;
+      padding: 44px 36px 80px 44px;
     }
 
     .stage.sheet-open .note-sheet {
       margin-left: 0;
       margin-right: auto;
-      max-width: 680px;
-    }
-
-    .note-header-chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      color: var(--t2-ink-2);
-      background: var(--t2-sub);
-      border: 1px solid var(--t2-line);
-      padding: 4px 10px;
-      border-radius: 999px;
-      margin-bottom: 14px;
+      max-width: 640px;
     }
 
     .note-h1 {
-      font-size: 23px;
+      font-size: 24px;
       font-weight: 700;
-      letter-spacing: -0.02em;
-      margin: 0 0 8px;
-      color: var(--t2-ink);
+      letter-spacing: -0.025em;
+      margin: 0 0 10px;
+      color: var(--ink);
     }
 
     .note-lead {
-      font-size: 13.5px;
-      line-height: 1.55;
-      color: var(--t2-ink-2);
-      margin: 0 0 22px;
+      font-size: 14px;
+      line-height: 1.6;
+      color: var(--ink-2);
+      margin: 0 0 26px;
     }
 
     .ref-pill {
       display: inline-flex;
       align-items: center;
-      gap: 5px;
-      padding: 1px 7px;
-      border-radius: 6px;
-      background: var(--var-accent-soft);
-      border: 1px solid var(--var-accent-border);
-      color: var(--var-accent);
+      padding: 1px 6px;
+      border-radius: 5px;
+      background: #f4f4f5;
+      border: 1px solid var(--line);
+      color: var(--head-ink);
       font-family: var(--font-mono);
       font-size: 12px;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.14s ease, box-shadow 0.14s ease;
+      transition: background 0.14s ease, border-color 0.14s ease;
     }
 
     .ref-pill:hover {
-      background: var(--var-badge-bg);
-      box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.12);
+      background: #e4e4e7;
+      border-color: #d4d4d8;
     }
 
     .note-table-box {
-      border: 1px solid var(--t2-line);
-      border-radius: 12px;
+      border: 1px solid var(--line);
+      border-radius: 10px;
       overflow: hidden;
       background: #ffffff;
-      box-shadow: var(--shadow-sm);
-    }
-
-    .note-table-bar {
-      padding: 9px 14px;
-      background: #fafbfc;
-      border-bottom: 1px solid var(--t2-line);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      font-size: 12px;
-      color: var(--t2-ink-2);
     }
 
     table.ref-table {
@@ -330,18 +159,19 @@
     }
 
     table.ref-table th {
-      padding: 9px 14px;
+      padding: 10px 14px;
       font-size: 11px;
+      font-weight: 600;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      color: var(--t2-ink-2);
-      background: #f9fafb;
-      border-bottom: 1.5px solid var(--t2-ink);
+      color: var(--ink-2);
+      background: #fafafa;
+      border-bottom: 1px solid var(--line);
     }
 
     table.ref-table td {
-      padding: 10px 14px;
-      border-bottom: 1px solid var(--t2-line-soft);
+      padding: 11px 14px;
+      border-bottom: 1px solid var(--line-soft);
       vertical-align: middle;
     }
 
@@ -350,377 +180,305 @@
     }
 
     .r { text-align: right; }
-    .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
 
     .live-val {
       display: inline-block;
-      padding: 2px 7px;
-      border-radius: 6px;
-      font-weight: 600;
-      color: var(--t2-ink);
-      background: #f7f7fa;
-      border: 1px solid #eceef2;
-      transition: background 0.25s ease, border-color 0.25s ease;
+      padding: 2px 6px;
+      border-radius: 5px;
+      font-weight: 500;
+      font-size: 12.5px;
+      color: var(--ink);
+      transition: background 0.25s ease, color 0.25s ease;
     }
 
     .live-val.is-updated {
-      background: #ede9fe;
-      border-color: #c4b5fd;
-      color: var(--var-accent);
+      background: #e4e4e7;
+      color: var(--ink);
     }
 
-    .note-tip {
-      margin-top: 18px;
-      padding: 12px 14px;
-      border-radius: 10px;
-      background: #f8f9fb;
-      border: 1px solid var(--t2-line);
-      font-size: 12.5px;
-      line-height: 1.5;
-      color: var(--t2-ink-2);
-    }
-
-    /* Right: Gray Var-Sheet Side Panel */
+    /* Right: Minimalist VarSheet Panel */
     .varsheet {
-      width: 470px;
-      max-width: 48vw;
+      width: 480px;
+      max-width: 50vw;
       flex: none;
-      background: #f4f5f8;
-      border-left: 1px solid #e3e5ea;
+      background: var(--panel-bg);
+      border-left: 1px solid var(--line);
       display: flex;
       flex-direction: column;
       min-height: 0;
       transform: translateX(0);
       opacity: 1;
       transition:
-        width 380ms var(--ease-slide),
-        transform 380ms var(--ease-slide),
-        opacity 260ms ease;
+        width 360ms var(--ease-slide),
+        transform 360ms var(--ease-slide),
+        opacity 240ms ease;
     }
 
     .stage:not(.sheet-open) .varsheet {
       width: 0;
       opacity: 0;
-      transform: translateX(36px);
+      transform: translateX(32px);
       border-left-color: transparent;
       overflow: hidden;
       pointer-events: none;
     }
 
     .vs-head {
-      padding: 14px 16px 12px;
-      border-bottom: 1px solid #e3e5ea;
+      padding: 16px 20px 13px;
+      border-bottom: 1px solid var(--line);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
       flex: none;
-      background: #f4f5f8;
-    }
-
-    .vs-head-left {
-      display: flex;
-      align-items: center;
-      gap: 9px;
-      min-width: 0;
-    }
-
-    .vs-badge-fx {
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
-      background: #ffffff;
-      border: 1px solid #e3e5ea;
-      color: var(--var-accent);
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 600;
-      display: grid;
-      place-items: center;
-      box-shadow: var(--shadow-sm);
-      flex: none;
+      background: var(--panel-bg);
     }
 
     .vs-head h2 {
       margin: 0;
-      font-size: 13.5px;
-      font-weight: 700;
-      color: var(--t2-ink);
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .vs-link-chip {
-      font-size: 11px;
+      font-size: 14px;
       font-weight: 600;
-      color: var(--var-accent);
-      background: var(--var-badge-bg);
-      border: 1px solid var(--var-accent-border);
-      padding: 2px 8px;
-      border-radius: 999px;
-      white-space: nowrap;
+      letter-spacing: -0.01em;
+      color: #27272a;
     }
 
-    .vs-cols {
-      display: grid;
-      grid-template-columns: 34px 1fr 140px;
-      gap: 8px;
-      padding: 7px 16px;
-      border-bottom: 1px solid #e3e5ea;
-      background: #eff1f5;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      text-transform: uppercase;
-      letter-spacing: 0.06em;
-      color: var(--t2-ink-3);
-      flex: none;
-    }
-
-    .vs-cols span:last-child { text-align: right; }
-
-    /* Lines begin at the top and migrate downward, scrolling automatically to stay in view */
     .vs-scroll {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 12px 12px 28px;
-      scroll-padding-top: 12px;
-      scroll-padding-bottom: 28px;
+      padding: 10px 12px 24px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 2px;
     }
 
     .vs-row {
+      position: relative;
       display: grid;
-      grid-template-columns: 28px 1fr auto;
-      align-items: center;
+      grid-template-columns: 34px minmax(0, 1fr) auto;
+      align-items: start;
       gap: 8px;
-      padding: 6px 8px;
-      border-radius: 10px;
+      padding: 6px 8px 6px 4px;
+      border-radius: 7px;
       border: 1px solid transparent;
-      background: rgba(255, 255, 255, 0.56);
-      transition: background 0.14s ease, border-color 0.14s ease, box-shadow 0.14s ease;
+      background: transparent;
+      transition: background 0.12s ease, border-color 0.12s ease;
     }
 
     .vs-row:hover {
-      background: rgba(255, 255, 255, 0.88);
-      border-color: #e3e5ea;
+      background: rgba(255, 255, 255, 0.55);
     }
 
     .vs-row.is-active {
       background: #ffffff;
-      border-color: #c4b5fd;
-      box-shadow: 0 3px 12px rgba(109, 40, 217, 0.08), 0 0 0 2px rgba(124, 58, 237, 0.12);
+      border-color: var(--line);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+    }
+
+    .vs-row.is-dragging {
+      opacity: 0.42;
+    }
+
+    .vs-row.drop-before::before,
+    .vs-row.drop-after::after {
+      content: '';
+      position: absolute;
+      left: 6px;
+      right: 6px;
+      height: 2px;
+      background: #3f3f46;
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .vs-row.drop-before::before { top: -2px; }
+    .vs-row.drop-after::after { bottom: -2px; }
+
+    .vs-gutter {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 3px;
+      height: 21px;
+      padding-right: 2px;
+      cursor: grab;
+      user-select: none;
+      color: var(--ink-3);
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .vs-gutter:active {
+      cursor: grabbing;
+    }
+
+    .vs-handle {
+      opacity: 0;
+      font-size: 11px;
+      letter-spacing: -1px;
+      line-height: 1;
+      color: #a1a1aa;
+      transition: opacity 0.12s ease, color 0.12s ease;
+    }
+
+    .vs-row:hover .vs-handle,
+    .vs-row.is-active .vs-handle {
+      opacity: 1;
+    }
+
+    .vs-gutter:hover .vs-handle {
+      color: #3f3f46;
     }
 
     .vs-row-num {
-      font-family: var(--font-mono);
-      font-size: 11px;
-      color: var(--t2-ink-3);
+      min-width: 14px;
       text-align: right;
-      padding-right: 4px;
-      user-select: none;
+      color: var(--ink-3);
+      font-variant-numeric: tabular-nums;
     }
 
     .vs-row.is-active .vs-row-num {
-      color: var(--var-accent);
-      font-weight: 600;
+      color: var(--head-muted);
+      font-weight: 500;
     }
 
     .vs-expr {
       width: 100%;
       border: none;
       outline: none;
+      resize: none;
+      overflow: hidden;
       background: transparent;
       font-family: var(--font-mono);
       font-size: 13px;
-      line-height: 1.45;
-      color: var(--t2-ink);
-      padding: 4px;
+      line-height: 1.55;
+      color: var(--ink);
+      padding: 1px 2px;
+      margin: 0;
+      display: block;
+      min-height: 21px;
+      tab-size: 2;
     }
 
     .vs-expr::placeholder {
-      color: #b0b4be;
+      color: #b4b4bc;
     }
 
-    .vs-impact {
+    /* Sleek, unboxed, right-aligned result */
+    .vs-result {
       font-family: var(--font-mono);
-      font-size: 12px;
+      font-size: 12.5px;
       font-weight: 500;
       font-variant-numeric: tabular-nums;
-      padding: 4px 9px;
-      border-radius: 7px;
-      border: 1px solid #e3e5ea;
-      background: #f0f1f5;
-      color: var(--t2-ink-2);
+      line-height: 21px;
+      color: var(--ink-2);
+      text-align: right;
       white-space: nowrap;
-      max-width: 148px;
+      padding-left: 8px;
+      user-select: text;
+      max-width: 168px;
       overflow: hidden;
       text-overflow: ellipsis;
-      cursor: pointer;
-      outline: none;
-      transition: all 0.14s ease;
     }
 
-    .vs-impact.has-value {
-      color: #1f2430;
-      background: #f7f8fa;
+    .vs-result.is-empty {
+      color: transparent;
     }
 
-    .vs-impact.is-linked {
-      color: var(--var-accent);
-      background: var(--var-accent-soft);
-      border-color: var(--var-accent-border);
+    .vs-result.is-func {
+      color: #71717a;
+      font-weight: 400;
     }
 
-    .vs-impact:focus {
-      background: #ffffff;
-      border-color: var(--var-accent);
-      box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.18);
+    .vs-result.is-error {
+      color: #b91c1c;
+      font-weight: 400;
     }
 
     .vs-bottom-bar {
       flex: none;
-      padding: 10px 14px;
-      border-top: 1px solid #e3e5ea;
-      background: #eff1f5;
+      padding: 9px 18px;
+      border-top: 1px solid var(--line);
+      background: var(--panel-bg);
       display: flex;
       align-items: center;
-      justify-content: space-between;
-      font-size: 11.5px;
-      color: var(--t2-ink-2);
+      justify-content: flex-end;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #71717a;
     }
 
     @media (max-width: 900px) {
-      .varsheet { width: 360px; }
+      .varsheet { width: 370px; }
     }
   </style>
 </head>
 <body>
-  <div class="shell">
-    <!-- Instructions Banner -->
-    <div class="shortcut-banner">
-      <div class="banner-left">
-        <span class="banner-tag">UX-Playground</span>
-        <div class="shortcut-list">
-          <span><kbd>Enter</kbd> Neue Zeile</span>
-          <span><kbd>↑</kbd><kbd>↓</kbd> Zeilen wechseln</span>
-          <span><kbd>Tab</kbd> / <kbd>←</kbd><kbd>→</kbd> Ergebnis &amp; zurück</span>
-          <span><kbd>⌫</kbd> Leere Zeile löschen</span>
-          <span><kbd>Esc</kbd> Zurück zur Notiz</span>
+  <div id="stage" class="stage sheet-open">
+    <button id="btnToggleSheet" type="button" class="sheet-toggle" aria-expanded="true" title="VarSheet ein-/ausblenden">
+      VarSheet schließen
+    </button>
+
+    <!-- Left: Sliding Note -->
+    <main id="noteArea" class="note-area" tabindex="0">
+      <div class="note-sheet">
+        <h1 class="note-h1">Auslandstrimester Neuseeland – Kosten-Check</h1>
+        <p class="note-lead">
+          Referenzierte Variablen wie
+          <button type="button" class="ref-pill" data-ref="flug">flug</button> oder
+          <button type="button" class="ref-pill" data-ref="kurs_nzd">kurs_nzd</button>
+          aktualisieren sich live aus dem VarSheet rechts.
+        </p>
+
+        <div class="note-table-box">
+          <table class="ref-table">
+            <thead>
+              <tr>
+                <th>Posten</th>
+                <th>Bezug</th>
+                <th class="r">Wert</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Flüge (Hin &amp; Zurück)</td>
+                <td><button type="button" class="ref-pill" data-ref="flug">=flug</button></td>
+                <td class="r num"><span id="cellFlug" class="live-val">1.850,50 €</span></td>
+              </tr>
+              <tr>
+                <td>Flüge inkl. Flex-Aufschlag</td>
+                <td><button type="button" class="ref-pill" data-ref="flug_flex">=flug * 1,19</button></td>
+                <td class="r num"><span id="cellFlugFlex" class="live-val">2.202,10 €</span></td>
+              </tr>
+              <tr>
+                <td>Kalkulationskurs NZD</td>
+                <td><button type="button" class="ref-pill" data-ref="kurs_nzd">=kurs_nzd</button></td>
+                <td class="r num"><span id="cellKurs" class="live-val">0,5014 €</span></td>
+              </tr>
+              <tr>
+                <td>Aufenthaltsdauer</td>
+                <td><button type="button" class="ref-pill" data-ref="monate">=monate</button></td>
+                <td class="r num"><span id="cellMonate" class="live-val">4 Monate</span></td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </div>
-      <div id="hudState" class="hud-pill">Panel: Offen · Zeile 1/4 · Fokus: Eingabe</div>
-    </div>
+    </main>
 
-    <!-- Playground Controls Toolbar -->
-    <header class="toolbar">
-      <div class="toolbar-left">
-        <div class="tide-dot">T</div>
-        <span class="toolbar-title">Interaktiver Test: Notiz-Slide &amp; Jupyter-Zeilenmodell</span>
+    <!-- Right: Minimalist Gray VarSheet Side Panel -->
+    <aside id="varsheet" class="varsheet" aria-label="VarSheet">
+      <div class="vs-head">
+        <h2>VarSheet</h2>
       </div>
-      <div class="toolbar-controls">
-        <button id="btnAddBurst" type="button" class="btn">+ 6 Testzeilen (Scroll-Test)</button>
-        <button id="btnEmptyStart" type="button" class="btn">Leer starten (oben)</button>
-        <button id="btnResetDemo" type="button" class="btn">Standard-Beispiel</button>
-        <button id="btnToggleSheet" type="button" class="btn btn-primary">Var-Sheet schließen</button>
+
+      <div id="vsScroll" class="vs-scroll" role="list"></div>
+
+      <div class="vs-bottom-bar">
+        <span id="vsStatus">0 Zeilen · 0 Variablen</span>
       </div>
-    </header>
-
-    <!-- Main Split Stage -->
-    <div id="stage" class="stage sheet-open">
-      <!-- Left: Sliding Note -->
-      <main id="noteArea" class="note-area" tabindex="0">
-        <div class="note-sheet">
-          <div class="note-header-chip">
-            <span>Aktive Notiz</span>
-            <span style="color:#c4b5fd">●</span>
-            <span>Bewegt sich beim Öffnen nach links</span>
-          </div>
-
-          <h1 class="note-h1">Auslandstrimester Neuseeland – Kosten-Check</h1>
-          <p class="note-lead">
-            Schließe und öffne das Var-Sheet rechts oben, um das sanfte Verschieben der Notiz zu testen.
-            Klicke auf einen Variablen-Chip wie
-            <button type="button" class="ref-pill" data-ref="flug">flug</button> oder
-            <button type="button" class="ref-pill" data-ref="kurs_nzd">kurs_nzd</button>,
-            um direkt in die zugehörige Var-Sheet-Zeile zu springen.
-          </p>
-
-          <div class="note-table-box">
-            <div class="note-table-bar">
-              <span><strong>Tabelle in der Notiz</strong> · nutzt Werte aus dem Var-Sheet</span>
-              <span style="font-family:var(--font-mono);font-size:11px;color:var(--var-accent)">Live-Referenzen</span>
-            </div>
-            <table class="ref-table">
-              <thead>
-                <tr>
-                  <th>Posten</th>
-                  <th>Formel / Bezug</th>
-                  <th class="r">Wert in Notiz</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td><strong>Flüge (Hin &amp; Zurück)</strong></td>
-                  <td><button type="button" class="ref-pill" data-ref="flug">=flug</button></td>
-                  <td class="r num"><span id="cellFlug" class="live-val">1.850,50 €</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Flüge inkl. Flex-Aufschlag</strong></td>
-                  <td><button type="button" class="ref-pill" data-ref="flug_flex">=flug * 1,19</button></td>
-                  <td class="r num"><span id="cellFlugFlex" class="live-val">2.202,10 €</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Kalkulationskurs NZD</strong></td>
-                  <td><button type="button" class="ref-pill" data-ref="kurs_nzd">=kurs_nzd</button></td>
-                  <td class="r num"><span id="cellKurs" class="live-val">0,5014 €</span></td>
-                </tr>
-                <tr>
-                  <td><strong>Aufenthaltsdauer</strong></td>
-                  <td><button type="button" class="ref-pill" data-ref="monate">=monate</button></td>
-                  <td class="r num"><span id="cellMonate" class="live-val">4 Monate</span></td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-
-          <div class="note-tip">
-            <strong>UX-Checkliste zum Testen:</strong><br />
-            1. Klicke auf <em>„Leer starten (oben)“</em>: Die erste Eingabezeile beginnt ganz oben.<br />
-            2. Tippe einen Ausdruck (z. B. <code>flug = 1950</code>) und drücke <kbd>Enter</kbd>: Eine neue Zeile entsteht darunter und der Fokus wandert nach unten.<br />
-            3. Füge viele Zeilen hinzu (oder nutze <em>„+ 6 Testzeilen“</em>): Das Sheet scrollt automatisch mit, sodass die aktive Eingabezeile immer sichtbar im Bild bleibt.<br />
-            4. Drücke <kbd>↑</kbd> / <kbd>↓</kbd>, <kbd>←</kbd> / <kbd>→</kbd> oder <kbd>Tab</kbd> sowie <kbd>Esc</kbd>.
-          </div>
-        </div>
-      </main>
-
-      <!-- Right: Gray Var-Sheet Side Panel -->
-      <aside id="varsheet" class="varsheet" aria-label="Var-Sheet Playground">
-        <div class="vs-head">
-          <div class="vs-head-left">
-            <div class="vs-badge-fx">fx</div>
-            <h2>Var-Sheet (Live-Berechnungen)</h2>
-          </div>
-          <span class="vs-link-chip">Mit Notiz verknüpft</span>
-        </div>
-
-        <div class="vs-cols">
-          <span>#</span>
-          <span>Ausdruck (ohne Extra-Syntax)</span>
-          <span>Auswirkung</span>
-        </div>
-
-        <div id="vsScroll" class="vs-scroll" role="list"></div>
-
-        <div class="vs-bottom-bar">
-          <span id="vsBottomHint">Eingabe startet oben · jede neue Zeile wandert nach unten</span>
-          <span id="vsCount" style="font-family:var(--font-mono)">0 Zeilen</span>
-        </div>
-      </aside>
-    </div>
+    </aside>
   </div>
 
   <script>
@@ -728,79 +486,605 @@
       const stage = document.getElementById('stage');
       const noteArea = document.getElementById('noteArea');
       const vsScroll = document.getElementById('vsScroll');
-      const vsCount = document.getElementById('vsCount');
-      const hudState = document.getElementById('hudState');
-
+      const vsStatus = document.getElementById('vsStatus');
       const btnToggleSheet = document.getElementById('btnToggleSheet');
-      const btnAddBurst = document.getElementById('btnAddBurst');
-      const btnEmptyStart = document.getElementById('btnEmptyStart');
-      const btnResetDemo = document.getElementById('btnResetDemo');
 
       const cellFlug = document.getElementById('cellFlug');
       const cellFlugFlex = document.getElementById('cellFlugFlex');
       const cellKurs = document.getElementById('cellKurs');
       const cellMonate = document.getElementById('cellMonate');
 
-      const DEMO_ROWS = () => [
-        { expr: 'flug = 1.850,50', result: '1.850,50 €', key: 'flug' },
-        { expr: 'flug_flex = flug * 1,19', result: '2.202,10 €', key: 'flug_flex' },
-        { expr: 'kurs_nzd = 0,5014', result: '0,5014 €', key: 'kurs_nzd' },
-        { expr: 'monate = 4', result: '4 Monate', key: 'monate' }
+      const INITIAL_EXPRS = [
+        'flug = 1.850,50',
+        'flug_flex = flug * 1,19',
+        'kurs_nzd = 0,5014',
+        'monate = 4',
+        'netto(brutto, satz) = {\n  mwst = brutto * satz\n  brutto - mwst\n}',
+        'netto(1000, 0,19)'
       ];
 
-      let rows = DEMO_ROWS();
+      /**
+       * Row state:
+       * {
+       *   expr: string,
+       *   definedSymbol: string | null,
+       *   deps: Set<string>,
+       *   rawValue: any,         // number | { __fn: true, sig: string, params: string[], body: string } | null
+       *   kind: 'empty' | 'number' | 'func' | 'error',
+       *   resultText: string,
+       *   envSnapshot: Map<string, any>
+       * }
+       */
+      let rows = INITIAL_EXPRS.map((expr) => createEmptyRow(expr));
       let activeIndex = 0;
-      let focusTarget = 'Eingabe';
+      let dragSrcIdx = null;
+      let dropTargetIdx = null;
+      let dropPosition = 'after';
 
-      function updateHud() {
-        const isOpen = stage.classList.contains('sheet-open');
-        const total = rows.length;
-        const pos = Math.min(activeIndex + 1, total);
-        hudState.textContent = `Panel: ${isOpen ? 'Offen' : 'Geschlossen'} · Zeile ${pos}/${total} · Fokus: ${focusTarget}`;
-        vsCount.textContent = `${total} ${total === 1 ? 'Zeile' : 'Zeilen'}`;
+      function createEmptyRow(expr) {
+        return {
+          expr: expr || '',
+          definedSymbol: null,
+          deps: new Set(),
+          rawValue: null,
+          kind: 'empty',
+          resultText: '',
+          envSnapshot: new Map()
+        };
       }
 
-      function parseGermanNumber(raw) {
-        const cleaned = raw.replace(/\./g, '').replace(',', '.').trim();
-        if (/^-?\d+(\.\d+)?$/.test(cleaned)) {
-          return Number(cleaned);
+      /* =========================================================
+       * Tokenizer & Safe Expression Parser (German Numbers & {})
+       * ========================================================= */
+
+      const ID_START = /[a-zA-ZäöüÄÖÜß_]/;
+      const ID_CONT = /[a-zA-ZäöüÄÖÜß0-9_]/;
+
+      function parseNumberToken(src, pos) {
+        // Match German thousands (1.850,50), comma decimal (0,19), or plain/dot decimal (1000 / 3.5), optional %
+        const slice = src.slice(pos);
+        // German grouped integer + optional comma decimals: 1.850 or 1.850,50
+        let m = slice.match(/^(\d{1,3}(?:\.\d{3})+)(,\d+)?(%?)/);
+        if (m) {
+          const intPart = m[1].replace(/\./g, '');
+          const decPart = m[2] ? '.' + m[2].slice(1) : '';
+          let num = Number(intPart + decPart);
+          if (m[3] === '%') num /= 100;
+          return { len: m[0].length, value: num };
+        }
+        // Standard digits with comma decimal (0,19) or dot decimal (0.19)
+        m = slice.match(/^(\d+(?:[.,]\d+)?)(%?)/);
+        if (m) {
+          const normalized = m[1].replace(',', '.');
+          let num = Number(normalized);
+          if (m[2] === '%') num /= 100;
+          return { len: m[0].length, value: num };
         }
         return null;
       }
 
-      function formatEuro(val) {
-        return val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+      function tokenize(src) {
+        const tokens = [];
+        let i = 0;
+        while (i < src.length) {
+          const ch = src[i];
+          if (ch === ' ' || ch === '\t' || ch === '\r') {
+            i++;
+            continue;
+          }
+          if (ch === '\n' || ch === ';') {
+            tokens.push({ type: 'SEP', value: ch });
+            i++;
+            continue;
+          }
+          if (/\d/.test(ch)) {
+            const numTok = parseNumberToken(src, i);
+            if (numTok) {
+              tokens.push({ type: 'NUM', value: numTok.value });
+              i += numTok.len;
+              continue;
+            }
+          }
+          if (ID_START.test(ch)) {
+            let j = i + 1;
+            while (j < src.length && ID_CONT.test(src[j])) j++;
+            tokens.push({ type: 'ID', value: src.slice(i, j) });
+            i = j;
+            continue;
+          }
+          if ('+-*/^(){}=,'.includes(ch)) {
+            tokens.push({ type: ch, value: ch });
+            i++;
+            continue;
+          }
+          throw new Error(`Unbekanntes Zeichen "${ch}"`);
+        }
+        tokens.push({ type: 'EOF', value: '' });
+        return tokens;
       }
 
-      function evaluatePreview(expr) {
+      const BUILTINS = {
+        abs: (x) => Math.abs(x),
+        round: (x, d = 0) => {
+          const f = Math.pow(10, d);
+          return Math.round(x * f) / f;
+        },
+        floor: (x) => Math.floor(x),
+        ceil: (x) => Math.ceil(x),
+        sqrt: (x) => Math.sqrt(x),
+        min: (...args) => Math.min(...args),
+        max: (...args) => Math.max(...args),
+        sum: (...args) => args.reduce((a, b) => a + b, 0)
+      };
+
+      function evaluateExpressionTokens(tokens, env, deps, localNames) {
+        let idx = 0;
+        const peek = () => tokens[idx];
+        const next = () => tokens[idx++];
+
+        function parseExpr() {
+          return parseAddSub();
+        }
+
+        function parseAddSub() {
+          let left = parseMulDiv();
+          while (peek().type === '+' || peek().type === '-') {
+            const op = next().type;
+            const right = parseMulDiv();
+            left = op === '+' ? left + right : left - right;
+          }
+          return left;
+        }
+
+        function parseMulDiv() {
+          let left = parseUnary();
+          while (peek().type === '*' || peek().type === '/') {
+            const op = next().type;
+            const right = parseUnary();
+            if (op === '/') {
+              if (right === 0) throw new Error('Division durch 0');
+              left = left / right;
+            } else {
+              left = left * right;
+            }
+          }
+          return left;
+        }
+
+        function parseUnary() {
+          if (peek().type === '-') {
+            next();
+            return -parseUnary();
+          }
+          if (peek().type === '+') {
+            next();
+            return parseUnary();
+          }
+          return parsePower();
+        }
+
+        function parsePower() {
+          const base = parsePrimary();
+          if (peek().type === '^') {
+            next();
+            const exp = parseUnary();
+            return Math.pow(base, exp);
+          }
+          return base;
+        }
+
+        function parsePrimary() {
+          const tok = peek();
+          if (tok.type === 'NUM') {
+            next();
+            return tok.value;
+          }
+          if (tok.type === '(') {
+            next();
+            const val = parseExpr();
+            if (peek().type !== ')') throw new Error('Fehlende Klammer ")"');
+            next();
+            return val;
+          }
+          if (tok.type === 'ID') {
+            next();
+            const name = tok.value;
+            // Function call?
+            if (peek().type === '(') {
+              next();
+              const args = [];
+              if (peek().type !== ')') {
+                args.push(parseExpr());
+                while (peek().type === ',') {
+                  next();
+                  args.push(parseExpr());
+                }
+              }
+              if (peek().type !== ')') throw new Error('Fehlende Klammer ")"');
+              next();
+
+              if (Object.prototype.hasOwnProperty.call(BUILTINS, name)) {
+                return BUILTINS[name](...args);
+              }
+              if (deps && (!localNames || !localNames.has(name))) {
+                deps.add(name);
+              }
+              const fn = env.get(name);
+              if (!fn || !fn.__fn) {
+                throw new Error(`Unbekannte Funktion "${name}"`);
+              }
+              return callUserFunction(fn, args, env);
+            }
+
+            if (deps && (!localNames || !localNames.has(name))) {
+              deps.add(name);
+            }
+            if (!env.has(name)) {
+              throw new Error(`Unbekannte Variable "${name}"`);
+            }
+            const val = env.get(name);
+            if (typeof val !== 'number') {
+              throw new Error(`"${name}" ist eine Funktion`);
+            }
+            return val;
+          }
+          throw new Error('Ungültiger Ausdruck');
+        }
+
+        const result = parseExpr();
+        if (peek().type !== 'EOF') {
+          throw new Error('Unerwartetes Token');
+        }
+        return result;
+      }
+
+      function executeBlock(bodySrc, env, deps, localNames) {
+        const lines = bodySrc
+          .split(/\n|;/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && !l.startsWith('//'));
+
+        if (lines.length === 0) {
+          throw new Error('Leerer Funktionsblock');
+        }
+
+        let lastValue = null;
+        const blockLocals = new Set(localNames || []);
+
+        for (const line of lines) {
+          const assignMatch = line.match(/^([a-zA-ZäöüÄÖÜß_][\wäöüÄÖÜß]*)\s*=\s*(.+)$/);
+          if (assignMatch) {
+            const varName = assignMatch[1];
+            const rhs = assignMatch[2];
+            const tokens = tokenize(rhs);
+            lastValue = evaluateExpressionTokens(tokens, env, deps, blockLocals);
+            env.set(varName, lastValue);
+            blockLocals.add(varName);
+          } else {
+            const tokens = tokenize(line);
+            lastValue = evaluateExpressionTokens(tokens, env, deps, blockLocals);
+          }
+        }
+        return lastValue;
+      }
+
+      function callUserFunction(fn, args, callEnv) {
+        if (args.length !== fn.params.length) {
+          throw new Error(`${fn.name} erwartet ${fn.params.length} Argument(e)`);
+        }
+        const localEnv = new Map(callEnv);
+        const localNames = new Set(fn.params);
+        fn.params.forEach((p, i) => localEnv.set(p, args[i]));
+        return executeBlock(fn.body, localEnv, null, localNames);
+      }
+
+      function analyzeFunctionDeps(params, bodySrc) {
+        // Static dependency scan on function body so top-down reactive propagation knows
+        // if the function references any outer variable or function.
+        const deps = new Set();
+        const locals = new Set(params);
+        const lines = bodySrc
+          .split(/\n|;/)
+          .map((l) => l.trim())
+          .filter((l) => l.length > 0 && !l.startsWith('//'));
+
+        for (const line of lines) {
+          const assignMatch = line.match(/^([a-zA-ZäöüÄÖÜß_][\wäöüÄÖÜß]*)\s*=\s*(.+)$/);
+          const exprSrc = assignMatch ? assignMatch[2] : line;
+          try {
+            const tokens = tokenize(exprSrc);
+            for (const tok of tokens) {
+              if (tok.type === 'ID' && !locals.has(tok.value) && !Object.prototype.hasOwnProperty.call(BUILTINS, tok.value)) {
+                deps.add(tok.value);
+              }
+            }
+          } catch (_) {
+            // Syntax errors are caught on call or body parse
+          }
+          if (assignMatch) {
+            locals.add(assignMatch[1]);
+          }
+        }
+        return deps;
+      }
+
+      function formatValue(val, symbolName) {
+        if (typeof val !== 'number' || !Number.isFinite(val)) return 'Fehler';
+        if (symbolName === 'monate') {
+          const rounded = Number.isInteger(val) ? String(val) : val.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+          return `${rounded} Monate`;
+        }
+        if (symbolName === 'kurs_nzd') {
+          return `${val.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €`;
+        }
+        const currencyNames = ['flug', 'flug_flex', 'mwst', 'netto', 'brutto', 'preis', 'kosten', 'betrag', 'puffer', 'versicherung', 'lebenshaltung', 'kindergeld', 'bafoeg_zuschuss'];
+        if (symbolName && currencyNames.includes(symbolName)) {
+          return `${val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+        }
+        if (Number.isInteger(val)) {
+          return val.toLocaleString('de-DE');
+        }
+        return val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+      }
+
+      function evaluateRow(expr, env) {
         const clean = expr.trim();
-        if (!clean) return '—';
-        if (clean === 'flug * 1,19' || clean === 'flug_flex = flug * 1,19') {
-          const flugRow = rows.find((r) => r.expr.trim().startsWith('flug ='));
-          if (flugRow) {
-            const rhs = flugRow.expr.split('=')[1] || '';
-            const num = parseGermanNumber(rhs);
-            if (num !== null) return formatEuro(num * 1.19);
+        if (!clean || clean.startsWith('//')) {
+          return {
+            definedSymbol: null,
+            deps: new Set(),
+            rawValue: null,
+            kind: 'empty',
+            resultText: ''
+          };
+        }
+
+        // Function definition: name(p1, p2) = { ... } OR name(p1, p2) = expr
+        const fnMatch = clean.match(/^([a-zA-ZäöüÄÖÜß_][\wäöüÄÖÜß]*)\s*\(([^)]*)\)\s*=\s*([\s\S]+)$/);
+        if (fnMatch) {
+          const name = fnMatch[1];
+          const rawParams = fnMatch[2].trim();
+          const params = rawParams
+            ? rawParams.split(',').map((p) => p.trim()).filter(Boolean)
+            : [];
+          for (const p of params) {
+            if (!/^[a-zA-ZäöüÄÖÜß_][\wäöüÄÖÜß]*$/.test(p)) {
+              return {
+                definedSymbol: name,
+                deps: new Set(),
+                rawValue: null,
+                kind: 'error',
+                resultText: `→ Ungültiger Parameter "${p}"`
+              };
+            }
           }
-          return '2.202,10 €';
-        }
-        const assign = clean.match(/^([a-zA-ZäöüÄÖÜ_][\wäöüÄÖÜ]*)\s*=\s*(.+)$/);
-        if (assign) {
-          const name = assign[1];
-          const rhs = assign[2].trim();
-          const num = parseGermanNumber(rhs);
-          if (num !== null) {
-            if (name === 'monate') return `${num} Monate`;
-            if (name === 'kurs_nzd') return `${num.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €`;
-            return formatEuro(num);
+
+          let body = fnMatch[3].trim();
+          if (body.startsWith('{')) {
+            if (!body.endsWith('}')) {
+              return {
+                definedSymbol: name,
+                deps: new Set(),
+                rawValue: null,
+                kind: 'error',
+                resultText: '→ Fehlende "}"'
+              };
+            }
+            body = body.slice(1, -1).trim();
           }
-          return `→ ${rhs}`;
+
+          if (!body) {
+            return {
+              definedSymbol: name,
+              deps: new Set(),
+              rawValue: null,
+              kind: 'error',
+              resultText: '→ Leerer Funktionskörper'
+            };
+          }
+
+          const deps = analyzeFunctionDeps(params, body);
+          const fnObj = {
+            __fn: true,
+            name,
+            params,
+            body,
+            sig: `${name}(${params.join(', ')})=${body}`
+          };
+
+          return {
+            definedSymbol: name,
+            deps,
+            rawValue: fnObj,
+            kind: 'func',
+            resultText: `→ fn(${params.join(', ')})`
+          };
         }
-        const rawNum = parseGermanNumber(clean);
-        if (rawNum !== null) {
-          return rawNum.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+        // Variable assignment: name = expr (or block { ... })
+        const assignMatch = clean.match(/^([a-zA-ZäöüÄÖÜß_][\wäöüÄÖÜß]*)\s*=\s*([\s\S]+)$/);
+        if (assignMatch) {
+          const name = assignMatch[1];
+          let rhs = assignMatch[2].trim();
+          const deps = new Set();
+          try {
+            let val;
+            if (rhs.startsWith('{')) {
+              if (!rhs.endsWith('}')) throw new Error('Fehlende "}"');
+              val = executeBlock(rhs.slice(1, -1), new Map(env), deps, new Set());
+            } else {
+              val = evaluateExpressionTokens(tokenize(rhs), env, deps, null);
+            }
+            return {
+              definedSymbol: name,
+              deps,
+              rawValue: val,
+              kind: 'number',
+              resultText: `→ ${formatValue(val, name)}`
+            };
+          } catch (err) {
+            return {
+              definedSymbol: name,
+              deps,
+              rawValue: null,
+              kind: 'error',
+              resultText: `→ ${err.message}`
+            };
+          }
         }
-        return '≈ Live-Wert';
+
+        // Bare expression
+        const deps = new Set();
+        try {
+          let val;
+          if (clean.startsWith('{')) {
+            if (!clean.endsWith('}')) throw new Error('Fehlende "}"');
+            val = executeBlock(clean.slice(1, -1), new Map(env), deps, new Set());
+          } else {
+            val = evaluateExpressionTokens(tokenize(clean), env, deps, null);
+          }
+          return {
+            definedSymbol: null,
+            deps,
+            rawValue: val,
+            kind: 'number',
+            resultText: `→ ${formatValue(val, null)}`
+          };
+        } catch (err) {
+          return {
+            definedSymbol: null,
+            deps,
+            rawValue: null,
+            kind: 'error',
+            resultText: `→ ${err.message}`
+          };
+        }
+      }
+
+      function valuesEqual(a, b) {
+        if (a === b) return true;
+        if (a && b && a.__fn && b.__fn) return a.sig === b.sig;
+        if (typeof a === 'number' && typeof b === 'number') {
+          if (Number.isNaN(a) && Number.isNaN(b)) return true;
+          return Math.abs(a - b) < 1e-12;
+        }
+        return false;
+      }
+
+      /* =========================================================
+       * Reactive Top-Down Propagation Engine
+       * - Rows 0 .. startIdx - 1 are NEVER recalculated.
+       * - Evaluates row startIdx, then propagates downward ONLY
+       *   to rows depending on changed symbols.
+       * - Stops propagating when changedSymbols becomes empty.
+       * ========================================================= */
+      function propagateFrom(startIdx, forceFullBelow = false) {
+        if (rows.length === 0) return;
+
+        const baseEnv = startIdx > 0 ? rows[startIdx - 1].envSnapshot : new Map();
+        const env = new Map(baseEnv);
+        const changedSymbols = new Set();
+
+        for (let i = startIdx; i < rows.length; i++) {
+          const row = rows[i];
+
+          // Check if we can short-circuit completely
+          if (!forceFullBelow && i > startIdx && changedSymbols.size === 0) {
+            break;
+          }
+
+          const shouldEval =
+            forceFullBelow ||
+            i === startIdx ||
+            Array.from(row.deps).some((dep) => changedSymbols.has(dep));
+
+          if (!shouldEval) {
+            // Row i does not depend on any changed symbol -> do NOT recalculate row i.
+            // Preserve row i's own defined symbol in env; if it shadows a changed symbol
+            // with an unchanged value, stop propagating that symbol further down.
+            if (row.definedSymbol) {
+              changedSymbols.delete(row.definedSymbol);
+              if (row.rawValue !== null) {
+                env.set(row.definedSymbol, row.rawValue);
+              } else {
+                env.delete(row.definedSymbol);
+              }
+            }
+            row.envSnapshot = new Map(env);
+            continue;
+          }
+
+          const prevSymbol = row.definedSymbol;
+          const prevValue = row.rawValue;
+          const prevResultText = row.resultText;
+
+          const res = evaluateRow(row.expr, env);
+          row.definedSymbol = res.definedSymbol;
+          row.deps = res.deps;
+          row.rawValue = res.rawValue;
+          row.kind = res.kind;
+          row.resultText = res.resultText;
+
+          // Update symbol table and track changed symbols
+          if (prevSymbol && prevSymbol !== res.definedSymbol) {
+            changedSymbols.add(prevSymbol);
+            // Revert prevSymbol in env to whatever was inherited from above
+            if (i > 0 && rows[i - 1].envSnapshot.has(prevSymbol)) {
+              env.set(prevSymbol, rows[i - 1].envSnapshot.get(prevSymbol));
+            } else {
+              env.delete(prevSymbol);
+            }
+          }
+
+          if (res.definedSymbol) {
+            const sym = res.definedSymbol;
+            if (res.rawValue !== null) {
+              env.set(sym, res.rawValue);
+            } else {
+              env.delete(sym);
+            }
+
+            const sameSym = prevSymbol === sym;
+            // If a function's outer dependency changed (i > startIdx), callers must re-evaluate
+            const outerDepChanged = res.kind === 'func' && i > startIdx;
+            const sameVal = !outerDepChanged && sameSym && valuesEqual(prevValue, res.rawValue);
+            if (!sameVal) {
+              changedSymbols.add(sym);
+            } else {
+              // Value for this symbol did not change; remove from changedSymbols
+              changedSymbols.delete(sym);
+            }
+          }
+
+          row.envSnapshot = new Map(env);
+
+          if (prevResultText !== row.resultText || i === startIdx) {
+            updateRowResultDOM(i);
+          }
+        }
+
+        updateStatus();
+        syncNoteReferences();
+      }
+
+      function updateRowResultDOM(idx) {
+        const resEl = vsScroll.querySelector(`.vs-row[data-idx="${idx}"] .vs-result`);
+        if (!resEl) return;
+        const row = rows[idx];
+        resEl.textContent = row.resultText;
+        resEl.className = 'vs-result' +
+          (row.kind === 'empty' ? ' is-empty' : '') +
+          (row.kind === 'func' ? ' is-func' : '') +
+          (row.kind === 'error' ? ' is-error' : '');
+      }
+
+      function updateStatus() {
+        const total = rows.length;
+        const lastEnv = total > 0 ? rows[total - 1].envSnapshot : new Map();
+        const varCount = lastEnv.size;
+        const rowLabel = total === 1 ? 'Zeile' : 'Zeilen';
+        const varLabel = varCount === 1 ? 'Variable' : 'Variablen';
+        vsStatus.textContent = `${total} ${rowLabel} · ${varCount} ${varLabel}`;
       }
 
       function flashCell(el, newText) {
@@ -809,40 +1093,39 @@
         el.classList.remove('is-updated');
         void el.offsetWidth;
         el.classList.add('is-updated');
-        setTimeout(() => el.classList.remove('is-updated'), 900);
+        setTimeout(() => el.classList.remove('is-updated'), 850);
       }
 
       function syncNoteReferences() {
-        const flugRow = rows.find((r) => /^\s*flug\s*=/.test(r.expr));
-        const kursRow = rows.find((r) => /^\s*kurs_nzd\s*=/.test(r.expr));
-        const monateRow = rows.find((r) => /^\s*monate\s*=/.test(r.expr));
+        const finalEnv = rows.length > 0 ? rows[rows.length - 1].envSnapshot : new Map();
 
-        if (flugRow) {
-          flashCell(cellFlug, flugRow.result === '—' ? '—' : flugRow.result);
-          const num = parseGermanNumber((flugRow.expr.split('=')[1] || ''));
-          if (num !== null) {
-            flashCell(cellFlugFlex, formatEuro(num * 1.19));
-          }
+        const flugVal = finalEnv.get('flug');
+        flashCell(cellFlug, typeof flugVal === 'number' ? formatValue(flugVal, 'flug') : '—');
+
+        const flexVal = finalEnv.get('flug_flex');
+        if (typeof flexVal === 'number') {
+          flashCell(cellFlugFlex, formatValue(flexVal, 'flug_flex'));
+        } else if (typeof flugVal === 'number') {
+          flashCell(cellFlugFlex, formatValue(flugVal * 1.19, 'flug_flex'));
+        } else {
+          flashCell(cellFlugFlex, '—');
         }
-        if (kursRow) {
-          flashCell(cellKurs, kursRow.result === '—' ? '—' : kursRow.result);
-        }
-        if (monateRow) {
-          flashCell(cellMonate, monateRow.result === '—' ? '—' : monateRow.result);
-        }
+
+        const kursVal = finalEnv.get('kurs_nzd');
+        flashCell(cellKurs, typeof kursVal === 'number' ? formatValue(kursVal, 'kurs_nzd') : '—');
+
+        const monateVal = finalEnv.get('monate');
+        flashCell(cellMonate, typeof monateVal === 'number' ? formatValue(monateVal, 'monate') : '—');
       }
 
       function setSheetOpen(open) {
         stage.classList.toggle('sheet-open', open);
-        btnToggleSheet.textContent = open ? 'Var-Sheet schließen' : 'Var-Sheet öffnen';
+        btnToggleSheet.textContent = open ? 'VarSheet schließen' : 'VarSheet öffnen';
+        btnToggleSheet.setAttribute('aria-expanded', String(open));
         if (open) {
-          noteArea.classList.remove('is-focused-note');
-          setTimeout(() => focusInput(activeIndex, 'end'), 190);
+          setTimeout(() => focusInput(activeIndex, 'end'), 180);
         } else {
-          focusTarget = 'Notiz';
-          noteArea.classList.add('is-focused-note');
           noteArea.focus();
-          updateHud();
         }
       }
 
@@ -854,29 +1137,39 @@
         if (activeEl) {
           activeEl.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
         }
-        updateHud();
+      }
+
+      function autoResize(textarea) {
+        textarea.style.height = 'auto';
+        textarea.style.height = Math.max(21, textarea.scrollHeight) + 'px';
       }
 
       function focusInput(idx, caret) {
+        if (rows.length === 0) return;
         const clamped = Math.max(0, Math.min(idx, rows.length - 1));
-        focusTarget = 'Eingabe';
-        noteArea.classList.remove('is-focused-note');
         updateActiveRow(clamped);
-        const input = vsScroll.querySelector(`.vs-row[data-idx="${clamped}"] .vs-expr`);
-        if (!input) return;
-        input.focus();
-        const len = input.value.length;
-        if (caret === 'start') input.setSelectionRange(0, 0);
-        else if (caret === 'end') input.setSelectionRange(len, len);
+        const ta = vsScroll.querySelector(`.vs-row[data-idx="${clamped}"] .vs-expr`);
+        if (!ta) return;
+        ta.focus();
+        const len = ta.value.length;
+        if (caret === 'start') ta.setSelectionRange(0, 0);
+        else if (caret === 'end') ta.setSelectionRange(len, len);
       }
 
-      function focusImpact(idx) {
-        const clamped = Math.max(0, Math.min(idx, rows.length - 1));
-        focusTarget = 'Ergebnis';
-        noteArea.classList.remove('is-focused-note');
-        updateActiveRow(clamped);
-        const impact = vsScroll.querySelector(`.vs-row[data-idx="${clamped}"] .vs-impact`);
-        if (impact) impact.focus();
+      function isCursorOnFirstLine(ta) {
+        if (ta.selectionStart !== ta.selectionEnd) return false;
+        return ta.value.slice(0, ta.selectionStart).indexOf('\n') === -1;
+      }
+
+      function isCursorOnLastLine(ta) {
+        if (ta.selectionStart !== ta.selectionEnd) return false;
+        return ta.value.slice(ta.selectionEnd).indexOf('\n') === -1;
+      }
+
+      function clearDropIndicators() {
+        vsScroll.querySelectorAll('.vs-row').forEach((el) => {
+          el.classList.remove('drop-before', 'drop-after', 'is-dragging');
+        });
       }
 
       function render(focusIdx, caret) {
@@ -887,201 +1180,205 @@
           rowEl.className = 'vs-row' + (idx === activeIndex ? ' is-active' : '');
           rowEl.dataset.idx = String(idx);
           rowEl.setAttribute('role', 'listitem');
+          rowEl.draggable = false;
+
+          const gutter = document.createElement('div');
+          gutter.className = 'vs-gutter';
+          gutter.title = 'Ziehen zum Sortieren';
+
+          const handle = document.createElement('span');
+          handle.className = 'vs-handle';
+          handle.textContent = '⋮⋮';
 
           const numEl = document.createElement('span');
           numEl.className = 'vs-row-num';
           numEl.textContent = String(idx + 1);
 
-          const input = document.createElement('input');
-          input.type = 'text';
-          input.className = 'vs-expr';
-          input.value = row.expr;
-          input.placeholder = idx === 0 && rows.length === 1
-            ? 'Erste Zeile oben (z. B. x = 1.250) …'
-            : 'Berechnung eingeben, Enter für nächste Zeile …';
+          gutter.appendChild(handle);
+          gutter.appendChild(numEl);
 
-          const isLinked = /^\s*(flug|flug_flex|kurs_nzd|monate)\s*=/.test(row.expr);
-          const impact = document.createElement('button');
-          impact.type = 'button';
-          impact.className = 'vs-impact' + (row.result !== '—' ? ' has-value' : '') + (isLinked ? ' is-linked' : '');
-          impact.textContent = row.result;
+          // Enable row dragging only when initiated from the gutter/handle
+          gutter.addEventListener('mousedown', () => {
+            rowEl.draggable = true;
+          });
+          gutter.addEventListener('mouseup', () => {
+            rowEl.draggable = false;
+          });
 
-          input.addEventListener('focus', () => {
-            focusTarget = 'Eingabe';
-            noteArea.classList.remove('is-focused-note');
+          rowEl.addEventListener('dragstart', (e) => {
+            if (!rowEl.draggable) {
+              e.preventDefault();
+              return;
+            }
+            dragSrcIdx = idx;
+            rowEl.classList.add('is-dragging');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', String(idx));
+          });
+
+          rowEl.addEventListener('dragover', (e) => {
+            if (dragSrcIdx === null) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = rowEl.getBoundingClientRect();
+            const isTopHalf = (e.clientY - rect.top) < rect.height / 2;
+            dropTargetIdx = idx;
+            dropPosition = isTopHalf ? 'before' : 'after';
+
+            vsScroll.querySelectorAll('.vs-row').forEach((el) => {
+              el.classList.remove('drop-before', 'drop-after');
+            });
+            if (idx !== dragSrcIdx) {
+              rowEl.classList.add(isTopHalf ? 'drop-before' : 'drop-after');
+            }
+          });
+
+          rowEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (dragSrcIdx === null || dropTargetIdx === null) return;
+
+            let insertIdx = dropPosition === 'before' ? dropTargetIdx : dropTargetIdx + 1;
+            if (dragSrcIdx < insertIdx) insertIdx--;
+
+            if (insertIdx !== dragSrcIdx && insertIdx >= 0 && insertIdx < rows.length) {
+              const [moved] = rows.splice(dragSrcIdx, 1);
+              rows.splice(insertIdx, 0, moved);
+              const minAffected = Math.min(dragSrcIdx, insertIdx);
+              activeIndex = insertIdx;
+              dragSrcIdx = null;
+              dropTargetIdx = null;
+              clearDropIndicators();
+              render(insertIdx, 'end');
+              propagateFrom(minAffected, true);
+              return;
+            }
+            dragSrcIdx = null;
+            dropTargetIdx = null;
+            clearDropIndicators();
+          });
+
+          rowEl.addEventListener('dragend', () => {
+            rowEl.draggable = false;
+            dragSrcIdx = null;
+            dropTargetIdx = null;
+            clearDropIndicators();
+          });
+
+          const ta = document.createElement('textarea');
+          ta.rows = 1;
+          ta.className = 'vs-expr';
+          ta.spellcheck = false;
+          ta.value = row.expr;
+          ta.placeholder = idx === 0 && rows.length === 1
+            ? 'Ausdruck eingeben (z. B. x = 1.250) …'
+            : 'Berechnung oder fn(a, b) = { … }';
+
+          const resEl = document.createElement('span');
+          resEl.className = 'vs-result' +
+            (row.kind === 'empty' ? ' is-empty' : '') +
+            (row.kind === 'func' ? ' is-func' : '') +
+            (row.kind === 'error' ? ' is-error' : '');
+          resEl.textContent = row.resultText;
+
+          ta.addEventListener('focus', () => {
             updateActiveRow(idx);
           });
 
-          input.addEventListener('input', () => {
-            row.expr = input.value;
-            row.result = evaluatePreview(row.expr);
-            impact.textContent = row.result;
-            impact.classList.toggle('has-value', row.result !== '—');
-            impact.classList.toggle('is-linked', /^\s*(flug|flug_flex|kurs_nzd|monate)\s*=/.test(row.expr));
-            syncNoteReferences();
+          ta.addEventListener('input', () => {
+            row.expr = ta.value;
+            autoResize(ta);
+            propagateFrom(idx, false);
           });
 
-          input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+          ta.addEventListener('keydown', (e) => {
+            if (e.isComposing) return;
+
+            // Enter without Shift -> create new calculation row below
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              rows.splice(idx + 1, 0, { expr: '', result: '—' });
+              rows.splice(idx + 1, 0, createEmptyRow(''));
               render(idx + 1, 'start');
+              propagateFrom(idx + 1, false);
               return;
             }
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              if (idx < rows.length - 1) focusInput(idx + 1, 'end');
+
+            // Shift+Enter -> browser inserts newline natively; resize on next tick
+            if (e.key === 'Enter' && e.shiftKey) {
+              requestAnimationFrame(() => autoResize(ta));
               return;
             }
-            if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              if (idx > 0) focusInput(idx - 1, 'end');
-              return;
-            }
-            if (e.key === 'ArrowRight') {
-              if (input.selectionStart === input.value.length && input.selectionEnd === input.value.length) {
+
+            if (e.key === 'ArrowUp' && isCursorOnFirstLine(ta)) {
+              if (idx > 0) {
                 e.preventDefault();
-                focusImpact(idx);
+                focusInput(idx - 1, 'end');
               }
               return;
             }
-            if (e.key === 'ArrowLeft') {
-              // At start of input, ArrowLeft can return focus to the note area
-              if (input.selectionStart === 0 && input.selectionEnd === 0) {
+
+            if (e.key === 'ArrowDown' && isCursorOnLastLine(ta)) {
+              if (idx < rows.length - 1) {
                 e.preventDefault();
-                focusTarget = 'Notiz';
-                noteArea.classList.add('is-focused-note');
-                noteArea.focus();
-                updateHud();
+                focusInput(idx + 1, 'start');
               }
               return;
             }
-            if (e.key === 'Tab' && !e.shiftKey) {
+
+            if (e.key === 'Backspace' && ta.value === '' && rows.length > 1) {
               e.preventDefault();
-              focusImpact(idx);
-              return;
-            }
-            if ((e.key === 'Backspace' || e.key === 'Delete') && input.value === '' && rows.length > 1) {
-              e.preventDefault();
+              const prevSymbol = rows[idx].definedSymbol;
               rows.splice(idx, 1);
-              render(idx > 0 ? idx - 1 : 0, 'end');
+              const nextFocus = idx > 0 ? idx - 1 : 0;
+              render(nextFocus, idx > 0 ? 'end' : 'start');
+              // Re-propagate from deleted index (or full if deleted row defined a symbol)
+              if (nextFocus < rows.length) {
+                propagateFrom(Math.min(idx, rows.length - 1), Boolean(prevSymbol));
+              } else {
+                updateStatus();
+                syncNoteReferences();
+              }
               return;
             }
+
             if (e.key === 'Escape') {
               e.preventDefault();
-              focusTarget = 'Notiz';
-              noteArea.classList.add('is-focused-note');
+              ta.blur();
               noteArea.focus();
-              updateHud();
             }
           });
 
-          impact.addEventListener('focus', () => {
-            focusTarget = 'Ergebnis';
-            noteArea.classList.remove('is-focused-note');
-            updateActiveRow(idx);
-          });
-
-          impact.addEventListener('keydown', (e) => {
-            if (e.key === 'ArrowLeft' || (e.key === 'Tab' && e.shiftKey)) {
-              e.preventDefault();
-              focusInput(idx, 'end');
-              return;
-            }
-            if (e.key === 'ArrowDown') {
-              e.preventDefault();
-              if (idx < rows.length - 1) focusImpact(idx + 1);
-              return;
-            }
-            if (e.key === 'ArrowUp') {
-              e.preventDefault();
-              if (idx > 0) focusImpact(idx - 1);
-              return;
-            }
-            if (e.key === 'Enter') {
-              e.preventDefault();
-              rows.splice(idx + 1, 0, { expr: '', result: '—' });
-              render(idx + 1, 'start');
-              return;
-            }
-            if (e.key === 'Escape') {
-              e.preventDefault();
-              focusTarget = 'Notiz';
-              noteArea.classList.add('is-focused-note');
-              noteArea.focus();
-              updateHud();
-            }
-          });
-
-          rowEl.appendChild(numEl);
-          rowEl.appendChild(input);
-          rowEl.appendChild(impact);
+          rowEl.appendChild(gutter);
+          rowEl.appendChild(ta);
+          rowEl.appendChild(resEl);
           vsScroll.appendChild(rowEl);
+          autoResize(ta);
         });
 
-        updateHud();
+        updateStatus();
         if (typeof focusIdx === 'number') {
           focusInput(focusIdx, caret || 'end');
         }
       }
 
-      // Allow pressing ArrowRight from Note area to jump straight into Var-Sheet
-      noteArea.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowRight') {
-          e.preventDefault();
-          if (!stage.classList.contains('sheet-open')) setSheetOpen(true);
-          else focusInput(activeIndex, 'start');
-        }
-      });
-
       btnToggleSheet.addEventListener('click', () => {
         setSheetOpen(!stage.classList.contains('sheet-open'));
       });
 
-      btnEmptyStart.addEventListener('click', () => {
-        rows = [{ expr: '', result: '—' }];
-        if (!stage.classList.contains('sheet-open')) setSheetOpen(true);
-        render(0, 'start');
-      });
-
-      btnResetDemo.addEventListener('click', () => {
-        rows = DEMO_ROWS();
-        if (!stage.classList.contains('sheet-open')) setSheetOpen(true);
-        render(0, 'end');
-        syncNoteReferences();
-      });
-
-      btnAddBurst.addEventListener('click', () => {
-        const samples = [
-          { expr: 'versicherung = 50 * monate', result: '200,00 €' },
-          { expr: 'lebenshaltung = 500 * monate', result: '2.000,00 €' },
-          { expr: 'puffer = 450', result: '450,00 €' },
-          { expr: 'bafoeg_zuschuss = 7810,07', result: '7.810,07 €' },
-          { expr: 'kindergeld = 255 * monate', result: '1.020,00 €' },
-          { expr: '', result: '—' }
-        ];
-        rows.push(...samples);
-        if (!stage.classList.contains('sheet-open')) setSheetOpen(true);
-        render(rows.length - 1, 'start');
-      });
-
-      // Clicking a reference pill in the note table jumps into the matching Var-Sheet row
       document.querySelectorAll('[data-ref]').forEach((btn) => {
         btn.addEventListener('click', () => {
           const refKey = btn.getAttribute('data-ref');
           if (!stage.classList.contains('sheet-open')) {
             setSheetOpen(true);
           }
-          const idx = rows.findIndex((r) => r.expr.trim().startsWith(refKey));
-          if (idx >= 0) {
-            focusInput(idx, 'end');
-          } else {
-            focusInput(activeIndex, 'end');
-          }
+          const idx = rows.findIndex((r) => r.definedSymbol === refKey || r.expr.trim().startsWith(refKey));
+          focusInput(idx >= 0 ? idx : activeIndex, 'end');
         });
       });
 
-      render(0, 'end');
+      // Initial render and full top-down evaluation
+      render();
+      propagateFrom(0, true);
+      focusInput(0, 'end');
     })();
   </script>
 </body>

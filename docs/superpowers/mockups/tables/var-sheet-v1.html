@@ -6,7 +6,7 @@
   <title>Tide · Var-Sheet Mockup v1 (Workspace + Neuseeland-Finanzplan)</title>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
   <style>
     :root {
       --t2-bg: #ffffff;
@@ -28,7 +28,7 @@
       --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.05);
       --shadow-card: 0 8px 24px rgba(15, 23, 42, 0.06);
       --font-sans: 'Inter', 'DM Sans', system-ui, -apple-system, sans-serif;
-      --font-mono: 'DM Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+      --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
       --ease-slide: cubic-bezier(0.22, 1, 0.36, 1);
     }
 
@@ -388,10 +388,10 @@
       pointer-events: none;
     }
 
-    /* Var-Sheet Header */
+    /* Var-Sheet Header (Minimalist) */
     .vs-header {
-      padding: 14px 16px 12px;
-      border-bottom: 1px solid #e3e5ea;
+      padding: 15px 16px 11px;
+      border-bottom: 1px solid #e6e7ec;
       background: #f4f5f8;
       display: flex;
       align-items: center;
@@ -400,159 +400,150 @@
       flex: none;
     }
 
-    .vs-title-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      min-width: 0;
-    }
-
-    .vs-icon {
-      width: 26px;
-      height: 26px;
-      border-radius: 7px;
-      background: #ffffff;
-      border: 1px solid #e3e5ea;
-      color: var(--var-accent);
-      display: grid;
-      place-items: center;
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 600;
-      flex: none;
-      box-shadow: var(--shadow-sm);
-    }
-
     .vs-title {
-      font-size: 13.5px;
-      font-weight: 700;
-      color: var(--t2-ink);
-      margin: 0;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .vs-badge {
-      display: inline-flex;
-      align-items: center;
-      gap: 5px;
-      font-size: 11px;
+      font-size: 14px;
       font-weight: 600;
-      color: var(--var-accent);
-      background: var(--var-badge-bg);
-      border: 1px solid var(--var-accent-border);
-      padding: 2px 8px;
-      border-radius: 999px;
-      white-space: nowrap;
-      flex: none;
+      letter-spacing: -0.01em;
+      color: #27272a;
+      margin: 0;
+      line-height: 1.2;
     }
 
     .vs-close {
-      width: 28px;
-      height: 28px;
-      border-radius: 7px;
-      border: 1px solid transparent;
+      width: 24px;
+      height: 24px;
+      border-radius: 6px;
+      border: none;
       background: transparent;
-      color: var(--t2-ink-2);
+      color: #71717a;
       cursor: pointer;
       display: grid;
       place-items: center;
-      font-size: 15px;
+      font-size: 13px;
+      line-height: 1;
       transition: background 0.15s ease, color 0.15s ease;
     }
 
     .vs-close:hover {
-      background: #e9ebf0;
-      color: var(--t2-ink);
+      background: #e4e4e7;
+      color: #27272a;
     }
 
-    /* Column Subheader */
-    .vs-colbar {
-      display: grid;
-      grid-template-columns: 36px 1fr 142px;
-      gap: 8px;
-      padding: 7px 16px;
-      border-bottom: 1px solid #e3e5ea;
-      font-family: var(--font-mono);
-      font-size: 10px;
-      letter-spacing: 0.07em;
-      text-transform: uppercase;
-      color: var(--t2-ink-3);
-      background: #eff1f5;
-      flex: none;
-    }
-
-    .vs-colbar span:last-child {
-      text-align: right;
-    }
-
-    /* Scrollable Jupyter Rows Area (lines start at top and migrate downward) */
+    /* Scrollable Rows Area */
     .vs-rows-scroll {
       flex: 1;
       min-height: 0;
       overflow-y: auto;
-      padding: 12px 12px 24px;
+      padding: 10px 10px 24px;
       scroll-padding-bottom: 24px;
-      scroll-padding-top: 12px;
+      scroll-padding-top: 10px;
       display: flex;
       flex-direction: column;
-      gap: 6px;
+      gap: 2px;
     }
 
-    /* Individual Jupyter-like Row */
+    /* Individual Calculation Row */
     .vs-row {
+      position: relative;
       display: grid;
       grid-template-columns: 30px 1fr auto;
-      align-items: center;
+      align-items: start;
       gap: 8px;
-      padding: 6px 8px;
-      border-radius: 10px;
+      padding: 6px 8px 6px 4px;
+      border-radius: 7px;
       border: 1px solid transparent;
-      background: rgba(255, 255, 255, 0.52);
+      background: transparent;
       transition:
-        background 0.14s ease,
-        border-color 0.14s ease,
-        box-shadow 0.14s ease;
+        background 0.12s ease,
+        border-color 0.12s ease,
+        opacity 0.12s ease;
     }
 
     .vs-row:hover {
-      background: rgba(255, 255, 255, 0.85);
-      border-color: #e3e5ea;
+      background: rgba(255, 255, 255, 0.55);
     }
 
     .vs-row.is-active {
       background: #ffffff;
-      border-color: #c4b5fd;
-      box-shadow: 0 2px 10px rgba(109, 40, 217, 0.08), 0 0 0 2px rgba(124, 58, 237, 0.12);
+      border-color: #e4e4e7;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
     }
 
     .vs-row.is-flash {
-      animation: rowFlash 1.2s ease-out;
+      animation: rowFlash 1.1s ease-out;
     }
 
     @keyframes rowFlash {
-      0% { box-shadow: 0 0 0 3px rgba(124, 58, 237, 0.35); background: #faf5ff; }
-      100% { box-shadow: 0 2px 10px rgba(109, 40, 217, 0.08); background: #ffffff; }
+      0% { box-shadow: 0 0 0 2px rgba(63, 63, 70, 0.28); background: #fafafa; }
+      100% { box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04); background: #ffffff; }
     }
 
-    .vs-ln {
+    .vs-row.is-dragging {
+      opacity: 0.4;
+    }
+
+    .vs-row.drop-before::before,
+    .vs-row.drop-after::after {
+      content: '';
+      position: absolute;
+      left: 8px;
+      right: 8px;
+      height: 2px;
+      background: #27272a;
+      border-radius: 1px;
+      pointer-events: none;
+      z-index: 5;
+    }
+
+    .vs-row.drop-before::before {
+      top: -2px;
+    }
+
+    .vs-row.drop-after::after {
+      bottom: -2px;
+    }
+
+    .vs-handle {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 3px;
+      padding-top: 3px;
+      padding-right: 2px;
       font-family: var(--font-mono);
       font-size: 11px;
-      color: var(--t2-ink-3);
-      text-align: right;
-      padding-right: 4px;
+      line-height: 1.5;
+      color: #a1a1aa;
+      font-variant-numeric: tabular-nums;
+      cursor: grab;
       user-select: none;
     }
 
-    .vs-row.is-active .vs-ln {
-      color: var(--var-accent);
-      font-weight: 600;
+    .vs-handle:active {
+      cursor: grabbing;
+    }
+
+    .vs-grip {
+      font-size: 10px;
+      letter-spacing: -1px;
+      color: #a1a1aa;
+      opacity: 0;
+      transition: opacity 0.12s ease;
+    }
+
+    .vs-row:hover .vs-grip,
+    .vs-handle:hover .vs-grip {
+      opacity: 0.85;
+    }
+
+    .vs-row.is-active .vs-handle {
+      color: #3f3f46;
+      font-weight: 500;
     }
 
     .vs-expr-wrap {
       display: flex;
-      align-items: center;
+      align-items: flex-start;
       min-width: 0;
     }
 
@@ -561,108 +552,80 @@
       border: none;
       outline: none;
       background: transparent;
+      resize: none;
+      overflow: hidden;
       font-family: var(--font-mono);
-      font-size: 13px;
-      line-height: 1.45;
-      color: var(--t2-ink);
-      padding: 4px 4px;
-      border-radius: 5px;
+      font-size: 12.5px;
+      line-height: 1.5;
+      color: #18181b;
+      padding: 2px 2px;
+      margin: 0;
+      display: block;
+      tab-size: 2;
     }
 
     .vs-input::placeholder {
-      color: #b0b4be;
+      color: #b4b4bc;
     }
 
     .vs-result {
+      background: transparent;
+      border: none;
+      padding: 3px 2px 2px 10px;
+      margin: 0;
       font-family: var(--font-mono);
       font-size: 12px;
+      line-height: 1.5;
       font-weight: 500;
       font-variant-numeric: tabular-nums;
-      color: var(--t2-ink-2);
-      background: #f0f1f5;
-      border: 1px solid #e3e5ea;
-      padding: 4px 9px;
-      border-radius: 7px;
+      color: #a1a1aa;
+      text-align: right;
       white-space: nowrap;
-      max-width: 152px;
+      max-width: 175px;
       overflow: hidden;
       text-overflow: ellipsis;
       cursor: pointer;
       outline: none;
-      transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+      transition: color 0.12s ease;
     }
 
     .vs-result.has-val {
-      color: #1f2430;
-      background: #f7f8fa;
+      color: #52525b;
     }
 
     .vs-result.is-linked {
-      color: var(--var-accent);
-      background: var(--var-accent-soft);
-      border-color: var(--var-accent-border);
+      color: #3f3f46;
+    }
+
+    .vs-result.is-fn {
+      color: #a1a1aa;
+      font-weight: 400;
+    }
+
+    .vs-result.is-err {
+      color: #dc2626;
+      font-weight: 400;
     }
 
     .vs-result:focus {
-      border-color: var(--var-accent);
-      box-shadow: 0 0 0 2px rgba(109, 40, 217, 0.18);
-      background: #ffffff;
+      color: #18181b;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: #a1a1aa;
     }
 
-    .vs-add-hint {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      margin-top: 2px;
-      border-radius: 9px;
-      border: 1px dashed #d3d7e0;
-      color: var(--t2-ink-3);
-      font-size: 12px;
-      cursor: pointer;
-      background: transparent;
-      font-family: inherit;
-      text-align: left;
-      transition: border-color 0.15s ease, color 0.15s ease, background 0.15s ease;
-    }
-
-    .vs-add-hint:hover {
-      border-color: #b8becb;
-      color: var(--t2-ink-2);
-      background: rgba(255, 255, 255, 0.6);
-    }
-
-    /* Bottom Keyboard Shortcut Bar */
+    /* Minimalist Footer */
     .vs-footer {
       flex: none;
-      padding: 10px 14px;
-      border-top: 1px solid #e3e5ea;
-      background: #eff1f5;
+      padding: 9px 16px;
+      border-top: 1px solid #e6e7ec;
+      background: #f4f5f8;
       display: flex;
-      flex-wrap: wrap;
       align-items: center;
       justify-content: space-between;
-      gap: 8px;
-      font-size: 11px;
-      color: var(--t2-ink-2);
-    }
-
-    .kbd-row {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 10px;
-    }
-
-    kbd {
       font-family: var(--font-mono);
-      font-size: 10.5px;
-      padding: 1px 5px;
-      border-radius: 4px;
-      background: #ffffff;
-      border: 1px solid #d7dae2;
-      box-shadow: 0 1px 0 #d7dae2;
-      color: var(--t2-ink);
+      font-size: 11px;
+      color: #8b8b94;
     }
 
     @media (max-width: 960px) {
@@ -713,16 +676,16 @@
           <p class="note-kicker">Finanzplan &amp; Kalkulation</p>
           <h1 class="note-title">Kosten- &amp; Finanzierungsübersicht – Auslandstrimester Neuseeland</h1>
           <div class="note-meta">
-            <span>Zeitraum: Trimester 1 (ab Anfang Februar, 125 Tage / ca. 4 Monate)</span>
+            <span>Zeitraum: Trimester 1 (ab Anfang Februar, 125 Tage / ca. <span data-note-sync="monate-plain">4</span> Monate)</span>
             <span class="subtle">|</span>
-            <span>Kalkulationskurs: <button type="button" class="var-chip" data-jump-var="kurs_nzd">kurs_nzd = 0,5014 €</button></span>
+            <span>Kalkulationskurs: <button type="button" class="var-chip" data-jump-var="kurs_nzd" data-note-sync="kurs_nzd-chip">kurs_nzd = 0,5014 €</button></span>
           </div>
 
           <!-- Section 1 -->
           <section class="section-block">
             <h2 class="section-heading">
               <span>1. Gesamtkosten (Aufschlüsselung)</span>
-              <span class="subtle" style="font-weight:500;text-transform:none;letter-spacing:0">Werte aus Var-Sheet verknüpft</span>
+              <span class="subtle" style="font-weight:500;text-transform:none;letter-spacing:0">Werte aus VarSheet verknüpft</span>
             </h2>
             <div class="note-table-wrap">
               <table class="fin-table">
@@ -739,42 +702,42 @@
                     <td><strong>Studiengebühren</strong></td>
                     <td class="muted">Trimester 1 (Vorkasse erforderlich)</td>
                     <td class="r num muted">NZ $10.762,00</td>
-                    <td class="r num linked-cell">5.396,07 €</td>
+                    <td class="r num linked-cell" data-note-sync="studiengebuehren">5.396,07 €</td>
                   </tr>
                   <tr>
                     <td><strong>Unterkunft (Whanau Marama)</strong></td>
                     <td class="muted">Apartment Single, 125 Tage (4 × NZ $1.736 + Restrate NZ $806)</td>
                     <td class="r num muted">NZ $7.750,00</td>
-                    <td class="r num linked-cell">3.885,85 €</td>
+                    <td class="r num linked-cell" data-note-sync="unterkunft">3.885,85 €</td>
                   </tr>
                   <tr>
                     <td><strong>Lebenshaltung &amp; Aktivitäten</strong></td>
-                    <td class="muted">Kalkuliert mit 500,00 € / Monat (<button type="button" class="var-chip" data-jump-var="monate">monate</button>)</td>
+                    <td class="muted">Kalkuliert mit 500,00 € / Monat (<button type="button" class="var-chip" data-jump-var="monate" data-note-sync="monate-chip">monate = 4</button>)</td>
                     <td class="r num subtle">—</td>
-                    <td class="r num">2.000,00 €</td>
+                    <td class="r num linked-cell" data-note-sync="lebenshaltung">2.000,00 €</td>
                   </tr>
                   <tr>
                     <td><strong>Flüge (Hin- &amp; Rückflug)</strong></td>
-                    <td class="muted">Basispreis via <button type="button" class="var-chip" data-jump-var="flug">flug</button> (Spanne 1.500 – 2.000 €)</td>
+                    <td class="muted">Basispreis via <button type="button" class="var-chip" data-jump-var="flug" data-note-sync="flug-chip">flug</button> (Spanne 1.500 – 2.000 €)</td>
                     <td class="r num subtle">—</td>
-                    <td class="r num linked-cell">1.750,00 €</td>
+                    <td class="r num linked-cell" data-note-sync="flug">1.850,50 €</td>
                   </tr>
                   <tr>
                     <td><strong>Auslandskrankenversicherung</strong></td>
-                    <td class="muted">Schätzwert ca. 50,00 € / Monat (4 Monate)</td>
+                    <td class="muted">Schätzwert ca. 50,00 € / Monat (<span data-note-sync="monate-plain">4</span> Monate)</td>
                     <td class="r num subtle">—</td>
-                    <td class="r num">200,00 €</td>
+                    <td class="r num linked-cell" data-note-sync="versicherung">200,00 €</td>
                   </tr>
                 </tbody>
                 <tfoot>
                   <tr class="total-row">
                     <td colspan="2">Gesamtkosten (inkl. Studiengebühren)</td>
                     <td class="r num subtle">—</td>
-                    <td class="r num">13.231,92 €</td>
+                    <td class="r num" data-note-sync="gesamtkosten">13.332,42 €</td>
                   </tr>
                   <tr class="sub-row">
                     <td colspan="3">Davon Kosten ohne Studiengebühren (Wohnen, Leben, Reise):</td>
-                    <td class="r num"><strong>7.835,85 €</strong></td>
+                    <td class="r num"><strong data-note-sync="ohne_studien">7.936,35 €</strong></td>
                   </tr>
                 </tfoot>
               </table>
@@ -801,8 +764,8 @@
                   <tr>
                     <td><strong>Studiengebühren (BAföG)</strong></td>
                     <td class="muted">Bis max. 5.600 € (100 % Vollzuschuss)</td>
-                    <td class="r num">5.396,07 €</td>
-                    <td class="r num">5.396,07 €</td>
+                    <td class="r num" data-note-sync="bafoeg_studien">5.396,07 €</td>
+                    <td class="r num" data-note-sync="bafoeg_studien">5.396,07 €</td>
                     <td class="r num subtle">0,00 €</td>
                   </tr>
                   <tr>
@@ -838,8 +801,8 @@
                   <tr class="total-row">
                     <td>Gesamtsumme Finanzierung</td>
                     <td class="muted" style="font-weight:400;font-size:12px">BAföG (Höchstsatz) + Kindergeld</td>
-                    <td class="r num">11.244,07 €</td>
-                    <td class="r num">8.830,07 €</td>
+                    <td class="r num" data-note-sync="finanzierung_gesamt">11.244,07 €</td>
+                    <td class="r num" data-note-sync="finanzierung_zuschuss">8.830,07 €</td>
                     <td class="r num">2.414,00 €</td>
                   </tr>
                 </tfoot>
@@ -854,50 +817,26 @@
               <div>
                 <div style="font-size:13px;font-weight:600;color:var(--t2-ink)">Restbetrag nach Auslands-BAföG &amp; Kindergeld</div>
                 <div style="font-size:12px;color:var(--t2-ink-2);margin-top:2px">
-                  Berechnet aus <button type="button" class="var-chip" data-jump-var="summe">summe(kosten)</button> − Finanzierung (11.244,07 €)
+                  Berechnet aus <button type="button" class="var-chip" data-jump-var="gesamtkosten">gesamtkosten</button> − Finanzierung (<span data-note-sync="finanzierung_gesamt">11.244,07 €</span>)
                 </div>
               </div>
-              <strong>1.987,85 €</strong>
+              <strong data-note-sync="restbetrag">2.088,35 €</strong>
             </div>
           </section>
         </article>
       </main>
 
-      <!-- Right: Gray Var-Sheet Side-Panel -->
-      <aside id="varsheetPanel" class="varsheet-panel" aria-label="Var-Sheet Side-Panel">
+      <!-- Right: Gray VarSheet Side-Panel -->
+      <aside id="varsheetPanel" class="varsheet-panel" aria-label="VarSheet Side-Panel">
         <div class="vs-header">
-          <div class="vs-title-group">
-            <div class="vs-icon">fx</div>
-            <h2 class="vs-title">Var-Sheet (Live-Berechnungen)</h2>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;flex:none">
-            <span class="vs-badge">
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path>
-                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>
-              </svg>
-              Mit Notiz verknüpft
-            </span>
-            <button id="closeSheetBtn" type="button" class="vs-close" title="Var-Sheet schließen (Esc)" aria-label="Var-Sheet schließen">✕</button>
-          </div>
-        </div>
-
-        <div class="vs-colbar">
-          <span>#</span>
-          <span>Ausdruck / Eingabe</span>
-          <span>Auswirkung</span>
+          <h2 class="vs-title">VarSheet</h2>
+          <button id="closeSheetBtn" type="button" class="vs-close" title="VarSheet schließen (Esc)" aria-label="VarSheet schließen">✕</button>
         </div>
 
         <div id="vsRows" class="vs-rows-scroll" role="list"></div>
 
         <div class="vs-footer">
-          <div class="kbd-row">
-            <span><kbd>Enter</kbd> Neue Zeile</span>
-            <span><kbd>↑</kbd><kbd>↓</kbd> Wechseln</span>
-            <span><kbd>←</kbd><kbd>→</kbd> / <kbd>Tab</kbd> Ergebnis</span>
-            <span><kbd>⌫</kbd> Leer löschen</span>
-          </div>
-          <span id="rowCountLabel" style="font-family:var(--font-mono);color:var(--t2-ink-3)">0 Zeilen</span>
+          <span id="rowCountLabel">0 Zeilen · 0 Variablen</span>
         </div>
       </aside>
     </div>
@@ -913,52 +852,681 @@
       const rowCountLabel = document.getElementById('rowCountLabel');
       const notePane = document.getElementById('notePane');
 
-      // Preset Jupyter-style lines (no extra syntax needed)
+      const IDENT_RE = /^[a-zA-ZäöüÄÖÜß_][a-zA-Z0-9äöüÄÖÜß_]*$/;
+
+      const CURRENCY_VARS = new Set([
+        'flug', 'studiengebuehren', 'unterkunft', 'lebenshaltung',
+        'versicherung', 'gesamtkosten', 'restbetrag', 'x', 'brutto', 'netto', 'mwst'
+      ]);
+
+      const BUILTINS = {
+        summe: (...args) => args.reduce((acc, v) => acc + v, 0),
+        sum: (...args) => args.reduce((acc, v) => acc + v, 0),
+        min: (...args) => {
+          if (args.length === 0) throw new Error('min() braucht ≥ 1 Wert');
+          return Math.min(...args);
+        },
+        max: (...args) => {
+          if (args.length === 0) throw new Error('max() braucht ≥ 1 Wert');
+          return Math.max(...args);
+        },
+        runden: (val, decimals = 0) => {
+          if (val === undefined) throw new Error('runden() braucht Wert');
+          const factor = Math.pow(10, Math.trunc(decimals));
+          return Math.round((val + Number.EPSILON) * factor) / factor;
+        },
+        round: (val, decimals = 0) => {
+          if (val === undefined) throw new Error('round() braucht Wert');
+          const factor = Math.pow(10, Math.trunc(decimals));
+          return Math.round((val + Number.EPSILON) * factor) / factor;
+        }
+      };
+
+      const BUILTIN_NAMES = new Set([...Object.keys(BUILTINS), 'pi', 'e']);
+
+      // --- Tokenizer & Expression Parser ---
+      function parseGermanNumber(raw) {
+        if (raw.includes(',')) {
+          return Number(raw.replace(/\./g, '').replace(',', '.'));
+        }
+        if (/^\d{1,3}(?:\.\d{3})+$/.test(raw)) {
+          return Number(raw.replace(/\./g, ''));
+        }
+        return Number(raw);
+      }
+
+      function tokenize(input) {
+        const tokens = [];
+        let i = 0;
+        const len = input.length;
+
+        while (i < len) {
+          const ch = input[i];
+
+          if (ch === ' ' || ch === '\t' || ch === '\r') {
+            i++;
+            continue;
+          }
+          if (ch === '\n') {
+            tokens.push({ type: 'NL' });
+            i++;
+            continue;
+          }
+          if (ch === '#' || (ch === '/' && input[i + 1] === '/')) {
+            while (i < len && input[i] !== '\n') i++;
+            continue;
+          }
+
+          // Number literal (German thousands/decimal + optional % or €)
+          if (/\d/.test(ch)) {
+            const slice = input.slice(i);
+            const m = slice.match(/^(\d{1,3}(?:\.\d{3})+,\d+|\d{1,3}(?:\.\d{3})+(?!\d)|\d+,\d+|\d+\.\d+|\d+)/);
+            if (m) {
+              let val = parseGermanNumber(m[1]);
+              i += m[1].length;
+              let isPct = false;
+              let hasEuro = false;
+              if (input[i] === '%') {
+                val = val / 100;
+                isPct = true;
+                i++;
+              } else if (input[i] === '€') {
+                hasEuro = true;
+                i++;
+              } else if (input[i] === ' ' && input[i + 1] === '€') {
+                hasEuro = true;
+                i += 2;
+              }
+              tokens.push({ type: 'NUM', value: val, isPct, hasEuro });
+              continue;
+            }
+          }
+
+          // Identifier
+          if (/[a-zA-ZäöüÄÖÜß_]/.test(ch)) {
+            const m = input.slice(i).match(/^[a-zA-ZäöüÄÖÜß_][a-zA-Z0-9äöüÄÖÜß_]*/);
+            tokens.push({ type: 'IDENT', value: m[0] });
+            i += m[0].length;
+            continue;
+          }
+
+          if ('+-*/^(){},;='.includes(ch)) {
+            tokens.push({ type: ch });
+            i++;
+            continue;
+          }
+
+          throw new Error(`Unerwartetes Zeichen "${ch}"`);
+        }
+
+        return tokens;
+      }
+
+      function parseExprTokens(tokens) {
+        let pos = 0;
+
+        function peek() {
+          return tokens[pos] || null;
+        }
+        function consume(expected) {
+          const t = tokens[pos];
+          if (!t || (expected && t.type !== expected)) {
+            throw new Error(expected ? `"${expected}" erwartet` : 'Unerwartetes Ende');
+          }
+          pos++;
+          return t;
+        }
+
+        function parseAddSub() {
+          let left = parseMulDiv();
+          while (peek() && (peek().type === '+' || peek().type === '-')) {
+            const op = consume().type;
+            const right = parseMulDiv();
+            left = { type: 'bin', op, left, right };
+          }
+          return left;
+        }
+
+        function parseMulDiv() {
+          let left = parseUnary();
+          while (peek() && (peek().type === '*' || peek().type === '/')) {
+            const op = consume().type;
+            const right = parseUnary();
+            left = { type: 'bin', op, left, right };
+          }
+          return left;
+        }
+
+        function parseUnary() {
+          if (peek() && (peek().type === '+' || peek().type === '-')) {
+            const op = consume().type;
+            return { type: 'unary', op, arg: parseUnary() };
+          }
+          return parsePower();
+        }
+
+        function parsePower() {
+          let base = parsePrimary();
+          if (peek() && peek().type === '^') {
+            consume();
+            const exp = parseUnary();
+            return { type: 'bin', op: '^', left: base, right: exp };
+          }
+          return base;
+        }
+
+        function parsePrimary() {
+          const t = peek();
+          if (!t) throw new Error('Ausdruck unvollständig');
+
+          if (t.type === 'NUM') {
+            consume();
+            return { type: 'num', value: t.value, hasEuro: t.hasEuro };
+          }
+
+          if (t.type === 'IDENT') {
+            consume();
+            if (peek() && peek().type === '(') {
+              consume('(');
+              const args = [];
+              if (peek() && peek().type !== ')') {
+                args.push(parseAddSub());
+                while (peek() && (peek().type === ',' || peek().type === ';')) {
+                  consume();
+                  if (peek() && peek().type === ')') break;
+                  args.push(parseAddSub());
+                }
+              }
+              consume(')');
+              return { type: 'call', name: t.value, args };
+            }
+            return { type: 'var', name: t.value };
+          }
+
+          if (t.type === '(') {
+            consume('(');
+            const inner = parseAddSub();
+            consume(')');
+            return inner;
+          }
+
+          throw new Error(`Syntaxfehler bei "${t.value || t.type}"`);
+        }
+
+        const ast = parseAddSub();
+        if (pos < tokens.length) {
+          throw new Error(`Unerwartet "${tokens[pos].value || tokens[pos].type}"`);
+        }
+        return ast;
+      }
+
+      function parseSingleExpr(str) {
+        const tokens = tokenize(str).filter((t) => t.type !== 'NL');
+        if (tokens.length === 0) throw new Error('Leerer Ausdruck');
+        return parseExprTokens(tokens);
+      }
+
+      function collectAstRefs(node, out) {
+        if (!node) return;
+        if (node.type === 'var') {
+          out.add(node.name);
+        } else if (node.type === 'call') {
+          out.add(node.name);
+          node.args.forEach((a) => collectAstRefs(a, out));
+        } else if (node.type === 'unary') {
+          collectAstRefs(node.arg, out);
+        } else if (node.type === 'bin') {
+          collectAstRefs(node.left, out);
+          collectAstRefs(node.right, out);
+        }
+      }
+
+      function parseBlockStatements(innerText, initialBound) {
+        const rawLines = innerText.split(/\n|;/);
+        const statements = [];
+        const bound = new Set(initialBound);
+        const deps = new Set();
+
+        for (const rawLine of rawLines) {
+          const line = rawLine.replace(/\/\/.*$/, '').replace(/#.*$/, '').trim();
+          if (!line) continue;
+
+          const cleaned = line.replace(/^return\s+/, '');
+          const assignMatch = cleaned.match(/^([a-zA-ZäöüÄÖÜß_][a-zA-Z0-9äöüÄÖÜß]*)\s*=\s*(.+)$/);
+          if (assignMatch) {
+            const varName = assignMatch[1];
+            const ast = parseSingleExpr(assignMatch[2]);
+            const refs = new Set();
+            collectAstRefs(ast, refs);
+            refs.forEach((r) => {
+              if (!bound.has(r) && !BUILTIN_NAMES.has(r)) deps.add(r);
+            });
+            bound.add(varName);
+            statements.push({ kind: 'assign', name: varName, ast });
+          } else {
+            const ast = parseSingleExpr(cleaned);
+            const refs = new Set();
+            collectAstRefs(ast, refs);
+            refs.forEach((r) => {
+              if (!bound.has(r) && !BUILTIN_NAMES.has(r)) deps.add(r);
+            });
+            statements.push({ kind: 'expr', ast });
+          }
+        }
+
+        if (statements.length === 0) {
+          throw new Error('Leerer Block');
+        }
+        return { statements, deps };
+      }
+
+      function stripComments(raw) {
+        return raw
+          .split('\n')
+          .map((l) => l.replace(/\/\/.*$/, '').replace(/#.*$/, ''))
+          .join('\n')
+          .trim();
+      }
+
+      function parseRowSource(raw) {
+        const clean = stripComments(raw);
+        if (!clean) {
+          return { kind: 'empty', definedSymbol: null, deps: new Set() };
+        }
+
+        // 1. Function definition: name(a, b) = { ... } or name(a, b) = expr
+        const fnMatch = clean.match(/^([a-zA-ZäöüÄÖÜß_][a-zA-Z0-9äöüÄÖÜß]*)\s*\(([^)]*)\)\s*=\s*([\s\S]+)$/);
+        if (fnMatch) {
+          const fnName = fnMatch[1];
+          const rawParams = fnMatch[2].trim();
+          const params = rawParams ? rawParams.split(/[,;]/).map((p) => p.trim()) : [];
+          for (const p of params) {
+            if (!IDENT_RE.test(p)) throw new Error(`Ungültiger Parameter "${p}"`);
+          }
+          const body = fnMatch[3].trim();
+          let statements, deps;
+          if (body.startsWith('{') && body.endsWith('}')) {
+            ({ statements, deps } = parseBlockStatements(body.slice(1, -1), params));
+          } else {
+            if (body.includes('\n')) throw new Error('Für mehrere Zeilen { ... } verwenden');
+            const ast = parseSingleExpr(body);
+            const refs = new Set();
+            collectAstRefs(ast, refs);
+            const paramSet = new Set(params);
+            deps = new Set([...refs].filter((r) => !paramSet.has(r) && !BUILTIN_NAMES.has(r)));
+            statements = [{ kind: 'expr', ast }];
+          }
+          return {
+            kind: 'func',
+            definedSymbol: fnName,
+            params,
+            statements,
+            deps,
+            bodySource: body
+          };
+        }
+
+        // 2. Variable assignment: name = expr or name = { ... }
+        const assignMatch = clean.match(/^([a-zA-ZäöüÄÖÜß_][a-zA-Z0-9äöüÄÖÜß]*)\s*=\s*([\s\S]+)$/);
+        if (assignMatch) {
+          const varName = assignMatch[1];
+          const rhs = assignMatch[2].trim();
+          if (rhs.startsWith('{') && rhs.endsWith('}')) {
+            const { statements, deps } = parseBlockStatements(rhs.slice(1, -1), []);
+            return { kind: 'assign-block', definedSymbol: varName, statements, deps };
+          }
+          const ast = parseSingleExpr(rhs);
+          const refs = new Set();
+          collectAstRefs(ast, refs);
+          const deps = new Set([...refs].filter((r) => !BUILTIN_NAMES.has(r)));
+          return { kind: 'assign', definedSymbol: varName, ast, deps };
+        }
+
+        // 3. Anonymous expression
+        const ast = parseSingleExpr(clean);
+        const refs = new Set();
+        collectAstRefs(ast, refs);
+        const deps = new Set([...refs].filter((r) => !BUILTIN_NAMES.has(r)));
+        return { kind: 'expr', definedSymbol: null, ast, deps };
+      }
+
+      // --- Evaluator ---
+      function evalAst(node, env, depth) {
+        if (depth > 64) throw new Error('Rekursionslimit');
+
+        if (node.type === 'num') return node.value;
+
+        if (node.type === 'var') {
+          if (Object.prototype.hasOwnProperty.call(env, node.name)) {
+            const entry = env[node.name];
+            if (entry.kind === 'func') throw new Error(`"${node.name}" ist Funktion`);
+            return entry.value;
+          }
+          if (node.name === 'pi') return Math.PI;
+          if (node.name === 'e') return Math.E;
+          throw new Error(`Unbekannt: ${node.name}`);
+        }
+
+        if (node.type === 'unary') {
+          const v = evalAst(node.arg, env, depth);
+          return node.op === '-' ? -v : v;
+        }
+
+        if (node.type === 'bin') {
+          const l = evalAst(node.left, env, depth);
+          const r = evalAst(node.right, env, depth);
+          if (node.op === '+') return l + r;
+          if (node.op === '-') return l - r;
+          if (node.op === '*') return l * r;
+          if (node.op === '/') {
+            if (r === 0) throw new Error('Division durch 0');
+            return l / r;
+          }
+          if (node.op === '^') return Math.pow(l, r);
+        }
+
+        if (node.type === 'call') {
+          const argVals = node.args.map((a) => evalAst(a, env, depth));
+          const userFn = Object.prototype.hasOwnProperty.call(env, node.name) ? env[node.name] : null;
+
+          if (userFn) {
+            if (userFn.kind !== 'func') throw new Error(`"${node.name}" keine Funktion`);
+            if (argVals.length !== userFn.params.length) {
+              throw new Error(`${node.name}() braucht ${userFn.params.length} Arg.`);
+            }
+            const localEnv = Object.assign({}, userFn.closureEnv);
+            userFn.params.forEach((p, idx) => {
+              localEnv[p] = { kind: 'num', value: argVals[idx] };
+            });
+            return evalStatements(userFn.statements, localEnv, depth + 1);
+          }
+
+          if (Object.prototype.hasOwnProperty.call(BUILTINS, node.name)) {
+            return BUILTINS[node.name](...argVals);
+          }
+
+          throw new Error(`Unbekannt: ${node.name}()`);
+        }
+
+        throw new Error('Ungültiger Ausdruck');
+      }
+
+      function evalStatements(statements, env, depth) {
+        let lastVal = 0;
+        for (const stmt of statements) {
+          if (stmt.kind === 'assign') {
+            const val = evalAst(stmt.ast, env, depth);
+            if (!Number.isFinite(val)) throw new Error('Ungültige Zahl');
+            env[stmt.name] = { kind: 'num', value: val };
+            lastVal = val;
+          } else {
+            lastVal = evalAst(stmt.ast, env, depth);
+            if (!Number.isFinite(lastVal)) throw new Error('Ungültige Zahl');
+          }
+        }
+        return lastVal;
+      }
+
+      function formatEuro(val) {
+        return val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+      }
+
+      function formatResultDisplay(symbolName, value, hasEuroLiteral) {
+        if (symbolName === 'kurs_nzd') {
+          return '→ ' + value.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 }) + ' €/NZ$';
+        }
+        if (symbolName === 'monate') {
+          return '→ ' + value.toLocaleString('de-DE', { maximumFractionDigits: 2 }) + ' Monate';
+        }
+        if (hasEuroLiteral || (symbolName && CURRENCY_VARS.has(symbolName))) {
+          return '→ ' + formatEuro(value);
+        }
+        return '→ ' + value.toLocaleString('de-DE', { maximumFractionDigits: 4 });
+      }
+
+      // --- State & Reactive Top-Down Engine ---
       const rows = [
-        { id: 1, expr: 'x = 1.250', result: '1.250,00 €', linked: false },
-        { id: 2, expr: 'flug = 1.850,50', result: '1.850,50 €', linked: true, key: 'flug' },
-        { id: 3, expr: 'flug * 1,19', result: '2.202,10 €', linked: false },
-        { id: 4, expr: 'kurs_nzd = 0,5014', result: '0,5014 €/NZ$', linked: true, key: 'kurs_nzd' },
-        { id: 5, expr: 'monate = 4', result: '4 Monate', linked: true, key: 'monate' },
-        { id: 6, expr: 'studiengebuehren = 10762 * kurs_nzd', result: '5.396,07 €', linked: true },
-        { id: 7, expr: 'unterkunft = 7750 * kurs_nzd', result: '3.885,85 €', linked: true },
-        { id: 8, expr: 'summe(kosten)', result: '13.231,92 €', linked: true, key: 'summe' },
-        { id: 9, expr: '', result: '—', linked: false }
+        { id: 1, expr: 'kurs_nzd = 0,5014', linked: true, key: 'kurs_nzd' },
+        { id: 2, expr: 'monate = 4', linked: true, key: 'monate' },
+        { id: 3, expr: 'flug = 1.850,50', linked: true, key: 'flug' },
+        { id: 4, expr: 'studiengebuehren = 10762 * kurs_nzd', linked: true },
+        { id: 5, expr: 'unterkunft = 7750 * kurs_nzd', linked: true },
+        { id: 6, expr: 'lebenshaltung = 500 * monate', linked: true },
+        { id: 7, expr: 'versicherung = 50 * monate', linked: true },
+        { id: 8, expr: 'gesamtkosten = summe(studiengebuehren, unterkunft, lebenshaltung, flug, versicherung)', linked: true, key: 'gesamtkosten' },
+        { id: 9, expr: 'netto(brutto, satz) = {\n  mwst = brutto * satz\n  brutto - mwst\n}', linked: false },
+        { id: 10, expr: 'netto(flug, 19%)', linked: false },
+        { id: 11, expr: '', linked: false }
       ];
 
-      let nextId = 10;
-      let activeIndex = rows.length - 1; // Starts ready to type at the bottom active line
+      let nextId = 12;
+      let activeIndex = rows.length - 1;
+      let dragFromIndex = null;
 
-      // Purely visual mockup evaluator (no full math engine needed; gives natural feedback while typing)
-      function mockEvaluate(expr, fallbackResult) {
-        const clean = expr.trim();
-        if (!clean) return '—';
-        if (clean === 'x = 1.250') return '1.250,00 €';
-        if (clean === 'flug = 1.850,50') return '1.850,50 €';
-        if (clean === 'flug * 1,19') return '2.202,10 €';
-        if (clean === 'kurs_nzd = 0,5014') return '0,5014 €/NZ$';
-        if (clean === 'monate = 4') return '4 Monate';
-        if (clean === 'studiengebuehren = 10762 * kurs_nzd') return '5.396,07 €';
-        if (clean === 'unterkunft = 7750 * kurs_nzd') return '3.885,85 €';
-        if (clean === 'summe(kosten)') return '13.231,92 €';
-
-        // Simple visual preview for newly typed lines
-        const assignMatch = clean.match(/^([a-zA-ZäöüÄÖÜ_][\wäöüÄÖÜ]*)\s*=\s*(.+)$/);
-        if (assignMatch) {
-          const rhs = assignMatch[2].trim();
-          const numCandidate = rhs.replace(/\./g, '').replace(',', '.');
-          if (/^-?\d+(\.\d+)?$/.test(numCandidate)) {
-            const val = Number(numCandidate);
-            return val.toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + ' €';
+      function buildEnvBefore(rowIndex) {
+        const env = {};
+        for (let i = 0; i < rowIndex; i++) {
+          const r = rows[i];
+          if (r.definedSymbol && r.envEntry) {
+            env[r.definedSymbol] = r.envEntry;
           }
-          return '→ ' + rhs;
         }
-        const rawNum = clean.replace(/\./g, '').replace(',', '.');
-        if (/^-?\d+(\.\d+)?$/.test(rawNum)) {
-          return Number(rawNum).toLocaleString('de-DE', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        return env;
+      }
+
+      function serializeClosure(deps, env) {
+        const parts = [];
+        const sorted = [...deps].sort();
+        for (const d of sorted) {
+          if (Object.prototype.hasOwnProperty.call(env, d)) {
+            const entry = env[d];
+            if (entry.kind === 'num') parts.push(`${d}=${entry.value}`);
+            else if (entry.kind === 'func') parts.push(`${d}=fn(${entry.params.join(',')})`);
+          } else {
+            parts.push(`${d}=undef`);
+          }
         }
-        if (fallbackResult && fallbackResult !== '—') return fallbackResult;
-        return '≈ Live-Wert';
+        return parts.join(';');
+      }
+
+      function astHasEuro(node) {
+        if (!node) return false;
+        if (node.type === 'num') return Boolean(node.hasEuro);
+        if (node.type === 'unary') return astHasEuro(node.arg);
+        if (node.type === 'bin') return astHasEuro(node.left) || astHasEuro(node.right);
+        if (node.type === 'call') return node.args.some((a) => astHasEuro(a));
+        return false;
+      }
+
+      function evaluateSingleRow(idx) {
+        const row = rows[idx];
+        const env = buildEnvBefore(idx);
+
+        try {
+          const parsed = parseRowSource(row.expr);
+          row.deps = parsed.deps || new Set();
+          row.definedSymbol = parsed.definedSymbol || null;
+
+          if (parsed.kind === 'empty') {
+            row.envEntry = null;
+            row.resultText = '';
+            row.resultKind = 'empty';
+            row.signature = 'empty';
+            return;
+          }
+
+          if (parsed.kind === 'func') {
+            const closureEnv = Object.assign({}, env);
+            row.envEntry = {
+              kind: 'func',
+              params: parsed.params,
+              statements: parsed.statements,
+              closureEnv
+            };
+            row.resultText = `ƒ(${parsed.params.join(', ')})`;
+            row.resultKind = 'fn';
+            row.signature = `fn:${parsed.definedSymbol}(${parsed.params.join(',')}):${parsed.bodySource}|${serializeClosure(row.deps, env)}`;
+            return;
+          }
+
+          let val;
+          let hasEuroLiteral = false;
+          if (parsed.kind === 'assign-block') {
+            const localEnv = Object.assign({}, env);
+            val = evalStatements(parsed.statements, localEnv, 0);
+          } else {
+            val = evalAst(parsed.ast, env, 0);
+            hasEuroLiteral = astHasEuro(parsed.ast);
+          }
+
+          if (!Number.isFinite(val)) throw new Error('Ungültiges Ergebnis');
+
+          row.envEntry = { kind: 'num', value: val };
+          row.resultText = formatResultDisplay(row.definedSymbol, val, hasEuroLiteral);
+          row.resultKind = 'val';
+          row.signature = `num:${row.definedSymbol || ''}:${val}`;
+        } catch (err) {
+          row.definedSymbol = null;
+          row.envEntry = null;
+          row.deps = row.deps || new Set();
+          row.resultText = '! ' + (err && err.message ? err.message : 'Fehler');
+          row.resultKind = 'err';
+          row.signature = 'err:' + row.resultText;
+        }
+      }
+
+      function applyResultToDom(idx) {
+        const row = rows[idx];
+        const resBtn = vsRowsEl.querySelector(`.vs-row[data-idx="${idx}"] .vs-result`);
+        if (!resBtn) return;
+        resBtn.textContent = row.resultText || '—';
+        resBtn.classList.toggle('has-val', row.resultKind === 'val');
+        resBtn.classList.toggle('is-linked', Boolean(row.linked && row.resultKind === 'val'));
+        resBtn.classList.toggle('is-fn', row.resultKind === 'fn');
+        resBtn.classList.toggle('is-err', row.resultKind === 'err');
+      }
+
+      function updateFooter() {
+        const varCount = new Set(rows.map((r) => r.definedSymbol).filter(Boolean)).size;
+        const zLabel = rows.length === 1 ? 'Zeile' : 'Zeilen';
+        const vLabel = varCount === 1 ? 'Variable' : 'Variablen';
+        rowCountLabel.textContent = `${rows.length} ${zLabel} · ${varCount} ${vLabel}`;
+      }
+
+      function syncNoteFromEnv() {
+        const env = buildEnvBefore(rows.length);
+        const getNum = (name, fallback) => {
+          const e = env[name];
+          return e && e.kind === 'num' ? e.value : fallback;
+        };
+
+        const kurs = getNum('kurs_nzd', 0.5014);
+        const monate = getNum('monate', 4);
+        const flug = getNum('flug', 1850.5);
+        const studien = getNum('studiengebuehren', 10762 * kurs);
+        const unterkunft = getNum('unterkunft', 7750 * kurs);
+        const lebenshaltung = getNum('lebenshaltung', 500 * monate);
+        const versicherung = getNum('versicherung', 50 * monate);
+        const gesamtkosten = getNum('gesamtkosten', studien + unterkunft + lebenshaltung + flug + versicherung);
+        const ohneStudien = gesamtkosten - studien;
+
+        const bafoegStudien = Math.min(studien, 5600);
+        const finanzierungGesamt = bafoegStudien + 3420 + 1000 + 408 + 1020;
+        const finanzierungZuschuss = bafoegStudien + 1710 + 500 + 204 + 1020;
+        const restbetrag = gesamtkosten - finanzierungGesamt;
+
+        const setSyncText = (key, text) => {
+          document.querySelectorAll(`[data-note-sync="${key}"]`).forEach((el) => {
+            el.textContent = text;
+          });
+        };
+
+        setSyncText('kurs_nzd-chip', `kurs_nzd = ${kurs.toLocaleString('de-DE', { minimumFractionDigits: 4, maximumFractionDigits: 4 })} €`);
+        setSyncText('monate-chip', `monate = ${monate.toLocaleString('de-DE', { maximumFractionDigits: 2 })}`);
+        setSyncText('monate-plain', monate.toLocaleString('de-DE', { maximumFractionDigits: 2 }));
+        setSyncText('flug', formatEuro(flug));
+        setSyncText('studiengebuehren', formatEuro(studien));
+        setSyncText('unterkunft', formatEuro(unterkunft));
+        setSyncText('lebenshaltung', formatEuro(lebenshaltung));
+        setSyncText('versicherung', formatEuro(versicherung));
+        setSyncText('gesamtkosten', formatEuro(gesamtkosten));
+        setSyncText('ohne_studien', formatEuro(ohneStudien));
+        setSyncText('bafoeg_studien', formatEuro(bafoegStudien));
+        setSyncText('finanzierung_gesamt', formatEuro(finanzierungGesamt));
+        setSyncText('finanzierung_zuschuss', formatEuro(finanzierungZuschuss));
+        setSyncText('restbetrag', formatEuro(restbetrag));
+      }
+
+      // Dirty-checked reactive propagation from edited row k downward (rows < k are untouched)
+      function recalculateFromEdit(k) {
+        const oldSym = rows[k].definedSymbol;
+        const oldSig = rows[k].signature;
+
+        evaluateSingleRow(k);
+        applyResultToDom(k);
+
+        const changedSymbols = new Set();
+        if (oldSym && oldSym !== rows[k].definedSymbol) {
+          changedSymbols.add(oldSym);
+        }
+        if (rows[k].definedSymbol && rows[k].signature !== oldSig) {
+          changedSymbols.add(rows[k].definedSymbol);
+        }
+
+        for (let i = k + 1; i < rows.length; i++) {
+          if (changedSymbols.size === 0) break;
+
+          const row = rows[i];
+          const dependsOnChanged = row.deps && [...row.deps].some((d) => changedSymbols.has(d));
+          const shadowsChanged = Boolean(row.definedSymbol && changedSymbols.has(row.definedSymbol));
+
+          if (!dependsOnChanged && !shadowsChanged) {
+            continue;
+          }
+
+          if (shadowsChanged && !dependsOnChanged) {
+            // Shadows upstream symbol with an independent value that hasn't changed
+            changedSymbols.delete(row.definedSymbol);
+            continue;
+          }
+
+          const prevSig = row.signature;
+          evaluateSingleRow(i);
+          applyResultToDom(i);
+
+          if (row.signature !== prevSig) {
+            if (row.definedSymbol) changedSymbols.add(row.definedSymbol);
+          } else if (row.definedSymbol) {
+            changedSymbols.delete(row.definedSymbol);
+          }
+        }
+
+        updateFooter();
+        syncNoteFromEnv();
+      }
+
+      // Used after structural row changes (insert, delete, drag & drop reorder) starting at startIdx
+      function recalculateRangeFrom(startIdx) {
+        for (let i = Math.max(0, startIdx); i < rows.length; i++) {
+          evaluateSingleRow(i);
+          applyResultToDom(i);
+        }
+        updateFooter();
+        syncNoteFromEnv();
+      }
+
+      // --- UI Helpers ---
+      function autoResizeTextarea(el) {
+        el.style.height = 'auto';
+        el.style.height = el.scrollHeight + 'px';
+      }
+
+      function isCursorOnFirstLine(ta) {
+        return !ta.value.slice(0, ta.selectionStart).includes('\n');
+      }
+
+      function isCursorOnLastLine(ta) {
+        return !ta.value.slice(ta.selectionEnd).includes('\n');
       }
 
       function setSheetOpen(open) {
@@ -1000,6 +1568,10 @@
         const len = input.value.length;
         if (caretPos === 'start') {
           input.setSelectionRange(0, 0);
+        } else if (caretPos === 'firstLineEnd') {
+          const nlIdx = input.value.indexOf('\n');
+          const pos = nlIdx >= 0 ? nlIdx : len;
+          input.setSelectionRange(pos, pos);
         } else if (caretPos === 'end') {
           input.setSelectionRange(len, len);
         }
@@ -1012,6 +1584,12 @@
         if (resBtn) resBtn.focus();
       }
 
+      function clearDropIndicators() {
+        vsRowsEl.querySelectorAll('.vs-row').forEach((el) => {
+          el.classList.remove('drop-before', 'drop-after');
+        });
+      }
+
       function renderRows(focusIndex, caretPos) {
         vsRowsEl.innerHTML = '';
 
@@ -1021,25 +1599,82 @@
           rowEl.dataset.idx = String(idx);
           rowEl.setAttribute('role', 'listitem');
 
-          const lnEl = document.createElement('span');
-          lnEl.className = 'vs-ln';
-          lnEl.textContent = String(idx + 1);
+          // Drag handle + line number
+          const handleEl = document.createElement('div');
+          handleEl.className = 'vs-handle';
+          handleEl.draggable = true;
+          handleEl.title = 'Zeile ziehen zum Sortieren';
+          handleEl.innerHTML = `<span class="vs-grip" aria-hidden="true">⋮⋮</span><span>${idx + 1}</span>`;
+
+          handleEl.addEventListener('dragstart', (e) => {
+            dragFromIndex = idx;
+            rowEl.classList.add('is-dragging');
+            if (e.dataTransfer) {
+              e.dataTransfer.effectAllowed = 'move';
+              e.dataTransfer.setData('text/plain', String(idx));
+            }
+          });
+
+          handleEl.addEventListener('dragend', () => {
+            dragFromIndex = null;
+            rowEl.classList.remove('is-dragging');
+            clearDropIndicators();
+          });
+
+          rowEl.addEventListener('dragover', (e) => {
+            if (dragFromIndex === null) return;
+            e.preventDefault();
+            if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
+            clearDropIndicators();
+            if (dragFromIndex === idx) return;
+            const rect = rowEl.getBoundingClientRect();
+            const isTopHalf = e.clientY < rect.top + rect.height / 2;
+            rowEl.classList.add(isTopHalf ? 'drop-before' : 'drop-after');
+          });
+
+          rowEl.addEventListener('dragleave', (e) => {
+            if (!rowEl.contains(e.relatedTarget)) {
+              rowEl.classList.remove('drop-before', 'drop-after');
+            }
+          });
+
+          rowEl.addEventListener('drop', (e) => {
+            e.preventDefault();
+            if (dragFromIndex === null) return;
+            const rect = rowEl.getBoundingClientRect();
+            const isTopHalf = e.clientY < rect.top + rect.height / 2;
+            let targetIdx = isTopHalf ? idx : idx + 1;
+            const fromIdx = dragFromIndex;
+            dragFromIndex = null;
+            clearDropIndicators();
+
+            if (fromIdx === targetIdx || fromIdx + 1 === targetIdx) return;
+
+            const [moved] = rows.splice(fromIdx, 1);
+            if (fromIdx < targetIdx) targetIdx -= 1;
+            rows.splice(targetIdx, 0, moved);
+
+            const minChanged = Math.min(fromIdx, targetIdx);
+            activeIndex = targetIdx;
+            renderRows(targetIdx, 'end');
+            recalculateRangeFrom(minChanged);
+          });
 
           const exprWrap = document.createElement('div');
           exprWrap.className = 'vs-expr-wrap';
 
-          const input = document.createElement('input');
-          input.type = 'text';
+          const input = document.createElement('textarea');
+          input.rows = 1;
           input.className = 'vs-input';
           input.value = row.expr;
-          input.placeholder = idx === rows.length - 1 ? 'Neue Berechnung oder x = 120 …' : 'Ausdruck eingeben …';
+          input.spellcheck = false;
+          input.placeholder = idx === rows.length - 1 ? 'Ausdruck oder f(x) = { … }' : '';
           input.setAttribute('aria-label', `Zeile ${idx + 1} Ausdruck`);
 
           const resBtn = document.createElement('button');
           resBtn.type = 'button';
-          resBtn.className = 'vs-result' + (row.result !== '—' ? ' has-val' : '') + (row.linked ? ' is-linked' : '');
-          resBtn.textContent = row.result;
-          resBtn.title = row.linked ? 'Mit aktiver Notiz verknüpft (← zurück zur Eingabe)' : 'Ergebnis / Auswirkung (← zurück zur Eingabe)';
+          resBtn.className = 'vs-result';
+          resBtn.title = row.linked ? 'Mit aktiver Notiz verknüpft' : 'Ergebnis';
 
           input.addEventListener('focus', () => {
             updateActiveVisuals(idx);
@@ -1047,27 +1682,37 @@
 
           input.addEventListener('input', () => {
             row.expr = input.value;
-            row.result = mockEvaluate(row.expr, null);
-            resBtn.textContent = row.result;
-            resBtn.classList.toggle('has-val', row.result !== '—');
+            autoResizeTextarea(input);
+            recalculateFromEdit(idx);
           });
 
           input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'Enter' && !e.shiftKey) {
               e.preventDefault();
-              const newRow = { id: nextId++, expr: '', result: '—', linked: false };
+              const newRow = {
+                id: nextId++,
+                expr: '',
+                linked: false,
+                definedSymbol: null,
+                envEntry: null,
+                deps: new Set(),
+                resultText: '',
+                resultKind: 'empty',
+                signature: 'empty'
+              };
               rows.splice(idx + 1, 0, newRow);
               renderRows(idx + 1, 'start');
+              recalculateRangeFrom(idx + 1);
               return;
             }
-            if (e.key === 'ArrowDown') {
+            if (e.key === 'ArrowDown' && isCursorOnLastLine(input)) {
               e.preventDefault();
               if (idx < rows.length - 1) {
-                focusRowInput(idx + 1, 'end');
+                focusRowInput(idx + 1, 'firstLineEnd');
               }
               return;
             }
-            if (e.key === 'ArrowUp') {
+            if (e.key === 'ArrowUp' && isCursorOnFirstLine(input)) {
               e.preventDefault();
               if (idx > 0) {
                 focusRowInput(idx - 1, 'end');
@@ -1075,7 +1720,6 @@
               return;
             }
             if (e.key === 'ArrowRight') {
-              // At end of expression, ArrowRight enters the result cell
               if (input.selectionStart === input.value.length && input.selectionEnd === input.value.length) {
                 e.preventDefault();
                 focusRowResult(idx);
@@ -1092,6 +1736,7 @@
               rows.splice(idx, 1);
               const nextFocus = idx > 0 ? idx - 1 : 0;
               renderRows(nextFocus, 'end');
+              recalculateRangeFrom(idx);
               return;
             }
             if (e.key === 'Escape') {
@@ -1122,9 +1767,20 @@
             }
             if (e.key === 'Enter') {
               e.preventDefault();
-              const newRow = { id: nextId++, expr: '', result: '—', linked: false };
+              const newRow = {
+                id: nextId++,
+                expr: '',
+                linked: false,
+                definedSymbol: null,
+                envEntry: null,
+                deps: new Set(),
+                resultText: '',
+                resultKind: 'empty',
+                signature: 'empty'
+              };
               rows.splice(idx + 1, 0, newRow);
               renderRows(idx + 1, 'start');
+              recalculateRangeFrom(idx + 1);
               return;
             }
             if (e.key === 'Escape') {
@@ -1134,38 +1790,30 @@
           });
 
           exprWrap.appendChild(input);
-          rowEl.appendChild(lnEl);
+          rowEl.appendChild(handleEl);
           rowEl.appendChild(exprWrap);
           rowEl.appendChild(resBtn);
           vsRowsEl.appendChild(rowEl);
+
+          autoResizeTextarea(input);
+          applyResultToDom(idx);
         });
 
-        // Quick-add line trigger at bottom
-        const addBtn = document.createElement('button');
-        addBtn.type = 'button';
-        addBtn.className = 'vs-add-hint';
-        addBtn.innerHTML = '<span style="font-family:var(--font-mono);font-weight:600">+</span><span>Neue Zeile hinzufügen (oder Enter in einer Zeile drücken)</span>';
-        addBtn.addEventListener('click', () => {
-          rows.push({ id: nextId++, expr: '', result: '—', linked: false });
-          renderRows(rows.length - 1, 'start');
-        });
-        vsRowsEl.appendChild(addBtn);
-
-        rowCountLabel.textContent = `${rows.length} Zeilen`;
+        updateFooter();
 
         if (typeof focusIndex === 'number') {
           focusRowInput(focusIndex, caretPos || 'end');
         }
       }
 
-      // Clicking a variable chip inside the note opens Var-Sheet & highlights that row
+      // Clicking a variable chip inside the note opens VarSheet & highlights that row
       document.querySelectorAll('[data-jump-var]').forEach((chip) => {
         chip.addEventListener('click', () => {
           const key = chip.getAttribute('data-jump-var');
           if (!workspace.classList.contains('sheet-open')) {
             setSheetOpen(true);
           }
-          const idx = rows.findIndex((r) => r.key === key || r.expr.startsWith(key));
+          const idx = rows.findIndex((r) => r.key === key || r.definedSymbol === key || r.expr.startsWith(key));
           if (idx >= 0) {
             focusRowInput(idx, 'end');
             const rowEl = vsRowsEl.querySelector(`.vs-row[data-idx="${idx}"]`);
@@ -1178,6 +1826,8 @@
         });
       });
 
+      // Initial top-down evaluation & render
+      recalculateRangeFrom(0);
       renderRows(activeIndex, 'end');
     })();
   </script>
