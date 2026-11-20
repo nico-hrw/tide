@@ -316,3 +316,60 @@ When editing or extending `MobileLayout.tsx`, `MobileWeekGrid.tsx`, or any mobil
 4. **Always Clean Up Capture Listeners in Both `touchend` and `touchcancel`**: Mobile operating systems emit `touchcancel` whenever a system popup, call banner, or app switch occurs. Failing to remove listeners on `touchcancel` will permanently break grid interactions.
 5. **Keep `touchmove` Throttled**: Live drag tracking must update direct DOM attributes (`style.transform` and `style.background`) or run inside `requestAnimationFrame`. Never call `setState` on raw touchmove events.
 6. **Preserve `evPendingMoveRef`**: Column creation (`colTouchStart`) must always verify that `evPendingMoveRef.current === false` before starting a new event drag.
+
+---
+
+## 7. Tagesliste: Halten und Doppeltipp
+
+Gilt nur für die Tagesansicht der mobilen Liste (`DbTimelineDay` mit `proportional` und `onQuickEdit`/`onDraftAt`). Monats- und Agenda-Liste bleiben unverändert und bekommen keine Handler. Code: `mobile/listGestures.ts` (reiner Detektor), `mobile/useDayListGestures.ts` (DOM-Anbindung), `mobile/timelineMath.ts`, `mobile/quickEditMath.ts`, `mobile/QuickEditGrid.tsx`, `mobile/quickEditState.ts`.
+
+### Erkennung
+
+| Geste | Schwelle | Wirkung |
+|-------|----------|---------|
+| Halten | 450 ms ohne Bewegung | `onQuickEdit(ev)` für die Terminkarte unter dem Finger |
+| Doppeltipp | zweiter Tipp binnen 300 ms, höchstens 24 px vom ersten entfernt | `onDraftAt(start, end)` |
+| Abbruch | mehr als 10 px Bewegung | beendet Halten und Tipp-Verfolgung; Scrollen und Tages-Swipe laufen ungestört weiter |
+
+Der Detektor beobachtet nur: er ruft nie `preventDefault` auf `touchstart`/`touchmove` und blockiert deshalb weder vertikales Scrollen noch den horizontalen Tageswechsel. Mehr als ein Finger bricht ab.
+
+**Ignoriert** werden Touches auf Bedienelementen (`button, a, input, textarea, [role=button]`), also Löschen, Erledigt-Haken, Bearbeiten usw. Ausnahme: der Kartenkörper ist selbst ein Button, trägt aber `data-card-body` und zählt mit. Todos und Ganztags-Pills sind keine `events` für den Hook; Halten auf ihnen öffnet nichts (der Treffer wird über `[id^="ev-"]` gegen die echten Termine geprüft).
+
+### Klick-Unterdrückung und Expand-Rückgängig
+
+- Nach einer ausgelösten Geste ruft `onTouchEnd` `preventDefault()` auf (kein synthetischer Klick, kein Doppeltipp-Zoom) und setzt zusätzlich eine 600-ms-Sperre: `onClickCapture` verschluckt den nächsten Klick einmalig (`preventDefault` + `stopPropagation`), falls der Browser trotzdem einen erzeugt.
+- Ein einzelner Tipp klappt eine Karte sofort auf. Der Doppeltipp merkt sich den Expand-Zustand vom Beginn des vorherigen Touches und stellt ihn wieder her, sodass der erste Tipp des Paars keine Karte offen lässt.
+
+### Zeit aus der Tipp-Position
+
+1. Alle `[data-seg]`-Elemente (Block- und Lücken-Segmente) liefern Rechteck und `data-seg-start`/`data-seg-end` (ms); Positionen relativ zur Liste, nach `top` sortiert (`collectSegRects`).
+2. `timeFromTap(segs, y, DAY_PX_PER_MIN)`: im Segment linear interpoliert; über/unter allen Segmenten mit 0,8 px/min extrapoliert; in einem Loch zwischen Segmenten die nächstliegende Kante.
+3. `draftRangeFromTime(raw, dayStart)`: auf 10 min gerundet, 60 min Dauer, Start in `[Tagesbeginn, Tagesende - 60 min]` geklemmt.
+4. **Leerer Tag** (keine Segmente): `emptyDayDraft`, 09:00; heute die nächste volle Stunde, höchstens 23:00.
+
+### Schnellbearbeitungs-Raster (`QuickEditGrid`)
+
+- Portal mit `fixed inset-0`, Tagesraster mit 56 px pro Stunde, scrollt zum aktiven Block. Verschieben über den Körper, Größe über 44-px-Griffe oben/unten, Raster 10 min, Mindestlänge 10 min.
+- **Wahre Spanne im State:** Start/Ende bleiben unverändert (auch über Mitternacht); `visibleRange` schneidet nur fürs Zeichnen zu. So behält z. B. 22:00-02:00 seine Länge.
+- 6 px Totzone vor dem ersten Ziehen; verfolgt wird der Finger über `touches[].identifier` (erster Finger), weitere Finger werden ignoriert.
+- `touchend` übernimmt die Spanne, `touchcancel` (Systemunterbrechung) setzt auf den Ausgangswert zurück.
+- Am Ende: `flushSync(() => { setRange; setDragging(false) })` und der iOS-Scroll-Jiggle (`scrollTop ± 1`, siehe Abschnitt 4), damit UIScrollView nach `preventDefault` nicht einfriert.
+- ✓ ruft `onConfirm(start, end)`, ✕ ruft `onCancel`; das Raster speichert selbst nichts.
+
+### Proportionale Tagesliste
+
+- Nur die Tagesansicht übergibt `proportional`; Monat und Agenda nutzen die alte Liste.
+- Konstanten (`timelineMath.ts`): `DAY_PX_PER_MIN` 0,8, `DAY_MIN_BLOCK_PX` 68, `GAP_PX` 34. Blockhöhe = `max(68, Minuten * 0,8)`.
+- Lücken sind 34 px hoch; nur die Lücke, in der gerade "jetzt" liegt (`gapHeightPx`), wächst auf `Minuten * 0,8` (animiert).
+- Die Jetzt-Linie wird über `nowPlacement` im passenden Segment (Block oder Lücke, Anteil) platziert, vor dem ersten bzw. nach dem letzten Termin am Rand.
+
+### Entwurfs-Ablauf
+
+Doppeltipp → `onDraftAt` → `quickEditForDraft` → `QuickEditGrid` (gestrichelter Block) → ✓ `confirmQuickEdit` → vorhandenes Bearbeiten-Sheet (`MobileEditEventSheet`) mit Event `id: ''` → Speichern ruft `onNewEvent(start, end, meta)` (leerer Titel wird zu "Neuer Termin"; kein Löschen, kein Store-Update). Beim Halten auf einen echten Termin: ✓ ruft `onEventUpdate(id, start, end)`, nur wenn sich die Spanne geändert hat.
+
+### Bekannte Grenzen / noch am Gerät zu prüfen
+
+- Noch kein Test auf echten Geräten: iOS-Textauswahl/Callout beim langen Halten, die Klick-Unterdrückung und das Gefühl von Swipe/Scroll sind nur per Unit-Tests abgedeckt.
+- Maßstab (`DAY_PX_PER_MIN`) und Mindesthöhe (`DAY_MIN_BLOCK_PX`) sind Tuning-Werte.
+- `quickEdit` wird bei externem Ansichts- oder Datumswechsel nicht zurückgesetzt.
+- Ganztägig wird bei Entwürfen nicht als ganztägig gespeichert.
