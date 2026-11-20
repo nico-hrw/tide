@@ -77,6 +77,19 @@ describe('buildScope', () => {
     expect(run('=f(1)', { local: [def('f', 'f(x)', ['x'])] })).toEqual(expect.objectContaining({ error: '#ZIRKEL' }));
   });
 
+  it('exponentially branching functions hit the call budget instead of stalling', () => {
+    const local = [def('f', 'WENN(n; f(n-1)+f(n-1); 1)', ['n'])];
+    const t0 = performance.now();
+    const v = run('=f(18)', { local });
+    expect(performance.now() - t0).toBeLessThan(500);
+    expect(v).toEqual(expect.objectContaining({ error: '#WERT' }));
+  });
+
+  it('a normal bounded recursion below the budget still works', () => {
+    const local = [def('f', 'WENN(n; n+f(n-1); 0)', ['n'])];
+    expect(run('=f(10)', { local })).toBe(55);
+  });
+
   it('variables cannot reference cells', () => {
     expect(run('=a', { local: [def('a', 'B2')] })).toEqual(expect.objectContaining({ error: '#BEZUG' }));
   });

@@ -42,6 +42,8 @@ export interface ScopeLayers {
 
 /** Maximum nesting of user-function calls before giving up with #ZIRKEL. */
 const MAX_CALL_DEPTH = 50;
+/** Total user-function calls per scope. Depth alone does not stop exponential branching like f(n-1)+f(n-1). */
+const MAX_TOTAL_CALLS = 20_000;
 
 /** Resolution order: local, global, snapshot, stdlib. Values are evaluated lazily and cached per scope. */
 export function buildScope(layers: ScopeLayers): CalcScope {
@@ -51,6 +53,7 @@ export function buildScope(layers: ScopeLayers): CalcScope {
     const values = new Map<string, Value>();
     const visiting = new Set<string>();
     let depth = 0;
+    let calls = 0;
 
     const find = (match: (d: Definition) => boolean): Definition | undefined =>
         layers.local.find(match) ?? globalGet().find(match) ?? layers.snapshot.find(match);
@@ -99,6 +102,7 @@ export function buildScope(layers: ScopeLayers): CalcScope {
         const params = d.params;
         return (args) => {
             if (args.length < params.length) return err('#WERT', `${d.name} erwartet ${params.length} Argumente`);
+            if (++calls > MAX_TOTAL_CALLS) return err('#WERT', 'Zu viele Funktionsaufrufe');
             if (depth >= MAX_CALL_DEPTH) return err('#ZIRKEL', `Rekursion bei ${d.name}`);
             depth++;
             try {
