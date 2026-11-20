@@ -479,7 +479,8 @@ function columnsFor(events: any[]): Map<string, { left: number; z: number }> {
   order.forEach((e, idx) => {
     const longer = events.filter(o => o.id !== e.id && start(o) < end(e) && end(o) > start(e)
       && (dur(o) > dur(e) || (dur(o) === dur(e) && start(o) < start(e)))).length;
-    out.set(e.id, { left: Math.min(longer * 24, 46), z: idx + 1 });
+    // A shifted event is drawn above the wide one it sits on, so its title stays readable.
+    out.set(e.id, { left: Math.min(longer * 24, 46), z: (longer > 0 ? 100 : 1) + idx });
   });
   return out;
 }

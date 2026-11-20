@@ -30,12 +30,14 @@ export function SwipeRow({
       if (!el) return;
       el.style.opacity = String(Math.min(1, Math.abs(dx) / 40));
       el.style.transform = `scale(${on ? 1.15 : 0.9})`;
-      el.classList.toggle('tide-wiggle', on);
     };
     show(doneRef.current, armed === 'complete' || (dx > 0 && armed === null));
     show(delRef.current, armed === 'delete' || (dx < 0 && armed === null));
     if (armed !== armedRef.current) {
+      // The wiggle starts once, when a swipe becomes able to trigger, and not on every move.
       armedRef.current = armed;
+      doneRef.current?.classList.toggle('tide-wiggle', armed === 'complete');
+      delRef.current?.classList.toggle('tide-wiggle', armed === 'delete');
       if (navigator.vibrate && armed) navigator.vibrate(8);
     }
   };
@@ -96,7 +98,7 @@ export function SwipeRow({
           Löschen<Trash2 size={18} strokeWidth={2.4} />
         </span>
       </div>
-      <div ref={contentRef} className="relative" style={{ transform: 'translateX(0px)', transition: 'transform 0.2s ease-out' }}>
+      <div ref={contentRef} className="relative" style={{ transform: 'translateX(0px)', transition: 'transform 0.2s ease-out', willChange: 'transform' }}>
         {children}
       </div>
     </div>
