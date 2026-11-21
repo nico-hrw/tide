@@ -249,7 +249,16 @@ export const MobileTodoView: React.FC = () => {
 
   const selected = detailId ? tasks.find((t) => t.id === detailId) : undefined;
   if (selected) {
-    return <MobileTodoDetail task={selected} onBack={() => setDetailId(null)} />;
+    // Zurück aus einem Untertodo führt zum Eltern-Todo, sonst zur Liste.
+    const parent = selected.parentId ? tasks.find((t) => t.id === selected.parentId) : undefined;
+    return (
+      <MobileTodoDetail
+        task={selected}
+        parent={parent}
+        onBack={() => setDetailId(parent ? parent.id : null)}
+        onOpenSubtask={setDetailId}
+      />
+    );
   }
 
   return (

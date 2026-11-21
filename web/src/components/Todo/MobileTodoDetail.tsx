@@ -5,15 +5,24 @@ import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { getTaskPriority, PRIORITY_OPTIONS, type Priority } from './types';
 import { TodoProgressRing, CheckMark } from './MobileTodoParts';
+import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
 
 /** Vollansicht eines Todos am Handy: Eigenschaften bearbeitbar, großer Ring und alle Untertodos. */
-export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () => void }) {
+export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
+  task: TaskItem;
+  /** Eltern-Todo, wenn `task` ein Untertodo ist. */
+  parent?: TaskItem;
+  onBack: () => void;
+  onOpenSubtask?: (id: string) => void;
+}) {
   const tasks = useDataStore((s) => s.tasks) as TaskItem[];
   const toggleTask = useDataStore((s) => s.toggleTask);
   const addTask = useDataStore((s) => s.addTask);
   const updateTask = useDataStore((s) => s.updateTask);
   const deleteTask = useDataStore((s) => s.deleteTask);
   const [draft, setDraft] = useState('');
+  const isSubtask = !!task.parentId;
+  const maxDate = subtaskDateMax(task, parent)?.slice(0, 10);
 
   const children = useMemo(
     () => tasks.filter((t) => t.parentId === task.id),
@@ -48,8 +57,13 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
   };
 
   const saveDate = (value: string) => {
-    const v = value || undefined;
+    const v = clampSubtaskDate(value, maxDate) || undefined;
     void updateTask(task.id, { dueDate: v, scheduledDate: v });
+  };
+
+  const saveDescription = (value: string) => {
+    if (value === (task.description ?? '')) return;
+    void updateTask(task.id, { description: value });
   };
 
   const savePriority = (value: string) => {
@@ -71,6 +85,9 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
       </div>
 
       <div className="flex-1 overflow-y-auto px-5 pb-10">
+        {isSubtask && parent && (
+          <div className="text-[12.5px] font-medium text-t2-ink-3">Untertodo von «{parent.title}»</div>
+        )}
         <input
           key={`title-${task.id}-${task.title}`}
           defaultValue={task.title}
@@ -91,6 +108,7 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
                 value={(task.dueDate || task.scheduledDate || '').slice(0, 10)}
                 onChange={(e) => saveDate(e.target.value)}
                 aria-label="Fälligkeitsdatum"
+                max={maxDate}
                 className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
               />
             </span>
@@ -129,6 +147,17 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
           </Fact>
         </div>
 
+        <textarea
+          key={`desc-${task.id}-${task.description ?? ''}`}
+          data-testid="todo-description"
+          defaultValue={task.description ?? ''}
+          onBlur={(e) => saveDescription(e.target.value)}
+          placeholder="Beschreibung"
+          aria-label="Beschreibung"
+          rows={4}
+          className="mt-4 w-full resize-y rounded-md border border-t2-line bg-transparent px-3 py-2 text-[15px] text-t2-ink outline-none placeholder:text-t2-ink-3"
+        />
+
         <div className="mt-6 flex items-center gap-3">
           <button type="button" onClick={toggleAll} aria-label="Alle Untertodos umschalten">
             <TodoProgressRing segments={children.length ? children.map((c) => c.isCompleted) : [task.isCompleted]} size={44} />
@@ -140,16 +169,29 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
 
         <div className="mt-2">
           {children.map((c) => (
-            <button
+            <div
               key={c.id}
-              type="button"
-              onClick={() => void toggleTask(c.id)}
               className={`flex w-full items-center gap-3 border-b border-t2-line-soft py-3 text-left text-[15px] ${c.isCompleted ? 'text-t2-ink-3' : 'text-t2-ink'}`}
             >
-              <CheckMark checked={c.isCompleted} size={22} />
-              <span className={`flex-1 ${c.isCompleted ? 'line-through' : ''}`}>{c.title}</span>
-            </button>
+              <button
+                type="button"
+                data-testid={`subtask-check-${c.id}`}
+                aria-label={c.isCompleted ? 'Wieder öffnen' : 'Erledigen'}
+                onClick={() => void toggleTask(c.id)}
+              >
+                <CheckMark checked={c.isCompleted} size={22} />
+              </button>
+              <button
+                type="button"
+                data-testid={`subtask-title-${c.id}`}
+                onClick={() => onOpenSubtask?.(c.id)}
+                className={`flex-1 text-left ${c.isCompleted ? 'line-through' : ''}`}
+              >
+                {c.title}
+              </button>
+            </div>
           ))}
+          {!isSubtask && (
           <form
             className="flex items-center gap-3 py-3 text-[15px] text-t2-ink-3"
             onSubmit={(e) => { e.preventDefault(); void submit(); }}
@@ -163,6 +205,7 @@ export function MobileTodoDetail({ task, onBack }: { task: TaskItem; onBack: () 
               enterKeyHint="done"
             />
           </form>
+          )}
         </div>
       </div>
     </div>
