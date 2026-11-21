@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef } from 'react';
-import { Plus, X, Folder, Tag, Check, Repeat, Calendar } from 'lucide-react';
+import React from 'react';
+import { Plus, X, Folder, Tag, Repeat, Calendar } from 'lucide-react';
 import type { Tag as TagItem } from '@/lib/tags';
-import { DEFAULT_TAG_COLOR } from './useTodoTags';
+import TagPicker from '@/components/Tags/TagPicker';
+import NoTagConfirm from '@/components/Tags/NoTagConfirm';
 import { Priority, RecurrenceType, PRIORITY_OPTIONS, RECURRENCE_OPTIONS } from './types';
 
 export interface TaskCreateDraft {
@@ -24,8 +25,6 @@ export interface TodoCreateCardProps {
   draft: TaskCreateDraft;
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   titleInputRef: React.RefObject<HTMLInputElement | null>;
-  newTagInput: string;
-  setNewTagInput: React.Dispatch<React.SetStateAction<string>>;
   allTags: TagItem[];
   allFolders: string[];
   isSubmitting: boolean;
@@ -33,29 +32,15 @@ export interface TodoCreateCardProps {
   /** Returns the id of the existing or newly created tag with this name. */
   handleCreateTag: (name: string) => Promise<string | undefined>;
   onClose: () => void;
+  noTagPrompt: boolean;
+  onNoTagConfirm: () => void;
+  onNoTagChoose: () => void;
 }
 
 export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
-  draft, setDraft, titleInputRef, newTagInput, setNewTagInput, allTags, allFolders,
-  isSubmitting, handleAddTask, handleCreateTag, onClose,
+  draft, setDraft, titleInputRef, allTags, allFolders,
+  isSubmitting, handleAddTask, handleCreateTag, onClose, noTagPrompt, onNoTagConfirm, onNoTagChoose,
 }) => {
-  const creatingTag = useRef(false);
-  const addNewTag = async () => {
-    const trimmed = newTagInput.trim().replace(/^#/, '');
-    if (!trimmed || creatingTag.current) return;
-    creatingTag.current = true;
-    let id: string | undefined;
-    try {
-      id = await handleCreateTag(trimmed);
-    } finally {
-      creatingTag.current = false;
-    }
-    if (id) {
-      setDraft((p) => (p.tags.includes(id) ? p : { ...p, tags: [...p.tags, id] }));
-    }
-    setNewTagInput('');
-  };
-
   return (
             <div className="bg-t2-surface  border border-t2-accent  rounded-2xl p-4 sm:p-5 shadow-2xs transition-all">
               <form onSubmit={handleAddTask} className="flex flex-col gap-3 sm:gap-3.5">
@@ -82,68 +67,20 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                   className="w-full px-4 py-2 text-xs bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent resize-none"
                 />
 
-                {/* Tag selector chips in Create Form */}
                 <div className="flex flex-col gap-1.5 pt-0.5">
                   <div className="flex items-center gap-1.5 text-xs text-t2-ink-2  font-medium">
                     <Tag size={13} className="text-t2-accent" />
                     <span>Tags:</span>
                   </div>
-                  <div className="flex flex-wrap items-center gap-1.5">
-                    {allTags.map((tag) => {
-                      const isSelected = draft.tags.includes(tag.id);
-                      return (
-                        <button
-                          key={tag.id}
-                          type="button"
-                          onClick={() => {
-                            setDraft((p) => ({
-                              ...p,
-                              tags: isSelected ? p.tags.filter((t) => t !== tag.id) : [...p.tags, tag.id],
-                            }));
-                          }}
-                          className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
-                            isSelected
-                              ? 'bg-t2-sub text-t2-accent  border-t2-accent shadow-2xs'
-                              : 'bg-t2-hover  text-t2-ink-2  border-t2-line  hover:border-t2-line '
-                          }`}
-                        >
-                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
-                          <span>{tag.title}</span>
-                          {isSelected && <Check size={11} className="text-t2-accent" />}
-                        </button>
-                      );
-                    })}
-
-                    <div className="inline-flex items-center gap-1 bg-t2-sub  border border-t2-line  rounded-lg px-2 py-0.5">
-                      <span className="text-xs text-t2-ink-3">#</span>
-                      <input
-                        type="text"
-                        value={newTagInput}
-                        onChange={(e) => setNewTagInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault();
-                            void addNewTag();
-                          }
-                        }}
-                        placeholder="Neuer Tag..."
-                        className="w-20 sm:w-24 text-xs bg-transparent text-t2-ink  placeholder-t2-ink-3  focus:outline-none py-0.5"
-                      />
-                      {newTagInput.trim() && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            void addNewTag();
-                          }}
-                          className="text-t2-accent  hover:text-t2-accent p-0.5 cursor-pointer"
-                          title="Tag hinzufügen"
-                        >
-                          <Plus size={12} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
+                  <TagPicker
+                    tags={allTags}
+                    value={draft.tags}
+                    onChange={(tags) => setDraft((p) => ({ ...p, tags }))}
+                    onCreate={handleCreateTag}
+                  />
                 </div>
+
+                {noTagPrompt && <NoTagConfirm onConfirm={onNoTagConfirm} onChoose={onNoTagChoose} />}
 
                 <div className="flex flex-wrap sm:flex-nowrap items-center justify-between gap-3 pt-1 border-t border-t2-line-soft ">
                   <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 w-full sm:w-auto">

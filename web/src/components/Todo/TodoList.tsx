@@ -11,6 +11,7 @@ import {
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
+import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
 import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
 import TodoTagFilterPanel from './TodoTagFilterPanel';
@@ -142,7 +143,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return titles.join(' / ') || 'Ohne Tag';
   }, [tagFilter, tagFilterActive, resolveTags]);
   const clearTagFilter = useCallback(() => setTagFilter(EMPTY_TAG_FILTER), [setTagFilter]);
-  const [newTagInput, setNewTagInput] = useState('');
+  const [noTagPrompt, setNoTagPrompt] = useState(false);
+  const [noTagConfirmed, setNoTagConfirmed] = useState(false);
   const [editNewTagInput, setEditNewTagInput] = useState('');
 
   const [draft, setDraft] = useState<TaskCreateDraft>({
@@ -154,6 +156,31 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const tagFilterRef = useRef(tagFilter);
+  tagFilterRef.current = tagFilter;
+
+  // Opening the create card: preselect the active filter tags, reset the no-tag prompt
+  useEffect(() => {
+    if (!isCreateOpen) return;
+    setNoTagPrompt(false);
+    setNoTagConfirmed(false);
+    setDraft((p) => (p.tags.length > 0 ? p : { ...p, tags: defaultTagIds(tagFilterRef.current) }));
+  }, [isCreateOpen]);
+
+  // Selecting any tag clears the prompt
+  useEffect(() => {
+    if (draft.tags.length > 0) setNoTagPrompt(false);
+  }, [draft.tags]);
+
+  const noTagProps = {
+    noTagPrompt,
+    onNoTagConfirm: () => {
+      setNoTagConfirmed(true);
+      setNoTagPrompt(false);
+      void handleAddTask(undefined, true);
+    },
+    onNoTagChoose: () => setNoTagPrompt(false),
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -483,9 +510,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
   };
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddTask = async (e?: React.FormEvent, skipNoTagPrompt = false) => {
+    e?.preventDefault();
     if (!draft.title.trim() || isSubmitting) return;
+    if (!skipNoTagPrompt && needsNoTagConfirm(draft.tags, noTagConfirmed)) {
+      setNoTagPrompt(true);
+      return;
+    }
     try {
       setIsSubmitting(true);
       const folderVal = draft.folder.trim() || undefined;
@@ -504,7 +535,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         handleCreateFolder(folderVal);
       }
       setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [], showInCalendar: true });
-      setNewTagInput('');
       setIsCreateOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -817,11 +847,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               {isCreateOpen && (
                 <TodoCreateCard
                   draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                  newTagInput={newTagInput} setNewTagInput={setNewTagInput}
                   allTags={allTags} allFolders={allFolders}
                   isSubmitting={isSubmitting} handleAddTask={handleAddTask}
                   handleCreateTag={ensureTag}
                   onClose={() => setIsCreateOpen(false)}
+                  {...noTagProps}
                 />
               )}
             </>
@@ -888,11 +918,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   {isCreateOpen && (
                     <TodoCreateCard
                       draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                      newTagInput={newTagInput} setNewTagInput={setNewTagInput}
-                      allTags={allTags} allFolders={allFolders}
+                          allTags={allTags} allFolders={allFolders}
                       isSubmitting={isSubmitting} handleAddTask={handleAddTask}
                       handleCreateTag={ensureTag}
                       onClose={() => setIsCreateOpen(false)}
+                      {...noTagProps}
+                  {...noTagProps}
                     />
                   )}
 

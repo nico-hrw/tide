@@ -153,6 +153,10 @@ export default function Dashboard() {
         activeTabIdStr !== "calendar" && activeTabIdStr !== "todos" && activeTabIdStr !== "messages" &&
         activeTabIdStr !== "folders" && !activeTabIdStr.startsWith("chat-") ? activeTabIdStr : null;
 
+    const mobileThemes = useMemo(
+        () => files.filter((f) => f.type === "folder" && f.isGroup).map((g) => ({ id: g.id, title: g.title, effect: typeof g.effect === "string" ? g.effect : undefined, color: g.color })),
+        [files]
+    );
     const safeFilteredFiles = useMemo(() => filterFilesBySafe(files, activeSafes), [files, activeSafes]);
     const sidebarFiles = useMemo(
         () => (files ? files.filter((f) => !f.isGroup && !(f.title || "").startsWith(".")) : []),
@@ -456,7 +460,8 @@ export default function Dashboard() {
                     socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
-                    userProfile={userProfile} editorElement={mobileEditorElement} />
+                    userProfile={userProfile} editorElement={mobileEditorElement}
+                    themes={mobileThemes} />
             ) : (
                 <>
                     <div style={{ width: shouldShowSidebar ? `${sidebarWidth}px` : "0px" }}
