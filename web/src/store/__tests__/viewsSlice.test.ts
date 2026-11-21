@@ -81,6 +81,20 @@ describe('viewsSlice', () => {
         expect(s.getState().views).toEqual(stored);
     });
 
+    it('loadViews does not overwrite a view added while the load was in flight', async () => {
+        let release: (v: SavedView[]) => void = () => undefined;
+        const slow: ViewsStorage = {
+            load: () => new Promise<SavedView[]>((r) => { release = r; }),
+            save: async () => undefined,
+        };
+        const s = makeStore(slow);
+        const loading = s.getState().loadViews();
+        const id = await s.getState().addView(base);
+        release([]);
+        await loading;
+        expect(s.getState().views.map((v) => v.id)).toEqual([id]);
+    });
+
     it('loadViews does not throw when storage fails', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         const s = makeStore({ load: async () => { throw new Error('locked'); }, save: async () => undefined });

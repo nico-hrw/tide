@@ -40,7 +40,10 @@ export const createViewsSliceWith =
                 console.warn('[views] could not persist saved views', e);
             }
         };
+        // bumped on every local mutation so a slower startup load never overwrites newer local changes
+        let version = 0;
         const apply = async (next: SavedView[]): Promise<void> => {
+            version += 1;
             set({ views: next });
             await persist(next);
         };
@@ -49,8 +52,10 @@ export const createViewsSliceWith =
             views: [],
 
             loadViews: async () => {
+                const startVersion = version;
                 try {
                     const loaded = await provider(get).load();
+                    if (version !== startVersion) return; // local changes made while loading win
                     set({ views: loaded });
                 } catch (e) {
                     console.warn('[views] could not load saved views', e);
