@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it} from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { act, useEffect, useRef } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { useCalendarScroll } from '../useCalendarScroll';
@@ -13,6 +13,7 @@ const NOW = new Date('2026-01-05T10:00:00Z');
 const WEEKS: Date[] = [];
 
 const holder: { api: Api | null } = { api: null };
+const onChangeSpy = vi.fn();
 
 function Harness() {
   const ref = useRef<HTMLDivElement>(null);
@@ -27,7 +28,7 @@ function Harness() {
     <div ref={ref}>
       {api.activePopover && (
         <div id="active-event-popover">
-          <TagPicker tags={[{ id: 'a', title: 'Arbeit' }]} value={[]} onChange={() => {}} onCreate={async () => undefined} />
+          <TagPicker tags={[{ id: 'a', title: 'Arbeit' }]} value={[]} onChange={(ids) => onChangeSpy(ids)} onCreate={async () => undefined} />
         </div>
       )}
     </div>
@@ -78,6 +79,16 @@ describe('event popover hosting the tag picker', () => {
     act(() => { option.dispatchEvent(new Event('touchend', { bubbles: true })); });
     expect(holder.api!.activePopover).not.toBeNull();
     act(() => { option.dispatchEvent(new Event('scroll', { bubbles: false })); });
+    expect(holder.api!.activePopover).not.toBeNull();
+  });
+
+  it('selecting an option keeps the popover open and reports the tag id', () => {
+    onChangeSpy.mockClear();
+    openPopoverAndPicker();
+    const option = document.querySelector('[role="option"]') as HTMLElement;
+    act(() => { option.dispatchEvent(new MouseEvent('mousedown', { bubbles: true })); });
+    act(() => { option.click(); });
+    expect(onChangeSpy).toHaveBeenCalledWith(['a']);
     expect(holder.api!.activePopover).not.toBeNull();
   });
 

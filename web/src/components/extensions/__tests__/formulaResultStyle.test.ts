@@ -34,6 +34,8 @@ describe('resultStyleFromMarks', () => {
   it('drops unsafe font sizes', () => {
     expect(resultStyleFromMarks([m('textStyle', { fontSize: '14px;color:red' })])).toBe('');
     expect(resultStyleFromMarks([m('textStyle', { fontSize: 'calc(1px)' })])).toBe('');
+    expect(resultStyleFromMarks([m('textStyle', { fontSize: '99999px' })])).toBe('');
+    expect(resultStyleFromMarks([m('textStyle', { fontSize: '120px' })])).toBe('font-size:120px');
     expect(resultStyleFromMarks([m('textStyle', { fontSize: '1.5rem' })])).toBe('font-size:1.5rem');
   });
 

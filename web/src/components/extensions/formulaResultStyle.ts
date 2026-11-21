@@ -5,7 +5,7 @@ interface MarkLike {
     attrs: Record<string, unknown>;
 }
 
-const FONT_SIZE_RE = /^\d+(\.\d+)?(px|rem|em|%)$/;
+const FONT_SIZE_RE = /^\d{1,3}(\.\d+)?(px|rem|em|%)$/;
 /** Matches the browser default of a bare <mark>, which is how the app renders a highlight without color. */
 const DEFAULT_HIGHLIGHT = '#ffff00';
 

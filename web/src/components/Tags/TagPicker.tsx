@@ -84,7 +84,8 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
   }, [open, measure]);
 
   const toggle = (id: string) => {
-    onChange(value.includes(id) ? value.filter((v) => v !== id) : [...value, id]);
+    const current = valueRef.current;
+    onChange(current.includes(id) ? current.filter((v) => v !== id) : [...current, id]);
   };
 
   const create = async () => {
