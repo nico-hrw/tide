@@ -145,7 +145,8 @@ export interface TodosSlice {
 
     setTasks: (tasks: TaskItem[]) => void;
     addTask: (task: Omit<TaskItem, 'id'>) => Promise<string>;
-    updateTask: (id: string, updates: Partial<TaskItem>) => Promise<void>;
+    /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
+    updateTask: (id: string, updates: Partial<TaskItem>, options?: { strict?: boolean }) => Promise<void>;
     toggleTask: (id: string) => Promise<void>;
     toggleTaskInProgress: (id: string) => Promise<void>;
     setTaskStatus: (

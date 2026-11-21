@@ -70,7 +70,7 @@ export interface DashboardModalsProps {
         effect?: string
     ) => Promise<string | undefined>;
     onDeleteNote: (e: React.MouseEvent, id: string) => void | Promise<void>;
-    onEventSave: (id: string, updates: { groupIds?: string[]; parent_id?: string | null }) => Promise<void>;
+    onEventSave: (id: string, updates: { groupIds?: string[]; parent_id?: string | null }, options?: { strict?: boolean }) => Promise<void>;
 
     // Schedule Modal
     scheduleModalOpen: boolean;
@@ -205,8 +205,8 @@ ${text("cal.deleteConfirmCount", {
         void deleteTagEverywhere(id, {
             events,
             tasks: store.tasks,
-            saveEvent: (eventId, updates) => onEventSave(eventId, updates),
-            saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates),
+            saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
+            saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates, { strict: true }),
             pruneViews: (tagId) => useDataStore.getState().pruneTagFromViews(tagId),
             clearFilters: (tagId) => {
                 const s = useDataStore.getState();

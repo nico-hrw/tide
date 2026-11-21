@@ -75,6 +75,13 @@ describe('deleteTagEverywhere', () => {
         expect(deps.pruneViews).not.toHaveBeenCalled();
     });
 
+    it('does not delete the file when a todo patch fails', async () => {
+        const { deps } = makeDeps({ saveTask: vi.fn(async () => { throw new Error('x'); }) });
+        const r = await deleteTagEverywhere('a', deps);
+        expect(r.ok).toBe(false);
+        expect(deps.deleteFile).not.toHaveBeenCalled();
+    });
+
     it('does not report ok when deleting the file fails', async () => {
         const { deps } = makeDeps({ deleteFile: vi.fn(async () => { throw new Error('x'); }) });
         expect((await deleteTagEverywhere('a', deps)).ok).toBe(false);

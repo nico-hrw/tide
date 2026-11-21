@@ -55,7 +55,8 @@ export interface UseCalendarActionsReturn {
     handleScheduleApply: (schedEvents: ScheduleEventData[], themeIdOrName: string, options?: { color?: string; effect?: string }) => Promise<void>;
     handleEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     handleEventRename: (id: string, newTitle: string) => Promise<void>;
-    handleEventSave: (id: string, updates: CalendarEventUpdates) => Promise<void>;
+    /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
+    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean }) => Promise<void>;
     handleDeleteEvent: (id: string) => Promise<void>;
 }
 
@@ -120,7 +121,7 @@ function syncVersionInStore(baseId: string, version: number): void {
     }));
 }
 
-async function putEventWithConflictRetry(baseId: string, event: CalendarEventRecord, body: Record<string, unknown>): Promise<void> {
+async function putEventWithConflictRetry(baseId: string, event: CalendarEventRecord, body: Record<string, unknown>, strict = false): Promise<void> {
     const res = await apiFetch(`/api/v1/files/${baseId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -134,6 +135,7 @@ async function putEventWithConflictRetry(baseId: string, event: CalendarEventRec
                 syncVersionInStore(baseId, conflictData.current_version);
                 body.version = conflictData.current_version;
                 const retryRes = await apiFetch(`/api/v1/files/${baseId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+                if (strict && !retryRes.ok) throw new Error(`Event save failed (${retryRes.status})`);
                 if (retryRes.ok) {
                     const retryData = (await retryRes.json().catch(() => null)) as { version?: number } | null;
                     if (typeof retryData?.version === "number") {
@@ -142,7 +144,12 @@ async function putEventWithConflictRetry(baseId: string, event: CalendarEventRec
                     }
                 }
             }
-        } catch { /* Silently ignore conflict resolution errors */ }
+        } catch (e) {
+            if (strict) throw e;
+            /* Silently ignore conflict resolution errors */
+        }
+    } else if (strict && !res.ok) {
+        throw new Error(`Event save failed (${res.status})`);
     } else if (res.ok) {
         const data = (await res.json().catch(() => null)) as { version?: number } | null;
         if (typeof data?.version === "number") {
@@ -269,15 +276,22 @@ export function useCalendarActions({
     );
 
     const handleEventSave = useCallback(
-        async (id: string, updates: CalendarEventUpdates): Promise<void> => {
-            if (!privateKey || !publicKey) return;
+        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean }): Promise<void> => {
+            const strict = options?.strict === true;
+            if (!privateKey || !publicKey) {
+                if (strict) throw new Error("Event save failed: keys unavailable");
+                return;
+            }
             try {
                 const isOccurrence = id.includes("_");
                 const baseId = isOccurrence ? id.split("_")[0] : id;
                 const storeState = useDataStore.getState();
                 const currentEvents = storeState.events;
                 const event = currentEvents.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
-                if (!event) return;
+                if (!event) {
+                    if (strict) throw new Error(`Event save failed: event ${baseId} not found`);
+                    return;
+                }
 
                 let occurrenceDateKey: string | null = null;
                 if (isOccurrence) {
@@ -392,10 +406,11 @@ export function useCalendarActions({
                 const freshItemBeforeSend = (freshBeforeSend.events.find((e) => e.id === baseId) || freshBeforeSend.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
                 if (typeof freshItemBeforeSend?.version === "number") body.version = freshItemBeforeSend.version;
 
-                await putEventWithConflictRetry(baseId, event, body);
+                await putEventWithConflictRetry(baseId, event, body, strict);
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
             } catch (e) {
                 console.error(e);
+                if (strict) throw e;
             }
         },
         [privateKey, publicKey, setEvents, syncingTaskIdsRef, updateTask]
