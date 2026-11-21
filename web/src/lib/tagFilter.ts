@@ -36,3 +36,23 @@ export function pruneTagFilter(filter: TagFilter, knownTagIds: Set<string>): Tag
     const tagIds = filter.tagIds.filter((id) => knownTagIds.has(id));
     return tagIds.length === filter.tagIds.length ? filter : { ...filter, tagIds };
 }
+
+/** Texts for an active todo tag filter; a filter that only selects "untagged" must not read like a tag named "Ohne Tag". */
+export function tagFilterTexts(label: string, tagIds: string[]): {
+    sectionTitle: string; emptyTitle: string; emptyHint: string; createLabel: string;
+} {
+    if (tagIds.length === 0) {
+        return {
+            sectionTitle: label,
+            emptyTitle: 'Keine Aufgaben ohne Tag',
+            emptyHint: 'Es gibt aktuell keine passenden Aufgaben ohne Tag.',
+            createLabel: 'Aufgabe ohne Tag erstellen',
+        };
+    }
+    return {
+        sectionTitle: `#${label}`,
+        emptyTitle: `Keine Aufgaben mit #${label}`,
+        emptyHint: `Es gibt aktuell keine passenden Aufgaben mit dem Tag #${label}.`,
+        createLabel: `Aufgabe mit #${label} erstellen`,
+    };
+}

@@ -251,7 +251,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             const matchedTheme = themes?.find(t => t.id === gid);
             const matchedNote = !matchedTheme ? secondaryNoteMeta[gid] : undefined;
             const matchedEvent = (!matchedTheme && !matchedNote && allEvents) ? allEvents.find(e => e.id === gid) : undefined;
-            const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title || gid;
+            const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title;
             const rawGroupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
             const groupColor = resolveEventColor(rawGroupColor);
 

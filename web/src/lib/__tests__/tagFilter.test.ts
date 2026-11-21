@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchesTagFilter, pruneTagFilter } from '../tagFilter';
+import { matchesTagFilter, pruneTagFilter, tagFilterTexts } from '../tagFilter';
 
 const known = new Set(['a', 'b', 'c']);
 
@@ -40,5 +40,19 @@ describe('pruneTagFilter', () => {
     });
     it('preserves untagged', () => {
         expect(pruneTagFilter({ tagIds: ['x'], untagged: true }, known)).toEqual({ tagIds: [], untagged: true });
+    });
+});
+
+describe('tagFilterTexts', () => {
+    it('names a tag in the labels', () => {
+        const t = tagFilterTexts('Uni', ['a']);
+        expect(t.createLabel).toBe('Aufgabe mit #Uni erstellen');
+        expect(t.sectionTitle).toBe('#Uni');
+    });
+    it('does not treat an untagged-only filter as a tag', () => {
+        const t = tagFilterTexts('Ohne Tag', []);
+        expect(t.createLabel).toBe('Aufgabe ohne Tag erstellen');
+        expect(t.emptyTitle).not.toContain('#');
+        expect(t.sectionTitle).toBe('Ohne Tag');
     });
 });

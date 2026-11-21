@@ -9,6 +9,7 @@ import {
 import { format, isToday, isBefore, startOfDay, addDays, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TaskItem } from '@/store/useDataStore';
+import { tagFilterTexts } from '@/lib/tagFilter';
 import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren, parseDateSafe } from './types';
 import { TaskCreateDraft } from './TodoCreateCard';
 
@@ -197,7 +198,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   const sectionTitle = searchQuery
     ? 'Suchergebnisse'
     : selectedTag
-    ? `#${selectedTag}`
+    ? tagFilterTexts(selectedTag, selectedTagIds).sectionTitle
     : selectedFolder
     ? selectedFolder
     : filterStatus === 'completed'
@@ -601,7 +602,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     : searchQuery
                     ? 'Keine Aufgaben gefunden'
                     : selectedTag !== null
-                    ? `Keine Aufgaben mit #${selectedTag}`
+                    ? tagFilterTexts(selectedTag, selectedTagIds).emptyTitle
                     : selectedFolder !== null
                     ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"`
                     : 'Noch keine Aufgaben'}
@@ -614,7 +615,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     : filterStatus === 'in_progress'
                     ? 'Aktuell ist keine Aufgabe in Bearbeitung. Klicke auf das Stoppuhr-Symbol einer Aufgabe, um sie zu starten.'
                     : selectedTag !== null
-                    ? `Es gibt aktuell keine passenden Aufgaben mit dem Tag #${selectedTag}.`
+                    ? tagFilterTexts(selectedTag, selectedTagIds).emptyHint
                     : selectedFolder !== null
                     ? `In diesem Ordner befinden sich aktuell keine passenden Aufgaben.`
                     : tasks.length === 0
@@ -631,7 +632,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       }}
                       className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
                     >
-                      <Plus size={14} /><span>Aufgabe mit #{selectedTag} erstellen</span>
+                      <Plus size={14} /><span>{tagFilterTexts(selectedTag, selectedTagIds).createLabel}</span>
                     </button>
                     <button
                       type="button"
