@@ -33,7 +33,7 @@ async function fetchRemote(noteId: string): Promise<{ metadata: Record<string, u
 async function putMetadata(noteId: string, tagIds: string[]): Promise<Response> {
     // Fresh server state, so keys written meanwhile (content key info, title, ...) are never dropped.
     const { metadata, version } = await fetchRemote(noteId);
-    const body: Record<string, unknown> = { metadata: { ...metadata, tags: tagIds } };
+    const body: Record<string, unknown> = { metadata: { ...metadata, tagIds } };
     if (version !== undefined) body.version = version;
     const tideWin = window as TideWindow;
     if (tideWin.__tideSaveTimestamp) tideWin.__tideSaveTimestamp();
@@ -57,10 +57,10 @@ async function persist(noteId: string, tagIds: string[]): Promise<number | undef
 }
 
 /**
- * Sets the tag ids of a note. Only `metadata.tags` changes: the current server metadata is merged,
+ * Sets the tag ids of a note. Only `metadata.tagIds` changes (legacy free-form `tags` stays untouched): the current server metadata is merged,
  * content and secured_meta are never sent. Only the owner may change tags.
  */
-export async function setNoteTags(noteId: string, tagIds: string[], options?: SetNoteTagsOptions): Promise<void> {
+export async function setNoteTags(noteId: string, ids: string[], options?: SetNoteTagsOptions): Promise<void> {
     const strict = options?.strict === true;
     const fail = (message: string, cause?: unknown): void => {
         const err = cause instanceof Error ? cause : new Error(message);
@@ -76,18 +76,18 @@ export async function setNoteTags(noteId: string, tagIds: string[], options?: Se
         return;
     }
 
-    const tags = [...new Set(tagIds)];
-    const prevTags = note.tags;
+    const tagIds = [...new Set(ids)];
+    const prevTagIds = note.tagIds;
     const prevMetadata = note.metadata;
     const baseMeta = isRecord(prevMetadata) ? prevMetadata : {};
-    store.updateFileRaw(noteId, { tags, metadata: { ...baseMeta, tags } });
+    store.updateFileRaw(noteId, { tagIds, metadata: { ...baseMeta, tagIds } });
 
     try {
-        const version = await persist(noteId, tags);
+        const version = await persist(noteId, tagIds);
         if (version !== undefined) useDataStore.getState().updateFileRaw(noteId, { version });
     } catch (e) {
         if (strict) {
-            useDataStore.getState().updateFileRaw(noteId, { tags: prevTags, metadata: prevMetadata });
+            useDataStore.getState().updateFileRaw(noteId, { tagIds: prevTagIds, metadata: prevMetadata });
             throw e;
         }
         console.error('Failed to save note tags', e);

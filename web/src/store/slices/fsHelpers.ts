@@ -281,7 +281,7 @@ export function mergeMetadataCache(
     return merged;
 }
 
-function normalizeNoteTags(raw: unknown): string[] {
+function normalizeNoteTagIds(raw: unknown): string[] {
     return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string') : [];
 }
 
@@ -325,7 +325,7 @@ export async function decryptAndNormalizeFileItem(
                 safe: cachedSafe || 'Standard',
             };
             if (file.type !== 'event' && file.type !== 'folder') {
-                normalizedCached.tags = normalizeNoteTags(cached.tags ?? file.metadata?.tags);
+                normalizedCached.tagIds = normalizeNoteTagIds(cached.tagIds ?? file.metadata?.tagIds);
             }
             return {
                 item: normalizedCached,
@@ -453,7 +453,7 @@ export async function decryptAndNormalizeFileItem(
     }
 
     if (file.type !== 'folder') {
-        normalizedItem.tags = normalizeNoteTags(metaData.tags);
+        normalizedItem.tagIds = normalizeNoteTagIds(metaData.tagIds);
     }
     return {
         item: normalizedItem,

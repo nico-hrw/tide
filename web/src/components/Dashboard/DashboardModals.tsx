@@ -211,7 +211,7 @@ ${text("cal.deleteConfirmCount", {
             events,
             tasks: store.tasks,
             notes: noteItems,
-            saveNote: (noteId, tags) => setNoteTags(noteId, tags, { strict: true }),
+            saveNote: (noteId, tagIds) => setNoteTags(noteId, tagIds, { strict: true }),
             myId,
             isOwner,
             saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
