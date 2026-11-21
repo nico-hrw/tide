@@ -166,7 +166,7 @@ export default function Dashboard() {
     const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));
     const filteredCalendarEvents = useMemo(
         () => filterEventsByTags(events, calendarTagFilter, mobileThemes)
-            .map((e) => ({ ...e, effect: files?.find((f) => f.id === e.parent_id)?.effect || "none" }))
+            .map((e) => ({ ...e, effect: files?.find((f) => f.id === getEventGroupIds(e)[0])?.effect || "none" }))
             .filter((e) => {
                 const gIds = getEventGroupIds(e);
                 return gIds.length === 0

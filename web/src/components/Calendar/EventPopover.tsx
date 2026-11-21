@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
+import { TagPicker } from "@/components/Tags/TagPicker";
+import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
+import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar } from "@/lib/calendarColors";
 
 interface CustomDropdownOption {
@@ -122,6 +125,10 @@ export interface EventPopoverProps {
     onEventDelete?: (id: string) => void;
     onClose: () => void;
     enabledExtensions: string[];
+    /** Ask "Ohne Tag speichern?" in place of closing (set by the host for untagged new events). */
+    showNoTagConfirm?: boolean;
+    onNoTagConfirm?: () => void;
+    onNoTagChoose?: () => void;
 }
 
 export default function EventPopover({
@@ -131,7 +138,11 @@ export default function EventPopover({
     onEventSave,
     onEventDelete,
     onClose,
+    showNoTagConfirm,
+    onNoTagConfirm,
+    onNoTagChoose,
 }: EventPopoverProps) {
+    const createTag = useTagCreate();
     const popoverRef = useRef<HTMLDivElement>(null);
 
     const [title, setTitle] = useState(event.title || '');
@@ -268,6 +279,8 @@ export default function EventPopover({
         setPos({ top, left });
     }, [rect, isExpanded, showColorPicker, selectedGroupIds]);
 
+    // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
+    useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const handleToggleCancel = () => {
@@ -282,7 +295,8 @@ export default function EventPopover({
         handleSave({ groupIds: next, parent_id: next[0] || null });
     };
 
-    const availableThemes = themes.filter(t => !selectedGroupIds.includes(t.id));
+    // Deleted/unknown tag ids are never shown in the picker (they are dropped on the next change).
+    const pickerValue = selectedGroupIds.filter(id => themes.some(t => t.id === id));
 
     if (typeof document === 'undefined') return null;
 
@@ -418,91 +432,17 @@ export default function EventPopover({
 
             {/* Groups / Tags & Repeat */}
             <div className="flex flex-col gap-2.5">
-                {/* Groups / Tags */}
+                {/* Tags: first selected tag sets the style/color */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
                         <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Tags</span>
-                        {selectedGroupIds.length > 1 && (
-                            <span className="text-[9px] text-t2-ink-3  font-medium">1. Tag = Stil</span>
+                        {pickerValue.length > 0 && (
+                            <span className="text-[9px] text-t2-ink-3 font-medium">Der erste Tag bestimmt die Farbe</span>
                         )}
                     </div>
-
-                    {/* Chips */}
-                    {selectedGroupIds.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 p-1.5 bg-t2-sub  rounded-xl border border-t2-line-soft ">
-                            {selectedGroupIds.map((id, index) => {
-                                const theme = themes.find(t => t.id === id);
-                                const isPrimary = index === 0;
-                                return (
-                                    <div
-                                        key={id}
-                                        className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                                            isPrimary
-                                                ? 'bg-t2-sub  border-t2-line  text-t2-accent '
-                                                : 'bg-t2-surface  border-t2-line  text-t2-ink '
-                                        }`}
-                                    >
-                                        <span
-                                            className="w-2 h-2 rounded-full shrink-0"
-                                            style={{ backgroundColor: theme?.color || '#6366f1' }}
-                                        />
-                                        <span className="truncate max-w-[100px]" title={theme?.title || id}>
-                                            {theme?.title || id}
-                                        </span>
-                                        {isPrimary ? (
-                                            <span
-                                                className="text-[8px] font-bold uppercase tracking-wider bg-t2-hover  text-t2-accent  px-1 py-0.5 rounded"
-                                                title="Stil / Hauptgruppe"
-                                            >
-                                                Stil / Hauptgruppe
-                                            </span>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const next = [id, ...selectedGroupIds.filter(gId => gId !== id)];
-                                                    updateGroupIds(next);
-                                                }}
-                                                className="text-[9px] text-t2-ink-3 hover:text-t2-accent  hover:bg-t2-hover  px-1 py-0.5 rounded font-medium transition-colors"
-                                                title="Als Stil / Hauptgruppe festlegen"
-                                            >
-                                                ↑ Stil
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const next = selectedGroupIds.filter(gId => gId !== id);
-                                                updateGroupIds(next);
-                                            }}
-                                            className="text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 p-0.5 rounded transition-colors"
-                                            title="Tag entfernen"
-                                        >
-                                            <X size={11} />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-[11px] text-t2-ink-3  italic px-1">
-                            Keine Tags zugeordnet
-                        </div>
-                    )}
-
-                    {/* Add Group dropdown */}
-                    {availableThemes.length > 0 && (
-                        <ModernDropdown
-                            value=""
-                            options={availableThemes.map(t => ({ value: t.id, label: t.title, color: t.color }))}
-                            onChange={(val) => {
-                                if (val) {
-                                    const next = [...selectedGroupIds, val];
-                                    updateGroupIds(next);
-                                }
-                            }}
-                            placeholder="+ Tag hinzufügen"
-                        />
+                    <TagPicker tags={themes} value={pickerValue} onChange={updateGroupIds} onCreate={createTag} compact />
+                    {showNoTagConfirm && pickerValue.length === 0 && (
+                        <NoTagConfirm onConfirm={() => onNoTagConfirm?.()} onChoose={() => onNoTagChoose?.()} />
                     )}
                 </div>
 
