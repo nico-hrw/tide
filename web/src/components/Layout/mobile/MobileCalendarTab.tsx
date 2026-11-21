@@ -209,7 +209,17 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
       onTouchMove={swipeOn ? onSwipeMove : undefined}
       onTouchEnd={swipeOn ? onSwipeEnd : undefined}
     >
-      {themes && themes.length > 0 && <CalendarTagPills tags={themes} className="shrink-0 px-3 py-1.5" />}
+      {themes && themes.length > 0 && (
+        // Horizontal scrolling of the pill row must not be read as a calendar swipe.
+        <div
+          className="shrink-0"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          <CalendarTagPills tags={themes} className="px-3 py-1.5" />
+        </div>
+      )}
       {calViewMode === 'week' ? (
         <div
           ref={swipeElRef}
