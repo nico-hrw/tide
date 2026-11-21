@@ -109,12 +109,20 @@ export function buildTagPatches(events: CalendarEvent[], tasks: TaskItem[], tags
 export interface TagRemovalPatches {
     eventPatches: { id: string; groupIds: string[]; parent_id: string | null }[];
     taskPatches: { id: string; tags: string[] }[];
+    notePatches: { id: string; tags: string[] }[];
 }
 
 /** Patches, die ein geloeschtes Tag aus allen Terminen und Todos entfernen. Unbeteiligte Eintraege bleiben aussen vor. */
-export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks: TaskItem[], myId?: string): TagRemovalPatches {
+export function removeTagFromItems(
+    tagId: string,
+    events: CalendarEvent[],
+    tasks: TaskItem[],
+    myId?: string,
+    notes?: readonly { id: string; tags?: readonly string[]; owner_id?: string }[],
+): TagRemovalPatches {
     const eventPatches: TagRemovalPatches['eventPatches'] = [];
     const taskPatches: TagRemovalPatches['taskPatches'] = [];
+    const notePatches: TagRemovalPatches['notePatches'] = [];
 
     for (const e of events) {
         if (isForeignOwned(e, myId)) continue;
@@ -130,5 +138,11 @@ export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks
         taskPatches.push({ id: t.id, tags: t.tags.filter((id) => id !== tagId) });
     }
 
-    return { eventPatches, taskPatches };
+    for (const n of notes ?? []) {
+        if (isForeignOwned(n, myId)) continue;
+        if (!n.tags?.includes(tagId)) continue;
+        notePatches.push({ id: n.id, tags: n.tags.filter((id) => id !== tagId) });
+    }
+
+    return { eventPatches, taskPatches, notePatches };
 }

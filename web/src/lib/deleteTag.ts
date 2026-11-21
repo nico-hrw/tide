@@ -7,6 +7,9 @@ export interface DeleteTagDeps {
     tasks: TaskItem[];
     saveEvent: (id: string, updates: { groupIds: string[]; parent_id: string | null }) => Promise<void>;
     saveTask: (id: string, updates: { tags: string[] }) => Promise<void>;
+    /** Notes carrying tag ids. Optional: without `saveNote` notes are left untouched. */
+    notes?: readonly { id: string; tags?: readonly string[]; owner_id?: string }[];
+    saveNote?: (id: string, tags: string[]) => Promise<void>;
     pruneViews: (tagId: string) => Promise<void>;
     clearFilters: (tagId: string) => void;
     deleteFile: (tagId: string) => Promise<void>;
@@ -22,11 +25,12 @@ export interface DeleteTagDeps {
  */
 export async function deleteTagEverywhere(tagId: string, deps: DeleteTagDeps): Promise<{ ok: boolean }> {
     try {
-        const { eventPatches, taskPatches } = deps.isOwner === false
-            ? { eventPatches: [], taskPatches: [] }
-            : removeTagFromItems(tagId, deps.events, deps.tasks, deps.myId);
+        const { eventPatches, taskPatches, notePatches } = deps.isOwner === false
+            ? { eventPatches: [], taskPatches: [], notePatches: [] }
+            : removeTagFromItems(tagId, deps.events, deps.tasks, deps.myId, deps.saveNote ? deps.notes : undefined);
         for (const p of eventPatches) await deps.saveEvent(p.id, { groupIds: p.groupIds, parent_id: p.parent_id });
         for (const p of taskPatches) await deps.saveTask(p.id, { tags: p.tags });
+        for (const p of notePatches) await deps.saveNote?.(p.id, p.tags);
         await deps.pruneViews(tagId);
         deps.clearFilters(tagId);
         await deps.deleteFile(tagId);

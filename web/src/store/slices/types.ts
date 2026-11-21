@@ -10,6 +10,8 @@ export interface DataItem {
     type: string;
     safe?: string;
     linkedSafes?: string[];
+    /** Tag ids (store items with isGroup) attached to a note. */
+    tags?: string[];
     [key: string]: any; // Allow extra properties like visibility, secured_meta for file UI
 }
 
