@@ -17,15 +17,17 @@ export const NoteTagsRow: React.FC<{ noteId: string; isOwner: boolean }> = ({ no
   const { setNoteTags } = useNoteTags();
   const create = useTagCreate();
 
-  const value = useMemo(() => {
-    const known = new Set(registry.map((t) => t.id));
-    return noteTagIds.filter((id) => known.has(id));
-  }, [registry, noteTagIds]);
+  const known = useMemo(() => new Set(registry.map((t) => t.id)), [registry]);
+  const value = useMemo(() => noteTagIds.filter((id) => known.has(id)), [known, noteTagIds]);
+  // Ids missing from the registry (not loaded yet / dangling) are kept so editing never drops them.
+  const handleChange = (ids: string[]) => {
+    void setNoteTags(noteId, [...ids, ...noteTagIds.filter((id) => !known.has(id))]);
+  };
 
   if (!isOwner) return null;
   return (
     <div className="-mt-3 mb-5">
-      <TagPicker tags={registry} value={value} onChange={(ids) => void setNoteTags(noteId, ids)} onCreate={create} compact />
+      <TagPicker tags={registry} value={value} onChange={handleChange} onCreate={create} compact />
     </div>
   );
 };

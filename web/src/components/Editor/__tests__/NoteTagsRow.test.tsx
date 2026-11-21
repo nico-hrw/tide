@@ -43,19 +43,19 @@ describe('NoteTagsRow', () => {
     expect(host.querySelector('button[aria-label="Tag hinzufügen"]')).not.toBeNull();
   });
 
-  it('adds a tag via the picker and drops unknown ids', () => {
+  it('adds a tag via the picker and preserves unknown ids', () => {
     act(() => root.render(<NoteTagsRow noteId="n1" isOwner />));
     act(() => { (host.querySelector('button[aria-label="Tag hinzufügen"]') as HTMLButtonElement).click(); });
     act(() => {
       (Array.from(document.querySelectorAll('[role="option"]')).find((o) => o.textContent?.includes('Privat')) as HTMLElement).click();
     });
-    expect(setNoteTags).toHaveBeenCalledWith('n1', ['a', 'b']);
+    expect(setNoteTags).toHaveBeenCalledWith('n1', ['a', 'b', 'gone']);
   });
 
   it('removes a tag via the chip', () => {
     act(() => root.render(<NoteTagsRow noteId="n1" isOwner />));
     act(() => { (host.querySelector('button[aria-label="Tag entfernen: Arbeit"]') as HTMLButtonElement).click(); });
-    expect(setNoteTags).toHaveBeenCalledWith('n1', []);
+    expect(setNoteTags).toHaveBeenCalledWith('n1', ['gone']);
   });
 
   it('renders nothing for a non-owner', () => {
