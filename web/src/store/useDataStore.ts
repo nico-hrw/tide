@@ -6,6 +6,7 @@ import { createTodosSlice } from './slices/createTodosSlice';
 import { createUiSlice } from './slices/createUiSlice';
 import { createFsSlice } from './slices/createFsSlice';
 import { createContactsSlice } from './slices/createContactsSlice';
+import { createViewsSlice } from './slices/createViewsSlice';
 import { createSafesSlice, loadCachedSafes, loadCachedActiveSafes } from './slices/createSafesSlice';
 import { broadcastSync, subscribeToSync } from './sync/broadcast';
 import type { DataStoreState } from './slices/types';
@@ -40,6 +41,7 @@ export const useDataStore = create<DataStoreState>()((...a) => ({
     ...createFsSlice(...a),
     ...createContactsSlice(...a),
     ...createSafesSlice(...a),
+    ...createViewsSlice(...a),
 }));
 
 // Cross-tab broadcast synchronization

@@ -244,6 +244,7 @@ export function useDashboardListeners({
         setKeys(privateKey, publicKey, myId);
         fetchDirectory(null, true);
         useDataStore.getState().loadAllMetadata().catch(console.error);
+        void useDataStore.getState().loadViews();
 
         import("@/lib/searchIndex").then(({ loadSearchIndex, rebuildIndex }) => {
             loadSearchIndex(privateKey, myId).then(async (idx) => {

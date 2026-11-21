@@ -2,6 +2,7 @@ import type { StateCreator } from 'zustand';
 import type { WeekStart } from '@/lib/calendarWeeks';
 import type { AppPalette } from '@/lib/palette';
 import type { TagFilter } from '@/lib/tagFilter';
+import type { SavedView } from '@/lib/viewsStorage';
 
 export interface DataItem {
     id: string;
@@ -249,12 +250,22 @@ export interface SafesSlice {
     linkNoteToSafe: (noteId: string, targetSafe: string) => Promise<void> | void;
 }
 
+export interface ViewsSlice {
+    views: SavedView[];
+    loadViews: () => Promise<void>;
+    addView: (v: Omit<SavedView, 'id'>) => Promise<string>;
+    renameView: (id: string, name: string) => Promise<void>;
+    removeView: (id: string) => Promise<void>;
+    pruneTagFromViews: (tagId: string) => Promise<void>;
+}
+
 export type DataStoreState = NotesSlice &
     EventsSlice &
     TodosSlice &
     UiSlice &
     FsSlice &
     SafesSlice &
+    ViewsSlice &
     Partial<ContactsSlice>;
 
 export type DataState = DataStoreState;
