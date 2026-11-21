@@ -35,6 +35,8 @@ const CanvasLayer = dynamic(() => import('@/components/Canvas/CanvasLayer'), { s
 const CanvasNoteEditor = dynamic(() => import('@/components/Canvas/CanvasNoteEditor'), { ssr: false });
 const VarSheetDock = dynamic(() => import('@/components/VarSheet').then(m => m.VarSheetDock), { ssr: false });
 
+type HeaderFile = { share_status?: string; owner_id?: string; updated_at?: string; updatedAt?: string };
+
 export interface CanvasWorkspaceProps {
     activeTabId: string;
     isActive?: boolean;
@@ -334,11 +336,11 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const isHidden = isActive !== undefined ? !isActive : (NON_EDITOR_TABS.has(activeTabId) || activeTabId.startsWith('chat-') || activeTabId.startsWith('profile:'));
     const isA4 = noteLayout === 'a4';
     const headerShared = isSharedFile(files.find(f => f.id === activeNoteId), myId);
-    const headerFile = files.find(f => f.id === activeNoteId) as any;
+    const headerFile = files.find(f => f.id === activeNoteId) as HeaderFile | undefined;
     const headerIsRecipient = headerFile?.share_status === 'shared' || headerFile?.share_status === 'accepted' || headerFile?.share_status === 'pending';
     const headerIsOwner = !headerIsRecipient && (!headerFile?.owner_id || headerFile?.owner_id === myId || headerFile?.share_status === 'owner');
 
-    // The timeline sits beside the right edge of the A4 sheet; other layouts keep it in the top-right corner.
+    // The timeline is anchored to the scroll container's right edge for every layout (see timelinePlacementClasses).
     const timeline = (
         <NoteHistoryTimeline
             open={isHistoryMode}
@@ -351,7 +353,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             error={backupError}
             onRestore={handleApplyHistory}
             canRestore={!!selectedContent && activeIndex > 0}
-            edge={isA4}
         />
     );
 
@@ -361,7 +362,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
             <div className="flex-1 min-h-0 relative flex">
             <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''}`}>
                 {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
-            {!isHidden && !isLoadingContent && !isA4 && timeline}
+            {!isHidden && !isLoadingContent && timeline}
             {isLoadingContent ? (
                 <div className="flex items-center justify-center h-full text-t2-ink-3">Loading content...</div>
             ) : (
@@ -420,7 +421,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                 {noteLayout === 'a4' && showPageBreaks && (
                                     <div className="a4-page-breaks-overlay pointer-events-none absolute inset-0 z-0" />
                                 )}
-                                {isA4 && !isHidden && !isLoadingContent && timeline}
                                 {activeNoteId && openTabs.find(t => t.id === activeNoteId && t.type === 'file') && (
                                     <>
                                         {(() => {
@@ -606,12 +606,12 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 <div className="relative flex items-center justify-center">
                                                     {(() => {
                                                         const af = files.find(f => f.id === activeNoteId) as any;
-                                                        const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
+                                                        const isRecipient = headerIsRecipient;
                                                         const ak = af?.access_keys;
                                                         const akObj = ak ? (typeof ak === 'string' ? JSON.parse(ak) : ak) : {};
                                                         const isSharedByOwner = Object.keys(akObj).length > 1;
                                                         const isShared = isRecipient || isSharedByOwner;
-                                                        const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
+                                                        const isOwner = headerIsOwner;
                                                         const isProtected = !!(af?.metadata?.has_custom_password || af?.metadata?.security_settings?.has_custom_password);
 
                                                         return (

@@ -49,3 +49,21 @@ describe('NoteHeaderActions', () => {
     expect(container.textContent).not.toContain('Zuletzt bearbeitet');
   });
 });
+
+describe('NoteHeaderActions wrapper classes', () => {
+  it('A4 hangs in the top margin on desktop', () => {
+    render(true, true);
+    const cls = container.firstElementChild!.className;
+    expect(cls).toContain('lg:absolute');
+    expect(cls).toContain('lg:bottom-full');
+    expect(cls).toContain('lg:right-0');
+  });
+
+  it('non-A4 stays in flow; non-owner A4 keeps the actions row only', () => {
+    render(true, false);
+    expect(container.firstElementChild!.className).not.toContain('lg:absolute');
+    render(false, true);
+    expect(container.querySelector('[data-testid="note-history-row"]')).toBeNull();
+    expect(container.firstElementChild!.className).toContain('lg:right-0');
+  });
+});
