@@ -486,7 +486,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
           const color = paletteFor(ev.color).bg;
           const overlay = document.createElement('div');
           overlay.style.cssText = `position:fixed;left:${pillRect.left}px;top:${pillRect.top}px;width:${pillRect.width}px;height:${pillRect.height}px;background:${withAlpha(color, 93)};border-radius:7px;border:2px solid ${color};box-shadow:0 8px 28px ${withAlpha(color, 33)};z-index:9999;pointer-events:none;padding:4px;overflow:hidden;will-change:transform;`;
-          overlay.innerHTML = `<div style="font-size:10px;font-weight:700;color:${paletteFor(ev.color).ink};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title.replace(/</g, '&lt;')}</div>`;
+          overlay.innerHTML = `<div style="font-size:11px;font-weight:700;color:${paletteFor(ev.color).ink};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title.replace(/</g, '&lt;')}</div>`;
           document.body.appendChild(overlay);
           dragOverlayRef.current = overlay;
         }
@@ -606,7 +606,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
           <div style={{ width: TIME_W, flexShrink: 0, position: 'relative' }}>
             {HOURS.map(h => h > 0 && (
               <div key={h} style={{ position: 'absolute', top: h * hourH - 7, right: 5, left: 0, textAlign: 'right' }}>
-                <span style={{ fontSize: 9, color: 'var(--text-subtle)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{h}:00</span>
+                <span style={{ fontSize: 11, color: 'var(--text-subtle)', fontVariantNumeric: 'tabular-nums', fontWeight: 500 }}>{h}:00</span>
               </div>
             ))}
           </div>
@@ -640,7 +640,7 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                 {/* Creation ghost */}
                 {creation?.colIdx === colIdx && (
                   <div style={{ position: 'absolute', top: Math.min(creation.startY, creation.curY), height: Math.max(minsToPx(SNAP_MINS, hourH), Math.abs(creation.curY - creation.startY)), left: 2, right: 2, zIndex: 8, background: 'rgba(59,130,246,0.18)', border: '2px solid #3B82F6', borderRadius: 8, pointerEvents: 'none', display: 'flex', alignItems: 'flex-start', padding: 4 }}>
-                    <span style={{ fontSize: 9, fontWeight: 700, color: '#3B82F6', lineHeight: 1 }}>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: '#3B82F6', lineHeight: 1 }}>
                       {format(yToDate(creation.startY, day, hourH), 'HH:mm')} – {format(yToDate(creation.curY, day, hourH), 'HH:mm')}
                     </span>
                   </div>
@@ -736,11 +736,11 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
                       <div style={{ position: 'absolute', top: bodyTop, left: 0, right: 0, bottom: bodyBot, padding: `${handleH > 0 && !isContinuation ? handleH + 1 : 2}px 4px ${handleH > 0 && !isContinued ? handleH + 1 : 2}px`, overflow: 'hidden', touchAction: isBeingDragged ? 'none' : 'pan-y' }}
                         onTouchStart={e => !isContinuation && evTouchStart(e, ev.id, 'move', colIdx)}
                         onClick={e => { e.stopPropagation(); setSelectedId(isSelected ? null : ev.id); onEventTap(ev.id); }}>
-                        <div style={{ fontSize: 10, fontWeight: 700, color: pal.ink, lineHeight: 1.25, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color: pal.ink, lineHeight: 1.25, overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                           {isContinuation ? '↑ ' : ''}{ev.title}
                         </div>
                         {height - handleH * 2 > 26 && (
-                          <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.85)', lineHeight: 1, marginTop: 1 }}>
+                          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.85)', lineHeight: 1, marginTop: 1 }}>
                             {format(evStartRaw, 'HH:mm')} – {format(evEndRaw, 'HH:mm')}
                             {isContinued ? ' ↓' : ''}
                           </div>

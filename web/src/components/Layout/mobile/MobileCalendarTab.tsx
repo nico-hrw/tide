@@ -300,7 +300,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
                         display: 'flex', alignItems: 'center', border: 'none', cursor: 'pointer',
                       }}
                     >
-                      <span style={{ fontSize: 9, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 11, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {event.title}
                       </span>
                     </button>

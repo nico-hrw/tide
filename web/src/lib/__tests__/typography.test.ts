@@ -44,6 +44,13 @@ describe('typography', () => {
     expect(offenders.map((f) => path.relative(SRC, f))).toEqual([]);
   });
 
+  it('uses no inline font sizes below 11px in ts/tsx', () => {
+    const re = /fontSize:\s*['"]?(8|9|10)(px)?\b|font-size:\s*(8|9|10)px/;
+    const offenders = walk(SRC)
+      .filter((f) => /\.tsx?$/.test(f) && re.test(fs.readFileSync(f, 'utf8')));
+    expect(offenders.map((f) => path.relative(SRC, f))).toEqual([]);
+  });
+
   it('light --t2-ink-3 has >= 4.5:1 contrast on white', () => {
     const css = readSrc('app/globals.css');
     expect(contrast(varOf(css, '--t2-ink-3', 0), '#FFFFFF')).toBeGreaterThanOrEqual(4.5);
