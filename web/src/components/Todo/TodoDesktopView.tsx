@@ -91,6 +91,9 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   }, [tasksToRender]);
 
   const selected = selectedId ? tasks.find((t) => t.id === selectedId) : undefined;
+  const parentTask = selected?.parentId ? tasks.find((t) => t.id === selected.parentId) : undefined;
+  // The left list highlights the top-level todo that owns the open item.
+  const highlightedId = parentTask ? parentTask.id : selectedId;
   const subtasks = useMemo(
     () => (selected ? tasks.filter((t) => t.parentId === selected.id).sort((a, b) => (a.order ?? 0) - (b.order ?? 0)) : []),
     [tasks, selected],
@@ -109,7 +112,7 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
     <TodoCard
       key={n.id}
       task={asTree(n)}
-      isSelected={n.id === selectedId}
+      isSelected={n.id === highlightedId}
       isExpanded={n.id === expandedId}
       isCompleting={completingTaskIds.has(n.id)}
       onActivate={activate}
@@ -173,12 +176,14 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
         <TodoDetailPane
           key={selected.id}
           task={selected}
+          parent={parentTask}
           subtasks={subtasks}
           folders={folders}
           onUpdate={onUpdateTask}
           onToggleSubtask={onToggleSubtask}
           onAddSubtask={onAddSubtask}
           onDelete={onDeleteTask}
+          onOpenTask={setSelectedId}
         />
       ) : (
         <TodoWeekStats tasks={tasks} />
