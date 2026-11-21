@@ -141,4 +141,22 @@ describe('formatResult', () => {
     expect(run('="a"-1')).toEqual(expect.objectContaining({ error: '#WERT' }));
     expect(run('="a"*2')).toEqual(expect.objectContaining({ error: '#WERT' }));
   });
+
+  it('blank cells keep + numeric', () => {
+    expect(run('=A1+B1')).toBe(0);
+    expect(run('=A1+5')).toBe(5);
+    expect(run('=A1+1/3')).toBeCloseTo(1 / 3, 10);
+    expect(run('=A1+"x"')).toBe('x');
+    // both operands empty text: numeric path exactly as before
+    expect(run('=""+""')).toBe(0);
+  });
+
+  it('caps concatenated text at 32767 characters', () => {
+    const big = 'a'.repeat(20000);
+    expect(run('=A1&A1', { A1: big })).toEqual(expect.objectContaining({ error: '#WERT', detail: 'Text zu lang' }));
+    expect(run('=A1+A1', { A1: big })).toEqual(expect.objectContaining({ error: '#WERT', detail: 'Text zu lang' }));
+    const ok = run('=A1&B1', { A1: 'a'.repeat(32000), B1: 'b'.repeat(767) });
+    expect(typeof ok === 'string' && ok.length).toBe(32767);
+    expect(run('=A1&B1', { A1: 'a'.repeat(32000), B1: 'b'.repeat(768) })).toEqual(expect.objectContaining({ error: '#WERT' }));
+  });
 });

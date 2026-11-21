@@ -12,6 +12,9 @@ export interface EvalContext {
     userFunction(name: string): ((args: Value[]) => Value) | undefined;
 }
 
+/** Longest text a concatenation may produce (Excel's cell limit). */
+export const MAX_TEXT_LENGTH = 32767;
+
 /** Largest range a single reference may expand to. */
 export const MAX_RANGE_CELLS = 10_000;
 
@@ -44,10 +47,10 @@ function toText(v: number | string): string {
     return typeof v === 'number' ? formatResult(v) : v;
 }
 
-/** True when `v` is text that `toNum` does not accept as a number (empty text counts as text). */
+/** True when `v` is non-empty text that `toNum` does not accept as a number (empty text stays numeric 0). */
 function isPlainText(v: number | string): v is string {
     if (typeof v === 'number') return false;
-    if (v.trim() === '') return true;
+    if (v.trim() === '') return false;
     try { toNum(v); return false; } catch { return true; }
 }
 
@@ -76,7 +79,11 @@ function evalRaw(e: Expr, ctx: EvalContext): Value | Value[] {
             if (['=', '<>', '<', '>', '<=', '>='].includes(e.op)) return compare(e.op, l, r);
             if (isErr(l)) throw new FormulaError(l.error, l.detail);
             if (isErr(r)) throw new FormulaError(r.error, r.detail);
-            if (e.op === '&' || (e.op === '+' && (isPlainText(l) || isPlainText(r)))) return toText(l) + toText(r);
+            if (e.op === '&' || (e.op === '+' && (isPlainText(l) || isPlainText(r)))) {
+                const a = toText(l), b = toText(r);
+                if (a.length + b.length > MAX_TEXT_LENGTH) throw new FormulaError('#WERT', 'Text zu lang');
+                return a + b;
+            }
             const a = toNum(l), b = toNum(r);
             switch (e.op) {
                 case '+': return a + b;

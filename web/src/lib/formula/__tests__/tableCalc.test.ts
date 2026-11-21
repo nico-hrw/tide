@@ -95,4 +95,11 @@ describe('gridFromPmTable with merged cells', () => {
     const res = computeTable(gridFromRows([['1'], ['2'], ['="Summe: "&SUMME(A1:A2)']]), EMPTY_SCOPE);
     expect(res.get('A3')).toBe('Summe: 3');
   });
+
+  it('a plain Error in one cell does not break the other cells', () => {
+    const scope = { variable: () => undefined, userFunction: (n: string) => (n === 'BOOM' ? () => { throw new Error('boom'); } : undefined) };
+    const res = computeTable(gridFromRows([['=BOOM()', '=1+1']]), scope);
+    expect(res.get('A1')).toEqual(expect.objectContaining({ error: '#WERT' }));
+    expect(res.get('B1')).toBe(2);
+  });
 });
