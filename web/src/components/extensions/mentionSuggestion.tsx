@@ -10,6 +10,8 @@ import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
+import { parseTagQuery } from './tagQuery';
+import { buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
 export function ensureSafeIsActive(safeName?: string | null) {
     if (!safeName) return;
@@ -497,6 +499,12 @@ const MentionList = forwardRef((props: any, ref) => {
                                         </div>
                                         <CalendarIcon size={14} className="text-t2-ink-3  flex-shrink-0" />
                                     </>
+                                ) : item.type === 'tag' ? (
+                                    <>
+                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                                        <div className="font-medium truncate flex-1">{item.label}</div>
+                                        <span className="text-[11px] text-t2-ink-3 flex-shrink-0">Tag</span>
+                                    </>
                                 ) : item.type === 'view' ? (
                                     <>
                                         {(item.colors ?? []).map((c: string, i: number) => (
@@ -795,7 +803,10 @@ export default {
         }
 
         // 3. Search Matching
-        const lowQuery = query.toLowerCase();
+        const tagsRegistry = selectTags(files);
+        const parsed = parseTagQuery(query, tagsRegistry);
+        const tagMode = parsed.tagIds.length > 0 || !!parsed.ambiguous;
+        const lowQuery = (tagMode ? parsed.text : query).toLowerCase();
         let matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
         
         // 4. Search Matching for Events
@@ -807,11 +818,22 @@ export default {
 
         // 4.5 Search Matching for Tasks — all active (non-archived) tasks
         const tasks = state.tasks || [];
-        const matchedTasks = tasks.filter((t: any) => {
+        let matchedTasks = tasks.filter((t: any) => {
             if (!t || !t.title) return false;
             if (t.isArchived) return false;
             return t.title.toLowerCase().includes(lowQuery);
         });
+
+        if (parsed.tagIds.length > 0) {
+            const tagged = filterByTagQuery(
+                { notes: matched, events: matchedEvents, tasks: matchedTasks },
+                parsed,
+                new Set(tagsRegistry.map((t: { id: string }) => t.id)),
+            );
+            matched = tagged.notes;
+            matchedEvents = tagged.events;
+            matchedTasks = tagged.tasks;
+        }
 
         const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
         const formatTaskDate = (dateStr?: string) => {
@@ -934,7 +956,7 @@ export default {
 
         const activeFiles: Array<{ id: string; name: string; size?: number }> =
             (typeof window !== 'undefined' && (window as any).__tide_active_attachments) || [];
-        const fileItems = activeFiles
+        const fileItems = (parsed.tagIds.length > 0 ? [] : activeFiles)
             .filter(f => f.name.toLowerCase().includes(lowQuery))
             .slice(0, 5)
             .map(f => ({
@@ -969,15 +991,17 @@ export default {
             };
         });
 
-        const viewItems = buildViewItems(query, state.views, selectTags(files));
+        const viewItems = parsed.tagIds.length > 0 ? [] : buildViewItems(tagMode ? parsed.text : query, state.views, tagsRegistry);
+
+        const actionQuery = tagMode ? cleanActionLabelQuery(parsed) : query;
 
         // 5. Return formatted
         return capSuggestionItems<MentionSuggestionItem>(
-            [...noteItems, ...fileItems, ...eventItems, ...taskItems],
+            [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
             [
-                { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
-                { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false },
+                { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, type: 'action', isGhost: false },
+                { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, type: 'action', isGhost: false },
             ],
         );
     },
@@ -988,6 +1012,13 @@ export default {
         if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
 
         if (props.isGroup) {
+            return;
+        }
+
+        if (props.type === 'tag') {
+            // No node: rewrite the query so the menu keeps filtering with the resolved tag.
+            const next = queryAfterTagPick(props.query || '', String(props.id).replace(/^TAG:/, ''), selectTags(useDataStore.getState().notes));
+            if (next !== null) editor.chain().focus().insertContentAt(range, '@' + next + ' ').run();
             return;
         }
 
