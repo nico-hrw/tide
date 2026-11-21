@@ -11,7 +11,7 @@ import {
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
-import { matchesTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
 import TodoTagFilterPanel from './TodoTagFilterPanel';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
@@ -130,7 +130,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   }, [tasks, selectedFolder]);
 
   const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);
-  const tagFilter = useDataStore((st) => st.todoTagFilter);
+  const rawTagFilter = useDataStore((st) => st.todoTagFilter);
+  // Deleted tags are treated as absent
+  const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
   const setTagFilter = useDataStore((st) => st.setTodoTagFilter);
   const tagFilterActive = isTagFilterActive(tagFilter);
   const tagFilterLabel = useMemo(() => {

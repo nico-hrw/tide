@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useRef } from 'react';
 import { Plus, X, Folder, Tag, Check, Repeat, Calendar } from 'lucide-react';
 import type { Tag as TagItem } from '@/lib/tags';
 import { DEFAULT_TAG_COLOR } from './useTodoTags';
@@ -39,10 +39,17 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
   draft, setDraft, titleInputRef, newTagInput, setNewTagInput, allTags, allFolders,
   isSubmitting, handleAddTask, handleCreateTag, onClose,
 }) => {
+  const creatingTag = useRef(false);
   const addNewTag = async () => {
     const trimmed = newTagInput.trim().replace(/^#/, '');
-    if (!trimmed) return;
-    const id = await handleCreateTag(trimmed);
+    if (!trimmed || creatingTag.current) return;
+    creatingTag.current = true;
+    let id: string | undefined;
+    try {
+      id = await handleCreateTag(trimmed);
+    } finally {
+      creatingTag.current = false;
+    }
     if (id) {
       setDraft((p) => (p.tags.includes(id) ? p : { ...p, tags: [...p.tags, id] }));
     }

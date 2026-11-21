@@ -30,3 +30,9 @@ export function toggleTagInFilter(filter: TagFilter, tagId: string): TagFilter {
 export function toggleUntaggedInFilter(filter: TagFilter): TagFilter {
     return { ...filter, untagged: !filter.untagged };
 }
+
+/** Drops tag ids that are not in the registry (e.g. deleted tags). */
+export function pruneTagFilter(filter: TagFilter, knownTagIds: Set<string>): TagFilter {
+    const tagIds = filter.tagIds.filter((id) => knownTagIds.has(id));
+    return tagIds.length === filter.tagIds.length ? filter : { ...filter, tagIds };
+}

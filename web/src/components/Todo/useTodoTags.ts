@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { normalizeTagName, selectTags, type Tag } from '@/lib/tags';
 
@@ -29,13 +29,19 @@ export function useTagRegistry(onCreateTag?: (title: string) => Promise<string |
       (ids ?? []).map((id) => byId.get(id)).filter((t): t is Tag => t !== undefined),
     [byId],
   );
+  const inFlight = useRef(new Map<string, Promise<string | undefined>>());
   const ensureTag = useCallback(
     async (name: string) => {
       const key = normalizeTagName(name);
       if (!key) return undefined;
       const existing = tags.find((t) => normalizeTagName(t.title) === key);
       if (existing) return existing.id;
-      return onCreateTag ? onCreateTag(name.trim()) : undefined;
+      if (!onCreateTag) return undefined;
+      const pending = inFlight.current.get(key);
+      if (pending) return pending;
+      const creation = onCreateTag(name.trim()).finally(() => inFlight.current.delete(key));
+      inFlight.current.set(key, creation);
+      return creation;
     },
     [tags, onCreateTag],
   );

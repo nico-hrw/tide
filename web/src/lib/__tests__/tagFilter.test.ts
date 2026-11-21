@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { matchesTagFilter } from '../tagFilter';
+import { matchesTagFilter, pruneTagFilter } from '../tagFilter';
 
 const known = new Set(['a', 'b', 'c']);
 
@@ -28,5 +28,17 @@ describe('matchesTagFilter', () => {
         expect(matchesTagFilter([], f, known)).toBe(true);
         expect(matchesTagFilter(['a'], f, known)).toBe(true);
         expect(matchesTagFilter(['b'], f, known)).toBe(false);
+    });
+});
+
+describe('pruneTagFilter', () => {
+    it('all stale ids -> empty filter', () => {
+        expect(pruneTagFilter({ tagIds: ['x', 'y'], untagged: false }, known)).toEqual({ tagIds: [], untagged: false });
+    });
+    it('mixed keeps only known ids', () => {
+        expect(pruneTagFilter({ tagIds: ['a', 'x', 'b'], untagged: false }, known).tagIds).toEqual(['a', 'b']);
+    });
+    it('preserves untagged', () => {
+        expect(pruneTagFilter({ tagIds: ['x'], untagged: true }, known)).toEqual({ tagIds: [], untagged: true });
     });
 });

@@ -289,6 +289,9 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 
 | Module | File | Role |
 |--------|------|------|
+| tagFilter | `web/src/lib/tagFilter.ts` | Todo tag filter (`TagFilter`, `matchesTagFilter` OR semantics, `pruneTagFilter` drops deleted ids). State lives in ui slice `todoTagFilter`. |
+| TodoTagFilterPanel | `web/src/components/Todo/TodoTagFilterPanel.tsx` | Multi-select tag filter + "Ohne Tag" in the todo filter popover. |
+| useTodoTags | `web/src/components/Todo/useTodoTags.ts` | Tag registry hook for todos (`tags`, `resolve`, `ensureTag` reuses by normalized name and dedupes in-flight creations). |
 | designTokens | `web/src/lib/designTokens.ts` | Global visual constants — import `DT` for glass, chip, radius, blur, accent, cardBg, mutedText, primaryText. Always use this instead of inline values. |
 | apiFetch / getApiBase | `web/src/lib/api.ts` | All HTTP calls to Go backend |
 | crypto (v1) | `web/src/lib/crypto.ts` | AES-GCM + RSA E2E encryption |
