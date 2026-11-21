@@ -56,7 +56,8 @@ describe('MobileCreateModal tag prompt (event)', () => {
     const onSave = vi.fn();
     renderEventModal(onSave);
     typeTitle('Meeting');
-    act(() => { button('Privat').click(); });
+    act(() => { (host.querySelector('button[aria-label="Tag hinzufügen"]') as HTMLButtonElement).click(); });
+    act(() => { (Array.from(document.querySelectorAll('[role="option"]')).find((o) => o.textContent === 'Privat') as HTMLElement).click(); });
     await act(async () => { button('Hinzufügen').click(); });
     expect(host.textContent).not.toContain('Ohne Tag speichern?');
     expect(onSave.mock.calls[0][2]).toMatchObject({ groupIds: ['b'], parent_id: 'b' });
