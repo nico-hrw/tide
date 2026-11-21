@@ -46,12 +46,12 @@ export function createApiViewsStorage(getKeys: () => ViewsKeys | null): ViewsSto
         label: 'views',
         blobName: 'views',
         empty: () => [],
+        // Corrupt payloads must fail the load (nothing gets overwritten); only a blank payload is a new file.
         parse: (text) => {
-            try {
-                return parseViews(JSON.parse(text));
-            } catch {
-                return [];
-            }
+            if (!text.trim()) return [];
+            const raw: unknown = JSON.parse(text);
+            if (!Array.isArray(raw)) throw new Error('[views] stored payload is not a list');
+            return parseViews(raw);
         },
     });
 }

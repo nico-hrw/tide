@@ -57,4 +57,17 @@ describe('createApiViewsStorage', () => {
     expect(server.calls.filter((c) => c.startsWith('PUT '))).toHaveLength(1);
     expect(await createApiViewsStorage(() => keys).load()).toEqual([view('1'), view('2')]);
   });
+
+  it('rejects loading a corrupt or non-list payload instead of treating it as empty', async () => {
+    const s = createApiViewsStorage(() => keys);
+    await s.save('not a list' as unknown as SavedView[]);
+    await expect(createApiViewsStorage(() => keys).load()).rejects.toThrow();
+  });
+
+  it('treats a blank payload as an empty list', async () => {
+    const s = createApiViewsStorage(() => keys);
+    await s.save([view('1')]);
+    server.files[0].content_ciphertext = '';
+    expect(await createApiViewsStorage(() => keys).load()).toEqual([]);
+  });
 });
