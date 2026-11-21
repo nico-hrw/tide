@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { Plus, X, Folder, Tag, Check, Repeat, Calendar } from 'lucide-react';
+import type { Tag as TagItem } from '@/lib/tags';
+import { DEFAULT_TAG_COLOR } from './useTodoTags';
 import { Priority, RecurrenceType, PRIORITY_OPTIONS, RECURRENCE_OPTIONS } from './types';
 
 export interface TaskCreateDraft {
@@ -24,20 +26,29 @@ export interface TodoCreateCardProps {
   titleInputRef: React.RefObject<HTMLInputElement | null>;
   newTagInput: string;
   setNewTagInput: React.Dispatch<React.SetStateAction<string>>;
-  allTags: string[];
-  customTags: string[];
+  allTags: TagItem[];
   allFolders: string[];
   isSubmitting: boolean;
   handleAddTask: (e: React.FormEvent) => void | Promise<void>;
-  handleAddCustomTag: (tag: string) => void;
-  handleRemoveCustomTag: (tag: string) => void;
+  /** Returns the id of the existing or newly created tag with this name. */
+  handleCreateTag: (name: string) => Promise<string | undefined>;
   onClose: () => void;
 }
 
 export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
-  draft, setDraft, titleInputRef, newTagInput, setNewTagInput, allTags, customTags, allFolders,
-  isSubmitting, handleAddTask, handleAddCustomTag, handleRemoveCustomTag, onClose,
+  draft, setDraft, titleInputRef, newTagInput, setNewTagInput, allTags, allFolders,
+  isSubmitting, handleAddTask, handleCreateTag, onClose,
 }) => {
+  const addNewTag = async () => {
+    const trimmed = newTagInput.trim().replace(/^#/, '');
+    if (!trimmed) return;
+    const id = await handleCreateTag(trimmed);
+    if (id) {
+      setDraft((p) => (p.tags.includes(id) ? p : { ...p, tags: [...p.tags, id] }));
+    }
+    setNewTagInput('');
+  };
+
   return (
             <div className="bg-t2-surface  border border-t2-accent  rounded-2xl p-4 sm:p-5 shadow-2xs transition-all">
               <form onSubmit={handleAddTask} className="flex flex-col gap-3 sm:gap-3.5">
@@ -72,15 +83,15 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                   </div>
                   <div className="flex flex-wrap items-center gap-1.5">
                     {allTags.map((tag) => {
-                      const isSelected = draft.tags.includes(tag);
+                      const isSelected = draft.tags.includes(tag.id);
                       return (
                         <button
-                          key={tag}
+                          key={tag.id}
                           type="button"
                           onClick={() => {
                             setDraft((p) => ({
                               ...p,
-                              tags: isSelected ? p.tags.filter((t) => t !== tag) : [...p.tags, tag],
+                              tags: isSelected ? p.tags.filter((t) => t !== tag.id) : [...p.tags, tag.id],
                             }));
                           }}
                           className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium border transition-all cursor-pointer ${
@@ -89,21 +100,9 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                               : 'bg-t2-hover  text-t2-ink-2  border-t2-line  hover:border-t2-line '
                           }`}
                         >
-                          <span>#{tag}</span>
-                          {isSelected ? (
-                            <Check size={11} className="text-t2-accent" />
-                          ) : customTags.includes(tag) ? (
-                            <span
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleRemoveCustomTag(tag);
-                              }}
-                              className="text-t2-ink-3 hover:text-rose-500 ml-0.5 p-0.5 transition-colors"
-                              title={`Tag "${tag}" löschen`}
-                            >
-                              <X size={10} />
-                            </span>
-                          ) : null}
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
+                          <span>{tag.title}</span>
+                          {isSelected && <Check size={11} className="text-t2-accent" />}
                         </button>
                       );
                     })}
@@ -117,14 +116,7 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                         onKeyDown={(e) => {
                           if (e.key === 'Enter') {
                             e.preventDefault();
-                            const trimmed = newTagInput.trim().replace(/^#/, '');
-                            if (trimmed) {
-                              handleAddCustomTag(trimmed);
-                              if (!draft.tags.includes(trimmed)) {
-                                setDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
-                              }
-                              setNewTagInput('');
-                            }
+                            void addNewTag();
                           }
                         }}
                         placeholder="Neuer Tag..."
@@ -134,14 +126,7 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                         <button
                           type="button"
                           onClick={() => {
-                            const trimmed = newTagInput.trim().replace(/^#/, '');
-                            if (trimmed) {
-                              handleAddCustomTag(trimmed);
-                              if (!draft.tags.includes(trimmed)) {
-                                setDraft((p) => ({ ...p, tags: [...p.tags, trimmed] }));
-                              }
-                              setNewTagInput('');
-                            }
+                            void addNewTag();
                           }}
                           className="text-t2-accent  hover:text-t2-accent p-0.5 cursor-pointer"
                           title="Tag hinzufügen"

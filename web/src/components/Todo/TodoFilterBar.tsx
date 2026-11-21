@@ -3,6 +3,9 @@
 import React, { useState } from 'react';
 import { Search, X, SlidersHorizontal } from 'lucide-react';
 import { TaskItem } from '@/store/useDataStore';
+import type { Tag } from '@/lib/tags';
+import { isTagFilterActive, toggleTagInFilter, toggleUntaggedInFilter, EMPTY_TAG_FILTER, type TagFilter } from '@/lib/tagFilter';
+import { DEFAULT_TAG_COLOR } from './useTodoTags';
 import { FilterStatus, Priority, SortOption, PRIORITY_OPTIONS } from './types';
 
 export interface TodoFilterBarProps {
@@ -19,9 +22,9 @@ export interface TodoFilterBarProps {
   unfiledCount: { total: number; completed?: number; active?: number; inProgress?: number };
   selectedFolder: string | null;
   setSelectedFolder: (folder: string | null) => void;
-  allTags: string[];
-  selectedTag: string | null;
-  setSelectedTag: (tag: string | null) => void;
+  allTags: Tag[];
+  tagFilter: TagFilter;
+  setTagFilter: (filter: TagFilter) => void;
   tasks: TaskItem[];
   filterPriority: Priority | 'all';
   setFilterPriority: (priority: Priority | 'all') => void;
@@ -50,8 +53,8 @@ export const TodoFilterBar: React.FC<TodoFilterBarProps> = ({
   selectedFolder,
   setSelectedFolder,
   allTags,
-  selectedTag,
-  setSelectedTag,
+  tagFilter,
+  setTagFilter,
   tasks,
   filterPriority,
   setFilterPriority,
@@ -62,7 +65,7 @@ export const TodoFilterBar: React.FC<TodoFilterBarProps> = ({
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [showOptions, setShowOptions] = useState(false);
 
-  const isAllActive = selectedFolder === null && selectedTag === null && filterStatus === 'all';
+  const isAllActive = selectedFolder === null && !isTagFilterActive(tagFilter) && filterStatus === 'all';
 
   const statusPills: { key: FilterStatus; label: string; count: number }[] = [
     { key: 'active', label: 'Offen', count: activeCycleOpenCount },
@@ -80,7 +83,7 @@ export const TodoFilterBar: React.FC<TodoFilterBarProps> = ({
           type="button"
           onClick={() => {
             setSelectedFolder(null);
-            setSelectedTag(null);
+            setTagFilter(EMPTY_TAG_FILTER);
             setFilterStatus('all');
           }}
           className={isAllActive ? ACTIVE_PILL_CLASS : INACTIVE_PILL_CLASS}
@@ -136,20 +139,28 @@ export const TodoFilterBar: React.FC<TodoFilterBarProps> = ({
 
         {/* Tag pills */}
         {allTags.map((tag) => {
-          const isActive = selectedTag === tag;
-          const count = tasks.filter((t) => t.tags?.includes(tag)).length;
+          const isActive = tagFilter.tagIds.includes(tag.id);
+          const count = tasks.filter((t) => t.tags?.includes(tag.id)).length;
           return (
             <button
-              key={`tag-${tag}`}
+              key={`tag-${tag.id}`}
               type="button"
-              onClick={() => setSelectedTag(isActive ? null : tag)}
-              className={isActive ? ACTIVE_PILL_CLASS : INACTIVE_PILL_CLASS}
-              title={`#${tag} (${count})`}
+              onClick={() => setTagFilter(toggleTagInFilter(tagFilter, tag.id))}
+              className={`${isActive ? ACTIVE_PILL_CLASS : INACTIVE_PILL_CLASS} inline-flex items-center gap-1.5`}
+              title={`#${tag.title} (${count})`}
             >
-              #{tag}
+              <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
+              {tag.title}
             </button>
           );
         })}
+        <button
+          type="button"
+          onClick={() => setTagFilter(toggleUntaggedInFilter(tagFilter))}
+          className={tagFilter.untagged ? ACTIVE_PILL_CLASS : INACTIVE_PILL_CLASS}
+        >
+          Ohne Tag
+        </button>
 
         {/* Compact search toggle pill */}
         <button

@@ -21,6 +21,8 @@ export interface TodoListProps {
   initialTaskId?: string | null;
   /** 'desktop' = Tide-2-Zweispaltenansicht (Liste + Detail). Standard: bisherige Inline-Ansicht (Mobil). */
   variant?: 'default' | 'desktop';
+  /** Creates a real tag (group file) and returns its id. Used by the "new tag" inputs. */
+  onCreateTag?: (title: string) => Promise<string | undefined>;
 }
 
 export interface TaskCreateDraft {

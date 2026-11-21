@@ -32,8 +32,11 @@ export interface TodoListSectionsProps {
   setOpenTiers: React.Dispatch<React.SetStateAction<Record<ArchiveTier, boolean>>>;
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   setIsCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSelectedTag: (tag: string | null) => void;
+  /** Label of the active tag filter (resolved titles / "Ohne Tag"), null when no tag filter is active. */
   selectedTag: string | null;
+  /** Tag ids of the active filter, used to prefill new tasks. */
+  selectedTagIds: string[];
+  clearTagFilter: () => void;
   renderTask: (task: TaskWithChildren) => React.ReactNode;
   editingTaskId?: string | null;
   selectedDateFilter?: Date | null;
@@ -41,7 +44,7 @@ export interface TodoListSectionsProps {
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
-  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId = null,
+  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, selectedTag, selectedTagIds, clearTagFilter, renderTask, editingTaskId = null,
   selectedDateFilter = null, setSelectedDateFilter,
 }) => {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -623,7 +626,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: [selectedTag] }));
+                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: selectedTagIds }));
                         setIsCreateOpen(true);
                       }}
                       className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
@@ -632,7 +635,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedTag(null)}
+                      onClick={clearTagFilter}
                       className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
                     >
                       Tag-Filter aufheben

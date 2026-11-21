@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { GitFork, Plus, X, Check, ListTree, Tag, Folder, AlertCircle } from 'lucide-react';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
+import { useTagRegistry } from './useTodoTags';
 import { Priority, PRIORITY_OPTIONS, TaskWithChildren, getTaskPriority } from './types';
 
 export interface TodoSplitModalProps {
@@ -20,6 +21,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
   onSuccess,
 }) => {
   const addTask = useDataStore((s) => s.addTask);
+  const { resolve: resolveTags } = useTagRegistry();
 
   const [rawText, setRawText] = useState('');
   const [quickInput, setQuickInput] = useState('');
@@ -183,13 +185,13 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                         <span>{parentTask.folder}</span>
                       </span>
                     )}
-                    {parentTask.tags?.map((tag) => (
+                    {resolveTags(parentTask.tags).map((tag) => (
                       <span
-                        key={tag}
+                        key={tag.id}
                         className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md text-[11px] font-medium bg-t2-sub text-t2-accent "
                       >
                         <Tag size={10} />
-                        <span>#{tag}</span>
+                        <span>#{tag.title}</span>
                       </span>
                     ))}
                   </div>

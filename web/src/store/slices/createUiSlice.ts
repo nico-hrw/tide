@@ -119,6 +119,8 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     settingsModalTab: 'account',
     isVariablesModalOpen: false,
     smartIslandState: null,
+    todoTagFilter: { tagIds: [], untagged: false },
+    setTodoTagFilter: (filter) => set({ todoTagFilter: filter }),
     enabledExtensions: getInitialExtensions(),
     theme: getInitialTheme(),
     themePreference: getInitialThemePreference(),

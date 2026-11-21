@@ -9,6 +9,8 @@ import {
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
 import TodoSplitModal from './TodoSplitModal';
+import { useTagRegistry, DEFAULT_TAG_COLOR } from './useTodoTags';
+import { toggleTagInFilter } from '@/lib/tagFilter';
 import { useMobileTodoStyle, mobileCardStyle, MobilePriorityIcon, MobileOverdue } from './MobileTodoStyle';
 import { TodoPriorityBadge } from './TodoPriorityBadge';
 import {
@@ -21,11 +23,11 @@ export interface TodoTreeItemProps {
   isCompleting?: boolean; completingTaskIds?: Set<string>;
   editDraft?: TaskEditDraft; setEditDraft?: React.Dispatch<React.SetStateAction<TaskEditDraft>>;
   editNewTagInput?: string; setEditNewTagInput?: React.Dispatch<React.SetStateAction<string>>;
-  allTags?: string[]; customTags?: string[]; allFolders?: string[];
-  selectedTag?: string | null; setSelectedTag?: (tag: string | null) => void;
+  allFolders?: string[];
   selectedFolder?: string | null; setSelectedFolder?: (folder: string | null) => void;
   setViewMode?: (mode: 'tasks' | 'folders') => void;
-  handleAddCustomTag?: (tag: string) => void; handleRemoveCustomTag?: (tag: string) => void;
+  /** Returns the id of the existing or newly created tag with this name. */
+  handleCreateTag?: (name: string) => Promise<string | undefined>;
   handleToggleTask: (task: TaskItem) => void; handleToggleInProgress: (task: TaskItem) => void;
   saveEditing?: (id: string, draft?: TaskEditDraft) => void; cancelEditing?: () => void;
   deleteTask: (id: string) => Promise<void> | void;
@@ -36,42 +38,7 @@ export interface TodoTreeItemProps {
 
 const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
 
-const KNOWN_TAG_COLORS: Record<string, string> = {
-  pflegen: 'bg-green-50 text-green-700 dark:bg-green-950/40 dark:text-green-300',
-  erledigen: 'bg-t2-sub text-t2-accent  ',
-  vorbereiten: 'bg-yellow-50 text-yellow-700 dark:bg-yellow-950/40 dark:text-yellow-300',
-  aufräumen: 'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-  lernen: 'bg-t2-sub text-t2-accent  ',
-  routine: 'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
-  arbeit: 'bg-t2-sub text-t2-accent  ',
-  kleidung: 'bg-pink-50 text-pink-700 dark:bg-pink-950/40 dark:text-pink-300',
-  pflanzen: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-};
-
-const COLOR_PALETTE = [
-  'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-  'bg-t2-sub text-t2-accent  ',
-  'bg-t2-sub text-t2-accent  ',
-  'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-  'bg-orange-50 text-orange-700 dark:bg-orange-950/40 dark:text-orange-300',
-  'bg-teal-50 text-teal-700 dark:bg-teal-950/40 dark:text-teal-300',
-  'bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-300',
-  'bg-t2-sub text-t2-accent  ',
-];
-
-function getTagColorClass(tag: string): string {
-  const lower = tag.toLowerCase().trim();
-  if (KNOWN_TAG_COLORS[lower]) {
-    return KNOWN_TAG_COLORS[lower];
-  }
-  let hash = 0;
-  for (let i = 0; i < tag.length; i++) {
-    hash = (hash << 5) - hash + tag.charCodeAt(i);
-    hash |= 0;
-  }
-  const idx = Math.abs(hash) % COLOR_PALETTE.length;
-  return COLOR_PALETTE[idx];
-}
+const TAG_CHIP_CLASS = 'bg-t2-sub text-t2-ink-2';
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
@@ -80,13 +47,16 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function TodoTreeItem({
   task, depth = 0, isExpanded, editingTaskId, isCompleting = false, completingTaskIds,
   editDraft, setEditDraft, editNewTagInput, setEditNewTagInput,
-  allTags = [], customTags = [], allFolders = [],
-  selectedTag = null, setSelectedTag, selectedFolder = null, setSelectedFolder, setViewMode,
-  handleAddCustomTag, handleRemoveCustomTag, handleToggleTask, handleToggleInProgress,
+  allFolders = [],
+  selectedFolder = null, setSelectedFolder, setViewMode,
+  handleCreateTag, handleToggleTask, handleToggleInProgress,
   saveEditing, cancelEditing, deleteTask, onRowClick, onSelectTask, disableClickDebounce = false,
   onFocusGroup, parentDueDate,
 }) {
   const addTask = useDataStore((s) => s.addTask);
+  const { resolve: resolveTags, ensureTag } = useTagRegistry(handleCreateTag);
+  const tagFilter = useDataStore((s) => s.todoTagFilter);
+  const setTodoTagFilter = useDataStore((s) => s.setTodoTagFilter);
   const updateTask = useDataStore((s) => s.updateTask);
   const parentTask = useDataStore((s) => task.parentId ? s.tasks.find((t) => t.id === task.parentId) : undefined);
   const effectiveParentDueDate = (parentDueDate || parentTask?.dueDate || parentTask?.scheduledDate || '').slice(0, 10);
@@ -223,10 +193,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
     }
   };
 
-  const handleAddTag = (tag: string) => {
-    handleAddCustomTag?.(tag);
-    if (!draft.tags.includes(tag)) {
-      const nextTags = [...draft.tags, tag];
+  const handleAddTag = async (name: string) => {
+    const tagId = await ensureTag(name);
+    if (tagId && !draft.tags.includes(tagId)) {
+      const nextTags = [...draft.tags, tagId];
       setDraft((p) => ({ ...p, tags: nextTags }));
       updateTask(task.id, { tags: nextTags });
     }
@@ -460,22 +430,23 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       </span>
                     )}
 
-                    {task.tags?.map((tag) => (
+                    {resolveTags(task.tags).map((tag) => (
                       <span
-                        key={tag}
+                        key={tag.id}
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedTag?.(selectedTag === tag ? null : tag);
+                          setTodoTagFilter(toggleTagInFilter(tagFilter, tag.id));
                           setViewMode?.('tasks');
                         }}
-                        className={`text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${
+                        className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${
                           isTaskCompleted
                             ? 'bg-t2-hover  text-t2-ink-3  grayscale'
-                            : getTagColorClass(tag)
+                            : TAG_CHIP_CLASS
                         }`}
-                        title={`Nach #${tag} filtern`}
+                        title={`Nach #${tag.title} filtern`}
                       >
-                        {tag}
+                        <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
+                        {tag.title}
                       </span>
                     ))}
                   </div>
@@ -850,21 +821,22 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10'
                           : 'bg-t2-sub  border-t2-line-soft '
                       }`}>
-                        {draft.tags.map((tag) => (
+                        {resolveTags(draft.tags).map((tag) => (
                           <span
-                            key={tag}
-                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${getTagColorClass(tag)}`}
+                            key={tag.id}
+                            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium ${TAG_CHIP_CLASS}`}
                           >
-                            <span>{tag}</span>
+                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
+                            <span>{tag.title}</span>
                             <button
                               type="button"
                               onClick={() => {
-                                const nextTags = draft.tags.filter((t) => t !== tag);
+                                const nextTags = draft.tags.filter((t) => t !== tag.id);
                                 setDraft((p) => ({ ...p, tags: nextTags }));
                                 updateTask(task.id, { tags: nextTags });
                               }}
                               className="hover:opacity-75 p-0.5 cursor-pointer"
-                              title={`Tag "${tag}" entfernen`}
+                              title={`Tag "${tag.title}" entfernen`}
                             >
                               <X size={12} />
                             </button>
@@ -884,7 +856,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               if (e.key === 'Enter') {
                                 e.preventDefault();
                                 const t = tagInput.trim().replace(/^#/, '');
-                                if (t) handleAddTag(t);
+                                if (t) void handleAddTag(t);
                               }
                             }}
                             placeholder="Tag hinzufügen..."
@@ -899,7 +871,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               type="button"
                               onClick={() => {
                                 const t = tagInput.trim().replace(/^#/, '');
-                                if (t) handleAddTag(t);
+                                if (t) void handleAddTag(t);
                               }}
                               className={`p-0.5 cursor-pointer ${
                                 isTodayActive
@@ -1042,16 +1014,11 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         task={child as TaskWithChildren}
                         depth={(depth || 0) + 1}
                         parentDueDate={draft.dueDate || task.dueDate || task.scheduledDate || undefined}
-                        allTags={allTags}
-                        customTags={customTags}
                         allFolders={allFolders}
-                        selectedTag={selectedTag}
-                        setSelectedTag={setSelectedTag}
                         selectedFolder={selectedFolder}
                         setSelectedFolder={setSelectedFolder}
                         setViewMode={setViewMode}
-                        handleAddCustomTag={handleAddCustomTag}
-                        handleRemoveCustomTag={handleRemoveCustomTag}
+                        handleCreateTag={handleCreateTag}
                         handleToggleTask={handleToggleTask}
                         handleToggleInProgress={handleToggleInProgress}
                         saveEditing={(id, d) => {

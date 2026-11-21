@@ -230,9 +230,13 @@ export default function MobileLayout({
       id: e.id, title: e.title || 'Termin', start: e.start, end: e.end, dotColor: e.color,
       tag: (e as CalendarEvent & { tag?: string; category?: string }).tag || (e as CalendarEvent & { category?: string }).category,
     }));
+    // Task tags are tag ids; resolve to titles (unknown ids are skipped)
+    const tagTitleById = new Map<string, string>();
+    (files || []).forEach((f) => { if (f.type === 'folder' && f.isGroup && f.title) tagTitleById.set(f.id, f.title); });
     const sTodos: SearchTodoItem[] = (tasks || []).map((t) => {
-      t.tags?.forEach((tag) => tagSet.add(tag));
-      return { id: t.id, title: t.title || 'Aufgabe', completed: t.isCompleted, isCompleted: t.isCompleted, priority: t.priority, tag: t.folder || t.tags?.[0] };
+      const tagTitles = (t.tags ?? []).map((id) => tagTitleById.get(id)).filter((title): title is string => Boolean(title));
+      tagTitles.forEach((title) => tagSet.add(title));
+      return { id: t.id, title: t.title || 'Aufgabe', completed: t.isCompleted, isCompleted: t.isCompleted, priority: t.priority, tag: t.folder || tagTitles[0] };
     });
     const sNotes: SearchNoteItem[] = (files || []).filter((f) => {
       if (Array.isArray(f.tags)) f.tags.forEach((tag) => { if (typeof tag === 'string') tagSet.add(tag); });

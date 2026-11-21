@@ -1,6 +1,7 @@
 import type { StateCreator } from 'zustand';
 import type { WeekStart } from '@/lib/calendarWeeks';
 import type { AppPalette } from '@/lib/palette';
+import type { TagFilter } from '@/lib/tagFilter';
 
 export interface DataItem {
     id: string;
@@ -186,6 +187,9 @@ export interface UiSlice {
     /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
     a4SideBorders: boolean;
     setA4SideBorders: (on: boolean) => void;
+    /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
+    todoTagFilter: TagFilter;
+    setTodoTagFilter: (filter: TagFilter) => void;
 }
 
 export interface FsSlice {
