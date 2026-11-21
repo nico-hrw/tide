@@ -129,6 +129,43 @@ describe('setNoteTags', () => {
         expect(putBody(1)).toEqual({ metadata: { dek: 'new', tagIds: ['a'] }, version: 5 });
     });
 
+    it('v1 note: no version in the body, store version untouched', async () => {
+        useDataStore.setState({ notes: [{ id: 'n1', title: 'N', type: 'note', owner_id: 'me', version: 1, metadata: {} }] });
+        vi.mocked(apiFetch).mockImplementation(async (_u, init) =>
+            init?.method === 'PUT' ? json({ version: 2 }) : json({ version: 1, metadata: { fileKey: 'k' } }),
+        );
+        await setNoteTags('n1', ['a']);
+        expect(putBody()).toEqual({ metadata: { fileKey: 'k', tagIds: ['a'] } });
+        expect(useDataStore.getState().notes[0].version).toBe(1);
+    });
+
+    it('version-0 note: no version, store version not normalised', async () => {
+        useDataStore.setState({ notes: [{ id: 'n1', title: 'N', type: 'note', owner_id: 'me', version: 0, metadata: {} }] });
+        vi.mocked(apiFetch).mockImplementation(async (_u, init) =>
+            init?.method === 'PUT' ? json({ version: 1 }) : json({ version: 1, metadata: {} }),
+        );
+        await setNoteTags('n1', ['a']);
+        expect(putBody()).not.toHaveProperty('version');
+        expect(useDataStore.getState().notes[0].version).toBe(0);
+    });
+
+    it('v1 note: a 409 is not retried and fails', async () => {
+        vi.mocked(apiFetch).mockImplementation(async (_u, init) =>
+            init?.method === 'PUT' ? json({}, 409) : json({ version: 1, metadata: {} }),
+        );
+        await expect(setNoteTags('n1', ['a'], { strict: true })).rejects.toThrow();
+        expect(putCalls()).toHaveLength(1);
+    });
+
+    it('skips (warn) or throws (strict) while the user is not loaded', async () => {
+        useDataStore.setState({ myId: null });
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        await setNoteTags('n1', ['a']);
+        expect(warn).toHaveBeenCalledWith('[setNoteTags] user not ready, skipped');
+        await expect(setNoteTags('n1', ['a'], { strict: true })).rejects.toThrow();
+        expect(apiFetch).not.toHaveBeenCalled();
+    });
+
     it('does not retry a second time', async () => {
         vi.mocked(apiFetch).mockImplementation(async (_u, init) =>
             init?.method === 'PUT' ? json({ current_version: 5 }, 409) : json({ version: 4, metadata: {} }),

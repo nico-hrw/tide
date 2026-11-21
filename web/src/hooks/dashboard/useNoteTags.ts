@@ -30,24 +30,31 @@ async function fetchRemote(noteId: string): Promise<{ metadata: Record<string, u
     return { metadata, version: typeof file.version === 'number' ? file.version : undefined };
 }
 
-async function putMetadata(noteId: string, tagIds: string[]): Promise<Response> {
+/**
+ * `version` doubles as the encryption format marker (v1 notes are version 1/0). A versioned PUT bumps it on the
+ * server and would turn a legacy note into "v2" without re-encrypting it, so `version` is only sent for v2+ files.
+ */
+async function putMetadata(noteId: string, tagIds: string[]): Promise<{ res: Response; versioned: boolean }> {
     // Fresh server state, so keys written meanwhile (content key info, title, ...) are never dropped.
     const { metadata, version } = await fetchRemote(noteId);
     const body: Record<string, unknown> = { metadata: { ...metadata, tagIds } };
-    if (version !== undefined) body.version = version;
+    const versioned = version !== undefined && version >= 2;
+    if (versioned) body.version = version;
     const tideWin = window as TideWindow;
     if (tideWin.__tideSaveTimestamp) tideWin.__tideSaveTimestamp();
-    return apiFetch(`/api/v1/files/${noteId}`, {
+    const res = await apiFetch(`/api/v1/files/${noteId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
+    return { res, versioned };
 }
 
 async function persist(noteId: string, tagIds: string[]): Promise<number | undefined> {
-    let res = await putMetadata(noteId, tagIds);
-    if (res.status === 409) res = await putMetadata(noteId, tagIds);
+    let { res, versioned } = await putMetadata(noteId, tagIds);
+    if (res.status === 409 && versioned) ({ res, versioned } = await putMetadata(noteId, tagIds));
     if (!res.ok) throw new Error(`Failed to save note tags (${res.status})`);
+    if (!versioned) return undefined;
     try {
         const data = (await res.json()) as { version?: unknown };
         return typeof data?.version === 'number' ? data.version : undefined;
@@ -71,6 +78,11 @@ export async function setNoteTags(noteId: string, ids: string[], options?: SetNo
     const store = useDataStore.getState();
     const note = store.notes.find((n) => n.id === noteId);
     if (!note) return fail('Note not found for tag update');
+    if (!store.myId && (note as { owner_id?: string }).owner_id) {
+        if (strict) throw new Error('User not ready, cannot change note tags');
+        console.warn('[setNoteTags] user not ready, skipped');
+        return;
+    }
     if (isForeignOwned(note as { owner_id?: string }, store.myId ?? undefined)) {
         if (strict) throw new Error('Only the owner can change note tags');
         return;
