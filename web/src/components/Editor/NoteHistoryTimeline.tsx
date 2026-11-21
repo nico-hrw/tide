@@ -41,7 +41,7 @@ function sourceOf(p: NoteBackupPoint): string {
     return p.authorName ? p.authorName : "Automatisch gespeichert";
 }
 
-/** Vertical on-page timeline: a line grows down the right edge, save points sit at heights proportional to their age. */
+/** Vertical on-page timeline: a line grows down the left edge, save points sit at heights proportional to their age. */
 export default function NoteHistoryTimeline({
     open, points, activeIndex, onSelectIndex, isLoading = false, error, onRestore, canRestore, onClose, edge = false,
 }: NoteHistoryTimelineProps) {
@@ -91,7 +91,7 @@ export default function NoteHistoryTimeline({
 
     return (
         // Beside the sheet it is taken out of the flow (absolute), so the sheet's content keeps its place.
-        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:absolute lg:left-full lg:top-24 lg:ml-6 lg:w-56" : ""}`}>
+        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:absolute lg:left-full lg:top-24 lg:ml-10 lg:w-56" : ""}`}>
             <div
                 ref={wrapRef}
                 className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-0 lg:right-auto lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
@@ -109,23 +109,28 @@ export default function NoteHistoryTimeline({
                     )}
                 </div>
                 <div className="relative" style={{ height: trackHeight }}>
-                    <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" style={open ? { height: "100%" } : undefined} />
+                    <div className="t2-vline absolute left-[5px] top-0 w-0.5 rounded-sm bg-t2-line" style={open ? { height: "100%" } : undefined} />
                     {points.map((p, i) => {
                         const on = i === activeIndex;
                         return (
                             <div
                                 key={p.id}
-                                className="t2-vp absolute left-0 right-0 flex justify-end items-start gap-3.5 text-right cursor-pointer"
+                                className="t2-vp absolute left-0 right-0 flex items-start gap-3.5 text-left cursor-pointer"
                                 style={{ top: tops[i], ["--i" as string]: i }}
                                 onClick={() => onSelectIndex(i)}
                             >
+                                <b
+                                    className={`relative z-[1] mt-0.5 w-3 h-3 shrink-0 rounded-full ${
+                                        on ? "bg-t2-blue" : "bg-t2-bg ring-2 ring-inset ring-t2-ink-3"
+                                    }`}
+                                />
                                 <div>
                                     <span className={`block text-[13.5px] hover:text-t2-blue ${on ? "font-semibold text-t2-blue" : "font-medium text-t2-ink"}`}>
                                         {p.isCurrent ? "Aktuell" : formatWhen(p.updatedAt || p.timestamp || "") || p.label}
                                     </span>
                                     <small className="block text-[12px] text-t2-ink-3">{sourceOf(p)}</small>
                                     {on && !p.isCurrent && (
-                                        <div className="flex gap-1.5 mt-2 justify-end">
+                                        <div className="flex gap-1.5 mt-2">
                                             <button
                                                 type="button"
                                                 disabled={!canRestore || isLoading}
@@ -137,14 +142,9 @@ export default function NoteHistoryTimeline({
                                         </div>
                                     )}
                                     {on && !p.isCurrent && error && (
-                                        <div className="text-[11px] text-t2-now mt-1 max-w-[200px] ml-auto">{error}</div>
+                                        <div className="text-[11px] text-t2-now mt-1 max-w-[180px]">{error}</div>
                                     )}
                                 </div>
-                                <b
-                                    className={`relative z-[1] mt-0.5 w-3 h-3 shrink-0 rounded-full ${
-                                        on ? "bg-t2-blue" : "bg-t2-bg ring-2 ring-inset ring-t2-ink-3"
-                                    }`}
-                                />
                             </div>
                         );
                     })}

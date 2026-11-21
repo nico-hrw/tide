@@ -19,6 +19,7 @@ import { useNoteBackups } from '@/hooks/useNoteBackups';
 import SaveStateIcon from '@/components/Editor/SaveStateIcon';
 import NoteOutline from '@/components/Editor/NoteOutline';
 import NoteHistoryLabel from '@/components/Editor/NoteHistoryLabel';
+import NoteHeaderActions from '@/components/Workspaces/NoteHeaderActions';
 import NoteHistoryTimeline from '@/components/Editor/NoteHistoryTimeline';
 import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
@@ -333,6 +334,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const isHidden = isActive !== undefined ? !isActive : (NON_EDITOR_TABS.has(activeTabId) || activeTabId.startsWith('chat-') || activeTabId.startsWith('profile:'));
     const isA4 = noteLayout === 'a4';
     const headerShared = isSharedFile(files.find(f => f.id === activeNoteId), myId);
+    const headerFile = files.find(f => f.id === activeNoteId) as any;
+    const headerIsRecipient = headerFile?.share_status === 'shared' || headerFile?.share_status === 'accepted' || headerFile?.share_status === 'pending';
+    const headerIsOwner = !headerIsRecipient && (!headerFile?.owner_id || headerFile?.owner_id === myId || headerFile?.share_status === 'owner');
 
     // The timeline sits beside the right edge of the A4 sheet; other layouts keep it in the top-right corner.
     const timeline = (
@@ -560,7 +564,17 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
-                                            <div className={`flex items-center gap-1 shrink-0 self-end mb-2 ${isA4 ? 'z-20 lg:absolute lg:bottom-full lg:right-0 lg:mb-3 lg:self-auto' : ''}`}>
+                                            <NoteHeaderActions
+                                                isOwner={headerIsOwner}
+                                                isA4={isA4}
+                                                historyLabel={
+                                                    <NoteHistoryLabel
+                                                        lastEdited={headerFile?.updated_at || headerFile?.updatedAt}
+                                                        open={isHistoryMode}
+                                                        onToggle={handleToggleHistory}
+                                                    />
+                                                }
+                                                actions={<>
                                                 <button
                                                     type="button"
                                                     onClick={() => {
@@ -589,19 +603,6 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         <Sigma size={16} />
                                                     </button>
                                                 )}
-                                                {(() => {
-                                                    const af = files.find(f => f.id === activeNoteId) as any;
-                                                    const isRecipient = af?.share_status === 'shared' || af?.share_status === 'accepted' || af?.share_status === 'pending';
-                                                    const isOwner = !isRecipient && (!af?.owner_id || af?.owner_id === myId || af?.share_status === 'owner');
-                                                    if (!isOwner) return null;
-                                                    return (
-                                                        <NoteHistoryLabel
-                                                            lastEdited={af?.updated_at || af?.updatedAt}
-                                                            open={isHistoryMode}
-                                                            onToggle={handleToggleHistory}
-                                                        />
-                                                    );
-                                                })()}
                                                 <div className="relative flex items-center justify-center">
                                                     {(() => {
                                                         const af = files.find(f => f.id === activeNoteId) as any;
@@ -679,7 +680,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                         />
                                                     )}
                                                 </div>
-                                            </div>
+                                                </>}
+                                            />
                                         </div>
                                     </>
                                 )}
