@@ -46,11 +46,28 @@ export const createViewsSliceWith =
         let loaded = false;
         let pending: Op[] = [];
         let inflight: Promise<boolean> | null = null;
+        // All of the above belongs to one user. On an account switch (no logout hook exists, so detected on the
+        // next access) it is dropped, the shown views are cleared and any in-flight load of the old user is ignored.
+        let owner: string | null | undefined;
+        let generation = 0;
+        const syncUser = (): void => {
+            const current = get().myId ?? null;
+            if (owner !== undefined && owner !== current) {
+                generation += 1;
+                loaded = false;
+                pending = [];
+                inflight = null;
+                set({ views: [] });
+            }
+            owner = current;
+        };
         const doLoad = (): Promise<boolean> => {
             if (inflight) return inflight;
+            const gen = generation;
             const run = (async () => {
                 try {
                     const stored = await provider(get).load();
+                    if (gen !== generation) return false; // user switched meanwhile: stale result
                     const ops = pending;
                     pending = [];
                     set({ views: ops.reduce((list, op) => op(list), stored) });
@@ -60,13 +77,14 @@ export const createViewsSliceWith =
                     console.warn('[views] could not load saved views', e);
                     return false; // pending changes stay queued for the next successful load
                 } finally {
-                    inflight = null;
+                    if (gen === generation) inflight = null;
                 }
             })();
             inflight = run;
             return run;
         };
         const apply = async (op: Op): Promise<void> => {
+            syncUser();
             const next = op(get().views);
             set({ views: next }); // optimistic: the UI shows the change immediately
             if (loaded && !inflight) {
@@ -82,6 +100,7 @@ export const createViewsSliceWith =
             views: [],
 
             loadViews: async () => {
+                syncUser();
                 await doLoad();
             },
 

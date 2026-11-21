@@ -170,6 +170,51 @@ describe('viewsSlice', () => {
         expect(mem2.state.saved.map((v) => v.name)).toEqual(['A', 'C']);
     });
 
+    describe('account switch', () => {
+        const mk = (id: string): SavedView => ({ id, name: id, tagIds: [], untagged: false, viewMode: 'week' });
+        function userStore(storages: Record<string, ViewsStorage>) {
+            return create<DataStoreState>()(
+                (set, get, api) => ({
+                    myId: 'A',
+                    ...createViewsSliceWith((g) => storages[g().myId as string])(set, get, api),
+                }) as unknown as DataStoreState
+            );
+        }
+
+        it('does not replay or persist user A ops for user B, and clears views on switch', async () => {
+            const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+            const bMem = memoryStorage([mk('b1')]);
+            const s = userStore({
+                A: { load: async () => { throw new Error('down'); }, save: async () => undefined },
+                B: bMem.storage,
+            });
+            await s.getState().addView({ ...base, name: 'fromA' });
+            expect(s.getState().views).toHaveLength(1);
+            s.setState({ myId: 'B' } as Partial<DataStoreState>);
+            const adding = s.getState().addView({ ...base, name: 'fromB' });
+            expect(s.getState().views.map((v) => v.name)).toEqual(['fromB']); // A's view gone, B not yet loaded
+            await adding;
+            expect(bMem.state.saved.map((v) => v.name)).toEqual(['b1', 'fromB']);
+            expect(s.getState().views.map((v) => v.name)).toEqual(['b1', 'fromB']);
+            warn.mockRestore();
+        });
+
+        it('ignores the in-flight load of the previous user', async () => {
+            let releaseA: (v: SavedView[]) => void = () => undefined;
+            const s = userStore({
+                A: { load: () => new Promise<SavedView[]>((r) => { releaseA = r; }), save: async () => undefined },
+                B: memoryStorage([mk('b1')]).storage,
+            });
+            const loadingA = s.getState().loadViews();
+            s.setState({ myId: 'B' } as Partial<DataStoreState>);
+            await s.getState().loadViews();
+            expect(s.getState().views.map((v) => v.id)).toEqual(['b1']);
+            releaseA([mk('a1')]);
+            await loadingA;
+            expect(s.getState().views.map((v) => v.id)).toEqual(['b1']);
+        });
+    });
+
     it('loadViews does not throw when storage fails', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
         const s = makeStore({ load: async () => { throw new Error('locked'); }, save: async () => undefined });
