@@ -504,7 +504,7 @@ export default function Dashboard() {
                 onToggleExtension={handleToggleExtension} userProfile={userProfile} onLogout={handleLogout}
                 noteLayout={noteLayout} onSetNoteLayout={setNoteLayout} files={files} hiddenThemeIds={hiddenThemeIds}
                 onToggleThemeVisibility={handleToggleThemeVisibility} onUpdateEventGroup={handleUpdateEventGroup}
-                onShareGroup={handleShare} onCreateEventGroup={handleCreateEventGroup} onDeleteNote={handleDeleteNote}
+                onShareGroup={handleShare} onCreateEventGroup={handleCreateEventGroup} onDeleteNote={handleDeleteNote} onEventSave={handleEventSave}
                 scheduleModalOpen={scheduleModalOpen} setScheduleModalOpen={setScheduleModalOpen}
                 onApplySchedule={handleScheduleApply} isSummaryOpen={isSummaryOpen} setIsSummaryOpen={setIsSummaryOpen}
                 streak={0} summaryStats={SUMMARY_STATS} showBackups={showBackups} setShowBackups={setShowBackups}

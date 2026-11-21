@@ -1,5 +1,6 @@
 import type { CalendarEvent } from '@/components/Calendar/types';
 import type { DataItem, TaskItem } from '@/store/slices/types';
+import { getEventGroupIds } from '@/lib/calendarUtils';
 
 export interface Tag {
     id: string;
@@ -76,6 +77,31 @@ export function buildTagPatches(events: CalendarEvent[], tasks: TaskItem[], tags
         if (!t.tags) continue;
         const next = dedupe(t.tags.map((ref) => resolve(ref) ?? ref));
         if (!sameList(t.tags, next)) taskPatches.push({ id: t.id, tags: next });
+    }
+
+    return { eventPatches, taskPatches };
+}
+
+export interface TagRemovalPatches {
+    eventPatches: { id: string; groupIds: string[]; parent_id: string | null }[];
+    taskPatches: { id: string; tags: string[] }[];
+}
+
+/** Patches, die ein geloeschtes Tag aus allen Terminen und Todos entfernen. Unbeteiligte Eintraege bleiben aussen vor. */
+export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks: TaskItem[]): TagRemovalPatches {
+    const eventPatches: TagRemovalPatches['eventPatches'] = [];
+    const taskPatches: TagRemovalPatches['taskPatches'] = [];
+
+    for (const e of events) {
+        const ids = getEventGroupIds(e);
+        if (!ids.includes(tagId)) continue;
+        const groupIds = ids.filter((id) => id !== tagId);
+        eventPatches.push({ id: e.id, groupIds, parent_id: groupIds[0] ?? null });
+    }
+
+    for (const t of tasks) {
+        if (!t.tags?.includes(tagId)) continue;
+        taskPatches.push({ id: t.id, tags: t.tags.filter((id) => id !== tagId) });
     }
 
     return { eventPatches, taskPatches };
