@@ -291,6 +291,9 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 |--------|------|------|
 | tagFilter | `web/src/lib/tagFilter.ts` | Todo tag filter (`TagFilter`, `matchesTagFilter` OR semantics, `pruneTagFilter` drops deleted ids). State lives in ui slice `todoTagFilter`. |
 | TodoTagFilterPanel | `web/src/components/Todo/TodoTagFilterPanel.tsx` | Multi-select tag filter + "Ohne Tag" in the todo filter popover. |
+| TagPicker | `web/src/components/Tags/TagPicker.tsx` | Multi-select tag chips (color dot, toggle) with a "+" field to create a tag inline (trimmed, empty ignored, double-submit guarded, returned id appended; input kept if creation returns nothing). Props `tags`, `value`, `onChange`, `onCreate`, `compact`. No "Ohne Tag" chip. |
+| NoTagConfirm | `web/src/components/Tags/NoTagConfirm.tsx` | Inline row "Ohne Tag speichern?" with buttons "Ohne Tag speichern" (`onConfirm`) and "Tag wählen" (`onChoose`). |
+| useTagCreate | `web/src/components/Tags/useTagCreate.tsx` | `useTagCreate()` returns a creator over `useTagRegistry(...).ensureTag` (reuses same normalized name, dedupes in-flight) backed by `TagCreateProvider`, mounted in `app/page.tsx` with `handleCreateEventGroup`. Pass the result as `TagPicker.onCreate`. |
 | useTodoTags | `web/src/components/Todo/useTodoTags.ts` | Tag registry hook for todos (`tags`, `resolve`, `ensureTag` reuses by normalized name and dedupes in-flight creations). |
 | designTokens | `web/src/lib/designTokens.ts` | Global visual constants — import `DT` for glass, chip, radius, blur, accent, cardBg, mutedText, primaryText. Always use this instead of inline values. |
 | apiFetch / getApiBase | `web/src/lib/api.ts` | All HTTP calls to Go backend |

@@ -39,6 +39,7 @@ import { useFileActions } from "@/hooks/dashboard/useFileActions";
 import { useCalendarActions } from "@/hooks/dashboard/useCalendarActions";
 import { useTagMigration } from "@/hooks/dashboard/useTagMigration";
 import { selectTags } from "@/lib/tags";
+import { TagCreateProvider } from "@/components/Tags/useTagCreate";
 import { useWorkspaceTabs, type SwitchTabFn } from "@/hooks/dashboard/useWorkspaceTabs";
 import { useTaskCalendarSync } from "@/hooks/dashboard/useTaskCalendarSync";
 import { useDashboardListeners } from "@/hooks/dashboard/useDashboardListeners";
@@ -201,6 +202,8 @@ export default function Dashboard() {
         scheduleInitialStart, syncingTaskIdsRef, updateTask, handleCreateEventGroup,
     });
 
+    const createTagForContext = useCallback(
+        (title: string) => handleCreateEventGroup(title), [handleCreateEventGroup]);
     const migrationTags = useMemo(() => selectTags(storeFiles), [storeFiles]);
     useTagMigration({
         ready: !!privateKey && !!publicKey && eventsLoaded && loadedDirectories.has("root"),
@@ -433,6 +436,7 @@ export default function Dashboard() {
     };
 
     return (
+        <TagCreateProvider create={createTagForContext}>
         <div className="flex h-[100dvh] w-full bg-[var(--background)] text-foreground overflow-hidden">
             {isMobile ? (
                 <MobileLayout events={events} activeNoteId={activeNoteId} activeNoteTitle={fileName}
@@ -506,5 +510,6 @@ export default function Dashboard() {
                 privateKey={privateKey} publicKey={publicKey}
             />
         </div>
+        </TagCreateProvider>
     );
 }
