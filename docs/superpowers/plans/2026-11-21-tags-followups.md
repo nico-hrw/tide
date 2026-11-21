@@ -180,7 +180,7 @@
 - Modify: `web/src/components/extensions/mentionSuggestion.tsx` (Glue ≤ 40 Zeilen in `items()` ~l.798-982 und `command()`/`MentionList`-Zeilenrenderer für Typ `'tag'`), `web/src/components/extensions/viewSuggestion.ts` (Typ-Union nur falls nötig)
 
 **Interfaces:**
-- Consumes: `parseTagQuery`, `matchesAllTags` (Task 11), `selectTags`, `getEventGroupIds`, Notiz-`tags` (Task 9), Todo-`tags`.
+- Consumes: `parseTagQuery`, `matchesAllTags` (Task 11), `selectTags`, `getEventGroupIds`, Notiz-`tagIds` (Task 9), Todo-`tags`.
 - Produces: `applyTagFilter<T>(items: T[], getTagIds: (item: T) => readonly string[] | undefined, tagIds: readonly string[], knownTagIds: ReadonlySet<string>): T[]` und `buildTagRows(ambiguous: { token: string; candidates: Tag[] } | null): MentionSuggestionItem[]` (Zeilen `{ id: 'TAG:<tagId>', label: Tagname, type: 'tag', color }`).
 
 - [ ] **Step 1: Tests:** `applyTagFilter`: UND-Filter auf Termine (`groupIds`/Legacy-`parent_id`), Todos (`tags`), Notizen (`tags`), Items ohne Tags fallen bei aktivem Filter weg, leerer Filter lässt alles durch; `buildTagRows` liefert eine Zeile je Kandidat, `null` → `[]`; Test, dass der bereinigte `text` (ohne `#…`) für die "Create File/Create Todo"-Zeilen genutzt werden kann (Hilfsfunktion `cleanActionLabelQuery(parsed)` oder gleichwertig).
