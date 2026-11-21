@@ -11,7 +11,7 @@ import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 import { parseTagQuery } from './tagQuery';
-import { buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
+import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
 export function ensureSafeIsActive(safeName?: string | null) {
     if (!safeName) return;
@@ -132,6 +132,7 @@ type MentionSuggestionItem =
           cleanNoteTitle?: string;
           safe?: string;
           colors?: string[];
+          tagMode?: boolean;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -169,7 +170,7 @@ const MentionList = forwardRef((props: any, ref) => {
             try {
                 // Sanitize title - strip any leading ! prefix, explicitly using props.query
                 const itemQuery = 'query' in item ? item.query : undefined;
-                const cleanTitle = (props.query || itemQuery || item.label || 'Untitled')
+                const cleanTitle = (actionQueryFor(item, props.query) || itemQuery || item.label || 'Untitled')
                     .replace(/^!+/, '').trim() || 'Untitled';
 
                 if (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')) {
@@ -200,7 +201,7 @@ const MentionList = forwardRef((props: any, ref) => {
             isCreatingRef.current = true;
             try {
                 const itemQuery = 'query' in item ? item.query : undefined;
-                const rawTitle = props.query || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
+                const rawTitle = actionQueryFor(item, props.query) || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
                 const cleanTitle = rawTitle.replace(/^!+/, '').trim() || 'New Todo';
                 const newId = await useDataStore.getState().addTask({ title: cleanTitle, isCompleted: false });
                 props.command({
@@ -389,7 +390,8 @@ const MentionList = forwardRef((props: any, ref) => {
                         return 'prevent_close';
                     }
                     selectItem(item);
-                    return true;
+                    // Tag rows rewrite the query: keep the popup (render().onKeyDown destroys it on true).
+                    return item.type === 'tag' ? 'prevent_close' : true;
                 }
                 return false;
             }
@@ -1000,25 +1002,25 @@ export default {
             [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
             [
-                { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, type: 'action', isGhost: false },
-                { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, type: 'action', isGhost: false },
+                { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
+                { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
             ],
         );
     },
 
     command: ({ editor, range, props }: any) => {
+        if (props.type === 'tag') {
+            // No node: rewrite the query so the menu keeps filtering with the resolved tag.
+            const next = queryAfterTagPick(props.query || '', String(props.id).replace(/^TAG:/, ''), selectTags(useDataStore.getState().notes));
+            if (next !== null) editor.chain().focus().insertContentAt(range, '@' + next + ' ').run();
+            return;
+        }
+
         useLinkStore.getState().setIsLinkingMode(false);
         useLinkStore.getState().setPendingLinkSource(null);
         if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
 
         if (props.isGroup) {
-            return;
-        }
-
-        if (props.type === 'tag') {
-            // No node: rewrite the query so the menu keeps filtering with the resolved tag.
-            const next = queryAfterTagPick(props.query || '', String(props.id).replace(/^TAG:/, ''), selectTags(useDataStore.getState().notes));
-            if (next !== null) editor.chain().focus().insertContentAt(range, '@' + next + ' ').run();
             return;
         }
 

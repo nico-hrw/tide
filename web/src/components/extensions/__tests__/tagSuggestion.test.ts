@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
     applyTagFilter,
     buildTagRows,
+    actionQueryFor,
     cleanActionLabelQuery,
     filterByTagQuery,
     queryAfterTagPick,
@@ -62,24 +63,49 @@ describe('cleanActionLabelQuery', () => {
 });
 
 describe('tagTokenFor', () => {
-    it('uses the tag name for single-word tags', () => {
-        const tags = [tag('u', 'Urlaub'), tag('up', 'Urlaubsplan')];
-        expect(tagTokenFor(tags[0])).toBe('Urlaub');
-        expect(parseTagQuery(`#${tagTokenFor(tags[0])}`, tags).tagIds).toEqual(['u']);
+    it('returns the shortest verified prefix', () => {
+        const tags = [tag('j', 'Japan'), tag('r', 'Recht')];
+        expect(tagTokenFor(tags[0], tags)).toBe('j');
+        expect(tagTokenFor(tags[1], tags)).toBe('r');
     });
 
-    it('uses the first word for multi-word tags when unique', () => {
+    it('needs more characters when a shorter prefix is shared', () => {
+        const tags = [tag('a', 'Urlaub'), tag('b', 'Umzug')];
+        expect(tagTokenFor(tags[0], tags)).toBe('ur');
+        expect(tagTokenFor(tags[1], tags)).toBe('um');
+    });
+
+    it('only uses the first word of multi-word titles', () => {
         const tags = [tag('r', 'NZ Reise'), tag('o', 'Recht')];
-        const token = tagTokenFor(tags[0]);
-        expect(token).toBe('NZ');
-        expect(parseTagQuery(`#${token}`, tags).tagIds).toEqual(['r']);
+        expect(tagTokenFor(tags[0], tags)).toBe('n');
     });
 
-    it('falls back to the first word (ambiguous again) when it is shared', () => {
+    it('returns null when the first word is shared', () => {
         const tags = [tag('r', 'NZ Reise'), tag('t', 'NZ Trip')];
-        const token = tagTokenFor(tags[0]);
-        expect(token).toBe('NZ');
-        expect(parseTagQuery(`#${token}`, tags).ambiguous?.candidates).toHaveLength(2);
+        expect(tagTokenFor(tags[0], tags)).toBeNull();
+        expect(tagTokenFor(tags[1], tags)).toBeNull();
+    });
+
+    it('returns null when another tag exact-matches the first word', () => {
+        const tags = [tag('r', 'Reise'), tag('a', 'Reise Asien')];
+        expect(tagTokenFor(tags[1], tags)).toBeNull();
+        expect(tagTokenFor(tags[0], tags)).toBe('reise');
+    });
+});
+
+describe('actionQueryFor', () => {
+    it('uses the raw query without tag mode', () => {
+        expect(actionQueryFor({ query: 'Flug' }, 'Flug')).toBe('Flug');
+        expect(actionQueryFor({}, 'x')).toBe('x');
+    });
+
+    it('uses the cleaned text in tag mode', () => {
+        expect(actionQueryFor({ query: 'Flug', tagMode: true }, '#NZ Flug')).toBe('Flug');
+    });
+
+    it('is empty in tag mode without text', () => {
+        expect(actionQueryFor({ query: '', tagMode: true }, '#NZ')).toBe('');
+        expect(actionQueryFor({ tagMode: true }, '#NZ')).toBe('');
     });
 });
 
@@ -92,8 +118,14 @@ describe('rewriteQueryForTagPick / queryAfterTagPick', () => {
 
     it('rewrites the ambiguous token of the query for the picked tag', () => {
         const tags = [tag('r', 'NZ Reise'), tag('o', 'Nord')];
-        expect(queryAfterTagPick('flug #n', 'r', tags)).toBe('flug #NZ');
+        expect(queryAfterTagPick('flug #n', 'r', tags)).toBe('flug #nz');
         expect(queryAfterTagPick('flug #nord', 'r', tags)).toBeNull();
+    });
+
+    it('never applies the other tag when the pick cannot be expressed', () => {
+        const tags = [tag('r', 'Reise'), tag('a', 'Reise Asien'), tag('o', 'Rest')];
+        expect(parseTagQuery('#re', tags).ambiguous).not.toBeNull();
+        expect(queryAfterTagPick('#re', 'a', tags)).toBeNull();
     });
 });
 

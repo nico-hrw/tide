@@ -1,5 +1,5 @@
 import { getEventGroupIds } from '@/lib/calendarUtils';
-import { type Tag } from '@/lib/tags';
+import { normalizeTagName, type Tag } from '@/lib/tags';
 import { DEFAULT_TAG_COLOR } from '@/components/Todo/useTodoTags';
 import { matchesAllTags, parseTagQuery, type TagQueryResult } from './tagQuery';
 
@@ -40,12 +40,25 @@ export function cleanActionLabelQuery(parsed: { text: string }): string {
 }
 
 /**
- * `#token` that resolves to the tag. Tokens cannot contain whitespace, so this is the
- * tag's first word (the longest whitespace-free prefix). If that is still ambiguous with
- * another tag, the menu simply lists the candidates again.
+ * Shortest whitespace-free `#token` (a prefix of the tag's normalized title, up to its first
+ * whitespace) that the real parser resolves to exactly this tag, or null when none does
+ * (e.g. 'NZ Reise' next to 'NZ Trip', or 'Reise Asien' next to 'Reise', where `#reise` exact-matches the other tag).
  */
-export function tagTokenFor(tag: Tag): string {
-    return tag.title.trim().split(/\s+/)[0] ?? '';
+export function tagTokenFor(tag: Tag, tags: Tag[]): string | null {
+    const firstWord = normalizeTagName(tag.title).split(' ')[0] ?? '';
+    for (let len = 1; len <= firstWord.length; len++) {
+        const candidate = firstWord.slice(0, len);
+        if (candidate.includes('#')) return null;
+        const r = parseTagQuery(`#${candidate}`, tags);
+        if (r.tagIds.length === 1 && r.tagIds[0] === tag.id) return candidate;
+    }
+    return null;
+}
+
+/** Query used for the title of a created note/todo: the cleaned text in tag mode, else the raw suggestion query. */
+export function actionQueryFor(item: object, rawQuery?: string): string | undefined {
+    const { query, tagMode } = item as { query?: string; tagMode?: boolean };
+    return tagMode ? (query ?? '') : rawQuery;
 }
 
 /** Replaces the first occurrence of `token` (e.g. `#n`) that stands at the start or after whitespace. */
@@ -67,12 +80,15 @@ function findToken(query: string, token: string): number {
     }
 }
 
-/** New query text after the user picks `tagId` from an ambiguous list; null if the pick is stale. */
+/** New query text after the user picks `tagId` from an ambiguous list; null if the pick is stale or cannot be expressed as a token. */
 export function queryAfterTagPick(query: string, tagId: string, tags: Tag[]): string | null {
     const tag = tags.find((t) => t.id === tagId);
     const ambiguous = parseTagQuery(query, tags).ambiguous;
     if (!tag || !ambiguous) return null;
-    return rewriteQueryForTagPick(query, ambiguous.token, tagTokenFor(tag));
+    const token = tagTokenFor(tag, tags);
+    // No whitespace-free token resolves to this tag: leave the query untouched (menu stays open, user types more).
+    if (token === null) return null;
+    return rewriteQueryForTagPick(query, ambiguous.token, token);
 }
 
 interface TaggedLists<N, E, T> {
