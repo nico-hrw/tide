@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
+// Real RSA-2048 keygen plus RSA/AES operations can exceed 5s when the full suite runs in parallel.
+vi.setConfig({ testTimeout: 30000, hookTimeout: 30000 });
+
 interface FakeFile { id: string; type: string; owner_id?: string; blob_path?: string | null; content_ciphertext?: string; access_keys?: unknown; metadata?: unknown }
 const server = vi.hoisted(() => ({ files: [] as FakeFile[], calls: [] as string[], seq: 0 }));
 
