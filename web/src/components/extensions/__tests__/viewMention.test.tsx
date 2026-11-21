@@ -3,7 +3,7 @@ import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import type { NodeViewProps } from '@tiptap/react';
 import { ViewMentionNodeView, resolveViewMention } from '../ViewMentionExtension';
-import { matchViews, buildViewItems } from '../viewSuggestion';
+import { matchViews, buildViewItems, capSuggestionItems } from '../viewSuggestion';
 import { useDataStore } from '@/store/useDataStore';
 import type { SavedView } from '@/lib/viewsStorage';
 
@@ -84,5 +84,25 @@ describe('ViewMentionNodeView', () => {
     act(() => chip().click());
     window.removeEventListener('viewMention:click', spy);
     expect(spy).not.toHaveBeenCalled();
+  });
+});
+
+describe('capSuggestionItems', () => {
+  const rows = (p: string, n: number) => Array.from({ length: n }, (_, i) => `${p}${i}`);
+  it('keeps everything in order content, views, actions when it fits', () => {
+    expect(capSuggestionItems(rows('c', 4), ['v0'], ['a0', 'a1'])).toEqual(['c0', 'c1', 'c2', 'c3', 'v0', 'a0', 'a1']);
+  });
+  it('reserves room for 3 views and 2 actions when content overflows', () => {
+    const out = capSuggestionItems(rows('c', 19), rows('v', 3), rows('a', 2));
+    expect(out).toHaveLength(10);
+    expect(out).toEqual([...rows('c', 5), ...rows('v', 3), ...rows('a', 2)]);
+  });
+  it('keeps the actions last when there are no views and lots of content', () => {
+    const out = capSuggestionItems(rows('c', 19), [], rows('a', 2));
+    expect(out).toHaveLength(10);
+    expect(out.slice(-2)).toEqual(['a0', 'a1']);
+  });
+  it('is unchanged without views and with few content rows', () => {
+    expect(capSuggestionItems(rows('c', 3), [], rows('a', 2))).toEqual(['c0', 'c1', 'c2', 'a0', 'a1']);
   });
 });

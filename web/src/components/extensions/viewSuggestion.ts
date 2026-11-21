@@ -42,3 +42,13 @@ export function buildViewItems(
         .slice(0, MAX_ROWS)
         .map((v) => ({ id: v.id, label: v.name, type: 'view' as const, colors: viewDotColors(v, tags) }));
 }
+
+/**
+ * Caps the `@` menu list: the limit applies to the content rows only after reserving room for the
+ * view rows and the trailing action rows, so views and actions are never cut off.
+ * Order: content, views, actions.
+ */
+export function capSuggestionItems<T>(content: T[], views: T[], actions: T[], limit = 10): T[] {
+    const room = Math.max(0, limit - views.length - actions.length);
+    return [...content.slice(0, room), ...views, ...actions];
+}

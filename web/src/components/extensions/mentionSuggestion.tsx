@@ -8,7 +8,7 @@ import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 're
 import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
 import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
-import { buildViewItems } from './viewSuggestion';
+import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 
 export function ensureSafeIsActive(safeName?: string | null) {
@@ -972,15 +972,14 @@ export default {
         const viewItems = buildViewItems(query, state.views, selectTags(files));
 
         // 5. Return formatted
-        return [
-            ...noteItems,
-            ...fileItems,
-            ...eventItems,
-            ...taskItems,
-            ...viewItems,
-            { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
-            { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false }
-        ].slice(0, 10);
+        return capSuggestionItems<MentionSuggestionItem>(
+            [...noteItems, ...fileItems, ...eventItems, ...taskItems],
+            viewItems,
+            [
+                { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
+                { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false },
+            ],
+        );
     },
 
     command: ({ editor, range, props }: any) => {
