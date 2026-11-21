@@ -246,6 +246,7 @@ export default function DesktopDayView({
                     stats={idleStats}
                     event={selectedEvent}
                     themeTitle={selectedTheme?.title}
+                    themes={themes}
                     onClose={() => setSelectedEventState(null)}
                     onEdit={
                         selectedEvent

@@ -3,14 +3,18 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, X, ListTodo, Folder, Inbox, ArrowLeft, Tag, FolderPlus,
+  Plus, X, ListTodo, Folder, Inbox, ArrowLeft, FolderPlus,
   ChevronRight, Archive, CheckCircle2, Circle, Calendar, Repeat, Trash2, Check, Timer, RotateCcw, Clock, History, Search, SlidersHorizontal, AlertCircle,
 } from 'lucide-react';
 import {
   format, isBefore, startOfDay, endOfDay, addDays, addWeeks, addMonths, addYears,
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
-import { useTasks, TaskItem } from '@/store/useDataStore';
+import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
+import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
+import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { useTagRegistry } from './useTodoTags';
+import TodoTagFilterPanel from './TodoTagFilterPanel';
 import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
@@ -36,7 +40,7 @@ export {
   getTaskCompletionTime, isTaskArchived, getTaskArchiveTier,
 } from './types';
 
-export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default' }) => {
+export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
   const isDesktopVariant = variant === 'desktop';
 
@@ -126,47 +130,21 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return tasks.filter((t) => (selectedFolder === '' ? !t.folder : t.folder === selectedFolder) && !t.isCompleted).length;
   }, [tasks, selectedFolder]);
 
-  const [customTags, setCustomTags] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('tide_todo_custom_tags');
-        return saved ? JSON.parse(saved) : ['Vorbereiten', 'Lernen'];
-      } catch {
-        return ['Vorbereiten', 'Lernen'];
-      }
-    }
-    return ['Vorbereiten', 'Lernen'];
-  });
-
-  const handleAddCustomTag = (tagName: string) => {
-    const trimmed = tagName.trim().replace(/^#/, '');
-    if (!trimmed) return;
-    setCustomTags((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const next = [...prev, trimmed];
-      try {
-        localStorage.setItem('tide_todo_custom_tags', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const handleRemoveCustomTag = (tagName: string) => {
-    setCustomTags((prev) => {
-      const next = prev.filter((t) => t !== tagName);
-      try {
-        localStorage.setItem('tide_todo_custom_tags', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-  };
-
-  const allTags = useMemo(() => {
-    return Array.from(new Set([...customTags, ...tasks.flatMap((t) => t.tags || [])])).sort();
-  }, [customTags, tasks]);
-
-  const [selectedTag, setSelectedTag] = useState<string | null>(null);
-  const [newTagInput, setNewTagInput] = useState('');
+  const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);
+  const rawTagFilter = useDataStore((st) => st.todoTagFilter);
+  // Deleted tags are treated as absent
+  const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
+  const setTagFilter = useDataStore((st) => st.setTodoTagFilter);
+  const tagFilterActive = isTagFilterActive(tagFilter);
+  const tagFilterLabel = useMemo(() => {
+    if (!tagFilterActive) return null;
+    const titles = resolveTags(tagFilter.tagIds).map((t) => t.title);
+    if (tagFilter.untagged) titles.push('Ohne Tag');
+    return titles.join(' / ') || 'Ohne Tag';
+  }, [tagFilter, tagFilterActive, resolveTags]);
+  const clearTagFilter = useCallback(() => setTagFilter(EMPTY_TAG_FILTER), [setTagFilter]);
+  const [noTagPrompt, setNoTagPrompt] = useState(false);
+  const [noTagConfirmed, setNoTagConfirmed] = useState(false);
   const [editNewTagInput, setEditNewTagInput] = useState('');
 
   const [draft, setDraft] = useState<TaskCreateDraft>({
@@ -178,6 +156,31 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const titleInputRef = useRef<HTMLInputElement | null>(null);
+  const tagFilterRef = useRef(tagFilter);
+  tagFilterRef.current = tagFilter;
+
+  // Opening the create card: preselect the active filter tags, reset the no-tag prompt
+  useEffect(() => {
+    if (!isCreateOpen) return;
+    setNoTagPrompt(false);
+    setNoTagConfirmed(false);
+    setDraft((p) => (p.tags.length > 0 ? p : { ...p, tags: defaultTagIds(tagFilterRef.current) }));
+  }, [isCreateOpen]);
+
+  // Selecting any tag clears the prompt
+  useEffect(() => {
+    if (draft.tags.length > 0) setNoTagPrompt(false);
+  }, [draft.tags]);
+
+  const noTagProps = {
+    noTagPrompt,
+    onNoTagConfirm: () => {
+      setNoTagConfirmed(true);
+      setNoTagPrompt(false);
+      void handleAddTask(undefined, true);
+    },
+    onNoTagChoose: () => setNoTagPrompt(false),
+  };
 
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
@@ -507,9 +510,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
   };
 
-  const handleAddTask = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddTask = async (e?: React.FormEvent, skipNoTagPrompt = false) => {
+    e?.preventDefault();
     if (!draft.title.trim() || isSubmitting) return;
+    if (!skipNoTagPrompt && needsNoTagConfirm(draft.tags, noTagConfirmed)) {
+      setNoTagPrompt(true);
+      return;
+    }
     try {
       setIsSubmitting(true);
       const folderVal = draft.folder.trim() || undefined;
@@ -528,7 +535,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         handleCreateFolder(folderVal);
       }
       setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [], showInCalendar: true });
-      setNewTagInput('');
       setIsCreateOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -638,7 +644,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const matchesSearch = (t: TaskWithChildren): boolean => {
       if (t.title.toLowerCase().includes(q)) return true;
       if ((t.description || '').toLowerCase().includes(q)) return true;
-      if (t.tags && t.tags.some((tag) => tag.toLowerCase().includes(q))) return true;
+      if (resolveTags(t.tags).some((tag) => tag.title.toLowerCase().includes(q))) return true;
       if (t.children && t.children.some(matchesSearch)) return true;
       return false;
     };
@@ -651,9 +657,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           if (t.folder !== selectedFolder) return false;
         }
       }
-      if (selectedTag !== null) {
-        if (!t.tags || !t.tags.includes(selectedTag)) return false;
-      }
+      if (!matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds)) return false;
       const archived = isTaskArchived(t);
       if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
       if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress' || archived)) return false;
@@ -667,7 +671,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (q && !matchesSearch(t)) return false;
       return true;
     });
-  }, [taskTree, selectedFolder, selectedTag, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
+  }, [taskTree, selectedFolder, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -683,8 +687,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (!dA && dB) return 1;
     }
     if (sortBy === 'tag') {
-      const tagA = (a.tags && a.tags.length > 0) ? a.tags[0] : '(Kein Tag)';
-      const tagB = (b.tags && b.tags.length > 0) ? b.tags[0] : '(Kein Tag)';
+      const tagA = resolveTags(a.tags)[0]?.title ?? '(Kein Tag)';
+      const tagB = resolveTags(b.tags)[0]?.title ?? '(Kein Tag)';
       const diff = tagA.localeCompare(tagB);
       if (diff !== 0) return diff;
     }
@@ -693,7 +697,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (diff !== 0) return diff;
     }
     return 0;
-  }), [filteredTasks, sortBy]);
+  }), [filteredTasks, sortBy, resolveTags]);
 
   const activeTasks = useMemo(() => sortedTasks.filter((t) => !t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
   const recentlyCompletedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
@@ -729,16 +733,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         setEditDraft={setEditDraft}
         editNewTagInput={editNewTagInput}
         setEditNewTagInput={setEditNewTagInput}
-        allTags={allTags}
-        customTags={customTags}
         allFolders={allFolders}
-        selectedTag={selectedTag}
-        setSelectedTag={setSelectedTag}
         selectedFolder={selectedFolder}
         setSelectedFolder={setSelectedFolder}
         setViewMode={setViewMode}
-        handleAddCustomTag={handleAddCustomTag}
-        handleRemoveCustomTag={handleRemoveCustomTag}
+        handleCreateTag={ensureTag}
         handleToggleTask={handleToggleTask}
         handleToggleInProgress={handleToggleInProgress}
         saveEditing={saveEditing}
@@ -754,16 +753,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setEditDraft,
     editNewTagInput,
     setEditNewTagInput,
-    allTags,
-    customTags,
+    ensureTag,
     allFolders,
-    selectedTag,
-    setSelectedTag,
     selectedFolder,
     setSelectedFolder,
     setViewMode,
-    handleAddCustomTag,
-    handleRemoveCustomTag,
     handleToggleTask,
     handleToggleInProgress,
     saveEditing,
@@ -853,11 +847,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
               {isCreateOpen && (
                 <TodoCreateCard
                   draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                  newTagInput={newTagInput} setNewTagInput={setNewTagInput}
-                  allTags={allTags} customTags={customTags} allFolders={allFolders}
+                  allTags={allTags} allFolders={allFolders}
                   isSubmitting={isSubmitting} handleAddTask={handleAddTask}
-                  handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                  handleCreateTag={ensureTag}
                   onClose={() => setIsCreateOpen(false)}
+                  {...noTagProps}
                 />
               )}
             </>
@@ -924,11 +918,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   {isCreateOpen && (
                     <TodoCreateCard
                       draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                      newTagInput={newTagInput} setNewTagInput={setNewTagInput}
-                      allTags={allTags} customTags={customTags} allFolders={allFolders}
+                      allTags={allTags} allFolders={allFolders}
                       isSubmitting={isSubmitting} handleAddTask={handleAddTask}
-                      handleAddCustomTag={handleAddCustomTag} handleRemoveCustomTag={handleRemoveCustomTag}
+                      handleCreateTag={ensureTag}
                       onClose={() => setIsCreateOpen(false)}
+                      {...noTagProps}
                     />
                   )}
 
@@ -963,8 +957,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                     setOpenTiers={setOpenTiers}
                     setDraft={setDraft}
                     setIsCreateOpen={setIsCreateOpen}
-                    setSelectedTag={setSelectedTag}
-                    selectedTag={selectedTag}
+                    selectedTag={tagFilterLabel}
+                    selectedTagIds={tagFilter.tagIds}
+                    clearTagFilter={clearTagFilter}
                     renderTask={renderTask}
                     editingTaskId={editingTaskId}
                     selectedDateFilter={selectedDateFilter}
@@ -996,12 +991,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                           <span className="font-semibold text-sm text-t2-ink ">Ansicht & Filter</span>
                         </div>
                         <div className="flex items-center gap-2">
-                          {(filterPriority !== 'all' || selectedTag !== null || filterStatus !== 'all' || searchQuery.trim() !== '' || selectedDateFilter !== null) && (
+                          {(filterPriority !== 'all' || tagFilterActive || filterStatus !== 'all' || searchQuery.trim() !== '' || selectedDateFilter !== null) && (
                             <button
                               type="button"
                               onClick={() => {
                                 setFilterPriority('all');
-                                setSelectedTag(null);
+                                clearTagFilter();
                                 setFilterStatus('all');
                                 setSearchQuery('');
                                 setSelectedDateFilter(null);
@@ -1155,65 +1150,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       </div>
 
                       {/* Filter nach Tags */}
-                      <div>
-                        <div className="flex items-center justify-between text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
-                          <span className="flex items-center gap-1">
-                            <Tag size={12} />
-                            Tags
-                          </span>
-                          {selectedTag && (
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedTag(null);
-                                setIsFilterMenuOpen(false);
-                              }}
-                              className="text-[10px] text-t2-accent  hover:underline capitalize cursor-pointer"
-                            >
-                              Tag entfernen
-                            </button>
-                          )}
-                        </div>
-                        {allTags.length === 0 ? (
-                          <p className="text-[11px] text-t2-ink-3  italic py-1">
-                            Keine Tags vorhanden
-                          </p>
-                        ) : (
-                          <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto pr-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setSelectedTag(null);
-                                setIsFilterMenuOpen(false);
-                              }}
-                              className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                                selectedTag === null
-                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
-                                  : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
-                              }`}
-                            >
-                              Alle Tags
-                            </button>
-                            {allTags.map((tag) => (
-                              <button
-                                key={tag}
-                                type="button"
-                                onClick={() => {
-                                  setSelectedTag(selectedTag === tag ? null : tag);
-                                  setIsFilterMenuOpen(false);
-                                }}
-                                className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
-                                  selectedTag === tag
-                                    ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
-                                    : 'bg-t2-hover  text-t2-ink  hover:bg-t2-stage '
-                                }`}
-                              >
-                                #{tag}
-                              </button>
-                            ))}
-                          </div>
-                        )}
-                      </div>
+                      <TodoTagFilterPanel tags={allTags} filter={tagFilter} onChange={setTagFilter} />
 
                       {/* Filter nach Datum */}
                       <div>

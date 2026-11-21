@@ -5,6 +5,9 @@ import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
+import { TagPicker } from "@/components/Tags/TagPicker";
+import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
+import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar } from "@/lib/calendarColors";
 
 interface CustomDropdownOption {
@@ -122,6 +125,10 @@ export interface EventPopoverProps {
     onEventDelete?: (id: string) => void;
     onClose: () => void;
     enabledExtensions: string[];
+    /** Ask "Ohne Tag speichern?" in place of closing (set by the host for untagged new events). */
+    showNoTagConfirm?: boolean;
+    onNoTagConfirm?: () => void;
+    onNoTagChoose?: () => void;
 }
 
 export default function EventPopover({
@@ -131,7 +138,11 @@ export default function EventPopover({
     onEventSave,
     onEventDelete,
     onClose,
+    showNoTagConfirm,
+    onNoTagConfirm,
+    onNoTagChoose,
 }: EventPopoverProps) {
+    const createTag = useTagCreate();
     const popoverRef = useRef<HTMLDivElement>(null);
 
     const [title, setTitle] = useState(event.title || '');
@@ -141,12 +152,8 @@ export default function EventPopover({
     const [isCompleted, setIsCompleted] = useState(!!event.is_completed);
     const [color, setColor] = useState(event.color || CALENDAR_CATEGORIES[0].key);
     const [showColorPicker, setShowColorPicker] = useState(false);
-    const [tags, setTags] = useState<string[]>([
-        event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? ''
-    ]);
     const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(getEventGroupIds(event));
     const [isExpanded, setIsExpanded] = useState(false);
-    const [showHints, setShowHints] = useState(false);
 
     // Computed position — adjusted after render via layoutEffect
     const [pos, setPos] = useState({ top: rect.top, left: rect.right + 12 });
@@ -189,14 +196,12 @@ export default function EventPopover({
         setIsCompleted(!!event.is_completed);
         setColor(event.color || CALENDAR_CATEGORIES[0].key);
         setIsCancelled(isThisOccCancelledOrig);
-        setTags([event.tags?.[0] ?? '', event.tags?.[1] ?? '', event.tags?.[2] ?? '']);
         setSelectedGroupIds(getEventGroupIds(event));
         const parts = getRRuleParts(event);
         setFreq(parts.freq);
         setIntervalVal(parts.interval);
         setRecurrenceEnd(event.recurrence_end || '');
         setIsExpanded(false);
-        setShowHints(false);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [event.id, event.start]);
 
@@ -214,9 +219,6 @@ export default function EventPopover({
         if (isCompleted !== !!event.is_completed && updates.is_completed === undefined) updates.is_completed = isCompleted;
         if (isCancelled !== isThisOccCancelledRef.current && updates.is_cancelled === undefined) updates.is_cancelled = isCancelled;
         if (color !== event.color && updates.color === undefined) updates.color = color;
-        const activeTags = tags.filter(t => t.trim() !== '');
-        const currentTags = event.tags ?? [];
-        if (JSON.stringify(activeTags) !== JSON.stringify(currentTags) && updates.tags === undefined) updates.tags = activeTags;
         if (isImportant !== !!(event as any).is_important && (updates as any).is_important === undefined) (updates as any).is_important = isImportant;
         const newRecurrenceRule = freq === 'none' ? 'NONE' : `FREQ=${freq.toUpperCase()};INTERVAL=${interval}`;
         const currentRecurrenceRule = event.recurrence_rule || `FREQ=${(event.recurrence && event.recurrence !== 'none') ? event.recurrence.toUpperCase() : 'NONE'};INTERVAL=1`;
@@ -244,7 +246,7 @@ export default function EventPopover({
         }
 
         if (Object.keys(updates).length > 0) onEventSave(event.id, updates);
-    }, [event, title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, selectedGroupIds, onEventSave]);
+    }, [event, title, description, isImportant, isTask, isCompleted, isCancelled, color, freq, interval, recurrenceEnd, selectedGroupIds, onEventSave]);
 
     // Keep ref current so the unmount cleanup always calls the latest version
     useEffect(() => { handleSaveRef.current = handleSave; }, [handleSave]);
@@ -252,7 +254,7 @@ export default function EventPopover({
     useEffect(() => {
         const timer = setTimeout(() => handleSave(), 300);
         return () => clearTimeout(timer);
-    }, [title, description, isImportant, isTask, isCompleted, isCancelled, color, tags, freq, interval, recurrenceEnd, selectedGroupIds, handleSave]);
+    }, [title, description, isImportant, isTask, isCompleted, isCancelled, color, freq, interval, recurrenceEnd, selectedGroupIds, handleSave]);
 
     // Save on unmount only when the popup was dismissed without the explicit close button
     // (scroll-away, click-outside). handleClose sets savedOnCloseRef to avoid a double-save.
@@ -275,8 +277,10 @@ export default function EventPopover({
         if (top < 60) top = 60;
 
         setPos({ top, left });
-    }, [rect, isExpanded, showColorPicker, showHints, selectedGroupIds]);
+    }, [rect, isExpanded, showColorPicker, selectedGroupIds]);
 
+    // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
+    useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const handleToggleCancel = () => {
@@ -291,8 +295,8 @@ export default function EventPopover({
         handleSave({ groupIds: next, parent_id: next[0] || null });
     };
 
-    const existingTags = tags.filter(t => t.trim() !== '');
-    const availableThemes = themes.filter(t => !selectedGroupIds.includes(t.id));
+    // Deleted/unknown tag ids are never shown in the picker (they are dropped on the next change).
+    const pickerValue = selectedGroupIds.filter(id => themes.some(t => t.id === id));
 
     if (typeof document === 'undefined') return null;
 
@@ -428,91 +432,17 @@ export default function EventPopover({
 
             {/* Groups / Tags & Repeat */}
             <div className="flex flex-col gap-2.5">
-                {/* Groups / Tags */}
+                {/* Tags: first selected tag sets the style/color */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
-                        <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Gruppen / Tags</span>
-                        {selectedGroupIds.length > 1 && (
-                            <span className="text-[9px] text-t2-ink-3  font-medium">1. Tag = Stil</span>
+                        <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Tags</span>
+                        {pickerValue.length > 0 && (
+                            <span className="text-[9px] text-t2-ink-3 font-medium">Der erste Tag bestimmt die Farbe</span>
                         )}
                     </div>
-
-                    {/* Chips */}
-                    {selectedGroupIds.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5 p-1.5 bg-t2-sub  rounded-xl border border-t2-line-soft ">
-                            {selectedGroupIds.map((id, index) => {
-                                const theme = themes.find(t => t.id === id);
-                                const isPrimary = index === 0;
-                                return (
-                                    <div
-                                        key={id}
-                                        className={`flex items-center gap-1.5 pl-2 pr-1 py-1 rounded-lg text-xs font-semibold border transition-all ${
-                                            isPrimary
-                                                ? 'bg-t2-sub  border-t2-line  text-t2-accent '
-                                                : 'bg-t2-surface  border-t2-line  text-t2-ink '
-                                        }`}
-                                    >
-                                        <span
-                                            className="w-2 h-2 rounded-full shrink-0"
-                                            style={{ backgroundColor: theme?.color || '#6366f1' }}
-                                        />
-                                        <span className="truncate max-w-[100px]" title={theme?.title || id}>
-                                            {theme?.title || id}
-                                        </span>
-                                        {isPrimary ? (
-                                            <span
-                                                className="text-[8px] font-bold uppercase tracking-wider bg-t2-hover  text-t2-accent  px-1 py-0.5 rounded"
-                                                title="Stil / Hauptgruppe"
-                                            >
-                                                Stil / Hauptgruppe
-                                            </span>
-                                        ) : (
-                                            <button
-                                                type="button"
-                                                onClick={() => {
-                                                    const next = [id, ...selectedGroupIds.filter(gId => gId !== id)];
-                                                    updateGroupIds(next);
-                                                }}
-                                                className="text-[9px] text-t2-ink-3 hover:text-t2-accent  hover:bg-t2-hover  px-1 py-0.5 rounded font-medium transition-colors"
-                                                title="Als Stil / Hauptgruppe festlegen"
-                                            >
-                                                ↑ Stil
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                const next = selectedGroupIds.filter(gId => gId !== id);
-                                                updateGroupIds(next);
-                                            }}
-                                            className="text-t2-ink-3 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/20 p-0.5 rounded transition-colors"
-                                            title="Gruppe entfernen"
-                                        >
-                                            <X size={11} />
-                                        </button>
-                                    </div>
-                                );
-                            })}
-                        </div>
-                    ) : (
-                        <div className="text-[11px] text-t2-ink-3  italic px-1">
-                            Keine Gruppen zugeordnet
-                        </div>
-                    )}
-
-                    {/* Add Group dropdown */}
-                    {availableThemes.length > 0 && (
-                        <ModernDropdown
-                            value=""
-                            options={availableThemes.map(t => ({ value: t.id, label: t.title, color: t.color }))}
-                            onChange={(val) => {
-                                if (val) {
-                                    const next = [...selectedGroupIds, val];
-                                    updateGroupIds(next);
-                                }
-                            }}
-                            placeholder="+ Gruppe hinzufügen"
-                        />
+                    <TagPicker tags={themes} value={pickerValue} onChange={updateGroupIds} onCreate={createTag} compact />
+                    {showNoTagConfirm && pickerValue.length === 0 && (
+                        <NoTagConfirm onConfirm={() => onNoTagConfirm?.()} onChoose={() => onNoTagChoose?.()} />
                     )}
                 </div>
 
@@ -618,45 +548,6 @@ export default function EventPopover({
             {/* ── Expanded section ── */}
             {isExpanded && (
                 <div className="flex flex-col gap-3 animate-in slide-in-from-top-2 duration-150">
-                    {/* Hints / Tags */}
-                    <div className="flex flex-col gap-1.5">
-                        <div className="flex items-center justify-between">
-                            <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Hinweise</span>
-                            <button
-                                onClick={() => setShowHints(!showHints)}
-                                className="w-5 h-5 flex items-center justify-center rounded-full bg-t2-hover  text-t2-ink-2 hover:bg-t2-stage  transition-all"
-                                title="Hinweise"
-                            >
-                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                                    {showHints ? <><line x1="5" y1="12" x2="19" y2="12"/></> : <><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></>}
-                                </svg>
-                            </button>
-                        </div>
-                        {/* Show existing tags as chips when hints are collapsed */}
-                        {!showHints && existingTags.length > 0 && (
-                            <div className="flex flex-wrap gap-1">
-                                {existingTags.map((tag, i) => (
-                                    <span key={i} className="text-[10px] bg-t2-hover  text-t2-ink-2  px-2 py-0.5 rounded-full font-medium">{tag}</span>
-                                ))}
-                            </div>
-                        )}
-                        {showHints && (
-                            <div className="flex flex-col gap-1.5 animate-in slide-in-from-top-1 duration-150">
-                                {[0, 1, 2].map(idx => (
-                                    <input
-                                        key={idx}
-                                        type="text"
-                                        value={tags[idx] ?? ''}
-                                        onChange={(e) => { const next = [...tags]; next[idx] = e.target.value; setTags(next); }}
-                                        onBlur={() => handleSave()}
-                                        placeholder={`Hinweis ${idx + 1}…`}
-                                        className="w-full bg-t2-sub  border border-t2-line-soft  rounded-xl px-3 py-1.5 text-xs text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none placeholder:text-t2-ink-3 "
-                                    />
-                                ))}
-                            </div>
-                        )}
-                    </div>
-
                     {/* Convert to Task */}
                     <div className="flex flex-col gap-1 border-t border-t2-line-soft  pt-2">
                         <div

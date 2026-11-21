@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
 import { useDataStore, DataItem } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
+import { useJobEventMatcher } from '@/hooks/useJobEventMatcher';
 import { getEventTheme, getEffectStyle } from '@/components/Calendar/CalendarEventItem';
 
 interface PlannerWeekCalendarProps {
@@ -32,6 +33,7 @@ export default function PlannerWeekCalendar({
     const { calendarColorPalette, notes } = useDataStore();
     const showWeekends = useJobPlannerStore((s) => s.showWeekends);
 
+    const { matchesPlanner } = useJobEventMatcher();
     const [currentDate, setCurrentDate] = useState(() => new Date());
     const [currentTime, setCurrentTime] = useState(() => new Date());
 
@@ -76,16 +78,14 @@ export default function PlannerWeekCalendar({
         return events.filter(e => {
             if (!e.start || !e.end) return false;
             // Parent matching
-            const matchesCategory = categoryGroupIds.length === 0 ||
-                (e.parent_id && categoryGroupIds.includes(e.parent_id)) ||
-                (e.tags && e.tags.some((t: string) => ['job', 'arbeit', 'uni', 'studium'].includes(t.toLowerCase())));
+            const matchesCategory = matchesPlanner(e, categoryGroupIds);
             if (!matchesCategory) return false;
 
             const evStart = new Date(e.start);
             const evEnd = new Date(e.end);
             return evEnd >= monday && evStart <= weekEnd;
         });
-    }, [events, categoryGroupIds, monday, weekEnd]);
+    }, [events, categoryGroupIds, monday, weekEnd, matchesPlanner]);
 
     // Dynamic hour bounds: default 7 to 20, expand +- 1h if events fall outside
     const { minHour, maxHour, hoursList } = useMemo(() => {

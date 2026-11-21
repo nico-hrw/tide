@@ -3,6 +3,9 @@ import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 import { SettingsCard, SettingsRow, SettingsSection } from '../../ui/SettingsLayout';
 import { Chip, Segmented, Toggle } from '../../ui/Controls';
 import { useT } from '../../useT';
+import { TagPicker } from '@/components/Tags/TagPicker';
+import { useDataStore } from '@/store/useDataStore';
+import { selectTags } from '@/lib/tags';
 
 export interface JobPlannerConfigProps {
     groups?: { id: string; title: string }[];
@@ -10,7 +13,10 @@ export interface JobPlannerConfigProps {
 
 export function JobPlannerConfig({ groups }: JobPlannerConfigProps) {
     const t = useT();
-    const { mode, setMode, showWeekends, setShowWeekends, pluginGroupId } = useJobPlannerStore();
+    const { mode, setMode, showWeekends, setShowWeekends, pluginGroupId, pluginTagIds, setPluginTagIds } = useJobPlannerStore();
+    const notes = useDataStore((s) => s.notes);
+    const tags = React.useMemo(() => selectTags(notes).sort((a, b) => a.title.localeCompare(b.title)), [notes]);
+    const noCreate = React.useCallback(async () => undefined, []);
     const activeGroup = groups?.find((g) => g.id === pluginGroupId);
     const fallbackName = mode === 'both' ? t('job.nameBoth') : mode === 'job' ? t('job.modeJob') : t('job.modeStudy');
 
@@ -46,6 +52,9 @@ export function JobPlannerConfig({ groups }: JobPlannerConfigProps) {
                 <SettingsCard>
                     <SettingsRow title={t('job.category')} description={t('job.categoryDesc')}>
                         <Chip>{activeGroup?.title || fallbackName}</Chip>
+                    </SettingsRow>
+                    <SettingsRow title={t('job.tags')} description={t('job.tagsDesc')} wide>
+                        <TagPicker tags={tags} value={pluginTagIds ?? []} onChange={setPluginTagIds} onCreate={noCreate} compact />
                     </SettingsRow>
                 </SettingsCard>
             </SettingsSection>

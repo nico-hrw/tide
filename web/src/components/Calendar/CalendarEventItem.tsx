@@ -241,7 +241,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         }
     );
 
-    // Secondary group badges & event tags
+    // Secondary tag badges (groupIds beyond the first)
     const displayBadges = useMemo(() => {
         const badges: { id: string; label: string; color?: string }[] = [];
         const seenLabels = new Set<string>();
@@ -251,7 +251,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             const matchedTheme = themes?.find(t => t.id === gid);
             const matchedNote = !matchedTheme ? secondaryNoteMeta[gid] : undefined;
             const matchedEvent = (!matchedTheme && !matchedNote && allEvents) ? allEvents.find(e => e.id === gid) : undefined;
-            const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title || gid;
+            const label = matchedTheme?.title || matchedNote?.title || matchedEvent?.title;
             const rawGroupColor = matchedTheme?.color || (typeof matchedNote?.color === 'string' ? matchedNote.color : undefined) || matchedEvent?.color;
             const groupColor = resolveEventColor(rawGroupColor);
 
@@ -265,23 +265,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             }
         }
 
-        // 2. Regular tags from event.tags
-        if (event.tags && event.tags.length > 0) {
-            for (const tag of event.tags) {
-                const trimmed = tag ? tag.trim() : '';
-                if (trimmed && !seenLabels.has(trimmed.toLowerCase())) {
-                    seenLabels.add(trimmed.toLowerCase());
-                    badges.push({
-                        id: `tag-${trimmed}`,
-                        label: trimmed,
-                        color: effectiveColor,
-                    });
-                }
-            }
-        }
-
         return badges;
-    }, [event.tags, secondaryGroupIds, themes, secondaryNoteMeta, allEvents, effectiveColor]);
+    }, [secondaryGroupIds, themes, secondaryNoteMeta, allEvents, effectiveColor]);
 
     // If the event has a linkedTaskId, read completion state from the task store (source of truth)
     // so all taskMention nodes in notes update instantly via the same Zustand selector.
@@ -875,8 +860,7 @@ const areEventPropsEqual = (prev: CalendarEventItemProps, next: CalendarEventIte
             pe.share_status !== ne.share_status ||
             pe.permission !== ne.permission ||
             (pe as any).is_important !== (ne as any).is_important ||
-            !areArraysShallowEqual(pe.groupIds, ne.groupIds) ||
-            !areArraysShallowEqual(pe.tags, ne.tags)
+            !areArraysShallowEqual(pe.groupIds, ne.groupIds)
         ) {
             return false;
         }

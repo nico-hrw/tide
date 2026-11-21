@@ -1,5 +1,8 @@
 import { describe, it, expect, beforeAll, beforeEach, vi } from 'vitest';
 
+// Real RSA-2048 keygen plus RSA/AES operations can exceed 5s when the full suite runs in parallel.
+vi.setConfig({ testTimeout: 30000, hookTimeout: 30000 });
+
 interface FakeFile {
   id: string;
   type: string;
@@ -164,5 +167,21 @@ describe('createApiRegistryStorage', () => {
   it('returns an empty list when download returns 404 and blob_path is missing', async () => {
     server.files.push({ id: 'f_empty', type: REGISTRY_FILE_TYPE, owner_id: keys.userId, blob_path: null });
     expect(await createApiRegistryStorage(() => keys).load()).toEqual([]);
+  });
+
+  it('applies queued saves in order (last save wins)', async () => {
+    const s = createApiRegistryStorage(() => keys);
+    await Promise.all([s.save([entry('a', 'n1')]), s.save([entry('b', 'n1')]), s.save([entry('c', 'n1')])]);
+    expect(server.files).toHaveLength(1);
+    expect(await createApiRegistryStorage(() => keys).load()).toEqual([entry('c', 'n1')]);
+  });
+
+  it('a failed save does not block later saves', async () => {
+    let locked = true;
+    const s = createApiRegistryStorage(() => (locked ? null : keys));
+    await expect(s.save([entry('a', 'n1')])).rejects.toThrow();
+    locked = false;
+    await s.save([entry('b', 'n1')]);
+    expect(await createApiRegistryStorage(() => keys).load()).toEqual([entry('b', 'n1')]);
   });
 });

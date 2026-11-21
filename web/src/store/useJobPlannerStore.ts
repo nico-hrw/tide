@@ -46,6 +46,8 @@ interface JobPlannerState {
     deleteExam: (semesterId: string, examId: string) => void;
     moveExam: (examId: string, sourceSemesterId: string, targetSemesterId: string, newIndex: number) => void;
     reorderSemester: (semesterId: string, newIndex: number) => void;
+    pluginTagIds: string[];
+    setPluginTagIds: (ids: string[]) => void;
     pluginGroupId: string | null;
     setPluginGroupId: (id: string | null) => void;
     protectedGroupIds: string[];
@@ -67,6 +69,8 @@ export const useJobPlannerStore = create<JobPlannerState>()(
             setMode: (mode) => set({ mode }),
             showWeekends: false,
             setShowWeekends: (showWeekends) => set({ showWeekends }),
+            pluginTagIds: [],
+            setPluginTagIds: (pluginTagIds) => set({ pluginTagIds }),
             pluginGroupId: null,
             setPluginGroupId: (pluginGroupId) => set({ pluginGroupId }),
             quickLinks: DEFAULT_QUICK_LINKS,

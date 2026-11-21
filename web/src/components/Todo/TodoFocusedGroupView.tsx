@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { useTagRegistry } from './useTodoTags';
 import {
   ArrowLeft,
   Minimize2,
@@ -51,6 +52,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
   onAddSubtask,
   completingTaskIds,
 }) => {
+  const { resolve: resolveTags } = useTagRegistry();
   const [newSubtaskTitle, setNewSubtaskTitle] = useState('');
   const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
@@ -252,13 +254,13 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
                 <span>{liveParent.folder}</span>
               </span>
             )}
-            {liveParent.tags?.map((tag) => (
+            {resolveTags(liveParent.tags).map((tag) => (
               <span
-                key={tag}
+                key={tag.id}
                 className="inline-flex items-center gap-0.5 px-2 py-0.5 rounded-lg text-xs font-medium bg-t2-sub text-t2-accent  border border-t2-accent"
               >
                 <Tag size={10} />
-                <span>{tag}</span>
+                <span>{tag.title}</span>
               </span>
             ))}
           </div>

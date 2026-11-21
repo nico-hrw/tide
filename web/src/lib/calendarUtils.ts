@@ -1,4 +1,6 @@
 import { format, isSameDay, startOfDay, addDays } from 'date-fns';
+import { matchesTagFilter, isTagFilterActive, type TagFilter } from '@/lib/tagFilter';
+import type { Tag } from '@/lib/tags';
 
 export interface CalendarEvent {
     id: string;
@@ -122,4 +124,29 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
         if (isNaN(timeB)) return -1;
         return timeA - timeB;
     });
+}
+
+/** Resolves tag ids to their titles; ids without a matching theme are dropped. */
+export function resolveTagTitles(
+    groupIds: string[],
+    themes: ReadonlyArray<{ id: string; title: string }>
+): { id: string; title: string }[] {
+    const out: { id: string; title: string }[] = [];
+    for (const id of groupIds) {
+        const theme = themes.find((t) => t.id === id);
+        const title = theme?.title?.trim();
+        if (theme && title) out.push({ id, title });
+    }
+    return out;
+}
+
+/** Keeps events matching the tag filter (OR over tags). Unknown tag ids count as untagged. */
+export function filterEventsByTags<E extends { groupIds?: string[]; parent_id?: string | null }>(
+    events: E[],
+    filter: TagFilter,
+    tags: Tag[],
+): E[] {
+    if (!isTagFilterActive(filter)) return events;
+    const known = new Set(tags.map((t) => t.id));
+    return events.filter((e) => matchesTagFilter(getEventGroupIds(e), filter, known));
 }

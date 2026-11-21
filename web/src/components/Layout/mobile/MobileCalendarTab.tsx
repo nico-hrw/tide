@@ -12,6 +12,9 @@ import { computeWeekAllDayRows, type CalendarEvent } from './expandMobileEvents'
 import { T } from './mobileTheme';
 import type { MobileCalViewMode } from './MobileTopHeader';
 import { useMobileSwipeGestures } from './useMobileSwipeGestures';
+import { CalendarTagPills } from '../../Calendar/CalendarTagPills';
+import { CalendarViewsMenu } from '../../Calendar/CalendarViewsMenu';
+import type { CalendarViewMode } from '../../Calendar/types';
 import { QuickEditGrid } from './QuickEditGrid';
 import type { NewEventMeta } from './MobileOverlaysAndModals';
 import { confirmQuickEdit, quickEditContext, quickEditForDraft, quickEditForEvent, type QuickEditState } from './quickEditState';
@@ -35,7 +38,16 @@ export interface MobileCalendarTabProps {
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   onTodayClick?: () => void;
+  /** Tags shown as filter pills above the calendar. */
+  themes?: { id: string; title: string; color?: string }[];
+  /** Lets the saved-views menu switch the calendar mode. */
+  onCalViewModeChange?: (mode: MobileCalViewMode) => void;
+  /** Lets the saved-views menu jump to the todo tab. */
+  onOpenTodos?: () => void;
 }
+
+export const toSavedMode = (m: MobileCalViewMode): CalendarViewMode => (m === 'agenda' ? 'continuous' : m);
+export const fromSavedMode = (m: CalendarViewMode): MobileCalViewMode => (m === 'continuous' ? 'agenda' : m);
 
 function getDayTimelineEvents(expandedEvents: CalendarEvent[], date: Date) {
   const sameDay = (e: CalendarEvent) => {
@@ -56,6 +68,8 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
   activeDate,
   setActiveDate,
   calViewMode,
+  onCalViewModeChange,
+  onOpenTodos,
   expandedEvents,
   theme: themeProp,
   now: nowProp,
@@ -71,6 +85,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
   onEventDelete,
   onTaskComplete,
   onTodayClick,
+  themes,
 }) => {
   const storeTheme = useDataStore((s) => s.theme);
   const storeWeekStartsOn = useWeekStartsOn();
@@ -205,6 +220,25 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
       onTouchMove={swipeOn ? onSwipeMove : undefined}
       onTouchEnd={swipeOn ? onSwipeEnd : undefined}
     >
+      {themes && themes.length > 0 && (
+        // Horizontal scrolling of the pill row must not be read as a calendar swipe.
+        <div
+          className="flex shrink-0 items-center gap-2 px-3 py-1.5"
+          onTouchStart={(e) => e.stopPropagation()}
+          onTouchMove={(e) => e.stopPropagation()}
+          onTouchEnd={(e) => e.stopPropagation()}
+        >
+          {onCalViewModeChange && (
+            <CalendarViewsMenu
+              tags={themes}
+              viewMode={toSavedMode(calViewMode)}
+              onViewModeChange={(m) => onCalViewModeChange(fromSavedMode(m))}
+              onOpenTodos={onOpenTodos}
+            />
+          )}
+          <CalendarTagPills tags={themes} className="min-w-0 flex-1" />
+        </div>
+      )}
       {calViewMode === 'week' ? (
         <div
           ref={swipeElRef}

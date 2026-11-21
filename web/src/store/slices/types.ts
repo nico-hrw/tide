@@ -1,6 +1,8 @@
 import type { StateCreator } from 'zustand';
 import type { WeekStart } from '@/lib/calendarWeeks';
 import type { AppPalette } from '@/lib/palette';
+import type { TagFilter } from '@/lib/tagFilter';
+import type { SavedView } from '@/lib/viewsStorage';
 
 export interface DataItem {
     id: string;
@@ -34,6 +36,7 @@ export interface TaskItem {
     isArchived?: boolean;
     parentId?: string | null;
     order?: number;
+    owner_id?: string;
     updatedAt?: string;
 }
 
@@ -143,7 +146,8 @@ export interface TodosSlice {
 
     setTasks: (tasks: TaskItem[]) => void;
     addTask: (task: Omit<TaskItem, 'id'>) => Promise<string>;
-    updateTask: (id: string, updates: Partial<TaskItem>) => Promise<void>;
+    /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
+    updateTask: (id: string, updates: Partial<TaskItem>, options?: { strict?: boolean }) => Promise<void>;
     toggleTask: (id: string) => Promise<void>;
     toggleTaskInProgress: (id: string) => Promise<void>;
     setTaskStatus: (
@@ -186,6 +190,12 @@ export interface UiSlice {
     /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
     a4SideBorders: boolean;
     setA4SideBorders: (on: boolean) => void;
+    /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
+    todoTagFilter: TagFilter;
+    setTodoTagFilter: (filter: TagFilter) => void;
+    /** Calendar tag filter (multi-select, OR). Not persisted. */
+    calendarTagFilter: TagFilter;
+    setCalendarTagFilter: (filter: TagFilter) => void;
 }
 
 export interface FsSlice {
@@ -242,12 +252,22 @@ export interface SafesSlice {
     linkNoteToSafe: (noteId: string, targetSafe: string) => Promise<void> | void;
 }
 
+export interface ViewsSlice {
+    views: SavedView[];
+    loadViews: () => Promise<void>;
+    addView: (v: Omit<SavedView, 'id'>) => Promise<string>;
+    renameView: (id: string, name: string) => Promise<void>;
+    removeView: (id: string) => Promise<void>;
+    pruneTagFromViews: (tagId: string) => Promise<void>;
+}
+
 export type DataStoreState = NotesSlice &
     EventsSlice &
     TodosSlice &
     UiSlice &
     FsSlice &
     SafesSlice &
+    ViewsSlice &
     Partial<ContactsSlice>;
 
 export type DataState = DataStoreState;

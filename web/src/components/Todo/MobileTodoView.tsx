@@ -8,6 +8,8 @@ import { addDays } from 'date-fns';
 const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
+import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { useTagRegistry } from './useTodoTags';
 import { buildTaskTree } from './treeUtils';
 import { TaskWithChildren, isTaskArchived, parseDateSafe } from './types';
 import { MobileTodoDetail } from './MobileTodoDetail';
@@ -98,9 +100,17 @@ export const MobileTodoView: React.FC = () => {
   const todayRef = useRef<HTMLDivElement>(null);
   const scrolledRef = useRef(false);
 
+  const { knownIds: knownTagIds } = useTagRegistry();
+  const rawTagFilter = useDataStore((s) => s.todoTagFilter);
+  const setTagFilter = useDataStore((s) => s.setTodoTagFilter);
+  const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
+  const tagFilterActive = isTagFilterActive(tagFilter);
+
   const roots = useMemo<TaskWithChildren[]>(
-    () => buildTaskTree(tasks).map((t) => ({ ...t, children: kids(t) ?? [] })),
-    [tasks],
+    () => buildTaskTree(tasks)
+      .filter((t) => matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds))
+      .map((t) => ({ ...t, children: kids(t) ?? [] })),
+    [tasks, tagFilter, knownTagIds],
   );
   const sections = useMemo(
     () => (mode === 'list' ? groupOpenTodos(roots) : groupByFolder(roots)),
@@ -273,6 +283,18 @@ export const MobileTodoView: React.FC = () => {
           </div>
         )}
       </div>
+
+      {tagFilterActive && (
+        <div className="px-5 pb-1">
+          <button
+            type="button"
+            onClick={() => setTagFilter(EMPTY_TAG_FILTER)}
+            className="rounded-full bg-t2-sub px-3 py-1 text-[12.5px] font-semibold text-t2-ink"
+          >
+            Filter zurücksetzen
+          </button>
+        </div>
+      )}
 
       <div ref={scrollRef} className="flex-1 overflow-y-auto px-3.5 pb-28 flex flex-col gap-2">
         {sections.map((s) => (

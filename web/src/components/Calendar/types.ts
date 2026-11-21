@@ -20,6 +20,7 @@ export interface CalendarEvent {
     is_completed?: boolean;
     is_cancelled?: boolean;
     shading?: number;
+    owner_id?: string;
     tags?: string[];
 }
 

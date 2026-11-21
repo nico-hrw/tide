@@ -64,7 +64,6 @@ export default function EventPreview({
     const [selectedThemeId, setSelectedThemeId] = useState<string | null>(currentThemeId || null);
     const [isDescFocused, setIsDescFocused] = useState(false);
     const [shading, setShading] = useState<number>(event.shading ?? 0);
-    const [tags, setTags] = useState<string[]>(event.tags ?? ['', '', '']);
 
     const { highlight, startLinkSelection, cancelLinkSelection } = useHighlight();
     const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
@@ -80,7 +79,6 @@ export default function EventPreview({
     const descriptionRef = useRef(description);
     const selectedThemeIdRef = useRef(selectedThemeId);
     const shadingRef = useRef(shading);
-    const tagsRef = useRef(tags);
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const debounceTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
     const eventIdRef = useRef(event.id);
@@ -91,7 +89,6 @@ export default function EventPreview({
     useEffect(() => { descriptionRef.current = description; }, [description]);
     useEffect(() => { selectedThemeIdRef.current = selectedThemeId; }, [selectedThemeId]);
     useEffect(() => { shadingRef.current = shading; }, [shading]);
-    useEffect(() => { tagsRef.current = tags; }, [tags]);
     useEffect(() => { eventIdRef.current = event.id; }, [event.id]);
     useEffect(() => { onSaveRef.current = onSave; }, [onSave]);
 
@@ -122,13 +119,11 @@ export default function EventPreview({
     const scheduleSave = useCallback(() => {
         if (debounceTimer.current) clearTimeout(debounceTimer.current);
         debounceTimer.current = setTimeout(() => {
-            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
             onSaveRef.current(eventIdRef.current, {
                 title: titleRef.current,
                 description: descriptionRef.current,
                 parent_id: selectedThemeIdRef.current,
                 shading: shadingRef.current,
-                tags: activeTags,
             });
         }, 500);
     }, []);
@@ -137,13 +132,11 @@ export default function EventPreview({
     useEffect(() => {
         return () => {
             if (debounceTimer.current) clearTimeout(debounceTimer.current);
-            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
             onSaveRef.current(eventIdRef.current, {
                 title: titleRef.current,
                 description: descriptionRef.current,
                 parent_id: selectedThemeIdRef.current,
                 shading: shadingRef.current,
-                tags: activeTags,
             });
         };
         // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -205,12 +198,8 @@ export default function EventPreview({
         if (event.description !== descriptionRef.current) setDescription(event.description || "");
         if (event.title !== titleRef.current) setTitle(event.title);
         if ((event.shading ?? 0) !== shadingRef.current) setShading(event.shading ?? 0);
-        if (JSON.stringify(event.tags ?? []) !== JSON.stringify(tagsRef.current.filter(t => t.trim() !== ''))) {
-            const incoming = event.tags ?? [];
-            setTags([incoming[0] ?? '', incoming[1] ?? '', incoming[2] ?? '']);
-        }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [event.id, event.title, event.description, event.shading, event.tags]);
+    }, [event.id, event.title, event.description, event.shading]);
 
     // Update theme selection when prop changes
     useEffect(() => {
@@ -328,13 +317,11 @@ export default function EventPreview({
 
                             // Theme change is immediate — no debounce
                             if (debounceTimer.current) clearTimeout(debounceTimer.current);
-                            const activeTags = tagsRef.current.filter(t => t.trim() !== '');
                             onSaveRef.current(event.id, {
                                 title: titleRef.current,
                                 description: descriptionRef.current,
                                 parent_id: newVal,
                                 shading: shadingRef.current,
-                                tags: activeTags,
                                 ...(newColor ? { color: newColor } : {})
                             });
                         }}
@@ -371,26 +358,6 @@ export default function EventPreview({
                             </button>
                         ))}
                     </div>
-                </div>
-
-                {/* Hints / Tags */}
-                <div className="flex flex-col gap-1">
-                    <span className="text-xs text-t2-ink-3 font-semibold">Hinweise</span>
-                    {[0, 1, 2].map(idx => (
-                        <input
-                            key={idx}
-                            type="text"
-                            value={tags[idx] ?? ''}
-                            onChange={(e) => {
-                                const next = [...tags];
-                                next[idx] = e.target.value;
-                                setTags(next);
-                                scheduleSave();
-                            }}
-                            placeholder={`Hinweis ${idx + 1}...`}
-                            className="w-full bg-transparent border border-dashed border-t2-line  rounded-lg px-2 py-1 text-xs focus:outline-none focus:border-t2-accent text-t2-ink  placeholder:text-t2-ink-3 "
-                        />
-                    ))}
                 </div>
 
                 {/* Description */}

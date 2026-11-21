@@ -5,12 +5,14 @@ import { motion } from 'framer-motion';
 import {
   Repeat,
   Flag,
-  Tag,
   Clock,
   Calendar,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useDataStore } from '@/store/useDataStore';
+import { pruneTagFilter } from '@/lib/tagFilter';
+import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
+import { MobileTagField } from './MobileTagField';
 
 export interface MobileCreateModalProps {
   isOpen: boolean;
@@ -63,6 +65,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
   isOpen,
   mode,
   initialDate,
+  themes,
   onClose,
   onSaveEvent,
   onSaveTodo,
@@ -89,7 +92,17 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
 
   // Todo Priority & Tags
   const [priority, setPriority] = useState<PriorityType>('medium');
-  const [tagsInput, setTagsInput] = useState('');
+  const [tagIds, setTagIds] = useState<string[]>([]);
+  const [noTagPrompt, setNoTagPrompt] = useState(false);
+  const [noTagConfirmed, setNoTagConfirmed] = useState(false);
+  const todoTagFilter = useDataStore((s) => s.todoTagFilter);
+  const todoTagFilterRef = useRef(todoTagFilter);
+  todoTagFilterRef.current = todoTagFilter;
+  const knownTagIdsRef = useRef<Set<string>>(new Set());
+  knownTagIdsRef.current = new Set((themes ?? []).map((t) => t.id));
+  const calendarTagFilter = useDataStore((s) => s.calendarTagFilter);
+  const calendarTagFilterRef = useRef(calendarTagFilter);
+  calendarTagFilterRef.current = calendarTagFilter;
   const [showInCalendar, setShowInCalendar] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -122,7 +135,9 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       setRepeatInterval(1);
       setRepeatEndDate('');
       setPriority('medium');
-      setTagsInput('');
+      setTagIds(defaultTagIds(pruneTagFilter(mode === 'todo' ? todoTagFilterRef.current : calendarTagFilterRef.current, knownTagIdsRef.current)));
+      setNoTagPrompt(false);
+      setNoTagConfirmed(false);
       setShowInCalendar(true);
       setIsSubmitting(false);
 
@@ -133,6 +148,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       return () => clearTimeout(timer);
     }
   }, [isOpen, mode, initialDate]);
+
+  const tagList = themes ?? [];
 
   if (!isOpen) return null;
 
@@ -154,10 +171,25 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
     onClose();
   };
 
-  const handleSubmit = async (e?: React.FormEvent) => {
+  const handleNoTagConfirm = () => {
+    setNoTagConfirmed(true);
+    setNoTagPrompt(false);
+    void handleSubmit(undefined, true);
+  };
+
+  const handleTagsChange = (ids: string[]) => {
+    setTagIds(ids);
+    if (ids.length > 0) setNoTagPrompt(false);
+  };
+
+  const handleSubmit = async (e?: React.FormEvent, skipNoTagPrompt = false) => {
     if (e) e.preventDefault();
     const cleanTitle = title.trim();
     if (!cleanTitle || isSubmitting) return;
+    if (!skipNoTagPrompt && needsNoTagConfirm(tagIds, noTagConfirmed)) {
+      setNoTagPrompt(true);
+      return;
+    }
 
     try {
       setIsSubmitting(true);
@@ -190,6 +222,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
           onSaveEvent(start, end, {
             title: cleanTitle,
             color,
+            groupIds: tagIds,
+            parent_id: tagIds[0] ?? null,
             recurrence: recurrenceVal,
             recurrence_rule: recurrenceRule,
             recurrence_end: recurrenceEnd,
@@ -197,11 +231,6 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         }
       } else {
         // Todo Mode
-        const parsedTags = tagsInput
-          .split(/[\s,]+/)
-          .map((t) => t.replace(/^#/, '').trim())
-          .filter(Boolean);
-
         const finalDueDate = dueDateStr
           ? dueTimeStr
             ? `${dueDateStr}T${dueTimeStr}:00`
@@ -216,7 +245,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
             priority: priorityVal,
             dueDate: finalDueDate,
             color,
-            tags: parsedTags.length > 0 ? parsedTags : undefined,
+            tags: tagIds.length > 0 ? tagIds : undefined,
             recurrence: recurrenceVal,
             recurrence_rule: recurrenceRule,
             recurrence_end: recurrenceEnd,
@@ -229,7 +258,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
             dueDate: finalDueDate,
             scheduledDate: finalDueDate,
             color,
-            tags: parsedTags.length > 0 ? parsedTags : undefined,
+            tags: tagIds.length > 0 ? tagIds : undefined,
             recurrence: recurrenceVal,
             recurrence_rule: recurrenceRule,
             recurrence_end: recurrenceEnd,
@@ -536,28 +565,16 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               </div>
             </div>
 
-            {/* Tags */}
-            <div
-              className="flex justify-between items-center px-4 py-3.5 border-b"
-              style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
-            >
-              <div className="flex items-center gap-2.5">
-                <Tag size={18} className="text-t2-ink-3" />
-                <span
-                  className="text-[16px]"
-                  style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
-                >
-                  Tags
-                </span>
-              </div>
-              <input
-                type="text"
-                value={tagsInput}
-                onChange={(e) => setTagsInput(e.target.value)}
-                placeholder="#Hinzufügen"
-                className="text-right text-[16px] text-t2-ink-2  bg-transparent outline-none w-auto flex-1 ml-4"
-              />
-            </div>
+            <MobileTagField
+              tags={tagList}
+              value={tagIds}
+              onChange={handleTagsChange}
+              isDark={isDark}
+              showNoTagPrompt={noTagPrompt}
+              onNoTagConfirm={handleNoTagConfirm}
+              onNoTagChoose={() => setNoTagPrompt(false)}
+              bordered
+            />
 
             {/* Show in Calendar Checkbox */}
             <div className="flex justify-between items-center px-4 py-3.5">
@@ -574,6 +591,26 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                 className="h-5 w-5 accent-t2-accent rounded cursor-pointer"
               />
             </div>
+          </div>
+        )}
+
+        {mode === 'event' && (
+          <div
+            className="rounded-2xl shadow-sm border overflow-hidden flex flex-col"
+            style={{
+              background: isDark ? '#1a1e28' : '#ffffff',
+              borderColor: isDark ? '#262b38' : '#f1f2f5',
+            }}
+          >
+            <MobileTagField
+              tags={tagList}
+              value={tagIds}
+              onChange={handleTagsChange}
+              isDark={isDark}
+              showNoTagPrompt={noTagPrompt}
+              onNoTagConfirm={handleNoTagConfirm}
+              onNoTagChoose={() => setNoTagPrompt(false)}
+            />
           </div>
         )}
 

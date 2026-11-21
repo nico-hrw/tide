@@ -120,6 +120,7 @@
 | SlashCommand | `web/src/components/extensions/SlashCommand.tsx` | `/` command menu |
 | DateMention | `web/src/components/extensions/DateMentionExtension.tsx` | Inline date chip |
 | CalendarEventMention | `web/src/components/extensions/CalendarEventMentionExtension.tsx` | Inline event chip |
+| ViewMention | `web/src/components/extensions/ViewMentionExtension.tsx` | Inline chip linking to a saved calendar view (`@` menu, live name/dots from the store, greyed out when deleted). Click dispatches `viewMention:click`; `useDashboardListeners` applies the view (tag filter + mode), mobile follows via `mobile_apply_view_mode`. Suggestion helpers: `viewSuggestion.ts` |
 | TaskMention | `web/src/components/extensions/TaskMentionExtension.tsx` | Inline task chip |
 | ReferenceMark | `web/src/components/extensions/ReferenceMark.ts` | Backlink reference marks |
 | MathBlock | `web/src/components/extensions/MathBlock.tsx` | LaTeX math blocks |
@@ -203,6 +204,8 @@
 | useWeekWindow | `web/src/components/Calendar/useWeekWindow.ts` | Virtual week window for the infinite week view: renders visible weeks ± 2 between spacer divs, scrolls on programmatic `date` changes, reports the center day after 150 ms scroll rest (no feedback loop), re-anchors beyond 26 weeks. Week math in `web/src/lib/calendarWeeks.ts`. |
 | useFixedWeekNavigation | `web/src/components/Calendar/useFixedWeekNavigation.ts` | Fixed one-week mode (`calendarScrollMode === 'fixed'`): ←/→ (not in text fields) and horizontal wheel/touch gestures move `date` by ±7 days, one week per gesture via `swipeGate.ts` (80 px, 400 ms lock); disabled while an event is dragged. `CalendarView` renders one fluid-width week (`DayColumn fluid`), `useWeekWindow` is `enabled: false`. |
 | CalendarToolbar | `web/src/components/Calendar/CalendarToolbar.tsx` | Title row, view-mode pills, import button and group chips extracted from `CalendarView`; shows prev / next / today buttons when `fixedWeekNav` is given. |
+| CalendarTagPills | `web/src/components/Calendar/CalendarTagPills.tsx` | Multi-select tag filter pills (OR) with `Ohne Tag` and a reset chip, bound to the store `calendarTagFilter`; used by `CalendarToolbar` (desktop) and `MobileCalendarTab`. |
+| CalendarViewsMenu | `web/src/components/Calendar/CalendarViewsMenu.tsx` | `Ansichten` dropdown: saved views (tag filter + mode; click applies via `lib/applyView.ts`), inline rename, two-click delete, `Aktuellen Filter speichern` (name only) and `Todos zu diesen Tags` (copies the pruned calendar filter to `todoTagFilter` and opens the todo list via the optional `onOpenTodos`; desktop dispatches `tide:navigate` with `{ tab: 'todos' }`, mobile switches tab). Used by `CalendarToolbar` and `MobileCalendarTab`. |
 | useCalendarScroll | `web/src/components/Calendar/useCalendarScroll.ts` | Popover state + dismissal, `calendar:scroll-to` / `editingEventId` navigation, day-view initial scroll, `tide_calendar_scroll_y` persistence, visible range, directional "Today" button |
 | WeekView | `web/src/components/Calendar/WeekView.tsx` | Week grid |
 | DayColumn | `web/src/components/Calendar/DayColumn.tsx` | Single-day column (pure reflector, no drag logic) |
@@ -289,6 +292,12 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 
 | Module | File | Role |
 |--------|------|------|
+| tagFilter | `web/src/lib/tagFilter.ts` | Todo tag filter (`TagFilter`, `matchesTagFilter` OR semantics, `pruneTagFilter` drops deleted ids). State lives in ui slice `todoTagFilter`. |
+| TodoTagFilterPanel | `web/src/components/Todo/TodoTagFilterPanel.tsx` | Multi-select tag filter + "Ohne Tag" in the todo filter popover. |
+| TagPicker | `web/src/components/Tags/TagPicker.tsx` | Multi-select tag chips (color dot, toggle) with a "+" field to create a tag inline (trimmed, empty ignored, double-submit guarded, returned id appended; input kept if creation returns nothing). Props `tags`, `value`, `onChange`, `onCreate`, `compact`. No "Ohne Tag" chip. |
+| NoTagConfirm | `web/src/components/Tags/NoTagConfirm.tsx` | Inline row "Ohne Tag speichern?" with buttons "Ohne Tag speichern" (`onConfirm`) and "Tag wählen" (`onChoose`). |
+| useTagCreate | `web/src/components/Tags/useTagCreate.tsx` | `useTagCreate()` returns a creator over `useTagRegistry(...).ensureTag` (reuses same normalized name, dedupes in-flight) backed by `TagCreateProvider`, mounted in `app/page.tsx` with `handleCreateEventGroup`. Pass the result as `TagPicker.onCreate`. |
+| useTodoTags | `web/src/components/Todo/useTodoTags.ts` | Tag registry hook for todos (`tags`, `resolve`, `ensureTag` reuses by normalized name and dedupes in-flight creations). |
 | designTokens | `web/src/lib/designTokens.ts` | Global visual constants — import `DT` for glass, chip, radius, blur, accent, cardBg, mutedText, primaryText. Always use this instead of inline values. |
 | apiFetch / getApiBase | `web/src/lib/api.ts` | All HTTP calls to Go backend |
 | crypto (v1) | `web/src/lib/crypto.ts` | AES-GCM + RSA E2E encryption |

@@ -344,7 +344,7 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
 
                 <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === "todos" ? "block" : "hidden"}`}>
                     {activeTabId === "todos" && (!enabledExtensions || enabledExtensions.includes("todos")) && (
-                        <TodoList variant="desktop" initialTaskId={selectedTodoId} />
+                        <TodoList variant="desktop" initialTaskId={selectedTodoId} onCreateTag={(title) => handleCreateEventGroup(title)} />
                     )}
                 </div>
 

@@ -16,6 +16,8 @@ interface UseCalendarScrollParams {
     editingEventId: string | null;
     /** Fixed one-week mode (a single rendered week). */
     fixedWeek?: boolean;
+    /** Called when the open popover is about to close (not when switching); return true to keep it open. */
+    guardClose?: (eventId: string) => boolean;
 }
 
 interface ScrollToDetail {
@@ -39,10 +41,26 @@ export function useCalendarScroll({
     events,
     editingEventId,
     fixedWeek = false,
+    guardClose,
 }: UseCalendarScrollParams) {
     const [todayButtonDir, setTodayButtonDir] = useState<'hidden' | 'left' | 'right'>('hidden');
     const [todayAngle, setTodayAngle] = useState<number>(0);
-    const [activePopover, setActivePopover] = useState<ActivePopover | null>(null);
+    const [activePopover, setActivePopoverRaw] = useState<ActivePopover | null>(null);
+    const activePopoverRef = useRef<ActivePopover | null>(null);
+    const guardCloseRef = useRef(guardClose);
+    useEffect(() => {
+        activePopoverRef.current = activePopover;
+        guardCloseRef.current = guardClose;
+    });
+    // Every close path (scroll, click-outside, hover-away, X button) funnels through this setter.
+    const setActivePopover = useCallback((next: React.SetStateAction<ActivePopover | null>) => {
+        const current = activePopoverRef.current;
+        if (current && guardCloseRef.current) {
+            const resolved = typeof next === 'function' ? next(current) : next;
+            if (resolved === null && guardCloseRef.current(current.id)) return;
+        }
+        setActivePopoverRaw(next);
+    }, []);
     const lastPopoverOpenTimeRef = useRef(0);
 
     useEffect(() => {

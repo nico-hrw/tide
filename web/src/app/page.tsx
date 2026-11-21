@@ -7,7 +7,6 @@ import { useShallow } from "zustand/react/shallow";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Editor as TipTapEditor, JSONContent } from "@tiptap/react";
 import { apiFetch } from "@/lib/api";
-import { getEventGroupIds } from "@/lib/calendarUtils";
 import { useDataStore } from "@/store/useDataStore";
 import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { useIslandActionsStore } from "@/store/useIslandActionsStore";
@@ -37,6 +36,8 @@ import { useSessionRestore } from "@/hooks/dashboard/useSessionRestore";
 import { useFolderAndGroupActions } from "@/hooks/dashboard/useFolderAndGroupActions";
 import { useFileActions } from "@/hooks/dashboard/useFileActions";
 import { useCalendarActions } from "@/hooks/dashboard/useCalendarActions";
+import { useTagCalendarView, useTagsWiring } from "@/hooks/dashboard/useTagsWiring";
+import { TagCreateProvider } from "@/components/Tags/useTagCreate";
 import { useWorkspaceTabs, type SwitchTabFn } from "@/hooks/dashboard/useWorkspaceTabs";
 import { useTaskCalendarSync } from "@/hooks/dashboard/useTaskCalendarSync";
 import { useDashboardListeners } from "@/hooks/dashboard/useDashboardListeners";
@@ -150,21 +151,11 @@ export default function Dashboard() {
         activeTabIdStr !== "calendar" && activeTabIdStr !== "todos" && activeTabIdStr !== "messages" &&
         activeTabIdStr !== "folders" && !activeTabIdStr.startsWith("chat-") ? activeTabIdStr : null;
 
+    const { mobileThemes, filteredCalendarEvents } = useTagCalendarView(files, events, hiddenThemeIds);
     const safeFilteredFiles = useMemo(() => filterFilesBySafe(files, activeSafes), [files, activeSafes]);
     const sidebarFiles = useMemo(
         () => (files ? files.filter((f) => !f.isGroup && !(f.title || "").startsWith(".")) : []),
         [files]
-    );
-    const filteredCalendarEvents = useMemo(
-        () => events
-            .map((e) => ({ ...e, effect: files?.find((f) => f.id === e.parent_id)?.effect || "none" }))
-            .filter((e) => {
-                const gIds = getEventGroupIds(e);
-                return gIds.length === 0
-                    ? !hiddenThemeIds.includes("general-theme")
-                    : gIds.some((gid) => !hiddenThemeIds.includes(gid));
-            }),
-        [events, files, hiddenThemeIds]
     );
 
     const canvasSidecar = useStyleFile({ noteId: activeNoteId, userId: myId, privateKey, publicKey });
@@ -199,6 +190,11 @@ export default function Dashboard() {
         scheduleInitialStart, syncingTaskIdsRef, updateTask, handleCreateEventGroup,
     });
 
+    const { createTagForContext } = useTagsWiring({
+        privateKey, publicKey, myId, storeFiles, events, tasks: storeTasks, loadedDirectories,
+        handleCreateEventGroup, handleEventSave, updateTask,
+    });
+
     const {
         handleNewNote, handleNewCanvasNote, switchTab, handleFileSelect, handleLogout, handleDateSelect,
         handleToggleTodos, handleTabSelect, handleTabClose, handleMagicLinkClick, handleOpenMessages,
@@ -229,7 +225,7 @@ export default function Dashboard() {
     const { handleBlocksDeleted } = useDashboardListeners({
         privateKey, publicKey, myId, isRestored, activeNoteId, fileName, setFileName, openTabs,
         setOpenTabs, activeTabId, setActiveTabId, noteLayout, calendarDate, setCalendarDate,
-        setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
+        setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
         setDraggedText, setCalendarDropActive, setDeletedBlockIds, setPendingBindBlockId, setKeys,
         fetchDirectory, loadNoteContent, handleFileSelect, switchTab, switchTabRef, handleNewNote,
         islandPush, setIdlePayload,
@@ -422,6 +418,7 @@ export default function Dashboard() {
     };
 
     return (
+        <TagCreateProvider create={createTagForContext}>
         <div className="flex h-[100dvh] w-full bg-[var(--background)] text-foreground overflow-hidden">
             {isMobile ? (
                 <MobileLayout events={events} activeNoteId={activeNoteId} activeNoteTitle={fileName}
@@ -441,7 +438,8 @@ export default function Dashboard() {
                     socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
-                    userProfile={userProfile} editorElement={mobileEditorElement} />
+                    userProfile={userProfile} editorElement={mobileEditorElement}
+                    themes={mobileThemes} />
             ) : (
                 <>
                     <div style={{ width: shouldShowSidebar ? `${sidebarWidth}px` : "0px" }}
@@ -482,7 +480,7 @@ export default function Dashboard() {
                 onToggleExtension={handleToggleExtension} userProfile={userProfile} onLogout={handleLogout}
                 noteLayout={noteLayout} onSetNoteLayout={setNoteLayout} files={files} hiddenThemeIds={hiddenThemeIds}
                 onToggleThemeVisibility={handleToggleThemeVisibility} onUpdateEventGroup={handleUpdateEventGroup}
-                onShareGroup={handleShare} onCreateEventGroup={handleCreateEventGroup} onDeleteNote={handleDeleteNote}
+                onShareGroup={handleShare} onCreateEventGroup={handleCreateEventGroup} onDeleteNote={handleDeleteNote} onEventSave={handleEventSave}
                 scheduleModalOpen={scheduleModalOpen} setScheduleModalOpen={setScheduleModalOpen}
                 onApplySchedule={handleScheduleApply} isSummaryOpen={isSummaryOpen} setIsSummaryOpen={setIsSummaryOpen}
                 streak={0} summaryStats={SUMMARY_STATS} showBackups={showBackups} setShowBackups={setShowBackups}
@@ -495,5 +493,6 @@ export default function Dashboard() {
                 privateKey={privateKey} publicKey={publicKey}
             />
         </div>
+        </TagCreateProvider>
     );
 }

@@ -9,6 +9,7 @@ import {
 import { format, isToday, isBefore, startOfDay, addDays, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { TaskItem } from '@/store/useDataStore';
+import { tagFilterTexts } from '@/lib/tagFilter';
 import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren, parseDateSafe } from './types';
 import { TaskCreateDraft } from './TodoCreateCard';
 
@@ -32,8 +33,11 @@ export interface TodoListSectionsProps {
   setOpenTiers: React.Dispatch<React.SetStateAction<Record<ArchiveTier, boolean>>>;
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   setIsCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setSelectedTag: (tag: string | null) => void;
+  /** Label of the active tag filter (resolved titles / "Ohne Tag"), null when no tag filter is active. */
   selectedTag: string | null;
+  /** Tag ids of the active filter, used to prefill new tasks. */
+  selectedTagIds: string[];
+  clearTagFilter: () => void;
   renderTask: (task: TaskWithChildren) => React.ReactNode;
   editingTaskId?: string | null;
   selectedDateFilter?: Date | null;
@@ -41,7 +45,7 @@ export interface TodoListSectionsProps {
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
-  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, setSelectedTag, selectedTag, renderTask, editingTaskId = null,
+  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, selectedTag, selectedTagIds, clearTagFilter, renderTask, editingTaskId = null,
   selectedDateFilter = null, setSelectedDateFilter,
 }) => {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -194,7 +198,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
   const sectionTitle = searchQuery
     ? 'Suchergebnisse'
     : selectedTag
-    ? `#${selectedTag}`
+    ? tagFilterTexts(selectedTag, selectedTagIds).sectionTitle
     : selectedFolder
     ? selectedFolder
     : filterStatus === 'completed'
@@ -598,7 +602,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     : searchQuery
                     ? 'Keine Aufgaben gefunden'
                     : selectedTag !== null
-                    ? `Keine Aufgaben mit #${selectedTag}`
+                    ? tagFilterTexts(selectedTag, selectedTagIds).emptyTitle
                     : selectedFolder !== null
                     ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"`
                     : 'Noch keine Aufgaben'}
@@ -611,7 +615,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     : filterStatus === 'in_progress'
                     ? 'Aktuell ist keine Aufgabe in Bearbeitung. Klicke auf das Stoppuhr-Symbol einer Aufgabe, um sie zu starten.'
                     : selectedTag !== null
-                    ? `Es gibt aktuell keine passenden Aufgaben mit dem Tag #${selectedTag}.`
+                    ? tagFilterTexts(selectedTag, selectedTagIds).emptyHint
                     : selectedFolder !== null
                     ? `In diesem Ordner befinden sich aktuell keine passenden Aufgaben.`
                     : tasks.length === 0
@@ -623,16 +627,16 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: [selectedTag] }));
+                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: selectedTagIds }));
                         setIsCreateOpen(true);
                       }}
                       className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
                     >
-                      <Plus size={14} /><span>Aufgabe mit #{selectedTag} erstellen</span>
+                      <Plus size={14} /><span>{tagFilterTexts(selectedTag, selectedTagIds).createLabel}</span>
                     </button>
                     <button
                       type="button"
-                      onClick={() => setSelectedTag(null)}
+                      onClick={clearTagFilter}
                       className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
                     >
                       Tag-Filter aufheben

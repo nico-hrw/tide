@@ -126,6 +126,8 @@ export const settingsExtEn: Record<keyof typeof settingsExtDe, string> = {
     'job.assignHint': 'Where shifts and lectures belong.',
     'job.category': 'Assigned event category',
     'job.categoryDesc': 'Events of this planner are stored in this category.',
+    'job.tags': 'Tags for work/study',
+    'job.tagsDesc': 'Events with these tags count as work/study. Without a selection the previous rules apply.',
 
     'survey.checkins': 'Check-ins',
     'survey.checkinsHint': 'How often you are asked.',

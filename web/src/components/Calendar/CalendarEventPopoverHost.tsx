@@ -11,6 +11,9 @@ interface CalendarEventPopoverHostProps {
     onEventDelete: CalendarViewProps["onEventDelete"];
     onClose: () => void;
     enabledExtensions: string[];
+    showNoTagConfirm?: boolean;
+    onNoTagConfirm?: () => void;
+    onNoTagChoose?: () => void;
 }
 
 /** Global floating event popover; resolves recurring occurrences from the master event. */
@@ -22,6 +25,9 @@ export function CalendarEventPopoverHost({
     onEventDelete,
     onClose,
     enabledExtensions,
+    showNoTagConfirm,
+    onNoTagConfirm,
+    onNoTagChoose,
 }: CalendarEventPopoverHostProps) {
     if (typeof window !== 'undefined' && window.innerWidth < 768) return null;
 
@@ -72,6 +78,9 @@ export function CalendarEventPopoverHost({
             onEventDelete={onEventDelete}
             onClose={onClose}
             enabledExtensions={enabledExtensions}
+            showNoTagConfirm={showNoTagConfirm}
+            onNoTagConfirm={onNoTagConfirm}
+            onNoTagChoose={onNoTagChoose}
         />
     );
 }

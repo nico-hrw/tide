@@ -291,7 +291,7 @@ export async function decryptAndNormalizeFileItem(
         cachePrefix?: string;
     }
 ): Promise<DecryptedFileResult> {
-    if (file.type === 'index' || file.type === 'canvas-asset') {
+    if (file.type === 'index' || file.type === 'canvas-asset' || file.type === 'views') {
         return { skipped: true };
     }
 

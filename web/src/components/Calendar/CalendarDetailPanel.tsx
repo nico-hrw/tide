@@ -4,6 +4,7 @@ import React from "react";
 import { format, differenceInMinutes } from "date-fns";
 import { CheckSquare, Clock, Square, X } from "lucide-react";
 import type { CalendarEvent } from "./types";
+import { getEventGroupIds, resolveTagTitles } from "../../lib/calendarUtils";
 
 export interface DetailStat {
     value: string;
@@ -21,6 +22,8 @@ interface CalendarDetailPanelProps {
     event: CalendarEvent | null;
     /** Name des Bereichs/Themes, falls vorhanden. */
     themeTitle?: string;
+    /** Verfügbare Tags (Gruppen), um die Tag-Ids des Termins in Titel aufzulösen. */
+    themes?: { id: string; title: string }[];
     onClose: () => void;
     onEdit?: () => void;
     onDelete?: () => void;
@@ -40,6 +43,7 @@ export default function CalendarDetailPanel({
     stats,
     event,
     themeTitle,
+    themes = [],
     onClose,
     onEdit,
     onDelete,
@@ -69,7 +73,7 @@ export default function CalendarDetailPanel({
     const start = new Date(event.start);
     const end = new Date(event.end);
     const minutes = Math.max(0, differenceInMinutes(end, start));
-    const tags = (event.tags || []).filter((t) => t.trim() !== "");
+    const tags = resolveTagTitles(getEventGroupIds(event), themes);
 
     return (
         <aside className={base} aria-live="polite">
@@ -123,8 +127,8 @@ export default function CalendarDetailPanel({
             {tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                     {tags.map((tag) => (
-                        <span key={tag} className="rounded-full bg-t2-sub px-2.5 py-0.5 text-[12.5px] font-medium text-t2-ink">
-                            #{tag}
+                        <span key={tag.id} className="rounded-full bg-t2-sub px-2.5 py-0.5 text-[12.5px] font-medium text-t2-ink">
+                            {tag.title}
                         </span>
                     ))}
                 </div>

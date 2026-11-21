@@ -8,6 +8,8 @@ import { MoodPopup } from '@/components/Surveys/MoodPopup';
 import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
 import { T } from './mobile/mobileTheme';
+import { filterEventsByTags } from '@/lib/calendarUtils';
+import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
 import { expandMobileEvents, type CalendarEvent } from './mobile/expandMobileEvents';
 import type { MobileTab } from './mobile/MobileBottomNav';
 import type { PinPromptTarget, MobileListItem } from './mobile/MobileNoteListItems';
@@ -16,7 +18,8 @@ import type { SearchEventItem, SearchTodoItem, SearchNoteItem } from './mobile/M
 import type { MobileContextMenuTarget } from './mobile/MobileBottomSheets';
 import { MobileTopHeader, type MobileCalViewMode } from './mobile/MobileTopHeader';
 import { MobileSidebarDrawer } from './mobile/MobileSidebarDrawer';
-import { MobileCalendarTab } from './mobile/MobileCalendarTab';
+import { MobileCalendarTab, fromSavedMode } from './mobile/MobileCalendarTab';
+import type { CalendarViewMode } from '../Calendar/types';
 import { MobileNotesTab, type MobileNoteItem } from './mobile/MobileNotesTab';
 import { MobileBottomDock } from './mobile/MobileBottomDock';
 import { MobileOverlaysAndModals, type MobileOverlayEvent, type MobileThemeItem, type NewEventMeta } from './mobile/MobileOverlaysAndModals';
@@ -155,9 +158,14 @@ export default function MobileLayout({
     }));
   }, [themes, files]);
 
+  const calendarTagFilter = useCalendarTagFilter(resolvedThemes.map((t) => t.id));
+  const filteredEvents = useMemo(
+    () => filterEventsByTags(events, calendarTagFilter, resolvedThemes),
+    [events, calendarTagFilter, resolvedThemes]
+  );
   const expandedEvents = useMemo(
-    () => expandMobileEvents(events, activeDate, resolvedThemes),
-    [events, activeDate, resolvedThemes]
+    () => expandMobileEvents(filteredEvents, activeDate, resolvedThemes),
+    [filteredEvents, activeDate, resolvedThemes]
   );
 
   useEffect(() => {
@@ -170,6 +178,19 @@ export default function MobileLayout({
     window.addEventListener('mobile_edit_event', onEditEvent);
     return () => window.removeEventListener('mobile_edit_event', onEditEvent);
   }, [expandedEvents, events]);
+
+  // A view mention in a note opens the calendar tab in the saved view's mode (the tag filter lives in the store).
+  useEffect(() => {
+    const onApplyViewMode = (e: Event) => {
+      const mode = (e as CustomEvent<{ mode?: CalendarViewMode }>).detail?.mode;
+      if (!mode) return;
+      setUi((p) => ({ ...p, editingNote: false }));
+      setActiveTab('calendar');
+      setCalViewMode(fromSavedMode(mode));
+    };
+    window.addEventListener('mobile_apply_view_mode', onApplyViewMode);
+    return () => window.removeEventListener('mobile_apply_view_mode', onApplyViewMode);
+  }, []);
 
   const openNote = useCallback((id: string, title: string) => {
     const note = useDataStore.getState().notes.find((n) => n.id === id) || files.find((f) => f?.id === id);
@@ -230,9 +251,13 @@ export default function MobileLayout({
       id: e.id, title: e.title || 'Termin', start: e.start, end: e.end, dotColor: e.color,
       tag: (e as CalendarEvent & { tag?: string; category?: string }).tag || (e as CalendarEvent & { category?: string }).category,
     }));
+    // Task tags are tag ids; resolve to titles (unknown ids are skipped)
+    const tagTitleById = new Map<string, string>();
+    (files || []).forEach((f) => { if (f.type === 'folder' && f.isGroup && f.title) tagTitleById.set(f.id, f.title); });
     const sTodos: SearchTodoItem[] = (tasks || []).map((t) => {
-      t.tags?.forEach((tag) => tagSet.add(tag));
-      return { id: t.id, title: t.title || 'Aufgabe', completed: t.isCompleted, isCompleted: t.isCompleted, priority: t.priority, tag: t.folder || t.tags?.[0] };
+      const tagTitles = (t.tags ?? []).map((id) => tagTitleById.get(id)).filter((title): title is string => Boolean(title));
+      tagTitles.forEach((title) => tagSet.add(title));
+      return { id: t.id, title: t.title || 'Aufgabe', completed: t.isCompleted, isCompleted: t.isCompleted, priority: t.priority, tag: t.folder || tagTitles[0] };
     });
     const sNotes: SearchNoteItem[] = (files || []).filter((f) => {
       if (Array.isArray(f.tags)) f.tags.forEach((tag) => { if (typeof tag === 'string') tagSet.add(tag); });
@@ -278,7 +303,8 @@ export default function MobileLayout({
           onSelectEvent={setSelectedEvent} onEditEvent={(ev) => { setSelectedEvent(null); setEditingEvent(ev); }}
           onNewEvent={(date, endDate, meta) => onNewEvent?.(date, endDate, meta)}
           onCreateEvent={(date) => setCreateModal({ open: true, mode: 'event', date })} onEventClick={onEventClick}
-          onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday}
+          onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday} themes={resolvedThemes}
+          onCalViewModeChange={setCalViewMode} onOpenTodos={() => setActiveTab('todos')}
         />
       ) : null}
       {activeTab === 'notes' ? (

@@ -147,14 +147,18 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         return fallbackId;
     },
 
-    updateTask: async (id, updates) => {
+    updateTask: async (id, updates, options) => {
+        const strict = options?.strict === true;
         if (deletedTaskIds.has(id)) {
             return;
         }
 
         const state = get();
         const task = state.tasks.find((t) => t.id === id);
-        if (!task) return;
+        if (!task) {
+            if (strict) throw new Error(`Task update failed: task ${id} not found`);
+            return;
+        }
 
         const resolvedStatus =
             updates.status !== undefined
@@ -236,6 +240,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         }
         if (!publicKey) {
             console.warn('[updateTask] publicKey unavailable — task update NOT persisted to backend:', id);
+            if (strict) throw new Error('Task update failed: publicKey unavailable');
             return;
         }
 
@@ -281,6 +286,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
             } catch (encryptErr) {
                 console.error('[updateTask] Failed to encrypt task metadata with cryptoLib.encryptMetadata:', encryptErr);
+                if (strict) throw encryptErr;
                 return;
             }
 
@@ -297,10 +303,12 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                     get().deleteTask(id);
                 } else {
                     console.error('[updateTask] API returned non-OK status:', res.status);
+                    if (strict) throw new Error(`Task update failed (${res.status})`);
                 }
             }
         } catch (e) {
             console.error('Failed to sync task update', e);
+            if (strict) throw e;
         }
     },
 

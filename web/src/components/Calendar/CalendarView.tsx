@@ -20,11 +20,12 @@ import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
 import { useWeekWindow, initialScrollTop } from './useWeekWindow';
 import { useFixedWeekNavigation } from './useFixedWeekNavigation';
+import { useNoTagPrompt, useTaggedCreate } from './useNoTagPrompt';
 import type { CalendarViewProps, CalendarViewMode } from './types';
 
 export default function CalendarView({
     events,
-    onEventCreate,
+    onEventCreate: onEventCreateProp,
     onEventUpdate,
     onEventRename,
     onEventDelete,
@@ -51,7 +52,6 @@ export default function CalendarView({
         onViewModeChange?.(mode);
     };
 
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -84,6 +84,9 @@ export default function CalendarView({
         else if (viewMode === 'day') onDateChange(addDays(date, dir));
         else onDateChange(addDays(date, 7 * dir));
     };
+
+    // Interactive creates inherit the calendar tag filter and are remembered for the no-tag prompt.
+    const onEventCreate = useTaggedCreate(onEventCreateProp, themes);
 
     // New event at 9:00 on the selected day, one hour long (same default as the continuous view).
     const handleCreateNow = onEventCreate
@@ -158,6 +161,7 @@ export default function CalendarView({
     }, []);
 
     // --- Popover state, link navigation, scroll persistence, "Today" button ---
+    const noTagPrompt = useNoTagPrompt(events, themes);
     const {
         todayButtonDir,
         todayAngle,
@@ -174,9 +178,10 @@ export default function CalendarView({
         events,
         editingEventId,
         fixedWeek: isFixedWeek,
+        guardClose: noTagPrompt.guardClose,
     });
 
-    const eventsByDay = useEventsByDay(events, eventsRange, selectedGroupId, themes);
+    const eventsByDay = useEventsByDay(events, eventsRange, themes);
 
     const handleDayEventClick: ComponentProps<typeof DayColumn>['onEventClick'] = (clickedEvent, rect) => {
             if (!isDraggingRef.current) {
@@ -239,8 +244,6 @@ export default function CalendarView({
                     viewMode={viewMode}
                     onViewModeChange={handleViewModeChange}
                     themes={themes}
-                    selectedGroupId={selectedGroupId}
-                    onSelectGroup={setSelectedGroupId}
                     onStep={handleStep}
                     onToday={() => onDateChange(new Date())}
                     onCreate={handleCreateNow}
@@ -388,6 +391,9 @@ export default function CalendarView({
                     onEventDelete={onEventDelete}
                     onClose={() => setActivePopover(null)}
                     enabledExtensions={enabledExtensions}
+                    showNoTagConfirm={noTagPrompt.promptId === activePopover.id}
+                    onNoTagConfirm={() => { noTagPrompt.confirm(activePopover.id); setActivePopover(null); }}
+                    onNoTagChoose={noTagPrompt.dismiss}
                 />
             )}
 

@@ -10,6 +10,11 @@ import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
 import { MoodPopup } from "@/components/Surveys/MoodPopup";
 import { useDataStore } from "@/store/useDataStore";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
+import { apiFetch } from "@/lib/api";
+import { formatMessage, getTranslation } from "@/lib/i18n";
+import { isForeignOwned, removeTagFromItems } from "@/lib/tags";
+import { deleteTagEverywhere } from "@/lib/deleteTag";
+import type { CalendarEvent } from "@/components/Calendar/types";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
 import type { NoteLayout, SettingsModalTab } from "@/store/slices/types";
 import type {
@@ -65,6 +70,7 @@ export interface DashboardModalsProps {
         effect?: string
     ) => Promise<string | undefined>;
     onDeleteNote: (e: React.MouseEvent, id: string) => void | Promise<void>;
+    onEventSave: (id: string, updates: { groupIds?: string[]; parent_id?: string | null }, options?: { strict?: boolean }) => Promise<void>;
 
     // Schedule Modal
     scheduleModalOpen: boolean;
@@ -133,6 +139,7 @@ export function DashboardModals({
     onShareGroup,
     onCreateEventGroup,
     onDeleteNote,
+    onEventSave,
     scheduleModalOpen,
     setScheduleModalOpen,
     onApplySchedule,
@@ -181,9 +188,46 @@ export function DashboardModals({
             alert("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
             return;
         }
-        if (group && confirm(`Delete group "${group.title}"? This won't delete events in it.`)) {
-            onDeleteNote(e, id);
-        }
+        if (!group) return;
+        e.stopPropagation();
+        const store = useDataStore.getState();
+        const events = store.events as unknown as CalendarEvent[];
+        const isOwner = !isForeignOwned(group, myId) && (!group.share_status || group.share_status === "owner");
+        const patches = isOwner
+            ? removeTagFromItems(id, events, store.tasks, myId)
+            : { eventPatches: [], taskPatches: [] };
+        const text = (key: string, vars?: Record<string, string | number>) =>
+            formatMessage(getTranslation(store.language || "de", "settings", key), vars);
+        const question = `${text("cal.deleteConfirm")}
+
+${text("cal.deleteConfirmCount", {
+            events: patches.eventPatches.length,
+            todos: patches.taskPatches.length,
+        })}`;
+        if (!confirm(question)) return;
+        void deleteTagEverywhere(id, {
+            events,
+            tasks: store.tasks,
+            myId,
+            isOwner,
+            saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
+            saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates, { strict: true }),
+            pruneViews: (tagId) => useDataStore.getState().pruneTagFromViews(tagId),
+            clearFilters: (tagId) => {
+                const s = useDataStore.getState();
+                s.setCalendarTagFilter({ ...s.calendarTagFilter, tagIds: s.calendarTagFilter.tagIds.filter((t) => t !== tagId) });
+                s.setTodoTagFilter({ ...s.todoTagFilter, tagIds: s.todoTagFilter.tagIds.filter((t) => t !== tagId) });
+            },
+            deleteFile: async (tagId) => {
+                const res = await apiFetch(`/api/v1/files/${tagId}`, { method: "DELETE" });
+                if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete tag");
+                const s = useDataStore.getState();
+                s.setNotes(s.notes.filter((f) => f.id !== tagId));
+                onTabClose(null, tagId);
+            },
+        }).then((result) => {
+            if (!result.ok) alert(text("cal.deleteFailed"));
+        });
     };
 
     const handleConfirmDeleteError = () => {
