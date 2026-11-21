@@ -118,19 +118,56 @@ describe('viewsSlice', () => {
         expect(saves[0].map((v) => v.name)).toEqual(['A', 'B', 'C']);
     });
 
-    it('persists local changes when the startup load fails', async () => {
+    it('does not persist when the startup load fails, but keeps the change locally', async () => {
         const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-        const saves: SavedView[][] = [];
-        const s = makeStore({
-            load: async () => { throw new Error('locked'); },
-            save: async (v) => { saves.push(v); },
-        });
-        const loading = s.getState().loadViews();
-        const adding = s.getState().addView(base);
-        await Promise.all([loading, adding]);
-        expect(saves).toHaveLength(1);
+        const save = vi.fn(async () => undefined);
+        const s = makeStore({ load: async () => { throw new Error('locked'); }, save });
+        await s.getState().loadViews();
+        await s.getState().addView(base);
+        expect(save).not.toHaveBeenCalled();
         expect(s.getState().views).toHaveLength(1);
         warn.mockRestore();
+    });
+
+    it('retries the load on a later mutation and saves stored + pending + new changes', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const a: SavedView = { id: 'a', name: 'A', tagIds: [], untagged: false, viewMode: 'week' };
+        const b: SavedView = { id: 'b', name: 'B', tagIds: [], untagged: false, viewMode: 'week' };
+        let fail = true;
+        const saves: SavedView[][] = [];
+        const s = makeStore({
+            load: async () => { if (fail) throw new Error('down'); return [a, b]; },
+            save: async (v) => { saves.push(v); },
+        });
+        await s.getState().loadViews();
+        await s.getState().addView({ ...base, name: 'C' });
+        expect(saves).toEqual([]);
+        fail = false;
+        await s.getState().addView({ ...base, name: 'D' });
+        expect(saves).toHaveLength(1);
+        expect(saves[0].map((v) => v.name)).toEqual(['A', 'B', 'C', 'D']);
+        expect(s.getState().views.map((v) => v.name)).toEqual(['A', 'B', 'C', 'D']);
+        warn.mockRestore();
+    });
+
+    it('never saves when the load keeps failing', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const save = vi.fn(async () => undefined);
+        const s = makeStore({ load: async () => { throw new Error('down'); }, save });
+        await s.getState().loadViews();
+        await s.getState().addView(base);
+        await s.getState().addView({ ...base, name: 'B' });
+        expect(save).not.toHaveBeenCalled();
+        expect(s.getState().views).toHaveLength(2);
+        warn.mockRestore();
+    });
+
+    it('queues mutations made before any load and saves them after the first successful load', async () => {
+        const a: SavedView = { id: 'a', name: 'A', tagIds: [], untagged: false, viewMode: 'week' };
+        const mem2 = memoryStorage([a]);
+        const s = makeStore(mem2.storage);
+        await s.getState().addView({ ...base, name: 'C' });
+        expect(mem2.state.saved.map((v) => v.name)).toEqual(['A', 'C']);
     });
 
     it('loadViews does not throw when storage fails', async () => {

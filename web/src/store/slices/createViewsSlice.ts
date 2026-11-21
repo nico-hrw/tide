@@ -41,40 +41,48 @@ export const createViewsSliceWith =
             }
         };
         type Op = (list: SavedView[]) => SavedView[];
-        // Mutations made while the startup load is in flight. Persisting before the load resolved would overwrite
-        // the stored file with only the new list, so they are replayed on top of the loaded list and saved after.
-        let loading: Promise<void> | null = null;
+        // Nothing is persisted before a load has succeeded: saving the local list over a stored file that could
+        // not be read would drop the stored views. Mutations made before that are replayed on top of the loaded list.
+        let loaded = false;
         let pending: Op[] = [];
+        let inflight: Promise<boolean> | null = null;
+        const doLoad = (): Promise<boolean> => {
+            if (inflight) return inflight;
+            const run = (async () => {
+                try {
+                    const stored = await provider(get).load();
+                    const ops = pending;
+                    pending = [];
+                    set({ views: ops.reduce((list, op) => op(list), stored) });
+                    loaded = true;
+                    return true;
+                } catch (e) {
+                    console.warn('[views] could not load saved views', e);
+                    return false; // pending changes stay queued for the next successful load
+                } finally {
+                    inflight = null;
+                }
+            })();
+            inflight = run;
+            return run;
+        };
         const apply = async (op: Op): Promise<void> => {
             const next = op(get().views);
             set({ views: next }); // optimistic: the UI shows the change immediately
-            if (loading) {
-                pending.push(op);
-                await loading; // never rejects
-                await persist(get().views); // merged list (loaded + replayed local changes)
+            if (loaded && !inflight) {
+                await persist(next);
                 return;
             }
-            await persist(next);
+            pending.push(op);
+            if (await doLoad()) await persist(get().views); // merged list (loaded + replayed local changes)
+            else console.warn('[views] saved views not persisted: the stored list could not be loaded');
         };
 
         return {
             views: [],
 
             loadViews: async () => {
-                const run = (async () => {
-                    try {
-                        const loaded = await provider(get).load();
-                        const ops = pending;
-                        pending = [];
-                        set({ views: ops.reduce((list, op) => op(list), loaded) });
-                    } catch (e) {
-                        pending = []; // local state already holds the changes; keep it
-                        console.warn('[views] could not load saved views', e);
-                    }
-                })();
-                loading = run;
-                await run;
-                if (loading === run) loading = null;
+                await doLoad();
             },
 
             addView: async (v) => {
