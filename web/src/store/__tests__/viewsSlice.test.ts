@@ -89,10 +89,48 @@ describe('viewsSlice', () => {
         };
         const s = makeStore(slow);
         const loading = s.getState().loadViews();
-        const id = await s.getState().addView(base);
+        const adding = s.getState().addView(base);
         release([]);
-        await loading;
-        expect(s.getState().views.map((v) => v.id)).toEqual([id]);
+        await Promise.all([loading, adding]);
+        expect(s.getState().views).toHaveLength(1);
+        expect(s.getState().views[0].name).toBe('Arbeit');
+    });
+
+    it('keeps stored views when a mutation happens before the startup load resolved', async () => {
+        const a: SavedView = { id: 'a', name: 'A', tagIds: [], untagged: false, viewMode: 'week' };
+        const b: SavedView = { id: 'b', name: 'B', tagIds: [], untagged: true, viewMode: 'day' };
+        let release: (v: SavedView[]) => void = () => undefined;
+        const saves: SavedView[][] = [];
+        const deferred: ViewsStorage = {
+            load: () => new Promise<SavedView[]>((r) => { release = r; }),
+            save: async (views) => { saves.push(views); },
+        };
+        const s = makeStore(deferred);
+        const loading = s.getState().loadViews();
+        const adding = s.getState().addView({ ...base, name: 'C' });
+        // optimistic: local state shows the new view at once, nothing persisted yet
+        expect(s.getState().views.map((v) => v.name)).toEqual(['C']);
+        expect(saves).toEqual([]);
+        release([a, b]);
+        await Promise.all([loading, adding]);
+        expect(s.getState().views.map((v) => v.name)).toEqual(['A', 'B', 'C']);
+        expect(saves).toHaveLength(1);
+        expect(saves[0].map((v) => v.name)).toEqual(['A', 'B', 'C']);
+    });
+
+    it('persists local changes when the startup load fails', async () => {
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+        const saves: SavedView[][] = [];
+        const s = makeStore({
+            load: async () => { throw new Error('locked'); },
+            save: async (v) => { saves.push(v); },
+        });
+        const loading = s.getState().loadViews();
+        const adding = s.getState().addView(base);
+        await Promise.all([loading, adding]);
+        expect(saves).toHaveLength(1);
+        expect(s.getState().views).toHaveLength(1);
+        warn.mockRestore();
     });
 
     it('loadViews does not throw when storage fails', async () => {

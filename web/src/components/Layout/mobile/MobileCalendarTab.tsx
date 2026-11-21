@@ -13,6 +13,8 @@ import { T } from './mobileTheme';
 import type { MobileCalViewMode } from './MobileTopHeader';
 import { useMobileSwipeGestures } from './useMobileSwipeGestures';
 import { CalendarTagPills } from '../../Calendar/CalendarTagPills';
+import { CalendarViewsMenu } from '../../Calendar/CalendarViewsMenu';
+import type { CalendarViewMode } from '../../Calendar/types';
 import { QuickEditGrid } from './QuickEditGrid';
 import type { NewEventMeta } from './MobileOverlaysAndModals';
 import { confirmQuickEdit, quickEditContext, quickEditForDraft, quickEditForEvent, type QuickEditState } from './quickEditState';
@@ -38,7 +40,14 @@ export interface MobileCalendarTabProps {
   onTodayClick?: () => void;
   /** Tags shown as filter pills above the calendar. */
   themes?: { id: string; title: string; color?: string }[];
+  /** Lets the saved-views menu switch the calendar mode. */
+  onCalViewModeChange?: (mode: MobileCalViewMode) => void;
+  /** Lets the saved-views menu jump to the todo tab. */
+  onOpenTodos?: () => void;
 }
+
+const toSavedMode = (m: MobileCalViewMode): CalendarViewMode => (m === 'agenda' ? 'continuous' : m);
+const fromSavedMode = (m: CalendarViewMode): MobileCalViewMode => (m === 'continuous' ? 'agenda' : m);
 
 function getDayTimelineEvents(expandedEvents: CalendarEvent[], date: Date) {
   const sameDay = (e: CalendarEvent) => {
@@ -59,6 +68,8 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
   activeDate,
   setActiveDate,
   calViewMode,
+  onCalViewModeChange,
+  onOpenTodos,
   expandedEvents,
   theme: themeProp,
   now: nowProp,
@@ -212,12 +223,20 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
       {themes && themes.length > 0 && (
         // Horizontal scrolling of the pill row must not be read as a calendar swipe.
         <div
-          className="shrink-0"
+          className="flex shrink-0 items-center gap-2 px-3 py-1.5"
           onTouchStart={(e) => e.stopPropagation()}
           onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
         >
-          <CalendarTagPills tags={themes} className="px-3 py-1.5" />
+          {onCalViewModeChange && (
+            <CalendarViewsMenu
+              tags={themes}
+              viewMode={toSavedMode(calViewMode)}
+              onViewModeChange={(m) => onCalViewModeChange(fromSavedMode(m))}
+              onOpenTodos={onOpenTodos}
+            />
+          )}
+          <CalendarTagPills tags={themes} className="min-w-0 flex-1" />
         </div>
       )}
       {calViewMode === 'week' ? (

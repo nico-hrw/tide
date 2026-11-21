@@ -4,6 +4,7 @@ import { de } from "date-fns/locale";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { CalendarTagPills } from "./CalendarTagPills";
+import { CalendarViewsMenu } from "./CalendarViewsMenu";
 import type { CalendarViewProps, CalendarViewMode } from "./types";
 
 interface CalendarToolbarProps {
@@ -24,6 +25,9 @@ const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
     { id: 'month', label: 'Monat' },
     { id: 'continuous', label: 'Fortlaufend' },
 ];
+
+/** Asks the app shell to switch to the todo list (handled in useDashboardListeners). */
+const openTodos = () => window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { tab: 'todos' } }));
 
 /** Tide 2 header: title with calendar week, navigation, view menu, import and "Termin", plus the group chips row. */
 export function CalendarToolbar({
@@ -128,7 +132,10 @@ export function CalendarToolbar({
             </div>
 
             {/* Row 2: tag filter */}
-            <CalendarTagPills tags={themes} className="px-4 py-2 border-t border-t2-line" />
+            <div className="flex items-center gap-2 border-t border-t2-line px-4 py-2">
+                <CalendarViewsMenu tags={themes} viewMode={viewMode} onViewModeChange={onViewModeChange} onOpenTodos={openTodos} />
+                <CalendarTagPills tags={themes} className="min-w-0 flex-1" />
+            </div>
         </div>
     );
 }

@@ -290,6 +290,7 @@ export default function MobileLayout({
           onNewEvent={(date, endDate, meta) => onNewEvent?.(date, endDate, meta)}
           onCreateEvent={(date) => setCreateModal({ open: true, mode: 'event', date })} onEventClick={onEventClick}
           onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday} themes={resolvedThemes}
+          onCalViewModeChange={setCalViewMode} onOpenTodos={() => setActiveTab('todos')}
         />
       ) : null}
       {activeTab === 'notes' ? (

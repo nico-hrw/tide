@@ -425,8 +425,10 @@ export function useDashboardListeners({
     // 13. Note navigation listener
     useEffect(() => {
         const handleNavigate = (e: Event) => {
-            const { noteId } = (e as CustomEvent<{ noteId?: string }>).detail || {};
-            if (noteId) {
+            const { noteId, tab } = (e as CustomEvent<{ noteId?: string; tab?: string }>).detail || {};
+            if (tab === "todos") {
+                (switchTabRef?.current ?? latestSwitchTabRef.current)("todos", "todos", "Todos");
+            } else if (noteId) {
                 (switchTabRef?.current ?? latestSwitchTabRef.current)(noteId, "file");
             }
         };
