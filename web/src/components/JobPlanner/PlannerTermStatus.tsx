@@ -3,6 +3,7 @@
 import React, { useMemo, useState, useEffect } from 'react';
 import { Clock, Calendar, CheckCircle2 } from 'lucide-react';
 import { DataItem } from '@/store/useDataStore';
+import { useJobEventMatcher } from '@/hooks/useJobEventMatcher';
 
 interface PlannerTermStatusProps {
     events: DataItem[];
@@ -15,6 +16,7 @@ export default function PlannerTermStatus({
     categoryGroupIds,
     onEventClick,
 }: PlannerTermStatusProps) {
+    const { matchesPlanner } = useJobEventMatcher();
     const [now, setNow] = useState(() => new Date());
 
     useEffect(() => {
@@ -27,9 +29,7 @@ export default function PlannerTermStatus({
         const todayStr = now.toDateString();
         const todayEvents = events.filter(e => {
             if (!e.start || !e.end) return false;
-            const matchesCategory = categoryGroupIds.length === 0 ||
-                (e.parent_id && categoryGroupIds.includes(e.parent_id)) ||
-                (e.tags && e.tags.some((t: string) => ['job', 'arbeit', 'uni', 'studium'].includes(t.toLowerCase())));
+            const matchesCategory = matchesPlanner(e, categoryGroupIds);
             if (!matchesCategory) return false;
 
             const s = new Date(e.start);
@@ -48,7 +48,7 @@ export default function PlannerTermStatus({
         });
 
         return { currentEvent: current, nextEvent: next };
-    }, [events, categoryGroupIds, now]);
+    }, [events, categoryGroupIds, now, matchesPlanner]);
 
     // Format remaining time for current event
     const currentEventBadge = useMemo(() => {

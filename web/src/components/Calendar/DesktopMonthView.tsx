@@ -12,7 +12,7 @@ import {
 import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
-import { useJobPlannerStore } from "@/store/useJobPlannerStore";
+import { useJobEventMatcher } from "@/hooks/useJobEventMatcher";
 import { useWeekStartsOn } from "@/store/useDataStore";
 import { rotateWeekdayLabels } from "@/lib/calendarWeeks";
 import type { CalendarEvent } from "./types";
@@ -28,7 +28,6 @@ interface DesktopMonthViewProps {
 }
 
 const WEEKDAYS = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
-const JOB_TAGS = ["job", "arbeit", "uni", "studium"];
 
 export default function DesktopMonthView({
     currentDate,
@@ -39,19 +38,11 @@ export default function DesktopMonthView({
     onTaskToggle,
     themes = [],
 }: DesktopMonthViewProps) {
-    const jobPluginGroupId = useJobPlannerStore((state) => state.pluginGroupId);
+    const { isJob } = useJobEventMatcher();
     const weekStartsOn = useWeekStartsOn();
     const weekdays = rotateWeekdayLabels(WEEKDAYS, weekStartsOn);
 
-    const isJobOrUniEvent = (e: CalendarEvent) => {
-        if (jobPluginGroupId && (e.parent_id === jobPluginGroupId || e.groupIds?.includes(jobPluginGroupId))) {
-            return true;
-        }
-        if (e.tags && e.tags.some((t) => JOB_TAGS.includes(t.toLowerCase()))) {
-            return true;
-        }
-        return false;
-    };
+    const isJobOrUniEvent = (e: CalendarEvent) => isJob(e);
 
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);

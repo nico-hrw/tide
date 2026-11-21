@@ -124,6 +124,8 @@ export const settingsExtDe = {
     'job.assignHint': 'Wohin Schichten und Vorlesungen gehören.',
     'job.category': 'Zugeordnete Terminart',
     'job.categoryDesc': 'Termine dieses Planers werden in dieser Kategorie gespeichert.',
+    'job.tags': 'Tags für Arbeit/Studium',
+    'job.tagsDesc': 'Termine mit diesen Tags gelten als Arbeit/Studium. Ohne Auswahl werden die bisherigen Regeln verwendet.',
 
     'survey.checkins': 'Check-ins',
     'survey.checkinsHint': 'Wie oft du gefragt wirst.',
