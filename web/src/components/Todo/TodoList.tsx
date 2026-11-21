@@ -918,12 +918,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   {isCreateOpen && (
                     <TodoCreateCard
                       draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                          allTags={allTags} allFolders={allFolders}
+                      allTags={allTags} allFolders={allFolders}
                       isSubmitting={isSubmitting} handleAddTask={handleAddTask}
                       handleCreateTag={ensureTag}
                       onClose={() => setIsCreateOpen(false)}
                       {...noTagProps}
-                  {...noTagProps}
                     />
                   )}
 

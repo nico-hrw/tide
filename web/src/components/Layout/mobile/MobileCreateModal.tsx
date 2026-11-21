@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { useDataStore } from '@/store/useDataStore';
+import { pruneTagFilter } from '@/lib/tagFilter';
 import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
 import { MobileTagField } from './MobileTagField';
 
@@ -97,6 +98,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
   const todoTagFilter = useDataStore((s) => s.todoTagFilter);
   const todoTagFilterRef = useRef(todoTagFilter);
   todoTagFilterRef.current = todoTagFilter;
+  const knownTagIdsRef = useRef<Set<string>>(new Set());
+  knownTagIdsRef.current = new Set((themes ?? []).map((t) => t.id));
   const [showInCalendar, setShowInCalendar] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -129,7 +132,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       setRepeatInterval(1);
       setRepeatEndDate('');
       setPriority('medium');
-      setTagIds(mode === 'todo' ? defaultTagIds(todoTagFilterRef.current) : []);
+      setTagIds(mode === 'todo' ? defaultTagIds(pruneTagFilter(todoTagFilterRef.current, knownTagIdsRef.current)) : []);
       setNoTagPrompt(false);
       setNoTagConfirmed(false);
       setShowInCalendar(true);

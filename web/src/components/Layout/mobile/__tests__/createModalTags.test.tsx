@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
 import { MobileCreateModal } from '../MobileCreateModal';
+import { useDataStore } from '@/store/useDataStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -59,5 +60,22 @@ describe('MobileCreateModal tag prompt (event)', () => {
     await act(async () => { button('Hinzufügen').click(); });
     expect(host.textContent).not.toContain('Ohne Tag speichern?');
     expect(onSave.mock.calls[0][2]).toMatchObject({ groupIds: ['b'], parent_id: 'b' });
+  });
+});
+
+describe('MobileCreateModal todo preselect', () => {
+  it('drops stale filter ids from the preselected tags', async () => {
+    useDataStore.getState().setTodoTagFilter({ tagIds: ['a', 'gone'], untagged: false });
+    const onSaveTodo = vi.fn();
+    act(() => {
+      root.render(
+        <MobileCreateModal isOpen mode="todo" themes={THEMES} onClose={() => {}} onSaveTodo={onSaveTodo} />,
+      );
+    });
+    typeTitle('Aufgabe');
+    await act(async () => { button('Hinzufügen').click(); });
+    expect(onSaveTodo).toHaveBeenCalledTimes(1);
+    expect(onSaveTodo.mock.calls[0][0].tags).toEqual(['a']);
+    useDataStore.getState().setTodoTagFilter({ tagIds: [], untagged: false });
   });
 });
