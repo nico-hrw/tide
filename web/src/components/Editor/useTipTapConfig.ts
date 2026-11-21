@@ -30,6 +30,7 @@ import { ResizableImage } from '../extensions/ResizableImage';
 import { DateMentionExtension } from '../extensions/DateMentionExtension';
 import { TaskMentionExtension } from '../extensions/TaskMentionExtension';
 import { CalendarEventMentionExtension } from '../extensions/CalendarEventMentionExtension';
+import { ViewMentionExtension } from '../extensions/ViewMentionExtension';
 import McpVisualExtension from '../extensions/McpVisualExtension';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
@@ -263,7 +264,7 @@ export function useTipTapConfig({
             }).configure({ suggestion: { ...mentionSuggestion, allowSpaces: true } }),
             InlineCommentNode, MathBlock, InlineMath,
             BlockId.configure({ onBlocksDeleted: (ids) => onBlocksDeletedRef.current?.(ids) }),
-            Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ResizableImage,
+            Anchor, DateMentionExtension, TaskMentionExtension, CalendarEventMentionExtension, ViewMentionExtension, ResizableImage,
             Table.configure({ resizable: true, renderWrapper: true }), TableRow, TableHeaderAligned, TableCellAligned,
             TableFormulas.configure({
                 getScope: (doc) => scopeForDoc(doc, () => getVariableRegistry().definitions(), noteSheet(activeTabIdRef.current)),

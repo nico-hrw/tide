@@ -249,7 +249,7 @@ export default function Dashboard() {
     const { handleBlocksDeleted } = useDashboardListeners({
         privateKey, publicKey, myId, isRestored, activeNoteId, fileName, setFileName, openTabs,
         setOpenTabs, activeTabId, setActiveTabId, noteLayout, calendarDate, setCalendarDate,
-        setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
+        setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
         setDraggedText, setCalendarDropActive, setDeletedBlockIds, setPendingBindBlockId, setKeys,
         fetchDirectory, loadNoteContent, handleFileSelect, switchTab, switchTabRef, handleNewNote,
         islandPush, setIdlePayload,

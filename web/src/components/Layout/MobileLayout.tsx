@@ -18,7 +18,8 @@ import type { SearchEventItem, SearchTodoItem, SearchNoteItem } from './mobile/M
 import type { MobileContextMenuTarget } from './mobile/MobileBottomSheets';
 import { MobileTopHeader, type MobileCalViewMode } from './mobile/MobileTopHeader';
 import { MobileSidebarDrawer } from './mobile/MobileSidebarDrawer';
-import { MobileCalendarTab } from './mobile/MobileCalendarTab';
+import { MobileCalendarTab, fromSavedMode } from './mobile/MobileCalendarTab';
+import type { CalendarViewMode } from '../Calendar/types';
 import { MobileNotesTab, type MobileNoteItem } from './mobile/MobileNotesTab';
 import { MobileBottomDock } from './mobile/MobileBottomDock';
 import { MobileOverlaysAndModals, type MobileOverlayEvent, type MobileThemeItem, type NewEventMeta } from './mobile/MobileOverlaysAndModals';
@@ -177,6 +178,19 @@ export default function MobileLayout({
     window.addEventListener('mobile_edit_event', onEditEvent);
     return () => window.removeEventListener('mobile_edit_event', onEditEvent);
   }, [expandedEvents, events]);
+
+  // A view mention in a note opens the calendar tab in the saved view's mode (the tag filter lives in the store).
+  useEffect(() => {
+    const onApplyViewMode = (e: Event) => {
+      const mode = (e as CustomEvent<{ mode?: CalendarViewMode }>).detail?.mode;
+      if (!mode) return;
+      setUi((p) => ({ ...p, editingNote: false }));
+      setActiveTab('calendar');
+      setCalViewMode(fromSavedMode(mode));
+    };
+    window.addEventListener('mobile_apply_view_mode', onApplyViewMode);
+    return () => window.removeEventListener('mobile_apply_view_mode', onApplyViewMode);
+  }, []);
 
   const openNote = useCallback((id: string, title: string) => {
     const note = useDataStore.getState().notes.find((n) => n.id === id) || files.find((f) => f?.id === id);

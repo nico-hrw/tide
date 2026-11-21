@@ -11,6 +11,9 @@ import type { IslandView } from "@/components/extensions/smart_island/useIslandS
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
+import { applyView } from "@/lib/applyView";
+import { selectTags } from "@/lib/tags";
+import type { CalendarViewMode } from "@/components/Calendar/types";
 
 export interface DashboardListenerFile {
     id: string;
@@ -60,6 +63,7 @@ export interface UseDashboardListenersOptions {
     noteLayout: NoteLayout;
     calendarDate: Date;
     setCalendarDate: React.Dispatch<React.SetStateAction<Date>>;
+    setCalendarViewMode: (mode: CalendarViewMode) => void;
     setActiveEventId: React.Dispatch<React.SetStateAction<string | null>>;
     storeFiles: readonly DashboardListenerFile[];
     files: readonly DashboardListenerFile[];
@@ -125,6 +129,7 @@ export function useDashboardListeners({
     noteLayout,
     calendarDate,
     setCalendarDate,
+    setCalendarViewMode,
     setActiveEventId,
     storeFiles,
     files,
@@ -421,6 +426,28 @@ export function useDashboardListeners({
         window.addEventListener("dateMention:click", handler);
         return () => window.removeEventListener("dateMention:click", handler);
     }, [switchTabRef, setCalendarDate]);
+
+    // 12b. ViewMention: open a saved calendar view (tag filter + mode)
+    useEffect(() => {
+        const handler = (e: Event) => {
+            const { viewId } = (e as CustomEvent<{ viewId?: string }>).detail || {};
+            const state = useDataStore.getState();
+            const view = state.views.find((v) => v.id === viewId);
+            if (!view) return;
+            (switchTabRef?.current ?? latestSwitchTabRef.current)("calendar", "calendar");
+            applyView(view, {
+                setFilter: state.setCalendarTagFilter,
+                setViewMode: (mode) => {
+                    setCalendarViewMode(mode);
+                    // Mobile keeps its own tab and mode state; it reacts to this event.
+                    window.dispatchEvent(new CustomEvent("mobile_apply_view_mode", { detail: { mode } }));
+                },
+                knownTagIds: new Set(selectTags(state.notes).map((t) => t.id)),
+            });
+        };
+        window.addEventListener("viewMention:click", handler);
+        return () => window.removeEventListener("viewMention:click", handler);
+    }, [switchTabRef, setCalendarViewMode]);
 
     // 13. Note navigation listener
     useEffect(() => {

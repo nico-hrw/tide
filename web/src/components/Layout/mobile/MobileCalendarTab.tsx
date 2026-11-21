@@ -46,8 +46,8 @@ export interface MobileCalendarTabProps {
   onOpenTodos?: () => void;
 }
 
-const toSavedMode = (m: MobileCalViewMode): CalendarViewMode => (m === 'agenda' ? 'continuous' : m);
-const fromSavedMode = (m: CalendarViewMode): MobileCalViewMode => (m === 'continuous' ? 'agenda' : m);
+export const toSavedMode = (m: MobileCalViewMode): CalendarViewMode => (m === 'agenda' ? 'continuous' : m);
+export const fromSavedMode = (m: CalendarViewMode): MobileCalViewMode => (m === 'continuous' ? 'agenda' : m);
 
 function getDayTimelineEvents(expandedEvents: CalendarEvent[], date: Date) {
   const sameDay = (e: CalendarEvent) => {

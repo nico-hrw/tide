@@ -8,6 +8,8 @@ import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 're
 import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
 import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
+import { buildViewItems } from './viewSuggestion';
+import { selectTags } from '@/lib/tags';
 
 export function ensureSafeIsActive(safeName?: string | null) {
     if (!safeName) return;
@@ -127,6 +129,7 @@ type MentionSuggestionItem =
           pathSegments?: string[];
           cleanNoteTitle?: string;
           safe?: string;
+          colors?: string[];
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -493,6 +496,16 @@ const MentionList = forwardRef((props: any, ref) => {
                                             )}
                                         </div>
                                         <CalendarIcon size={14} className="text-t2-ink-3  flex-shrink-0" />
+                                    </>
+                                ) : item.type === 'view' ? (
+                                    <>
+                                        {(item.colors ?? []).map((c: string, i: number) => (
+                                            <span key={i} className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: c }} />
+                                        ))}
+                                        <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
+                                            <span className="font-medium truncate">{item.label}</span>
+                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent font-medium flex-shrink-0">Ansicht</span>
+                                        </div>
                                     </>
                                 ) : item.type === 'task' ? (
                                     <>
@@ -956,12 +969,15 @@ export default {
             };
         });
 
+        const viewItems = buildViewItems(query, state.views, selectTags(files));
+
         // 5. Return formatted
         return [
             ...noteItems,
             ...fileItems,
             ...eventItems,
             ...taskItems,
+            ...viewItems,
             { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
             { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false }
         ].slice(0, 10);
@@ -1029,6 +1045,11 @@ export default {
                     color: props.color,
                 }
             }).run();
+        } else if (props.type === 'view') {
+            editor.chain().focus().deleteRange(range).insertContent([
+                { type: 'viewMention', attrs: { viewId: props.id } },
+                { type: 'text', text: ' ' },
+            ]).run();
         } else if (props.type === 'event') {
             editor.chain().focus().deleteRange(range).insertContent({
                 type: 'mention',
