@@ -166,7 +166,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
         >
           <Minimize2 size={14} className="text-t2-accent" />
           <span>Minimieren</span>
-          <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[10px] font-mono text-t2-ink-3  bg-t2-hover  rounded border border-t2-line ">
+          <kbd className="hidden sm:inline-block ml-1 px-1.5 py-0.5 text-[11px] font-mono text-t2-ink-3  bg-t2-hover  rounded border border-t2-line ">
             Esc
           </kbd>
         </button>

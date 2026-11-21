@@ -418,7 +418,7 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                                             {item.label}
                                         </span>
                                         {item.sublabel && (
-                                            <span className="text-[10px] text-t2-ink-2  truncate leading-tight mt-0.5">
+                                            <span className="text-[11px] text-t2-ink-2  truncate leading-tight mt-0.5">
                                                 {item.sublabel}
                                             </span>
                                         )}
@@ -434,7 +434,7 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                 )}
 
                 {/* Footer hints */}
-                <div className="flex items-center justify-between px-1.5 pt-1 border-t border-t2-line-soft  text-[10px] text-t2-ink-3 ">
+                <div className="flex items-center justify-between px-1.5 pt-1 border-t border-t2-line-soft  text-[11px] text-t2-ink-3 ">
                     <span>↑↓ navigieren</span>
                     <span>↵ auswählen</span>
                     <span>esc schließen</span>

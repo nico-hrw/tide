@@ -676,7 +676,7 @@ export default function ShareModal({
                                                     <p className="text-xs font-semibold text-t2-ink  truncate">
                                                         {share.username || share.email || "Nutzer"}
                                                     </p>
-                                                    <p className="text-[10px] text-t2-ink-2 ">
+                                                    <p className="text-[11px] text-t2-ink-2 ">
                                                         {share.status === "accepted" ? "Akzeptiert" : "Ausstehend"}
                                                     </p>
                                                 </div>
@@ -746,7 +746,7 @@ export default function ShareModal({
                                     >
                                         <Icon size={16} className={active ? 'text-white  mb-1.5' : 'text-t2-ink-2  mb-1.5'} />
                                         <div className={`text-xs font-bold ${active ? 'text-white ' : 'text-t2-ink '}`}>{opt.label}</div>
-                                        <div className={`text-[10px] ${active ? 'text-t2-ink-3 ' : 'text-t2-ink-2 '}`}>{opt.desc}</div>
+                                        <div className={`text-[11px] ${active ? 'text-t2-ink-3 ' : 'text-t2-ink-2 '}`}>{opt.desc}</div>
                                     </button>
                                 );
                             })}

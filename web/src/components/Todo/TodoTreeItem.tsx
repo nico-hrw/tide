@@ -322,7 +322,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className={`text-[10px] font-semibold uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
+                    <span className={`text-[11px] font-semibold uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {MONTHS_DE[parsedDate.getMonth()].toUpperCase()}
                     </span>
                   </div>
@@ -343,7 +343,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     <span className={`text-[14px] font-bold leading-tight ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {format(parsedDate, 'd.')}
                     </span>
-                    <span className={`text-[10px] uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
+                    <span className={`text-[11px] uppercase tracking-widest ${isTaskCompleted ? 'text-t2-ink-3 ' : 'text-t2-ink'}`}>
                       {MONTHS_DE[parsedDate.getMonth()]}
                     </span>
                   </div>
@@ -402,7 +402,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 {Boolean((task.tags && task.tags.length > 0) || (task.folder && (!depth || depth < 1)) || (depth && depth > 0)) && (
                   <div className={`flex flex-wrap items-center gap-2 mt-0.5 ${isTaskCompleted ? 'opacity-60' : ''}`}>
                     {Boolean(depth && depth > 0) && (
-                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
+                      <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
                         isTaskCompleted
                           ? 'bg-t2-hover  text-t2-ink-3 '
                           : 'bg-t2-sub  text-t2-accent '
@@ -477,7 +477,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 }`}>
                   <div className="flex items-center justify-between mb-2">
                     {depth && depth > 0 ? (
-                      <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-t2-sub  text-t2-accent ">
+                      <span className="text-[11px] font-bold px-2 py-0.5 rounded-md bg-t2-sub  text-t2-accent ">
                         Teilaufgabe
                       </span>
                     ) : (

@@ -670,7 +670,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             {isTimePoint ? (
                 <div className="absolute inset-0 flex items-center overflow-visible pointer-events-none" style={{ zIndex: 10 }}>
                     <span
-                        className={`text-[10px] font-black leading-none whitespace-nowrap pl-1 ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}
+                        className={`text-[11px] font-black leading-none whitespace-nowrap pl-1 ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}
                         style={{ color: isCancelled ? '#475569' : theme.text }}
                     >
                         {format(start, "HH:mm")} {event.title || 'Untitled'}
@@ -713,7 +713,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         {event.title || 'Untitled'}
                     </span>
                     {durationMinutes >= 25 && (
-                        <span className="text-[10px] leading-[16px] font-semibold opacity-60 tabular-nums shrink-0 pointer-events-none">
+                        <span className="text-[11px] leading-[16px] font-semibold opacity-60 tabular-nums shrink-0 pointer-events-none">
                             {format(start, "HH:mm")}
                         </span>
                     )}
@@ -755,7 +755,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         {event.title || 'Untitled'}
                     </div>
                     {!isDragging && !isResizing && (
-                        <span className="text-[10px] opacity-30 font-bold ml-auto select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
+                        <span className="text-[11px] opacity-30 font-bold ml-auto select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
                     )}
                 </div>
 
@@ -763,7 +763,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 {isShared && durationMinutes >= 35 && (
                     <div className="mt-1 mb-0.5 flex items-center relative z-[90]">
                         <span 
-                            className="inline-flex items-center gap-1 text-[9px] font-medium px-1.5 py-0.5 rounded-full bg-t2-hover  border border-t2-line  text-current opacity-90 truncate max-w-full"
+                            className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-t2-hover  border border-t2-line  text-current opacity-90 truncate max-w-full"
                             title={attributionText}
                         >
                             <Users size={9} className="shrink-0 opacity-80" />
@@ -781,7 +781,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             return (
                             <div
                                 key={badge.id || idx}
-                                className={`px-2 py-0.5 rounded-full text-[9px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
+                                className={`px-2 py-0.5 rounded-full text-[11px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
                                 style={{
                                     backgroundColor: badgeCat.bg,
                                     color: badgeCat.ink,
@@ -797,7 +797,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 
                 {/* Description - shown if there's space and text exists */}
                 {event.description && durationMinutes > 60 && (
-                    <div className={`text-[10px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium ${isCancelled ? 'line-through opacity-60' : ''}`}>
+                    <div className={`text-[11px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium ${isCancelled ? 'line-through opacity-60' : ''}`}>
                         {event.description?.split(';').map((part, index, array) => (
                             <React.Fragment key={index}>
                                 {part}

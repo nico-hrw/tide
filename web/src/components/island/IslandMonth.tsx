@@ -62,7 +62,7 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
                     <Plus size={16} strokeWidth={1.8} />
                 </button>
             </div>
-            <div className="grid h-4 grid-cols-7 text-center text-[10px] font-semibold text-t2-ink-3">
+            <div className="grid h-4 grid-cols-7 text-center text-[11px] font-semibold text-t2-ink-3">
                 {heads.map((d) => (
                     <span key={d.getDay()}>{text.weekdayShort(d).charAt(0)}</span>
                 ))}

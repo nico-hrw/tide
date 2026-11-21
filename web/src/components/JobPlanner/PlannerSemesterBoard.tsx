@@ -169,7 +169,7 @@ export default function PlannerSemesterBoard() {
                             )}
 
                             <div className="flex items-center gap-1">
-                                <span className="text-[10px] font-mono font-bold text-t2-ink-3 bg-t2-hover  px-1.5 py-0.5 rounded">
+                                <span className="text-[11px] font-mono font-bold text-t2-ink-3 bg-t2-hover  px-1.5 py-0.5 rounded">
                                     {semester.exams.length}
                                 </span>
                                 <button
@@ -202,7 +202,7 @@ export default function PlannerSemesterBoard() {
                                                 {exam.title}
                                             </p>
                                             {(exam.grade || exam.credits) && (
-                                                <div className="flex items-center gap-2 mt-1 text-[10px] opacity-80">
+                                                <div className="flex items-center gap-2 mt-1 text-[11px] opacity-80">
                                                     {exam.grade && <span>Note: {exam.grade}</span>}
                                                     {exam.credits && <span>{exam.credits} ECTS</span>}
                                                 </div>

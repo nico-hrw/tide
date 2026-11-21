@@ -313,7 +313,7 @@ export function EditorBubbleMenu({
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-t2-ink-3  block mb-1">Farbe</span>
+                                    <span className="text-[11px] text-t2-ink-3  block mb-1">Farbe</span>
                                     <div className="flex items-center gap-1.5">
                                         {REFERENCE_COLORS.map(c => (
                                             <button key={c.value} type="button" title={c.label} onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectedRefColor(c.value)}
@@ -324,7 +324,7 @@ export function EditorBubbleMenu({
                                 </div>
 
                                 <div>
-                                    <span className="text-[10px] text-t2-ink-3 block mb-1">Icon / Emoji</span>
+                                    <span className="text-[11px] text-t2-ink-3 block mb-1">Icon / Emoji</span>
                                     <div className="flex items-center gap-1">
                                         {REFERENCE_QUICK_EMOJIS.map(emoji => (
                                             <button key={emoji} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectedRefEmoji(emoji)}

@@ -224,7 +224,7 @@ export default function PlannerQuickLinks() {
                     onClick={(e) => e.stopPropagation()}
                     className="fixed z-50 min-w-[170px] bg-t2-surface  border border-t2-line  rounded-xl shadow-xl py-1 text-xs animate-in fade-in zoom-in-95 duration-100"
                 >
-                    <div className="px-3 py-1.5 font-bold text-t2-ink-3 text-[10px] uppercase border-b border-t2-line-soft  truncate">
+                    <div className="px-3 py-1.5 font-bold text-t2-ink-3 text-[11px] uppercase border-b border-t2-line-soft  truncate">
                         {contextMenu.link.name}
                     </div>
                     {contextMenu.link.url && (
@@ -360,7 +360,7 @@ export default function PlannerQuickLinks() {
                                                 }`}
                                             >
                                                 <Comp size={18} />
-                                                <span className="text-[10px] truncate max-w-full">{key}</span>
+                                                <span className="text-[11px] truncate max-w-full">{key}</span>
                                             </button>
                                         ))}
                                     </div>

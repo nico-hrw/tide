@@ -138,7 +138,7 @@ export default function SaveStatusMenu({
                                     ? "Öffentlicher Link"
                                     : "Privat (Nur du)"}
                             </p>
-                            <p className="text-[10px] text-t2-ink-3 ">
+                            <p className="text-[11px] text-t2-ink-3 ">
                                 Freigabe & Berechtigungen verwalten
                             </p>
                         </div>
@@ -168,7 +168,7 @@ export default function SaveStatusMenu({
                             <p className="text-xs font-medium text-t2-ink  truncate">
                                 {isProtected ? "PIN-Schutz aktiv" : "Kein PIN-Schutz"}
                             </p>
-                            <p className="text-[10px] text-t2-ink-3 ">
+                            <p className="text-[11px] text-t2-ink-3 ">
                                 {isProtected ? "Sicherheitseinstellungen anpassen" : "Notiz mit PIN sperren"}
                             </p>
                         </div>

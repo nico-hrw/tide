@@ -113,7 +113,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
 
             {/* Zeile 1: Priorität */}
             <div className="flex items-center justify-between gap-2">
-              <span className="text-[10px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
+              <span className="text-[11px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
                 Priorität
               </span>
               <div className="flex items-center gap-1.5">
@@ -172,7 +172,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
 
             {/* Zeile 2: Status */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[10px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
+              <span className="text-[11px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
                 Status
               </span>
               <div className="flex flex-wrap gap-1.5">
@@ -200,7 +200,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
             {/* Optionale Zeile: Tags */}
             {tags && tags.length > 0 && (
               <div className="flex flex-col gap-1.5">
-                <span className="text-[10px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
+                <span className="text-[11px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
                   Tag
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -229,11 +229,11 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
             {/* Zeile 3: Datum */}
             <div className="flex flex-col gap-1.5">
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
+                <span className="text-[11px] font-extrabold tracking-wider text-t2-ink-3 uppercase">
                   Datum
                 </span>
                 {formattedCustomDate && (
-                  <span className="text-[10px] font-bold text-t2-accent ">
+                  <span className="text-[11px] font-bold text-t2-accent ">
                     {formattedCustomDate}
                   </span>
                 )}
@@ -251,7 +251,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                 >
                   Alle
                 </button>
-                <span className="text-t2-ink-3  text-[10px] px-0.5 select-none">
+                <span className="text-t2-ink-3  text-[11px] px-0.5 select-none">
                   |
                 </span>
                 <button
@@ -266,7 +266,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                 >
                   Heute
                 </button>
-                <span className="text-t2-ink-3  text-[10px] px-0.5 select-none">
+                <span className="text-t2-ink-3  text-[11px] px-0.5 select-none">
                   |
                 </span>
                 <button
@@ -281,7 +281,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                 >
                   Morgen
                 </button>
-                <span className="text-t2-ink-3  text-[10px] px-0.5 select-none">
+                <span className="text-t2-ink-3  text-[11px] px-0.5 select-none">
                   |
                 </span>
                 <label

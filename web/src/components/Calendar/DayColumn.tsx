@@ -572,8 +572,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {isToday ? (
                     <div className="px-3.5 py-1.5 rounded-full bg-t2-ink text-t2-bg text-xs font-bold flex items-center justify-center gap-1 shadow-sm select-none">
                         <span>{format(day, "d")}</span>
-                        <span className="opacity-60 uppercase text-[9px] font-black">–</span>
-                        <span className="opacity-80 uppercase text-[9px] tracking-wide font-black">{format(day, "EEE")}</span>
+                        <span className="opacity-60 uppercase text-[11px] font-black">–</span>
+                        <span className="opacity-80 uppercase text-[11px] tracking-wide font-black">{format(day, "EEE")}</span>
                     </div>
                 ) : (
                     <div className="flex items-center gap-1 select-none">
@@ -1010,11 +1010,11 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         style={{ top: creationPreviewTop, height: creationPreviewHeight }}
                     >
                         <div className="flex flex-col gap-0 p-1.5">
-                            <div className="text-[10px] font-bold text-t2-ink  leading-tight">New Event</div>
+                            <div className="text-[11px] font-bold text-t2-ink  leading-tight">New Event</div>
                             <div className="flex items-center gap-0.5 mt-0.5">
-                                <span className="text-[10px] font-semibold text-t2-ink-2  tabular-nums">{creationStartTimeStr}</span>
-                                <span className="text-[9px] text-t2-ink-3 mx-0.5">–</span>
-                                <motion.span className="text-[10px] font-semibold text-t2-ink-2  tabular-nums">{creationEndTimeLabel}</motion.span>
+                                <span className="text-[11px] font-semibold text-t2-ink-2  tabular-nums">{creationStartTimeStr}</span>
+                                <span className="text-[11px] text-t2-ink-3 mx-0.5">–</span>
+                                <motion.span className="text-[11px] font-semibold text-t2-ink-2  tabular-nums">{creationEndTimeLabel}</motion.span>
                             </div>
                         </div>
                     </motion.div>
@@ -1033,7 +1033,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         
                         {/* Minimal Label */}
                         {currentEventInfo && (
-                            <div className="absolute left-3 -top-[14px] text-[9px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
+                            <div className="absolute left-3 -top-[14px] text-[11px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
                                 {currentEventInfo} left
                             </div>
                         )}
@@ -1047,7 +1047,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                     const nextTimeTop = (getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start))) * (hourHeight / 60);
                     return (
                         <div 
-                            className="absolute left-1 z-[60] pointer-events-none text-[10px] font-medium text-t2-ink-3 "
+                            className="absolute left-1 z-[60] pointer-events-none text-[11px] font-medium text-t2-ink-3 "
                             style={{ top: `${nextTimeTop - 16}px` }}
                         >
                             {nextEventInfo}

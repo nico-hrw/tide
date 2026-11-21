@@ -354,7 +354,7 @@ export default function EventPreview({
                                     borderColor: level === 0 ? '#d1d5db' : `rgba(90,90,90,${0.3 + level * 0.15})`
                                 }}
                             >
-                                {level === 0 && <span className="text-[8px] text-t2-ink-3 leading-none flex items-center justify-center w-full h-full">✕</span>}
+                                {level === 0 && <span className="text-[11px] text-t2-ink-3 leading-none flex items-center justify-center w-full h-full">✕</span>}
                             </button>
                         ))}
                     </div>

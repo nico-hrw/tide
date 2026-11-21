@@ -72,7 +72,7 @@ export default function SocialSplitChat({
                                 <span className="inline-flex items-center gap-1.5 text-xs font-bold text-t2-ink  bg-t2-hover  px-2.5 py-1 rounded-lg">
                                     <span className={`w-2 h-2 rounded-full ${statusColor}`} />
                                     <span>{activePartner.username}</span>
-                                    <span className="text-[10px] font-normal text-t2-ink-3">({statusLabel})</span>
+                                    <span className="text-[11px] font-normal text-t2-ink-3">({statusLabel})</span>
                                 </span>
                             );
                         })()}
@@ -122,7 +122,7 @@ export default function SocialSplitChat({
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className={`text-xs font-semibold truncate ${isSelected ? 'text-t2-accent ' : 'text-t2-ink '}`}>{c.partner.username}</p>
-                                            <p className="text-[10px] text-t2-ink-3 truncate">{subtitle}</p>
+                                            <p className="text-[11px] text-t2-ink-3 truncate">{subtitle}</p>
                                         </div>
                                     </button>
                                 );

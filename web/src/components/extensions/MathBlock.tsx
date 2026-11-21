@@ -16,7 +16,7 @@ const MathNodeView = ({ node, updateAttributes }: any) => {
             <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity z-10">
                 <button
                     onClick={() => updateAttributes({ editing: !node.attrs.editing })}
-                    className="px-2 py-1 text-[10px] font-bold uppercase tracking-wider bg-t2-surface  border border-t2-line  rounded-md shadow-sm hover:bg-t2-sub "
+                    className="px-2 py-1 text-[11px] font-bold uppercase tracking-wider bg-t2-surface  border border-t2-line  rounded-md shadow-sm hover:bg-t2-sub "
                 >
                     {node.attrs.editing ? 'View' : 'Edit Equation'}
                 </button>

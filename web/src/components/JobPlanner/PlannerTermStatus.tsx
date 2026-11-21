@@ -85,7 +85,7 @@ export default function PlannerTermStatus({
                 }`}
             >
                 <div>
-                    <span className="text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
                         Aktueller Termin
                     </span>
                     {currentEvent ? (
@@ -132,7 +132,7 @@ export default function PlannerTermStatus({
                 }`}
             >
                 <div>
-                    <span className="text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
+                    <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-wider block mb-1">
                         Nächster Termin
                     </span>
                     {nextEvent ? (

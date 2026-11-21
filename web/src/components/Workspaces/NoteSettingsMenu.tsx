@@ -660,7 +660,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                                     title={`${opt.label} (${opt.hint})`}
                                 >
                                     <span>{opt.label}</span>
-                                    <span className="text-[10px] text-t2-ink-3 font-normal leading-tight">{opt.hint.split(' / ')[0]}</span>
+                                    <span className="text-[11px] text-t2-ink-3 font-normal leading-tight">{opt.hint.split(' / ')[0]}</span>
                                 </button>
                             );
                         })}
@@ -733,7 +733,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                             <Code size={15} className="text-t2-ink-2  shrink-0" />
                             <span className="truncate flex-1">API-Adresse kopieren</span>
                             {isUnencrypted && (
-                                <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
+                                <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium px-1.5 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 shrink-0">
                                     Offen
                                 </span>
                             )}
@@ -815,7 +815,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                             <span className={NS_TITLE}>
                                 Datei-Erweiterungen
                             </span>
-                            <span className="inline-flex items-center gap-1 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-medium px-1.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
                                 <Sparkles size={10} />
                                 Plugin aktiv
                             </span>

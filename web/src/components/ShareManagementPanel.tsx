@@ -151,7 +151,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                         <span className="text-xs font-medium text-t2-ink  truncate">
                                             {share.username || 'Unbekannter Nutzer'}
                                         </span>
-                                        <span className="text-[10px] text-t2-ink-3">
+                                        <span className="text-[11px] text-t2-ink-3">
                                             {share.status === 'accepted' ? 'Akzeptiert' : 'Ausstehend'}
                                         </span>
                                     </div>

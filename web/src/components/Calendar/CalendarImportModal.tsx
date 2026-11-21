@@ -341,7 +341,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                                         {ev.title || 'Ohne Titel'}
                                                     </h4>
                                                     {ev.allDay && (
-                                                        <span className="text-[10px] uppercase font-semibold px-2 py-0.5 rounded-full bg-t2-sub  text-t2-accent ">
+                                                        <span className="text-[11px] uppercase font-semibold px-2 py-0.5 rounded-full bg-t2-sub  text-t2-accent ">
                                                             Ganztägig
                                                         </span>
                                                     )}

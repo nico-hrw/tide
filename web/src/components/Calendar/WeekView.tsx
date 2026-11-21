@@ -453,7 +453,7 @@ export default function WeekView({
                                 </div>
                             ))}
                             <div className="h-[150px] w-full border-r border-[var(--border-grid)] relative">
-                                <div className="absolute top-2 right-2 text-[10px] font-medium text-[var(--text-muted)]">0:00</div>
+                                <div className="absolute top-2 right-2 text-[11px] font-medium text-[var(--text-muted)]">0:00</div>
                             </div>
                         </div>
 
@@ -499,7 +499,7 @@ export default function WeekView({
                                             }`}>
                                             {format(day, "d")}
                                         </div>
-                                        <span className="text-[10px] font-medium uppercase tracking-[0.5px] text-[var(--text-subtle)]">
+                                        <span className="text-[11px] font-medium uppercase tracking-[0.5px] text-[var(--text-subtle)]">
                                             {format(day, "EEE")}
                                         </span>
                                     </div>
@@ -731,7 +731,7 @@ export default function WeekView({
                                     <div className="text-xs font-medium leading-tight select-none">
                                         {event.title || 'Untitled Event'}
                                     </div>
-                                    <div className="text-[10px] font-medium opacity-80 select-none">
+                                    <div className="text-[11px] font-medium opacity-80 select-none">
                                         {format(draggedStart, 'HH:mm')} - {format(draggedEnd, 'HH:mm')}
                                     </div>
                                 </div>

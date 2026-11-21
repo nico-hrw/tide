@@ -209,7 +209,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
           <div className="flex items-center justify-between mt-1.5">
             {archivedCount > 0 ? (
               <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full bg-t2-hover  text-t2-ink-2  font-medium"
+                className="text-[11px] px-1.5 py-0.5 rounded-full bg-t2-hover  text-t2-ink-2  font-medium"
                 title={`${archivedCount} archivierte Aufgaben (> 7 Tage)`}
               >
                 +{archivedCount} archiviert

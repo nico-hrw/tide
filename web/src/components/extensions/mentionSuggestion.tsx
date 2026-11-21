@@ -475,7 +475,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                         />
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.title || item.label}</span>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-medium flex-shrink-0">
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-medium flex-shrink-0">
                                                 {item.count} Termine
                                             </span>
                                         </div>
@@ -504,7 +504,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                         ))}
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.label}</span>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent font-medium flex-shrink-0">Ansicht</span>
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent font-medium flex-shrink-0">Ansicht</span>
                                         </div>
                                     </>
                                 ) : item.type === 'task' ? (
@@ -526,7 +526,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                                     </span>
                                                 )}
                                                 {item.isCompleted && (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
+                                                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
                                                         Erledigt
                                                     </span>
                                                 )}
@@ -542,7 +542,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                 ) : item.safe && item.type === 'note' ? (
                                     <>
                                         <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-semibold tracking-wide shrink-0">
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-semibold tracking-wide shrink-0">
                                                 {item.safe}
                                             </span>
                                             <span className="font-medium truncate">{item.title || item.label}</span>

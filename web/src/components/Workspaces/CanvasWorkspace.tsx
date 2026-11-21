@@ -484,7 +484,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             <div className="w-8 h-8 rounded-full border-2 overflow-hidden shadow-sm transition-transform hover:scale-110" style={{ borderColor: u?.color || '#ccc' }}>
                                                                 <Avatar seed={u?.seed || 'guest'} size={28} />
                                                             </div>
-                                                            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-t2-ink text-white text-[10px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
+                                                            <div className="absolute top-10 left-1/2 -translate-x-1/2 bg-t2-ink text-white text-[11px] px-2 py-1 rounded opacity-0 group-hover:opacity-100 whitespace-nowrap pointer-events-none z-50">
                                                                 {u?.name || 'User'}
                                                             </div>
                                                         </div>

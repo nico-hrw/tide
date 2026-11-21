@@ -535,7 +535,7 @@ export default function QuicknotePage() {
                             </button>
                         </div>
                         <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-t2-ink-3 ">
+                            <span className="text-[11px] text-t2-ink-3 ">
                                 {(attachments.reduce((acc, f) => acc + f.size, 0) / (1024 * 1024)).toFixed(1)} MB / 250 MB
                             </span>
                         </div>
@@ -558,7 +558,7 @@ export default function QuicknotePage() {
                                             <Paperclip className="w-3.5 h-3.5 text-t2-ink-3 group-hover:text-t2-accent shrink-0" />
                                             <span className="truncate">{att.name}</span>
                                         </div>
-                                        <div className="flex items-center gap-1 shrink-0 text-[10px] text-t2-ink-3">
+                                        <div className="flex items-center gap-1 shrink-0 text-[11px] text-t2-ink-3">
                                             <span>
                                                 {att.size < 1024 * 1024
                                                     ? `${Math.round(att.size / 1024)} KB`

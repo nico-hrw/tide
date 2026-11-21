@@ -51,16 +51,16 @@ function SuggestionBadge({ item }: { item: VariableSuggestionItem }) {
             className="shrink-0 flex flex-col items-end gap-0.5 max-w-[140px]"
             title={originTooltip}
         >
-            <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-t2-sub text-t2-ink-2 border border-t2-line-soft leading-none">
+            <span className="px-1.5 py-0.5 rounded text-[11px] font-medium bg-t2-sub text-t2-ink-2 border border-t2-line-soft leading-none">
                 {label}
             </span>
             {item.category === 'global' && item.originNoteTitle && (
-                <span className="text-[10px] text-t2-ink-2 truncate max-w-full leading-tight">
+                <span className="text-[11px] text-t2-ink-2 truncate max-w-full leading-tight">
                     {item.originNoteTitle}
                 </span>
             )}
             {item.category === 'global' && item.originFolderPath && (
-                <span className="text-[10px] text-t2-ink-3 truncate max-w-full leading-tight">
+                <span className="text-[11px] text-t2-ink-3 truncate max-w-full leading-tight">
                     {item.originFolderPath}
                 </span>
             )}

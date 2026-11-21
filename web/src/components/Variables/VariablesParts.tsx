@@ -63,7 +63,7 @@ export function StdlibView({ searchQuery }: { searchQuery: string }) {
                                                 {entry.description}
                                             </div>
                                         </div>
-                                        <span className="shrink-0 rounded bg-t2-sub px-1.5 py-0.5 text-[10px] text-t2-ink-3">
+                                        <span className="shrink-0 rounded bg-t2-sub px-1.5 py-0.5 text-[11px] text-t2-ink-3">
                                             Standard
                                         </span>
                                     </div>
@@ -237,7 +237,7 @@ export function VarRow({
                         {paramList ? `(${paramList.join(', ')})` : ''}
                     </span>
                     {paramList && (
-                        <span className="rounded bg-t2-sub px-1.5 py-0.5 text-[10px] text-t2-ink-3">
+                        <span className="rounded bg-t2-sub px-1.5 py-0.5 text-[11px] text-t2-ink-3">
                             Funktion
                         </span>
                     )}

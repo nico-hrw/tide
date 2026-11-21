@@ -99,7 +99,7 @@ export default function PartnerProfileHeader({ partner, expanded, onOpenProfile,
                 <div className="flex flex-col items-center gap-1.5">
                     <Avatar seed={seed} style={partner.avatar_style as any} size={52} />
                     {details?.title && (
-                        <p className="text-[10px] text-t2-ink-3  font-bold uppercase tracking-widest">{details.title}</p>
+                        <p className="text-[11px] text-t2-ink-3  font-bold uppercase tracking-widest">{details.title}</p>
                     )}
                     {details?.bio && (
                         <p className="text-xs text-t2-ink-2  text-center line-clamp-2">{details.bio}</p>
@@ -109,7 +109,7 @@ export default function PartnerProfileHeader({ partner, expanded, onOpenProfile,
                 {/* Public files section */}
                 {publicFiles.length > 0 && (
                     <div>
-                        <p className="text-[10px] font-bold uppercase tracking-widest text-t2-ink-3  mb-1.5">Öffentliche Notizen</p>
+                        <p className="text-[11px] font-bold uppercase tracking-widest text-t2-ink-3  mb-1.5">Öffentliche Notizen</p>
                         <div className="flex flex-col gap-0.5">
                             {publicFiles.map(f => (
                                 <button

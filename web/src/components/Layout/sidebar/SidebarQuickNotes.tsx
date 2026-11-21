@@ -152,7 +152,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             />
                                             <span className="truncate text-xs">{safe}</span>
                                             {isActive && (
-                                                <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
+                                                <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
                                                     aktiv
                                                 </span>
                                             )}

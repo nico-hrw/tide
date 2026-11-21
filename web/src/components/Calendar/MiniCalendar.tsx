@@ -111,7 +111,7 @@ export default function MiniCalendar({ selectedDate, onSelect, onMonthChange, ev
 
             <div className="grid grid-cols-7 gap-0.5 text-center mb-1">
                 {weekDays.map(day => (
-                    <div key={day} className="text-[9px] font-semibold text-t2-ink-2  uppercase tracking-[0.5px]">
+                    <div key={day} className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-[0.5px]">
                         {day}
                     </div>
                 ))}

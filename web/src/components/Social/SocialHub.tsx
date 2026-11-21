@@ -185,7 +185,7 @@ export default function SocialHub({
                                 <h3 className="font-bold text-t2-ink  text-sm truncate">{user.username || 'Benutzer'}</h3>
                                 {user.owner_is_verified && <CheckCircle2 className="w-3.5 h-3.5 fill-green-500 text-white shrink-0" />}
                             </div>
-                            {user.title && <p className="text-[10px] font-semibold text-t2-ink-3 uppercase tracking-wider truncate">{user.title}</p>}
+                            {user.title && <p className="text-[11px] font-semibold text-t2-ink-3 uppercase tracking-wider truncate">{user.title}</p>}
                         </div>
                     </div>
                     {user.bio && <p className="text-xs text-t2-ink-2  line-clamp-2 mt-3 italic">&ldquo;{user.bio}&rdquo;</p>}
@@ -247,7 +247,7 @@ export default function SocialHub({
                             }`}
                         >
                             <span>Kontakte</span>
-                            <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
+                            <span className={`px-1.5 py-0.2 rounded-full text-[11px] font-bold ${
                                 activeTab === 'contacts' && !isChatMode
                                     ? 'bg-t2-sub  text-t2-accent '
                                     : 'bg-t2-stage  text-t2-ink-2 '
@@ -279,7 +279,7 @@ export default function SocialHub({
                             <UserPlus size={13} />
                             <span>Anfragen</span>
                             {pendingRequests.length > 0 && (
-                                <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-red-500 text-white animate-pulse">
+                                <span className="px-1.5 py-0.2 rounded-full text-[11px] font-bold bg-red-500 text-white animate-pulse">
                                     {pendingRequests.length}
                                 </span>
                             )}

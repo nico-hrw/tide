@@ -263,7 +263,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
                   style={{ background: isToday ? 'rgba(59,130,246,0.04)' : 'transparent', border: 'none', cursor: 'pointer' }}
                   onClick={() => setActiveDate(d)}
                 >
-                  <span className="text-[9px] font-bold uppercase" style={{ color: isToday ? T.accent : T.mut }}>
+                  <span className="text-[11px] font-bold uppercase" style={{ color: isToday ? T.accent : T.mut }}>
                     {format(d, 'eeeee', { locale: de })}
                   </span>
                   <span

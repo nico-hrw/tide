@@ -260,7 +260,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                         className="flex items-center justify-between gap-2 px-2.5 py-1.5 bg-t2-surface  border border-t2-line  rounded-lg text-xs group"
                       >
                         <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <span className="w-4 h-4 rounded-full border border-t2-line  flex items-center justify-center text-[9px] text-t2-ink-3 shrink-0">
+                          <span className="w-4 h-4 rounded-full border border-t2-line  flex items-center justify-center text-[11px] text-t2-ink-3 shrink-0">
                             {idx + 1}
                           </span>
                           <span className="truncate font-medium text-t2-ink ">

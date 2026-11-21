@@ -112,7 +112,7 @@ function ImageWidget({
     if (error || !src) return (
         <div style={{ width: item.width, height: 60 }} className="flex items-center justify-center rounded-lg bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-900/40 text-red-400 text-xs px-2">
             <span>Bild konnte nicht geladen werden</span>
-            {error && <span className="block text-[10px] opacity-50 ml-1">{error}</span>}
+            {error && <span className="block text-[11px] opacity-50 ml-1">{error}</span>}
         </div>
     );
     return (

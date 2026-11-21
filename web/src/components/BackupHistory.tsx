@@ -299,7 +299,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                                                 {getFriendlySlotName(slotName)}
                                             </span>
                                             {slot && (
-                                                <span className="text-[10px] bg-t2-hover  text-t2-ink-2  px-1.5 py-0.5 rounded font-mono uppercase">
+                                                <span className="text-[11px] bg-t2-hover  text-t2-ink-2  px-1.5 py-0.5 rounded font-mono uppercase">
                                                     {slotName.trim() === '1 week' ? 'Full' : 'Delta'}
                                                 </span>
                                             )}

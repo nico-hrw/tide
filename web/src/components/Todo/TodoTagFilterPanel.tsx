@@ -27,7 +27,7 @@ export const TodoTagFilterPanel: React.FC<TodoTagFilterPanelProps> = ({ tags, fi
         <button
           type="button"
           onClick={() => onChange(EMPTY_TAG_FILTER)}
-          className="text-[10px] text-t2-accent  hover:underline capitalize cursor-pointer"
+          className="text-[11px] text-t2-accent  hover:underline capitalize cursor-pointer"
         >
           Tag entfernen
         </button>
