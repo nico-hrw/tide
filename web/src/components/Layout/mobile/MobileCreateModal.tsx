@@ -100,6 +100,9 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
   todoTagFilterRef.current = todoTagFilter;
   const knownTagIdsRef = useRef<Set<string>>(new Set());
   knownTagIdsRef.current = new Set((themes ?? []).map((t) => t.id));
+  const calendarTagFilter = useDataStore((s) => s.calendarTagFilter);
+  const calendarTagFilterRef = useRef(calendarTagFilter);
+  calendarTagFilterRef.current = calendarTagFilter;
   const [showInCalendar, setShowInCalendar] = useState(true);
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -132,7 +135,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       setRepeatInterval(1);
       setRepeatEndDate('');
       setPriority('medium');
-      setTagIds(mode === 'todo' ? defaultTagIds(pruneTagFilter(todoTagFilterRef.current, knownTagIdsRef.current)) : []);
+      setTagIds(defaultTagIds(pruneTagFilter(mode === 'todo' ? todoTagFilterRef.current : calendarTagFilterRef.current, knownTagIdsRef.current)));
       setNoTagPrompt(false);
       setNoTagConfirmed(false);
       setShowInCalendar(true);

@@ -8,6 +8,8 @@ import { MoodPopup } from '@/components/Surveys/MoodPopup';
 import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
 import { T } from './mobile/mobileTheme';
+import { filterEventsByTags } from '@/lib/calendarUtils';
+import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
 import { expandMobileEvents, type CalendarEvent } from './mobile/expandMobileEvents';
 import type { MobileTab } from './mobile/MobileBottomNav';
 import type { PinPromptTarget, MobileListItem } from './mobile/MobileNoteListItems';
@@ -155,9 +157,14 @@ export default function MobileLayout({
     }));
   }, [themes, files]);
 
+  const calendarTagFilter = useCalendarTagFilter(resolvedThemes.map((t) => t.id));
+  const filteredEvents = useMemo(
+    () => filterEventsByTags(events, calendarTagFilter, resolvedThemes),
+    [events, calendarTagFilter, resolvedThemes]
+  );
   const expandedEvents = useMemo(
-    () => expandMobileEvents(events, activeDate, resolvedThemes),
-    [events, activeDate, resolvedThemes]
+    () => expandMobileEvents(filteredEvents, activeDate, resolvedThemes),
+    [filteredEvents, activeDate, resolvedThemes]
   );
 
   useEffect(() => {
@@ -282,7 +289,7 @@ export default function MobileLayout({
           onSelectEvent={setSelectedEvent} onEditEvent={(ev) => { setSelectedEvent(null); setEditingEvent(ev); }}
           onNewEvent={(date, endDate, meta) => onNewEvent?.(date, endDate, meta)}
           onCreateEvent={(date) => setCreateModal({ open: true, mode: 'event', date })} onEventClick={onEventClick}
-          onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday}
+          onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday} themes={resolvedThemes}
         />
       ) : null}
       {activeTab === 'notes' ? (

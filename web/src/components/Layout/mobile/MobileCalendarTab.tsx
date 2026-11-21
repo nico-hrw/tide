@@ -12,6 +12,7 @@ import { computeWeekAllDayRows, type CalendarEvent } from './expandMobileEvents'
 import { T } from './mobileTheme';
 import type { MobileCalViewMode } from './MobileTopHeader';
 import { useMobileSwipeGestures } from './useMobileSwipeGestures';
+import { CalendarTagPills } from '../../Calendar/CalendarTagPills';
 import { QuickEditGrid } from './QuickEditGrid';
 import type { NewEventMeta } from './MobileOverlaysAndModals';
 import { confirmQuickEdit, quickEditContext, quickEditForDraft, quickEditForEvent, type QuickEditState } from './quickEditState';
@@ -35,6 +36,8 @@ export interface MobileCalendarTabProps {
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   onTodayClick?: () => void;
+  /** Tags shown as filter pills above the calendar. */
+  themes?: { id: string; title: string; color?: string }[];
 }
 
 function getDayTimelineEvents(expandedEvents: CalendarEvent[], date: Date) {
@@ -71,6 +74,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
   onEventDelete,
   onTaskComplete,
   onTodayClick,
+  themes,
 }) => {
   const storeTheme = useDataStore((s) => s.theme);
   const storeWeekStartsOn = useWeekStartsOn();
@@ -205,6 +209,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
       onTouchMove={swipeOn ? onSwipeMove : undefined}
       onTouchEnd={swipeOn ? onSwipeEnd : undefined}
     >
+      {themes && themes.length > 0 && <CalendarTagPills tags={themes} className="shrink-0 px-3 py-1.5" />}
       {calViewMode === 'week' ? (
         <div
           ref={swipeElRef}

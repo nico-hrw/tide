@@ -29,7 +29,6 @@ function stabiliseDays(map: Map<string, CalendarEvent[]>, prefix: string, cache:
 export function useEventsByDay(
     events: CalendarEvent[],
     range: { start: Date; end: Date },
-    selectedGroupId: string | null,
     themes: CalendarViewProps["themes"],
 ) {
     const rangeStartTime = range.start.getTime();
@@ -42,10 +41,6 @@ export function useEventsByDay(
         if (!(rangeEndTime > rangeStartTime)) return { timedMap, allDayMap };
         const minDate = startOfDay(new Date(rangeStartTime));
         const maxDate = startOfDay(new Date(rangeEndTime));
-
-        const filteredEvents = selectedGroupId
-            ? events.filter(e => getEventGroupIds(e).includes(selectedGroupId))
-            : events;
 
         const processEvent = (e: CalendarEvent, occurrenceStart: Date) => {
             if (isNaN(occurrenceStart.getTime())) {
@@ -124,7 +119,7 @@ export function useEventsByDay(
             }
         };
 
-        filteredEvents.forEach(e => {
+        events.forEach(e => {
             const start = new Date(e.start);
             if (isNaN(start.getTime())) {
                 console.warn(`[CALENDAR-DRV] Base start date invalid for event ${e.id}:`, e.start);
@@ -184,6 +179,6 @@ export function useEventsByDay(
         stabiliseDays(allDayMap, 'a:', cache, seen);
         cache.forEach((_, k) => { if (!seen.has(k)) cache.delete(k); });
         return { timedMap, allDayMap };
-    }, [events, rangeStartTime, rangeEndTime, selectedGroupId]);
+    }, [events, rangeStartTime, rangeEndTime]);
     return eventsByDay;
 }

@@ -190,6 +190,9 @@ export interface UiSlice {
     /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
     todoTagFilter: TagFilter;
     setTodoTagFilter: (filter: TagFilter) => void;
+    /** Calendar tag filter (multi-select, OR). Not persisted. */
+    calendarTagFilter: TagFilter;
+    setCalendarTagFilter: (filter: TagFilter) => void;
 }
 
 export interface FsSlice {

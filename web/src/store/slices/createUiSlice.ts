@@ -121,6 +121,8 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     smartIslandState: null,
     todoTagFilter: { tagIds: [], untagged: false },
     setTodoTagFilter: (filter) => set({ todoTagFilter: filter }),
+    calendarTagFilter: { tagIds: [], untagged: false },
+    setCalendarTagFilter: (filter) => set({ calendarTagFilter: filter }),
     enabledExtensions: getInitialExtensions(),
     theme: getInitialTheme(),
     themePreference: getInitialThemePreference(),

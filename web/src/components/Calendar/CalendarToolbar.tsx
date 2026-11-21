@@ -3,7 +3,7 @@ import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { resolveCategory } from "@/lib/calendarColors";
+import { CalendarTagPills } from "./CalendarTagPills";
 import type { CalendarViewProps, CalendarViewMode } from "./types";
 
 interface CalendarToolbarProps {
@@ -11,8 +11,6 @@ interface CalendarToolbarProps {
     viewMode: CalendarViewMode;
     onViewModeChange: (mode: CalendarViewMode) => void;
     themes: CalendarViewProps['themes'];
-    selectedGroupId: string | null;
-    onSelectGroup: (id: string | null) => void;
     /** Steps the visible range by one unit of the current view (day, week or month). */
     onStep: (dir: 1 | -1) => void;
     onToday: () => void;
@@ -33,8 +31,6 @@ export function CalendarToolbar({
     viewMode,
     onViewModeChange,
     themes = [],
-    selectedGroupId,
-    onSelectGroup,
     onStep,
     onToday,
     onCreate,
@@ -131,32 +127,8 @@ export function CalendarToolbar({
                 </div>
             </div>
 
-            {/* Row 2 (Categories & Themes) */}
-            <div className="flex items-center gap-1.5 px-4 py-2 border-t border-t2-line  overflow-x-auto scrollbar-none">
-                <button
-                    type="button"
-                    onClick={() => onSelectGroup(null)}
-                    className={`px-3 py-1 text-xs font-bold rounded-full shadow-sm cursor-pointer hover:opacity-90 transition-all flex items-center gap-1 shrink-0 ${!selectedGroupId ? 'bg-t2-ink text-t2-bg' : 'bg-t2-hover  text-t2-ink-2 '}`}
-                >
-                    {!selectedGroupId && (
-                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                    )}
-                    All
-                </button>
-                {themes.map(group => (
-                    <button
-                        type="button"
-                        key={group.id}
-                        onClick={() => onSelectGroup(group.id)}
-                        className={`px-3 py-1 text-xs font-semibold rounded-full cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${selectedGroupId === group.id ? 'bg-t2-ink text-t2-bg font-bold shadow-sm' : 'bg-t2-hover hover:bg-t2-stage text-t2-ink-2   '}`}
-                    >
-                        {group.color && (
-                            <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: resolveCategory(group.color).bg }} />
-                        )}
-                        {group.title}
-                    </button>
-                ))}
-            </div>
+            {/* Row 2: tag filter */}
+            <CalendarTagPills tags={themes} className="px-4 py-2 border-t border-t2-line" />
         </div>
     );
 }

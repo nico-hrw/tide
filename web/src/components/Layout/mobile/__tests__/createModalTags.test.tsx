@@ -79,3 +79,16 @@ describe('MobileCreateModal todo preselect', () => {
     useDataStore.getState().setTodoTagFilter({ tagIds: [], untagged: false });
   });
 });
+
+describe('MobileCreateModal event preselect', () => {
+  it('preselects pruned calendar filter tags in event mode', async () => {
+    useDataStore.getState().setCalendarTagFilter({ tagIds: ['b', 'gone'], untagged: false });
+    const onSave = vi.fn();
+    renderEventModal(onSave);
+    typeTitle('Meeting');
+    await act(async () => { button('Hinzufügen').click(); });
+    expect(host.textContent).not.toContain('Ohne Tag speichern?');
+    expect(onSave.mock.calls[0][2]).toMatchObject({ groupIds: ['b'], parent_id: 'b' });
+    useDataStore.getState().setCalendarTagFilter({ tagIds: [], untagged: false });
+  });
+});

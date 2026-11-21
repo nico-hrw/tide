@@ -16,7 +16,7 @@ interface HarnessProps {
 }
 
 function Harness({ events, range, onResult }: HarnessProps) {
-  onResult(useEventsByDay(events, range, null, undefined));
+  onResult(useEventsByDay(events, range, undefined));
   return null;
 }
 

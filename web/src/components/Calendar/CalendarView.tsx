@@ -51,7 +51,6 @@ export default function CalendarView({
         onViewModeChange?.(mode);
     };
 
-    const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
     const [isScheduleModalOpen, setIsScheduleModalOpen] = useState(false);
     const [currentTime, setCurrentTime] = useState(new Date());
 
@@ -176,7 +175,7 @@ export default function CalendarView({
         fixedWeek: isFixedWeek,
     });
 
-    const eventsByDay = useEventsByDay(events, eventsRange, selectedGroupId, themes);
+    const eventsByDay = useEventsByDay(events, eventsRange, themes);
 
     const handleDayEventClick: ComponentProps<typeof DayColumn>['onEventClick'] = (clickedEvent, rect) => {
             if (!isDraggingRef.current) {
@@ -239,8 +238,6 @@ export default function CalendarView({
                     viewMode={viewMode}
                     onViewModeChange={handleViewModeChange}
                     themes={themes}
-                    selectedGroupId={selectedGroupId}
-                    onSelectGroup={setSelectedGroupId}
                     onStep={handleStep}
                     onToday={() => onDateChange(new Date())}
                     onCreate={handleCreateNow}

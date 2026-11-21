@@ -7,7 +7,8 @@ import { useShallow } from "zustand/react/shallow";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Editor as TipTapEditor, JSONContent } from "@tiptap/react";
 import { apiFetch } from "@/lib/api";
-import { getEventGroupIds } from "@/lib/calendarUtils";
+import { getEventGroupIds, filterEventsByTags } from "@/lib/calendarUtils";
+import { useCalendarTagFilter } from "@/lib/useCalendarTagFilter";
 import { useDataStore } from "@/store/useDataStore";
 import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { useIslandActionsStore } from "@/store/useIslandActionsStore";
@@ -162,8 +163,9 @@ export default function Dashboard() {
         () => (files ? files.filter((f) => !f.isGroup && !(f.title || "").startsWith(".")) : []),
         [files]
     );
+    const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));
     const filteredCalendarEvents = useMemo(
-        () => events
+        () => filterEventsByTags(events, calendarTagFilter, mobileThemes)
             .map((e) => ({ ...e, effect: files?.find((f) => f.id === e.parent_id)?.effect || "none" }))
             .filter((e) => {
                 const gIds = getEventGroupIds(e);
@@ -171,7 +173,7 @@ export default function Dashboard() {
                     ? !hiddenThemeIds.includes("general-theme")
                     : gIds.some((gid) => !hiddenThemeIds.includes(gid));
             }),
-        [events, files, hiddenThemeIds]
+        [events, files, hiddenThemeIds, calendarTagFilter, mobileThemes]
     );
 
     const canvasSidecar = useStyleFile({ noteId: activeNoteId, userId: myId, privateKey, publicKey });
