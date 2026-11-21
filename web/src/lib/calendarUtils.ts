@@ -123,3 +123,17 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
         return timeA - timeB;
     });
 }
+
+/** Resolves tag ids to their titles; ids without a matching theme are dropped. */
+export function resolveTagTitles(
+    groupIds: string[],
+    themes: ReadonlyArray<{ id: string; title: string }>
+): { id: string; title: string }[] {
+    const out: { id: string; title: string }[] = [];
+    for (const id of groupIds) {
+        const theme = themes.find((t) => t.id === id);
+        const title = theme?.title?.trim();
+        if (theme && title) out.push({ id, title });
+    }
+    return out;
+}

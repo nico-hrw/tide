@@ -330,6 +330,7 @@ export default function DesktopAgendaView({
                     ]}
                     event={selectedEvent}
                     themeTitle={selectedTheme?.title}
+                    themes={themes}
                     onClose={() => setSelectedId(null)}
                     onEdit={
                         selectedEvent
