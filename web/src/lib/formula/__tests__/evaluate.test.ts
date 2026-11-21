@@ -30,7 +30,7 @@ describe('evaluate', () => {
 
   it('a non-numeric direct argument gives #WERT', () => {
     expect(run('=SUMME("abc")')).toEqual(expect.objectContaining({ error: '#WERT' }));
-    expect(run('="abc"+1')).toEqual(expect.objectContaining({ error: '#WERT' }));
+    expect(run('="abc"-1')).toEqual(expect.objectContaining({ error: '#WERT' }));
   });
 
   it('1/0 gives #DIV/0', () => {
@@ -101,5 +101,44 @@ describe('formatResult', () => {
     expect(formatResult({ error: '#VAR' })).toBe('#VAR');
     expect(formatResult('abc')).toBe('abc');
     expect(formatResult(NaN)).toBe('#WERT');
+  });
+
+  it('concatenates with & (left-associative, numbers German-formatted)', () => {
+    expect(run('="hallo"&" "&"welt"')).toBe('hallo welt');
+    expect(run('=2&3')).toBe('23');
+    expect(run('=1,5&"€"')).toBe('1,5€');
+  });
+
+  it('& binds weaker than + and stronger than comparisons', () => {
+    expect(run('="a"&1+2')).toBe('a3');
+    expect(run('="a"&"b"="ab"')).toBe(1);
+  });
+
+  it('+ concatenates when an operand is non-numeric text, else adds', () => {
+    expect(run('="a"+SUMME(1;2)')).toBe('a3');
+    expect(run('="x"+1')).toBe('x1');
+    expect(run('=1+2')).toBe(3);
+    expect(run('="5"+3')).toBe(8);
+  });
+
+  it('empty cells concatenate as empty text', () => {
+    expect(run('=A1&"x"')).toBe('x');
+    expect(run('=A1+"x"')).toBe('x');
+  });
+
+  it('errors propagate through concatenation', () => {
+    expect(run('="a"&(1/0)')).toEqual(expect.objectContaining({ error: '#DIV/0' }));
+    const e = run('="a"&A1', { A1: { error: '#BEZUG' } });
+    expect(isErr(e) && e.error).toBe('#BEZUG');
+  });
+
+  it('string comparison is unchanged', () => {
+    expect(run('="a"="a"')).toBe(1);
+    expect(run('="a"="b"')).toBe(0);
+  });
+
+  it('other operators stay numeric only', () => {
+    expect(run('="a"-1')).toEqual(expect.objectContaining({ error: '#WERT' }));
+    expect(run('="a"*2')).toEqual(expect.objectContaining({ error: '#WERT' }));
   });
 });

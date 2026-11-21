@@ -9,7 +9,7 @@ type Tok =
 const NUM_RE = /^(?:\d{1,3}(?:\.\d{3})+(?:,\d+)?|\d+(?:,\d+)?)/;
 const ID_RE = /^[A-Za-zÄÖÜäöüß_][A-Za-zÄÖÜäöüß0-9_]*/;
 const REF_RE = /^([A-Za-z]{1,2})(\d+)$/;
-const OPS = ['<>', '<=', '>=', '+', '-', '*', '/', '^', '(', ')', ',', ';', ':', '%', '=', '<', '>', '!'];
+const OPS = ['<>', '<=', '>=', '+', '-', '*', '/', '^', '&', '(', ')', ',', ';', ':', '%', '=', '<', '>', '!'];
 
 /** German number text ("1.234,5", "3,9 %", "12.000,00 €") to a number; null when it is not one. */
 export function parseNumber(text: string): number | null {
@@ -119,10 +119,19 @@ class Parser {
     }
 
     private cmp(): Expr {
-        let l = this.add();
+        let l = this.cat();
         for (let op = this.peekOp('=', '<>', '<=', '>=', '<', '>'); op; op = this.peekOp('=', '<>', '<=', '>=', '<', '>')) {
             this.p++;
-            l = { k: 'bin', op, l, r: this.add() };
+            l = { k: 'bin', op, l, r: this.cat() };
+        }
+        return l;
+    }
+
+    private cat(): Expr {
+        let l = this.add();
+        while (this.peekOp('&')) {
+            this.p++;
+            l = { k: 'bin', op: '&', l, r: this.add() };
         }
         return l;
     }

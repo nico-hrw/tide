@@ -70,4 +70,20 @@ describe('parseFormula', () => {
   it('rejects trailing garbage with #WERT', () => {
     expect(() => parseFormula('=1 2')).toThrow(FormulaError);
   });
+
+  it('tokenizes & as a binary operator', () => {
+    expect(() => parseFormula('="a"&"b"')).not.toThrow();
+    expect(parseFormula('="a"&"b"')).toEqual({ k: 'bin', op: '&', l: { k: 'str', v: 'a' }, r: { k: 'str', v: 'b' } });
+  });
+  it('& is left-associative and weaker than +', () => {
+    expect(parseFormula('=1&2&3')).toEqual({
+      k: 'bin', op: '&',
+      l: { k: 'bin', op: '&', l: { k: 'num', v: 1 }, r: { k: 'num', v: 2 } },
+      r: { k: 'num', v: 3 },
+    });
+    expect(parseFormula('=1&2+3')).toEqual({
+      k: 'bin', op: '&', l: { k: 'num', v: 1 },
+      r: { k: 'bin', op: '+', l: { k: 'num', v: 2 }, r: { k: 'num', v: 3 } },
+    });
+  });
 });

@@ -90,4 +90,9 @@ describe('gridFromPmTable with merged cells', () => {
     const grid = gridFromPmTable(editor.state.doc.firstChild!);
     expect(computeTable(grid, EMPTY_SCOPE).get('A1')).toBe(11);
   });
+
+  it('a text cell formula concatenates text and a sum', () => {
+    const res = computeTable(gridFromRows([['1'], ['2'], ['="Summe: "&SUMME(A1:A2)']]), EMPTY_SCOPE);
+    expect(res.get('A3')).toBe('Summe: 3');
+  });
 });

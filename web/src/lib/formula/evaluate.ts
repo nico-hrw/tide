@@ -1,5 +1,6 @@
 import { FormulaError, err, isErr, type Expr, type Value } from './types';
 import { parseNumber } from './parser';
+import { formatResult } from './format';
 import { ALIASES, BUILTINS, toNum, type Arg } from './functions';
 
 export interface EvalContext {
@@ -38,6 +39,18 @@ function compare(op: string, l: Value, r: Value): number {
     return res ? 1 : 0;
 }
 
+/** Text view of a scalar for concatenation: numbers German-formatted, text unchanged. */
+function toText(v: number | string): string {
+    return typeof v === 'number' ? formatResult(v) : v;
+}
+
+/** True when `v` is text that `toNum` does not accept as a number (empty text counts as text). */
+function isPlainText(v: number | string): v is string {
+    if (typeof v === 'number') return false;
+    if (v.trim() === '') return true;
+    try { toNum(v); return false; } catch { return true; }
+}
+
 function scalar(r: Value | Value[]): Value {
     if (Array.isArray(r)) throw new FormulaError('#WERT', 'Bereich ohne Funktion');
     return r;
@@ -61,6 +74,9 @@ function evalRaw(e: Expr, ctx: EvalContext): Value | Value[] {
             const l = scalar(evalRaw(e.l, ctx));
             const r = scalar(evalRaw(e.r, ctx));
             if (['=', '<>', '<', '>', '<=', '>='].includes(e.op)) return compare(e.op, l, r);
+            if (isErr(l)) throw new FormulaError(l.error, l.detail);
+            if (isErr(r)) throw new FormulaError(r.error, r.detail);
+            if (e.op === '&' || (e.op === '+' && (isPlainText(l) || isPlainText(r)))) return toText(l) + toText(r);
             const a = toNum(l), b = toNum(r);
             switch (e.op) {
                 case '+': return a + b;
