@@ -37,6 +37,8 @@ import { useSessionRestore } from "@/hooks/dashboard/useSessionRestore";
 import { useFolderAndGroupActions } from "@/hooks/dashboard/useFolderAndGroupActions";
 import { useFileActions } from "@/hooks/dashboard/useFileActions";
 import { useCalendarActions } from "@/hooks/dashboard/useCalendarActions";
+import { useTagMigration } from "@/hooks/dashboard/useTagMigration";
+import { selectTags } from "@/lib/tags";
 import { useWorkspaceTabs, type SwitchTabFn } from "@/hooks/dashboard/useWorkspaceTabs";
 import { useTaskCalendarSync } from "@/hooks/dashboard/useTaskCalendarSync";
 import { useDashboardListeners } from "@/hooks/dashboard/useDashboardListeners";
@@ -113,11 +115,11 @@ export default function Dashboard() {
     const [draggedText, setDraggedText] = useState<string | null>(null);
 
     const {
-        notes: storeFiles, events: storeEvents, tasks: storeTasks, setKeys, fetchDirectory,
+        notes: storeFiles, events: storeEvents, tasks: storeTasks, eventsLoaded, setKeys, fetchDirectory,
         loadedDirectories, enabledExtensions, setEnabledExtensions, noteLayout, setNoteLayout,
         isSettingsModalOpen, setSettingsModalOpen, navigationMode, updateTask, setEvents, activeSafes,
     } = useDataStore(useShallow((s) => ({
-        notes: s.notes, events: s.events, tasks: s.tasks, setKeys: s.setKeys, fetchDirectory: s.fetchDirectory,
+        notes: s.notes, events: s.events, tasks: s.tasks, eventsLoaded: s.eventsLoaded, setKeys: s.setKeys, fetchDirectory: s.fetchDirectory,
         loadedDirectories: s.loadedDirectories, enabledExtensions: s.enabledExtensions,
         setEnabledExtensions: s.setEnabledExtensions, noteLayout: s.noteLayout, setNoteLayout: s.setNoteLayout,
         isSettingsModalOpen: s.isSettingsModalOpen, setSettingsModalOpen: s.setSettingsModalOpen,
@@ -197,6 +199,15 @@ export default function Dashboard() {
     } = useCalendarActions({
         publicKey, privateKey, myId, events: storeEvents, setEvents, setActiveEventId,
         scheduleInitialStart, syncingTaskIdsRef, updateTask, handleCreateEventGroup,
+    });
+
+    const migrationTags = useMemo(() => selectTags(storeFiles), [storeFiles]);
+    useTagMigration({
+        ready: !!privateKey && !!publicKey && eventsLoaded && loadedDirectories.has("root"),
+        events, tasks: storeTasks, tags: migrationTags,
+        createTag: (title) => handleCreateEventGroup(title),
+        saveEvent: (id, u) => handleEventSave(id, u),
+        saveTask: (id, u) => updateTask(id, u),
     });
 
     const {
