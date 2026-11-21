@@ -192,6 +192,16 @@ export default function MobileLayout({
     return () => window.removeEventListener('mobile_apply_view_mode', onApplyViewMode);
   }, []);
 
+  // A view mention's Todos part opens the todo tab (the tag filter lives in the store).
+  useEffect(() => {
+    const onOpenTodos = () => {
+      setUi((p) => ({ ...p, editingNote: false }));
+      setActiveTab('todos');
+    };
+    window.addEventListener('mobile_open_todos', onOpenTodos);
+    return () => window.removeEventListener('mobile_open_todos', onOpenTodos);
+  }, []);
+
   const openNote = useCallback((id: string, title: string) => {
     const note = useDataStore.getState().notes.find((n) => n.id === id) || files.find((f) => f?.id === id);
     const meta = note?.metadata as { has_custom_password?: boolean; security_settings?: ItemSecuritySettings } | undefined;

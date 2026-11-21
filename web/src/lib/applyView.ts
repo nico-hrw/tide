@@ -8,8 +8,13 @@ export interface ApplyViewDeps {
     knownTagIds: Set<string>;
 }
 
+/** The view's tag filter, with tag ids that no longer exist dropped. */
+export function viewFilters(view: SavedView, knownTagIds: Set<string>): TagFilter {
+    return pruneTagFilter({ tagIds: view.tagIds, untagged: view.untagged }, knownTagIds);
+}
+
 /** Applies a saved view: its (pruned) tag filter first, then its calendar mode. */
 export function applyView(view: SavedView, deps: ApplyViewDeps): void {
-    deps.setFilter(pruneTagFilter({ tagIds: view.tagIds, untagged: view.untagged }, deps.knownTagIds));
+    deps.setFilter(viewFilters(view, deps.knownTagIds));
     deps.setViewMode(view.viewMode);
 }

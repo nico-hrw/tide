@@ -120,7 +120,7 @@
 | SlashCommand | `web/src/components/extensions/SlashCommand.tsx` | `/` command menu |
 | DateMention | `web/src/components/extensions/DateMentionExtension.tsx` | Inline date chip |
 | CalendarEventMention | `web/src/components/extensions/CalendarEventMentionExtension.tsx` | Inline event chip |
-| ViewMention | `web/src/components/extensions/ViewMentionExtension.tsx` | Inline chip linking to a saved calendar view (`@` menu, live name/dots from the store, greyed out when deleted). Click dispatches `viewMention:click`; `useDashboardListeners` applies the view (tag filter + mode), mobile follows via `mobile_apply_view_mode`. Suggestion helpers: `viewSuggestion.ts` |
+| ViewMention | `web/src/components/extensions/ViewMentionExtension.tsx` | Inline chip linking to a saved calendar view (`@` menu, live name/dots from the store, greyed out when deleted). The chip has two buttons: the name opens the calendar, the `Todos` part opens the todo list. Click dispatches `viewMention:click` with `{ viewId, target: 'calendar' | 'todos' }`; `useDashboardListeners` hands it to `hooks/dashboard/viewMentionClick.ts` (`handleViewMentionClick`), which sets BOTH `calendarTagFilter` and `todoTagFilter` to `viewFilters(view, knownTagIds)` and then opens the target tab (calendar also applies the view mode). Mobile follows via `mobile_apply_view_mode` (calendar) and `mobile_open_todos` (todo tab), both handled in `MobileLayout`. Suggestion helpers: `viewSuggestion.ts` |
 | TaskMention | `web/src/components/extensions/TaskMentionExtension.tsx` | Inline task chip |
 | ReferenceMark | `web/src/components/extensions/ReferenceMark.ts` | Backlink reference marks |
 | MathBlock | `web/src/components/extensions/MathBlock.tsx` | LaTeX math blocks |
