@@ -149,7 +149,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
             type="button"
             aria-label={`Tag entfernen: ${tag.title}`}
             onClick={() => onChange(value.filter((v) => v !== tag.id))}
-            className="p-0.5 rounded text-t2-ink-3 hover:text-t2-ink cursor-pointer"
+            className="inline-flex items-center justify-center min-w-7 min-h-7 -my-1 -mr-1 rounded text-t2-ink-3 hover:text-t2-ink cursor-pointer"
           >
             <X size={11} />
           </button>

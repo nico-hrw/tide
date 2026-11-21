@@ -4,6 +4,7 @@ import React from 'react';
 import { Check, Plus } from 'lucide-react';
 import type { Tag } from '@/lib/tags';
 import { DEFAULT_TAG_COLOR } from '@/components/Todo/useTodoTags';
+import { TAG_PICKER_PANEL_ATTR } from './tagPickerPanelMarker';
 
 export interface TagPickerPanelProps {
   /** Tags already filtered by the query. */
@@ -23,7 +24,7 @@ export interface TagPickerPanelProps {
   style: React.CSSProperties;
 }
 
-const rowBase = 'w-full flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-left cursor-pointer transition-colors';
+const rowBase = 'w-full min-h-[36px] flex items-center justify-between gap-2 px-2 py-1.5 rounded-lg text-xs font-semibold text-left cursor-pointer transition-colors';
 
 /** Dropdown panel of the TagPicker: search field, filtered tag rows and the "create" row. */
 export const TagPickerPanel: React.FC<TagPickerPanelProps> = ({
@@ -34,6 +35,7 @@ export const TagPickerPanel: React.FC<TagPickerPanelProps> = ({
     <div
       ref={panelRef}
       role="listbox"
+      {...{ [TAG_PICKER_PANEL_ATTR]: '' }}
       aria-multiselectable="true"
       aria-label="Tags"
       style={style}

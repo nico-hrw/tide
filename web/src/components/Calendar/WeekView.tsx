@@ -1,6 +1,7 @@
 
 "use client";
 
+import { isInsideTagPickerPanel } from '@/components/Tags/tagPickerPanelMarker';
 import { useMemo, useRef, useEffect, useState } from "react";
 import { format, addDays, startOfWeek, isSameDay, getMinutes, getHours, startOfDay } from "date-fns";
 import { useHighlight } from '../HighlightContext';
@@ -186,6 +187,7 @@ export default function WeekView({
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
             const target = event.target as Node;
+            if (isInsideTagPickerPanel(target)) return;
             if (target instanceof Element && target.closest('.event-item')) {
                 return;
             }
