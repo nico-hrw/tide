@@ -15,12 +15,16 @@ function pick<T extends string>(raw: string | undefined, allowed: readonly strin
 }
 
 /** Validates CSS color values (hex, rgb/rgba, or named colors) to prevent style injection via Yjs/JSON. */
-export function sanitizeBgColor(raw: unknown): string | null {
+export function sanitizeCssColor(raw: unknown): string | null {
     if (typeof raw !== 'string') return null;
     const v = raw.trim();
     if (!v || v === 'transparent') return null;
     if (HEX_COLOR_RE.test(v) || RGB_COLOR_RE.test(v) || NAMED_COLOR_RE.test(v)) return v;
     return null;
+}
+
+export function sanitizeBgColor(raw: unknown): string | null {
+    return sanitizeCssColor(raw);
 }
 
 /** Shared attribute definitions. Values are allowlisted on parse AND render, since attrs can arrive via Yjs/JSON. */

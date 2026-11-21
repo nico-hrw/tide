@@ -1103,7 +1103,7 @@ span.task-mention-pill,
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.ProseMirror .tt-formula-cell.tt-err { color: var(--t2-late); cursor: help; }
+.ProseMirror .tt-formula-cell.tt-err { color: var(--t2-late) !important; cursor: help; }
 
 .ProseMirror td[data-col-label]:not(.tt-formula-cell)::before,
 .ProseMirror th[data-col-label]:not(.tt-formula-cell)::before {
