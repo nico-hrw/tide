@@ -19,6 +19,7 @@ import { useNoteBackups } from '@/hooks/useNoteBackups';
 import SaveStateIcon from '@/components/Editor/SaveStateIcon';
 import NoteOutline from '@/components/Editor/NoteOutline';
 import NoteHistoryLabel from '@/components/Editor/NoteHistoryLabel';
+import NoteTagsRow from '@/components/Editor/NoteTagsRow';
 import NoteHeaderActions from '@/components/Workspaces/NoteHeaderActions';
 import NoteHistoryTimeline, { timelineGutterClasses } from '@/components/Editor/NoteHistoryTimeline';
 import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
@@ -683,6 +684,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 </>}
                                             />
                                         </div>
+                                        {activeNoteId && <NoteTagsRow noteId={activeNoteId} isOwner={headerIsOwner} />}
                                     </>
                                 )}
 

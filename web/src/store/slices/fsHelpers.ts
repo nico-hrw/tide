@@ -453,7 +453,7 @@ export async function decryptAndNormalizeFileItem(
     }
 
     if (file.type !== 'folder') {
-        normalizedItem.tagIds = normalizeNoteTagIds(metaData.tagIds);
+        normalizedItem.tagIds = normalizeNoteTagIds(file.metadata?.tagIds ?? metaData.tagIds);
     }
     return {
         item: normalizedItem,

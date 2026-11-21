@@ -36,6 +36,27 @@ describe('note tag normalization', () => {
     it('filters non-string entries', async () => {
         expect((await normalize({ title: 'x', tagIds: ['a', 1, null, 'b'] })).tagIds).toEqual(['a', 'b']);
     });
+    it('reads plaintext metadata.tagIds for legacy v1 notes', async () => {
+        const file = { id: 'n1', type: 'note', version: 1, metadata: { title: 'x', tagIds: ['a'] }, visibility: 'private' } as unknown as Raw;
+        const r = await decryptAndNormalizeFileItem(file, null, {});
+        expect((r as { item: { tagIds?: unknown } }).item.tagIds).toEqual(['a']);
+    });
+    it('reads plaintext metadata.tagIds for public notes', async () => {
+        const file = { id: 'n1', type: 'note', version: 2, metadata: { tagIds: ['p'] }, public_meta: { title: 'P' }, visibility: 'public' } as unknown as Raw;
+        const r = await decryptAndNormalizeFileItem(file, null, {});
+        expect((r as { item: { tagIds?: unknown } }).item.tagIds).toEqual(['p']);
+    });
+    it('keeps tagIds on the cached path', async () => {
+        const file = { id: 'n1', type: 'note', version: 2, metadata: { title: 'x' } } as unknown as Raw;
+        const r = await decryptAndNormalizeFileItem(file, null, { cachedMetadata: { n1: { title: 'x', tagIds: ['c'] } } });
+        expect((r as { item: { tagIds?: unknown } }).item.tagIds).toEqual(['c']);
+    });
+    it('gives events and folders no tagIds', async () => {
+        const ev = { id: 'e1', type: 'event', version: 2, metadata: { title: 'x' }, visibility: 'private' } as unknown as Raw;
+        const fo = { id: 'f1', type: 'folder', version: 2, metadata: { title: 'x' }, visibility: 'private' } as unknown as Raw;
+        expect(((await decryptAndNormalizeFileItem(ev, null, {})) as { item: { tagIds?: unknown } }).item.tagIds).toBeUndefined();
+        expect(((await decryptAndNormalizeFileItem(fo, null, {})) as { item: { tagIds?: unknown } }).item.tagIds).toBeUndefined();
+    });
 });
 
 const json = (body: unknown, status = 200) =>
