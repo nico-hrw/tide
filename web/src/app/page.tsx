@@ -7,8 +7,6 @@ import { useShallow } from "zustand/react/shallow";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Editor as TipTapEditor, JSONContent } from "@tiptap/react";
 import { apiFetch } from "@/lib/api";
-import { getEventGroupIds, filterEventsByTags } from "@/lib/calendarUtils";
-import { useCalendarTagFilter } from "@/lib/useCalendarTagFilter";
 import { useDataStore } from "@/store/useDataStore";
 import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { useIslandActionsStore } from "@/store/useIslandActionsStore";
@@ -38,8 +36,7 @@ import { useSessionRestore } from "@/hooks/dashboard/useSessionRestore";
 import { useFolderAndGroupActions } from "@/hooks/dashboard/useFolderAndGroupActions";
 import { useFileActions } from "@/hooks/dashboard/useFileActions";
 import { useCalendarActions } from "@/hooks/dashboard/useCalendarActions";
-import { useTagMigration } from "@/hooks/dashboard/useTagMigration";
-import { selectTags } from "@/lib/tags";
+import { useTagCalendarView, useTagsWiring } from "@/hooks/dashboard/useTagsWiring";
 import { TagCreateProvider } from "@/components/Tags/useTagCreate";
 import { useWorkspaceTabs, type SwitchTabFn } from "@/hooks/dashboard/useWorkspaceTabs";
 import { useTaskCalendarSync } from "@/hooks/dashboard/useTaskCalendarSync";
@@ -117,11 +114,11 @@ export default function Dashboard() {
     const [draggedText, setDraggedText] = useState<string | null>(null);
 
     const {
-        notes: storeFiles, events: storeEvents, tasks: storeTasks, eventsLoaded, setKeys, fetchDirectory,
+        notes: storeFiles, events: storeEvents, tasks: storeTasks, setKeys, fetchDirectory,
         loadedDirectories, enabledExtensions, setEnabledExtensions, noteLayout, setNoteLayout,
         isSettingsModalOpen, setSettingsModalOpen, navigationMode, updateTask, setEvents, activeSafes,
     } = useDataStore(useShallow((s) => ({
-        notes: s.notes, events: s.events, tasks: s.tasks, eventsLoaded: s.eventsLoaded, setKeys: s.setKeys, fetchDirectory: s.fetchDirectory,
+        notes: s.notes, events: s.events, tasks: s.tasks, setKeys: s.setKeys, fetchDirectory: s.fetchDirectory,
         loadedDirectories: s.loadedDirectories, enabledExtensions: s.enabledExtensions,
         setEnabledExtensions: s.setEnabledExtensions, noteLayout: s.noteLayout, setNoteLayout: s.setNoteLayout,
         isSettingsModalOpen: s.isSettingsModalOpen, setSettingsModalOpen: s.setSettingsModalOpen,
@@ -154,26 +151,11 @@ export default function Dashboard() {
         activeTabIdStr !== "calendar" && activeTabIdStr !== "todos" && activeTabIdStr !== "messages" &&
         activeTabIdStr !== "folders" && !activeTabIdStr.startsWith("chat-") ? activeTabIdStr : null;
 
-    const mobileThemes = useMemo(
-        () => files.filter((f) => f.type === "folder" && f.isGroup).map((g) => ({ id: g.id, title: g.title, effect: typeof g.effect === "string" ? g.effect : undefined, color: g.color })),
-        [files]
-    );
+    const { mobileThemes, filteredCalendarEvents } = useTagCalendarView(files, events, hiddenThemeIds);
     const safeFilteredFiles = useMemo(() => filterFilesBySafe(files, activeSafes), [files, activeSafes]);
     const sidebarFiles = useMemo(
         () => (files ? files.filter((f) => !f.isGroup && !(f.title || "").startsWith(".")) : []),
         [files]
-    );
-    const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));
-    const filteredCalendarEvents = useMemo(
-        () => filterEventsByTags(events, calendarTagFilter, mobileThemes)
-            .map((e) => ({ ...e, effect: files?.find((f) => f.id === getEventGroupIds(e)[0])?.effect || "none" }))
-            .filter((e) => {
-                const gIds = getEventGroupIds(e);
-                return gIds.length === 0
-                    ? !hiddenThemeIds.includes("general-theme")
-                    : gIds.some((gid) => !hiddenThemeIds.includes(gid));
-            }),
-        [events, files, hiddenThemeIds, calendarTagFilter, mobileThemes]
     );
 
     const canvasSidecar = useStyleFile({ noteId: activeNoteId, userId: myId, privateKey, publicKey });
@@ -208,15 +190,9 @@ export default function Dashboard() {
         scheduleInitialStart, syncingTaskIdsRef, updateTask, handleCreateEventGroup,
     });
 
-    const createTagForContext = useCallback(
-        (title: string) => handleCreateEventGroup(title), [handleCreateEventGroup]);
-    const migrationTags = useMemo(() => selectTags(storeFiles), [storeFiles]);
-    useTagMigration({
-        ready: !!privateKey && !!publicKey && eventsLoaded && loadedDirectories.has("root"),
-        events, tasks: storeTasks, tags: migrationTags,
-        createTag: (title) => handleCreateEventGroup(title),
-        saveEvent: (id, u) => handleEventSave(id, u),
-        saveTask: (id, u) => updateTask(id, u),
+    const { createTagForContext } = useTagsWiring({
+        privateKey, publicKey, myId, storeFiles, events, tasks: storeTasks, loadedDirectories,
+        handleCreateEventGroup, handleEventSave, updateTask,
     });
 
     const {

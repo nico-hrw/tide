@@ -12,7 +12,7 @@ import { useDataStore } from "@/store/useDataStore";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { apiFetch } from "@/lib/api";
 import { formatMessage, getTranslation } from "@/lib/i18n";
-import { removeTagFromItems } from "@/lib/tags";
+import { isForeignOwned, removeTagFromItems } from "@/lib/tags";
 import { deleteTagEverywhere } from "@/lib/deleteTag";
 import type { CalendarEvent } from "@/components/Calendar/types";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
@@ -192,7 +192,10 @@ export function DashboardModals({
         e.stopPropagation();
         const store = useDataStore.getState();
         const events = store.events as unknown as CalendarEvent[];
-        const patches = removeTagFromItems(id, events, store.tasks);
+        const isOwner = !isForeignOwned(group, myId) && (!group.share_status || group.share_status === "owner");
+        const patches = isOwner
+            ? removeTagFromItems(id, events, store.tasks, myId)
+            : { eventPatches: [], taskPatches: [] };
         const text = (key: string, vars?: Record<string, string | number>) =>
             formatMessage(getTranslation(store.language || "de", "settings", key), vars);
         const question = `${text("cal.deleteConfirm")}
@@ -205,6 +208,8 @@ ${text("cal.deleteConfirmCount", {
         void deleteTagEverywhere(id, {
             events,
             tasks: store.tasks,
+            myId,
+            isOwner,
             saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
             saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates, { strict: true }),
             pruneViews: (tagId) => useDataStore.getState().pruneTagFromViews(tagId),

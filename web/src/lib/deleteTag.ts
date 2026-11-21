@@ -10,6 +10,10 @@ export interface DeleteTagDeps {
     pruneViews: (tagId: string) => Promise<void>;
     clearFilters: (tagId: string) => void;
     deleteFile: (tagId: string) => Promise<void>;
+    /** Current user; items owned by someone else are never rewritten. */
+    myId?: string;
+    /** False for a tag shared into my account: only leave the share, never touch items. Defaults to true. */
+    isOwner?: boolean;
 }
 
 /**
@@ -18,7 +22,9 @@ export interface DeleteTagDeps {
  */
 export async function deleteTagEverywhere(tagId: string, deps: DeleteTagDeps): Promise<{ ok: boolean }> {
     try {
-        const { eventPatches, taskPatches } = removeTagFromItems(tagId, deps.events, deps.tasks);
+        const { eventPatches, taskPatches } = deps.isOwner === false
+            ? { eventPatches: [], taskPatches: [] }
+            : removeTagFromItems(tagId, deps.events, deps.tasks, deps.myId);
         for (const p of eventPatches) await deps.saveEvent(p.id, { groupIds: p.groupIds, parent_id: p.parent_id });
         for (const p of taskPatches) await deps.saveTask(p.id, { tags: p.tags });
         await deps.pruneViews(tagId);

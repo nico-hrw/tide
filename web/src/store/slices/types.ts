@@ -36,6 +36,7 @@ export interface TaskItem {
     isArchived?: boolean;
     parentId?: string | null;
     order?: number;
+    owner_id?: string;
     updatedAt?: string;
 }
 

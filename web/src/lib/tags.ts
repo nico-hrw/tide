@@ -10,7 +10,8 @@ export interface Tag {
 }
 
 export interface TagPatches {
-    eventPatches: { id: string; groupIds: string[] }[];
+    /** `tags` holds the names that could not be resolved yet; they stay on the event so a rerun can retry. */
+    eventPatches: { id: string; groupIds: string[]; tags: string[] }[];
     taskPatches: { id: string; tags: string[] }[];
 }
 
@@ -53,6 +54,13 @@ export function missingTagNames(events: CalendarEvent[], tasks: TaskItem[], tags
     return result;
 }
 
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** True for items owned by another user (shared into my store). Those are never rewritten. */
+export function isForeignOwned(item: { owner_id?: string }, myId?: string): boolean {
+    return Boolean(item.owner_id) && item.owner_id !== myId;
+}
+
 function sameList(a: string[], b: string[]): boolean {
     return a.length === b.length && a.every((v, i) => v === b[i]);
 }
@@ -61,19 +69,22 @@ function dedupe(list: string[]): string[] {
     return [...new Set(list)];
 }
 
-export function buildTagPatches(events: CalendarEvent[], tasks: TaskItem[], tags: Tag[]): TagPatches {
+export function buildTagPatches(events: CalendarEvent[], tasks: TaskItem[], tags: Tag[], myId?: string): TagPatches {
     const resolve = buildResolver(tags);
     const eventPatches: TagPatches['eventPatches'] = [];
     const taskPatches: TagPatches['taskPatches'] = [];
 
     for (const e of events) {
-        const current = e.groupIds ?? [];
+        if (isForeignOwned(e, myId)) continue;
+        const current = getEventGroupIds(e);
         const resolved = (e.tags ?? []).map(resolve).filter((id): id is string => id !== null);
         const next = dedupe([...current, ...resolved]);
-        if (!sameList(current, next)) eventPatches.push({ id: e.id, groupIds: next });
+        const unresolved = (e.tags ?? []).filter((ref) => resolve(ref) === null && !UUID_RE.test(ref.trim()));
+        if (!sameList(current, next)) eventPatches.push({ id: e.id, groupIds: next, tags: unresolved });
     }
 
     for (const t of tasks) {
+        if (isForeignOwned(t, myId)) continue;
         if (!t.tags) continue;
         const next = dedupe(t.tags.map((ref) => resolve(ref) ?? ref));
         if (!sameList(t.tags, next)) taskPatches.push({ id: t.id, tags: next });
@@ -88,11 +99,12 @@ export interface TagRemovalPatches {
 }
 
 /** Patches, die ein geloeschtes Tag aus allen Terminen und Todos entfernen. Unbeteiligte Eintraege bleiben aussen vor. */
-export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks: TaskItem[]): TagRemovalPatches {
+export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks: TaskItem[], myId?: string): TagRemovalPatches {
     const eventPatches: TagRemovalPatches['eventPatches'] = [];
     const taskPatches: TagRemovalPatches['taskPatches'] = [];
 
     for (const e of events) {
+        if (isForeignOwned(e, myId)) continue;
         const ids = getEventGroupIds(e);
         if (!ids.includes(tagId)) continue;
         const groupIds = ids.filter((id) => id !== tagId);
@@ -100,6 +112,7 @@ export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks
     }
 
     for (const t of tasks) {
+        if (isForeignOwned(t, myId)) continue;
         if (!t.tags?.includes(tagId)) continue;
         taskPatches.push({ id: t.id, tags: t.tags.filter((id) => id !== tagId) });
     }

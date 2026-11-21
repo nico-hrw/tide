@@ -40,6 +40,17 @@ describe('removeTagFromItems', () => {
         expect(r.eventPatches[0]).toEqual({ id: 'e1', groupIds: ['b'], parent_id: 'b' });
         expect(r.taskPatches[0]).toEqual({ id: 't1', tags: [] });
     });
+
+    it('skips items owned by someone else', () => {
+        const r = removeTagFromItems(
+            'a',
+            [ev('e1', { groupIds: ['a'], owner_id: 'other' }), ev('e2', { groupIds: ['a'], owner_id: 'me' })],
+            [task('t1', { tags: ['a'], owner_id: 'other' }), task('t2', { tags: ['a'] })],
+            'me',
+        );
+        expect(r.eventPatches.map((p) => p.id)).toEqual(['e2']);
+        expect(r.taskPatches.map((p) => p.id)).toEqual(['t2']);
+    });
 });
 
 function makeDeps(over: Partial<DeleteTagDeps> = {}) {
@@ -91,5 +102,24 @@ describe('deleteTagEverywhere', () => {
         const { deps, calls } = makeDeps({ events: [], tasks: [] });
         expect(await deleteTagEverywhere('a', deps)).toEqual({ ok: true });
         expect(calls).toEqual(['prune', 'filters', 'delete']);
+    });
+
+    it('only leaves the share for a tag owned by someone else', async () => {
+        const { deps, calls } = makeDeps({ isOwner: false });
+        expect(await deleteTagEverywhere('a', deps)).toEqual({ ok: true });
+        expect(calls).toEqual(['prune', 'filters', 'delete']);
+        expect(deps.saveEvent).not.toHaveBeenCalled();
+        expect(deps.saveTask).not.toHaveBeenCalled();
+    });
+
+    it('passes myId through so foreign items are not rewritten', async () => {
+        const { deps } = makeDeps({
+            myId: 'me',
+            events: [ev('e1', { groupIds: ['a'], owner_id: 'other' })],
+            tasks: [task('t1', { tags: ['a'], owner_id: 'other' })],
+        });
+        await deleteTagEverywhere('a', deps);
+        expect(deps.saveEvent).not.toHaveBeenCalled();
+        expect(deps.saveTask).not.toHaveBeenCalled();
     });
 });

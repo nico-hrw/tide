@@ -90,4 +90,57 @@ describe('runTagMigration', () => {
         await runTagMigration(deps);
         expect(saveTask).not.toHaveBeenCalled();
     });
+
+    it('keeps names whose tag creation failed and moves the resolved ones', async () => {
+        const createTag = vi.fn(async (title: string) => {
+            if (title === 'Gym') throw new Error('down');
+            return `id-${title}`;
+        });
+        const { deps, saveEvent } = makeDeps({ createTag, events: [ev('e1', { tags: ['Gym', 'Work'] })] });
+        await runTagMigration(deps);
+        expect(saveEvent).toHaveBeenCalledWith('e1', { groupIds: ['id-Work'], parent_id: 'id-Work', tags: ['Gym'] });
+
+        // second run retries the unresolved name
+        const retry = makeDeps({
+            tags: [{ id: 'id-Work', title: 'Work' }],
+            events: [ev('e1', { groupIds: ['id-Work'], parent_id: 'id-Work', tags: ['Gym'] })],
+        });
+        await runTagMigration(retry.deps);
+        expect(retry.createTag.mock.calls.map((c) => c[0])).toEqual(['Gym']);
+        expect(retry.saveEvent).toHaveBeenCalledWith('e1', {
+            groupIds: ['id-Work', 'new-1-Gym'], parent_id: 'id-Work', tags: [],
+        });
+    });
+
+    it('keeps the name when createTag returns no id', async () => {
+        const createTag = vi.fn(async () => undefined);
+        const { deps, saveEvent } = makeDeps({ createTag, events: [ev('e1', { parent_id: 'g0', tags: ['Gym'] })] });
+        await runTagMigration(deps);
+        expect(saveEvent).not.toHaveBeenCalled();
+    });
+
+    it('never rewrites or creates tags for items owned by someone else', async () => {
+        const { deps, createTag, saveEvent, saveTask } = makeDeps({
+            myId: 'me',
+            events: [ev('e1', { tags: ['Gym'], owner_id: 'other' })],
+            tasks: [task('t1', { tags: ['Home'], owner_id: 'other' })],
+        });
+        await runTagMigration(deps);
+        expect(createTag).not.toHaveBeenCalled();
+        expect(saveEvent).not.toHaveBeenCalled();
+        expect(saveTask).not.toHaveBeenCalled();
+    });
+
+    it('computes patches from live state after tag creation', async () => {
+        let live = [ev('e1', { tags: ['Gym'], title: 'old' })];
+        const createTag = vi.fn(async (title: string) => {
+            live = [ev('e1', { tags: ['Gym'], parent_id: 'g0', title: 'edited' })];
+            return `id-${title}`;
+        });
+        const { deps, saveEvent } = makeDeps({
+            createTag, events: live, getEvents: () => live,
+        });
+        await runTagMigration(deps);
+        expect(saveEvent).toHaveBeenCalledWith('e1', { groupIds: ['g0', 'id-Gym'], parent_id: 'g0', tags: [] });
+    });
 });
