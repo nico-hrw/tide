@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { applyView } from '../applyView';
+import { applyView, viewFilters } from '../applyView';
 import type { SavedView } from '../viewsStorage';
 
 const view: SavedView = { id: 'v', name: 'V', tagIds: ['a', 'gone', 'b'], untagged: true, viewMode: 'month' };
@@ -27,5 +27,21 @@ describe('applyView', () => {
             knownTagIds: new Set(),
         });
         expect(calls).toEqual(['filter', 'mode']);
+    });
+});
+
+describe('viewFilters', () => {
+    it('drops unknown tag ids and keeps known ones in order', () => {
+        expect(viewFilters(view, new Set(['a', 'b']))).toEqual({ tagIds: ['a', 'b'], untagged: true });
+    });
+
+    it('keeps only untagged when no tag ids are set', () => {
+        const v: SavedView = { ...view, tagIds: [], untagged: true };
+        expect(viewFilters(v, new Set(['a']))).toEqual({ tagIds: [], untagged: true });
+    });
+
+    it('returns an empty filter for no tags and untagged false', () => {
+        const v: SavedView = { ...view, tagIds: [], untagged: false };
+        expect(viewFilters(v, new Set(['a']))).toEqual({ tagIds: [], untagged: false });
     });
 });

@@ -530,7 +530,7 @@ export default function ProfileWeekCalendar({
                 <div className="min-w-[640px] flex flex-col">
                     {/* Day Column Headers */}
                     <div className="flex border-b border-t2-line-soft  bg-t2-sub ">
-                        <div className="w-16 shrink-0 py-2.5 text-center text-[10px] font-bold text-t2-ink-3 uppercase tracking-wider">
+                        <div className="w-16 shrink-0 py-2.5 text-center text-[11px] font-bold text-t2-ink-3 uppercase tracking-wider">
                             Zeit
                         </div>
                         {weekDays.map((d, index) => {
@@ -683,12 +683,12 @@ export default function ProfileWeekCalendar({
                                                             {ev.title}
                                                         </p>
                                                         {!isShort && ev.description && (
-                                                            <p className="text-[10px] opacity-85 truncate mt-0.5 font-medium">
+                                                            <p className="text-[11px] opacity-85 truncate mt-0.5 font-medium">
                                                                 {ev.description}
                                                             </p>
                                                         )}
                                                     </div>
-                                                    <div className="flex items-center gap-1 text-[9px] font-mono font-medium opacity-85 mt-auto pt-0.5">
+                                                    <div className="flex items-center gap-1 text-[11px] font-mono font-medium opacity-85 mt-auto pt-0.5">
                                                         <Clock size={9} className="shrink-0" />
                                                         <span className="truncate">
                                                             {sTimeStr}–{eTimeStr}

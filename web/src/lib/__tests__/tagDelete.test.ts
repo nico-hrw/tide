@@ -32,7 +32,7 @@ describe('removeTagFromItems', () => {
 
     it('produces no patches for unaffected items', () => {
         const r = removeTagFromItems('a', [ev('e1', { groupIds: ['b'] }), ev('e2')], [task('t1', { tags: ['x'] }), task('t2')]);
-        expect(r).toEqual({ eventPatches: [], taskPatches: [] });
+        expect(r).toEqual({ eventPatches: [], taskPatches: [], notePatches: [] });
     });
 
     it('removes duplicates of the id', () => {
@@ -50,6 +50,25 @@ describe('removeTagFromItems', () => {
         );
         expect(r.eventPatches.map((p) => p.id)).toEqual(['e2']);
         expect(r.taskPatches.map((p) => p.id)).toEqual(['t2']);
+    });
+});
+
+describe('removeTagFromItems notes', () => {
+    const note = (id: string, tagIds?: string[], owner_id?: string) => ({ id, tagIds, owner_id });
+
+    it('patches only own notes containing the tag, removing every occurrence', () => {
+        const r = removeTagFromItems('a', [], [], 'me', [
+            note('n1', ['a', 'x', 'a']),
+            note('n2', ['a'], 'me'),
+            note('n3', ['a'], 'other'),
+            note('n4', ['x']),
+            note('n5'),
+        ]);
+        expect(r.notePatches).toEqual([{ id: 'n1', tagIds: ['x'] }, { id: 'n2', tagIds: [] }]);
+    });
+
+    it('returns no note patches when notes are omitted', () => {
+        expect(removeTagFromItems('a', [], []).notePatches).toEqual([]);
     });
 });
 
@@ -110,6 +129,39 @@ describe('deleteTagEverywhere', () => {
         expect(calls).toEqual(['prune', 'filters', 'delete']);
         expect(deps.saveEvent).not.toHaveBeenCalled();
         expect(deps.saveTask).not.toHaveBeenCalled();
+    });
+
+    it('saves note patches after events and tasks', async () => {
+        const { deps, calls } = makeDeps({
+            notes: [{ id: 'n1', tagIds: ['a', 'x'] }],
+            saveNote: vi.fn(async () => { calls.push('note'); }),
+        });
+        expect(await deleteTagEverywhere('a', deps)).toEqual({ ok: true });
+        expect(calls).toEqual(['event', 'task', 'note', 'prune', 'filters', 'delete']);
+        expect(deps.saveNote).toHaveBeenCalledWith('n1', ['x']);
+    });
+
+    it('does not delete the file when a note patch fails', async () => {
+        const { deps } = makeDeps({
+            notes: [{ id: 'n1', tagIds: ['a'] }],
+            saveNote: vi.fn(async () => { throw new Error('x'); }),
+        });
+        const r = await deleteTagEverywhere('a', deps);
+        expect(r.ok).toBe(false);
+        expect(deps.deleteFile).not.toHaveBeenCalled();
+        expect(deps.pruneViews).not.toHaveBeenCalled();
+    });
+
+    it('skips notes for a tag owned by someone else', async () => {
+        const { deps } = makeDeps({ isOwner: false, notes: [{ id: 'n1', tagIds: ['a'] }], saveNote: vi.fn(async () => {}) });
+        await deleteTagEverywhere('a', deps);
+        expect(deps.saveNote).not.toHaveBeenCalled();
+    });
+
+    it('behaves as before when no notes or saveNote are given', async () => {
+        const { deps, calls } = makeDeps({ notes: [{ id: 'n1', tagIds: ['a'] }] });
+        expect(await deleteTagEverywhere('a', deps)).toEqual({ ok: true });
+        expect(calls).toEqual(['event', 'task', 'prune', 'filters', 'delete']);
     });
 
     it('passes myId through so foreign items are not rewritten', async () => {

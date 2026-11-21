@@ -123,8 +123,7 @@ export function computeDocumentTables(
             try {
                 v = evaluate(parseFormula(text), getCtx(target));
             } catch (e) {
-                if (!(e instanceof FormulaError)) throw e;
-                v = err(e.code, e.message);
+                v = e instanceof FormulaError ? err(e.code, e.message) : err('#WERT', 'Unerwarteter Fehler');
             } finally {
                 stack.delete(key);
             }

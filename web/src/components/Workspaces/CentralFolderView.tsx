@@ -353,7 +353,7 @@ export function CentralFolderView({
 
             {isSafeDropdownOpen && (
               <div className="absolute right-0 top-full mt-2 w-64 p-2 rounded-2xl bg-t2-surface  border border-t2-line  shadow-2xl z-50 space-y-1.5">
-                <div className="flex items-center justify-between px-2 py-0.5 text-[10px] font-bold text-t2-ink-3  uppercase tracking-wider">
+                <div className="flex items-center justify-between px-2 py-0.5 text-[11px] font-bold text-t2-ink-3  uppercase tracking-wider">
                   <span>Workspaces</span>
                 </div>
                 <div className="flex flex-col gap-0.5 max-h-52 overflow-y-auto no-scrollbar">
@@ -383,7 +383,7 @@ export function CentralFolderView({
                           />
                           <span className="truncate text-xs">{safe}</span>
                           {isActive && (
-                            <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
+                            <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
                               aktiv
                             </span>
                           )}
@@ -573,7 +573,7 @@ export function CentralFolderView({
 
                       {itemCount > 0 && (
                         <span
-                          className="absolute bottom-1 right-1.5 px-1.5 py-0.2 rounded-full text-[10px] font-bold text-white shadow-xs"
+                          className="absolute bottom-1 right-1.5 px-1.5 py-0.2 rounded-full text-[11px] font-bold text-white shadow-xs"
                           style={{ backgroundColor: colorDef.hex }}
                         >
                           {itemCount}

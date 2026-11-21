@@ -14,6 +14,7 @@ import { apiFetch } from "@/lib/api";
 import { formatMessage, getTranslation } from "@/lib/i18n";
 import { isForeignOwned, removeTagFromItems } from "@/lib/tags";
 import { deleteTagEverywhere } from "@/lib/deleteTag";
+import { setNoteTags } from "@/hooks/dashboard/useNoteTags";
 import type { CalendarEvent } from "@/components/Calendar/types";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
 import type { NoteLayout, SettingsModalTab } from "@/store/slices/types";
@@ -193,8 +194,9 @@ export function DashboardModals({
         const store = useDataStore.getState();
         const events = store.events as unknown as CalendarEvent[];
         const isOwner = !isForeignOwned(group, myId) && (!group.share_status || group.share_status === "owner");
+        const noteItems = store.notes.filter((n) => n.type !== "folder" && n.type !== "event");
         const patches = isOwner
-            ? removeTagFromItems(id, events, store.tasks, myId)
+            ? removeTagFromItems(id, events, store.tasks, myId, noteItems)
             : { eventPatches: [], taskPatches: [] };
         const text = (key: string, vars?: Record<string, string | number>) =>
             formatMessage(getTranslation(store.language || "de", "settings", key), vars);
@@ -208,6 +210,8 @@ ${text("cal.deleteConfirmCount", {
         void deleteTagEverywhere(id, {
             events,
             tasks: store.tasks,
+            notes: noteItems,
+            saveNote: (noteId, tagIds) => setNoteTags(noteId, tagIds, { strict: true }),
             myId,
             isOwner,
             saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),

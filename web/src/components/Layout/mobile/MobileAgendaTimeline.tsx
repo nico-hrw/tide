@@ -122,7 +122,7 @@ function StatusBadges({ isActive, remStr, durStr, ink }: { isActive: boolean; re
         <span className="w-1.5 h-1.5 rounded-full" style={{ background: ink }} />
         Noch {remStr}
       </span>
-      <span className="text-[10px] font-medium opacity-75 ml-auto shrink-0">{durStr}</span>
+      <span className="text-[11px] font-medium opacity-75 ml-auto shrink-0">{durStr}</span>
     </div>
   );
 }
@@ -172,7 +172,7 @@ function TimelineEventItem({
               {format(info.evStart, 'HH:mm')} – {format(info.evEnd, 'HH:mm')}
             </span>
             <div className="flex items-center gap-1">
-              <span className="text-[10px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
+              <span className="text-[11px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
               <ChevronDown size={12} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink, transition: 'transform 0.2s ease' }} />
             </div>
           </div>
@@ -223,7 +223,7 @@ function TimelineEventItem({
       <button data-card-body onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
-          <span className="text-[10px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
+          <span className="text-[11px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
         </div>
         <div className="w-[24px] shrink-0 flex flex-col items-center pt-3.5 pb-2.5 self-stretch">
           <div className={`w-3 h-3 rounded-full shrink-0 ${info.isActive ? 'animate-pulse' : ''}`} style={{ background: pal.ink }} />
@@ -249,7 +249,7 @@ function TimelineEventItem({
             </div>
             <div className="flex items-center gap-1.5 shrink-0 ml-1">
               {!info.isActive && !info.isNext && (
-                <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
+                <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
               )}
               <ChevronDown size={14} className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink }} />
             </div>
@@ -363,7 +363,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                     <span className="text-xs sm:text-sm font-bold truncate" style={{ color: T.pri }}>{ev.title}</span>
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
-                    <span className="text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}18`, color: ev.color || T.accent }}>Ganztag</span>
+                    <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}18`, color: ev.color || T.accent }}>Ganztag</span>
                     <ChevronDown size={14} style={{ color: T.mut, transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
                   </div>
                 </button>

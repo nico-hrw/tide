@@ -10,6 +10,8 @@ import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
+import { parseTagQuery } from './tagQuery';
+import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
 export function ensureSafeIsActive(safeName?: string | null) {
     if (!safeName) return;
@@ -130,6 +132,7 @@ type MentionSuggestionItem =
           cleanNoteTitle?: string;
           safe?: string;
           colors?: string[];
+          tagMode?: boolean;
       };
 
 const MentionList = forwardRef((props: any, ref) => {
@@ -167,7 +170,7 @@ const MentionList = forwardRef((props: any, ref) => {
             try {
                 // Sanitize title - strip any leading ! prefix, explicitly using props.query
                 const itemQuery = 'query' in item ? item.query : undefined;
-                const cleanTitle = (props.query || itemQuery || item.label || 'Untitled')
+                const cleanTitle = (actionQueryFor(item, props.query) || itemQuery || item.label || 'Untitled')
                     .replace(/^!+/, '').trim() || 'Untitled';
 
                 if (typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')) {
@@ -198,7 +201,7 @@ const MentionList = forwardRef((props: any, ref) => {
             isCreatingRef.current = true;
             try {
                 const itemQuery = 'query' in item ? item.query : undefined;
-                const rawTitle = props.query || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
+                const rawTitle = actionQueryFor(item, props.query) || itemQuery || (item.label && !item.label.startsWith('Create ') ? item.label : '') || 'New Todo';
                 const cleanTitle = rawTitle.replace(/^!+/, '').trim() || 'New Todo';
                 const newId = await useDataStore.getState().addTask({ title: cleanTitle, isCompleted: false });
                 props.command({
@@ -387,7 +390,8 @@ const MentionList = forwardRef((props: any, ref) => {
                         return 'prevent_close';
                     }
                     selectItem(item);
-                    return true;
+                    // Tag rows rewrite the query: keep the popup (render().onKeyDown destroys it on true).
+                    return item.type === 'tag' ? 'prevent_close' : true;
                 }
                 return false;
             }
@@ -475,7 +479,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                         />
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.title || item.label}</span>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-medium flex-shrink-0">
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-medium flex-shrink-0">
                                                 {item.count} Termine
                                             </span>
                                         </div>
@@ -497,6 +501,12 @@ const MentionList = forwardRef((props: any, ref) => {
                                         </div>
                                         <CalendarIcon size={14} className="text-t2-ink-3  flex-shrink-0" />
                                     </>
+                                ) : item.type === 'tag' ? (
+                                    <>
+                                        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
+                                        <div className="font-medium truncate flex-1">{item.label}</div>
+                                        <span className="text-[11px] text-t2-ink-3 flex-shrink-0">Tag</span>
+                                    </>
                                 ) : item.type === 'view' ? (
                                     <>
                                         {(item.colors ?? []).map((c: string, i: number) => (
@@ -504,7 +514,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                         ))}
                                         <div className="flex items-center justify-between min-w-0 flex-1 gap-1.5">
                                             <span className="font-medium truncate">{item.label}</span>
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent font-medium flex-shrink-0">Ansicht</span>
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent font-medium flex-shrink-0">Ansicht</span>
                                         </div>
                                     </>
                                 ) : item.type === 'task' ? (
@@ -526,7 +536,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                                     </span>
                                                 )}
                                                 {item.isCompleted && (
-                                                    <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
+                                                    <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-green-500/10 text-green-600 dark:text-green-400 font-medium flex-shrink-0">
                                                         Erledigt
                                                     </span>
                                                 )}
@@ -542,7 +552,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                 ) : item.safe && item.type === 'note' ? (
                                     <>
                                         <div className="flex items-center gap-1.5 truncate flex-1 min-w-0">
-                                            <span className="text-[10px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-semibold tracking-wide shrink-0">
+                                            <span className="text-[11px] px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  font-semibold tracking-wide shrink-0">
                                                 {item.safe}
                                             </span>
                                             <span className="font-medium truncate">{item.title || item.label}</span>
@@ -795,7 +805,10 @@ export default {
         }
 
         // 3. Search Matching
-        const lowQuery = query.toLowerCase();
+        const tagsRegistry = selectTags(files);
+        const parsed = parseTagQuery(query, tagsRegistry);
+        const tagMode = parsed.tagIds.length > 0 || !!parsed.ambiguous;
+        const lowQuery = (tagMode ? parsed.text : query).toLowerCase();
         let matched = filteredFiles.filter((f: any) => (f.title || f.id).toLowerCase().includes(lowQuery));
         
         // 4. Search Matching for Events
@@ -807,11 +820,22 @@ export default {
 
         // 4.5 Search Matching for Tasks — all active (non-archived) tasks
         const tasks = state.tasks || [];
-        const matchedTasks = tasks.filter((t: any) => {
+        let matchedTasks = tasks.filter((t: any) => {
             if (!t || !t.title) return false;
             if (t.isArchived) return false;
             return t.title.toLowerCase().includes(lowQuery);
         });
+
+        if (parsed.tagIds.length > 0) {
+            const tagged = filterByTagQuery(
+                { notes: matched, events: matchedEvents, tasks: matchedTasks },
+                parsed,
+                new Set(tagsRegistry.map((t: { id: string }) => t.id)),
+            );
+            matched = tagged.notes;
+            matchedEvents = tagged.events;
+            matchedTasks = tagged.tasks;
+        }
 
         const MONTHS_DE = ['Jan', 'Feb', 'Mär', 'Apr', 'Mai', 'Jun', 'Jul', 'Aug', 'Sep', 'Okt', 'Nov', 'Dez'];
         const formatTaskDate = (dateStr?: string) => {
@@ -934,7 +958,7 @@ export default {
 
         const activeFiles: Array<{ id: string; name: string; size?: number }> =
             (typeof window !== 'undefined' && (window as any).__tide_active_attachments) || [];
-        const fileItems = activeFiles
+        const fileItems = (parsed.tagIds.length > 0 ? [] : activeFiles)
             .filter(f => f.name.toLowerCase().includes(lowQuery))
             .slice(0, 5)
             .map(f => ({
@@ -969,20 +993,29 @@ export default {
             };
         });
 
-        const viewItems = buildViewItems(query, state.views, selectTags(files));
+        const viewItems = parsed.tagIds.length > 0 ? [] : buildViewItems(tagMode ? parsed.text : query, state.views, tagsRegistry);
+
+        const actionQuery = tagMode ? cleanActionLabelQuery(parsed) : query;
 
         // 5. Return formatted
         return capSuggestionItems<MentionSuggestionItem>(
-            [...noteItems, ...fileItems, ...eventItems, ...taskItems],
+            [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
             [
-                { id: 'NEW', label: `Create File '${query}'`, query: query, type: 'action', isGhost: false },
-                { id: 'NEW_TASK', label: `Create Todo '${query}'`, query: query, type: 'action', isGhost: false },
+                { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
+                { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
             ],
         );
     },
 
     command: ({ editor, range, props }: any) => {
+        if (props.type === 'tag') {
+            // No node: rewrite the query so the menu keeps filtering with the resolved tag.
+            const next = queryAfterTagPick(props.query || '', String(props.id).replace(/^TAG:/, ''), selectTags(useDataStore.getState().notes));
+            if (next !== null) editor.chain().focus().insertContentAt(range, '@' + next + ' ').run();
+            return;
+        }
+
         useLinkStore.getState().setIsLinkingMode(false);
         useLinkStore.getState().setPendingLinkSource(null);
         if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();

@@ -113,7 +113,7 @@ export const ThemeItem: React.FC<ThemeItemProps> = ({
                                         opacity: id === 'dimmed' ? 0.55 : 1,
                                     }}
                                 />
-                                <span className="text-[8px] font-bold text-gray-400 uppercase tracking-wide">{label}</span>
+                                <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wide">{label}</span>
                             </button>
                         );
                     })}

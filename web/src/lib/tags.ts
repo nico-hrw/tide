@@ -30,6 +30,19 @@ export function normalizeTagName(name: string): string {
     return name.trim().replace(/\s+/g, ' ').toLowerCase();
 }
 
+/** Tags whose normalized title contains the normalized query. Empty query keeps every tag. */
+export function filterTagsByQuery(tags: Tag[], query: string): Tag[] {
+    const q = normalizeTagName(query);
+    if (!q) return tags;
+    return tags.filter((t) => normalizeTagName(t.title).includes(q));
+}
+
+/** True when the query is not blank and no existing tag carries the same normalized name. */
+export function canCreateTag(tags: Tag[], query: string): boolean {
+    const q = normalizeTagName(query);
+    return q !== '' && !tags.some((t) => normalizeTagName(t.title) === q);
+}
+
 function buildResolver(tags: Tag[]): (ref: string) => string | null {
     const ids = new Set(tags.map((t) => t.id));
     const byName = new Map<string, string>();
@@ -96,12 +109,20 @@ export function buildTagPatches(events: CalendarEvent[], tasks: TaskItem[], tags
 export interface TagRemovalPatches {
     eventPatches: { id: string; groupIds: string[]; parent_id: string | null }[];
     taskPatches: { id: string; tags: string[] }[];
+    notePatches: { id: string; tagIds: string[] }[];
 }
 
 /** Patches, die ein geloeschtes Tag aus allen Terminen und Todos entfernen. Unbeteiligte Eintraege bleiben aussen vor. */
-export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks: TaskItem[], myId?: string): TagRemovalPatches {
+export function removeTagFromItems(
+    tagId: string,
+    events: CalendarEvent[],
+    tasks: TaskItem[],
+    myId?: string,
+    notes?: readonly { id: string; tagIds?: readonly string[]; owner_id?: string }[],
+): TagRemovalPatches {
     const eventPatches: TagRemovalPatches['eventPatches'] = [];
     const taskPatches: TagRemovalPatches['taskPatches'] = [];
+    const notePatches: TagRemovalPatches['notePatches'] = [];
 
     for (const e of events) {
         if (isForeignOwned(e, myId)) continue;
@@ -117,5 +138,11 @@ export function removeTagFromItems(tagId: string, events: CalendarEvent[], tasks
         taskPatches.push({ id: t.id, tags: t.tags.filter((id) => id !== tagId) });
     }
 
-    return { eventPatches, taskPatches };
+    for (const n of notes ?? []) {
+        if (isForeignOwned(n, myId)) continue;
+        if (!n.tagIds?.includes(tagId)) continue;
+        notePatches.push({ id: n.id, tagIds: n.tagIds.filter((id) => id !== tagId) });
+    }
+
+    return { eventPatches, taskPatches, notePatches };
 }

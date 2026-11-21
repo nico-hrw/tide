@@ -340,7 +340,7 @@ export const MobileNewEventSheet = ({
 
           <div className="flex gap-2">
             <div className="flex-1">
-              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Datum</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Datum</label>
               <input
                 type="date"
                 value={dateStr}
@@ -350,7 +350,7 @@ export const MobileNewEventSheet = ({
               />
             </div>
             <div className="w-24">
-              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Von</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Von</label>
               <input
                 type="time"
                 value={startTime}
@@ -360,7 +360,7 @@ export const MobileNewEventSheet = ({
               />
             </div>
             <div className="w-24">
-              <label className="text-[10px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Bis</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider mb-1 block" style={{ color: T.mut }}>Bis</label>
               <input
                 type="time"
                 value={endTime}
@@ -374,7 +374,7 @@ export const MobileNewEventSheet = ({
           {/* Groups / Themes selector */}
           {themes && themes.length > 0 && (
             <div>
-              <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Gruppe / Kategorie</label>
+              <label className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Gruppe / Kategorie</label>
               <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
                 <button
                   type="button"
@@ -427,7 +427,7 @@ export const MobileNewEventSheet = ({
 
           {/* Color palette */}
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Farbe</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Farbe</label>
             <div className="flex items-center gap-2 overflow-x-auto py-1.5 px-0.5" style={{ scrollbarWidth: 'none' }}>
               {COLOR_OPTIONS.map(c => (
                 <button
@@ -448,7 +448,7 @@ export const MobileNewEventSheet = ({
 
           {/* Recurrence controls */}
           <div>
-            <label className="text-[10px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Wiederholung</label>
+            <label className="text-[11px] font-bold uppercase tracking-wider mb-1.5 block" style={{ color: T.mut }}>Wiederholung</label>
             <div className="flex items-center gap-1.5 overflow-x-auto py-1" style={{ scrollbarWidth: 'none' }}>
               {RECURRENCE_OPTIONS.map(opt => {
                 const isSelected = recurrenceFreq === opt.value;

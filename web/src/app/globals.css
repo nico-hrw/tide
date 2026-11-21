@@ -101,7 +101,7 @@
   --muted-text: var(--t2-ink-2);
 
   /* Typography */
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
 
   /* Surfaces & Boxes */
   --surface-card: var(--sidebar-bg);
@@ -125,7 +125,7 @@
   --t2-sub: #F6F6F7;
   --t2-ink: #0E0E10;
   --t2-ink-2: #5E5E66;
-  --t2-ink-3: #9A9AA3;
+  --t2-ink-3: #747480;
   --t2-line: #E9E9EC;
   --t2-line-soft: #F1F1F3;
   --t2-hover: #F1F1F3;
@@ -215,7 +215,7 @@
   --t2-sub: #1A1A1E;
   --t2-ink: #F4F4F5;
   --t2-ink-2: #A1A1AA;
-  --t2-ink-3: #6E6E78;
+  --t2-ink-3: #7E7E88;
   --t2-line: #26262B;
   --t2-line-soft: #1D1D21;
   --t2-hover: #222226;
@@ -345,6 +345,8 @@ body {
   min-height: 100vh;
   min-height: 100dvh;
   overscroll-behavior-x: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 [data-note-tile], [data-folder-tile], .interactive-touch {
@@ -1101,19 +1103,19 @@ span.task-mention-pill,
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-.ProseMirror .tt-formula-cell.tt-err { color: var(--t2-late); cursor: help; }
+.ProseMirror .tt-formula-cell.tt-err { color: var(--t2-late) !important; cursor: help; }
 
 .ProseMirror td[data-col-label]:not(.tt-formula-cell)::before,
 .ProseMirror th[data-col-label]:not(.tt-formula-cell)::before {
   content: attr(data-col-label);
   position: absolute; top: 1px; left: 4px;
-  font-size: 9px; font-weight: 600; color: var(--t2-ink-3); line-height: 1;
+  font-size: 11px; font-weight: 600; color: var(--t2-ink-3); line-height: 1;
 }
 .ProseMirror td[data-row-label]::after,
 .ProseMirror th[data-row-label]::after {
   content: attr(data-row-label);
   position: absolute; bottom: 1px; right: 4px;
-  font-size: 9px; font-weight: 600; color: var(--t2-ink-3); line-height: 1;
+  font-size: 11px; font-weight: 600; color: var(--t2-ink-3); line-height: 1;
 }
 
 .ProseMirror .tt-cand {
@@ -1188,7 +1190,7 @@ span.task-mention-pill,
   position: absolute;
   top: -1.4em;
   left: -2px;
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 600;
   line-height: 1.2;
   user-select: none !important;

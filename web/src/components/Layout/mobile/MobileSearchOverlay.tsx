@@ -155,7 +155,7 @@ function EventRow({
         </div>
       </div>
       {item.tag && (
-        <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
+        <span className="text-[11px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
           {item.tag}
         </span>
       )}
@@ -207,7 +207,7 @@ function TodoRow({
       <div className="flex items-center gap-1.5 shrink-0">
         {renderPriorityBadge(item.priority)}
         {item.tag && (
-          <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg">
+          <span className="text-[11px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg">
             {item.tag}
           </span>
         )}
@@ -242,7 +242,7 @@ function NoteRow({
         </div>
       </div>
       {item.tag && (
-        <span className="text-[10px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
+        <span className="text-[11px] font-bold text-t2-ink-2  bg-t2-hover  px-2 py-0.5 rounded-lg shrink-0">
           {item.tag}
         </span>
       )}
@@ -430,11 +430,11 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <Calendar className="w-3.5 h-3.5 text-t2-accent " />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Termine
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-t2-ink-3 ">
+                      <span className="text-[11px] font-bold text-t2-ink-3 ">
                         {remainingEvents.length}
                       </span>
                     </div>
@@ -460,11 +460,11 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Todos
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-t2-ink-3 ">
+                      <span className="text-[11px] font-bold text-t2-ink-3 ">
                         {remainingTodos.length}
                       </span>
                     </div>
@@ -493,11 +493,11 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                     <div className="flex items-center justify-between px-1.5 mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <FileText className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                        <span className="text-[10px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
+                        <span className="text-[11px] font-extrabold uppercase tracking-wider text-t2-ink-3 ">
                           Notizen
                         </span>
                       </div>
-                      <span className="text-[10px] font-bold text-t2-ink-3 ">
+                      <span className="text-[11px] font-bold text-t2-ink-3 ">
                         {remainingNotes.length}
                       </span>
                     </div>
@@ -521,14 +521,14 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
                 <div className="flex items-center justify-between gap-2 mb-1.5 px-0.5">
                   <div className="flex items-center gap-1.5">
                     <Sparkles className="w-3.5 h-3.5 text-amber-500 fill-amber-500/20" />
-                    <span className="text-[10px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
                       Bester Treffer
                     </span>
-                    <span className="text-[10px] font-semibold text-t2-ink-3 ">
+                    <span className="text-[11px] font-semibold text-t2-ink-3 ">
                       • {topResult.type === 'event' ? 'Termin' : topResult.type === 'todo' ? 'Todo' : 'Notiz'}
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-t2-ink-3  bg-t2-hover  px-1.5 py-0.5 rounded">
+                  <span className="text-[11px] font-bold text-t2-ink-3  bg-t2-hover  px-1.5 py-0.5 rounded">
                     Öffnen
                   </span>
                 </div>

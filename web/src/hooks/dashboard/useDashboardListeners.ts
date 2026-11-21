@@ -11,7 +11,7 @@ import type { IslandView } from "@/components/extensions/smart_island/useIslandS
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
-import { applyView } from "@/lib/applyView";
+import { handleViewMentionClick, type ViewMentionClickDetail } from "./viewMentionClick";
 import { selectTags } from "@/lib/tags";
 import type { CalendarViewMode } from "@/components/Calendar/types";
 
@@ -427,22 +427,21 @@ export function useDashboardListeners({
         return () => window.removeEventListener("dateMention:click", handler);
     }, [switchTabRef, setCalendarDate]);
 
-    // 12b. ViewMention: open a saved calendar view (tag filter + mode)
+    // 12b. ViewMention: open a saved view in the calendar or the todo list (same tag filter)
     useEffect(() => {
         const handler = (e: Event) => {
-            const { viewId } = (e as CustomEvent<{ viewId?: string }>).detail || {};
+            const detail = (e as CustomEvent<ViewMentionClickDetail>).detail || {};
             const state = useDataStore.getState();
-            const view = state.views.find((v) => v.id === viewId);
-            if (!view) return;
-            (switchTabRef?.current ?? latestSwitchTabRef.current)("calendar", "calendar");
-            applyView(view, {
-                setFilter: state.setCalendarTagFilter,
-                setViewMode: (mode) => {
-                    setCalendarViewMode(mode);
-                    // Mobile keeps its own tab and mode state; it reacts to this event.
-                    window.dispatchEvent(new CustomEvent("mobile_apply_view_mode", { detail: { mode } }));
-                },
+            handleViewMentionClick(detail, {
+                getView: (id) => state.views.find((v) => v.id === id),
                 knownTagIds: new Set(selectTags(state.notes).map((t) => t.id)),
+                setCalendarTagFilter: state.setCalendarTagFilter,
+                setTodoTagFilter: state.setTodoTagFilter,
+                switchTab: (id, type) => (switchTabRef?.current ?? latestSwitchTabRef.current)(id, type),
+                navigateTodos: () => window.dispatchEvent(new CustomEvent("tide:navigate", { detail: { tab: "todos" } })),
+                setCalendarViewMode,
+                // Mobile keeps its own tab and mode state; it reacts to these events.
+                dispatchMobile: (name, d) => window.dispatchEvent(new CustomEvent(name, { detail: d })),
             });
         };
         window.addEventListener("viewMention:click", handler);

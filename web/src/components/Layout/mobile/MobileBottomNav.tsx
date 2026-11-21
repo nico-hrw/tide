@@ -61,7 +61,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         <Icon size={20} strokeWidth={1.7} />
         {isActive && <span>{tab.label}</span>}
         {typeof badgeCount === 'number' && badgeCount > 0 && (
-          <span className="absolute -top-1 -right-0.5 min-w-[18px] h-[18px] px-1 bg-t2-late text-white text-[10px] font-bold rounded-full flex items-center justify-center pointer-events-none">
+          <span className="absolute -top-1 -right-0.5 min-w-[18px] h-[18px] px-1 bg-t2-late text-white text-[11px] font-bold rounded-full flex items-center justify-center pointer-events-none">
             {badgeCount > 99 ? '99+' : badgeCount}
           </span>
         )}

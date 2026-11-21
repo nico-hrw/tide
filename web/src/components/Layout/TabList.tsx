@@ -315,7 +315,7 @@ export default function TabList({
                             }}
                             className="absolute right-0 top-10 w-56 bg-t2-surface  border border-t2-line  py-1.5 px-1 z-[150] animate-in fade-in zoom-in-95 duration-100"
                         >
-                            <div className="px-3 py-1.5 text-[10px] font-semibold text-t2-ink-3  uppercase tracking-wider">
+                            <div className="px-3 py-1.5 text-[11px] font-semibold text-t2-ink-3  uppercase tracking-wider">
                                 Plugins & Tools
                             </div>
                             
@@ -331,7 +331,7 @@ export default function TabList({
                                 <GraduationCap size={15} className="text-t2-accent shrink-0" />
                                 <div className="truncate">
                                     <div className="font-medium">Job & Uni Planner</div>
-                                    <div className="text-[10px] text-t2-ink-3 font-normal">Vorlesungen, Prüfungen & Jobs</div>
+                                    <div className="text-[11px] text-t2-ink-3 font-normal">Vorlesungen, Prüfungen & Jobs</div>
                                 </div>
                             </button>
 
@@ -347,7 +347,7 @@ export default function TabList({
                                 <Calendar size={15} className="text-t2-accent shrink-0" />
                                 <div className="truncate">
                                     <div className="font-medium">Kalender</div>
-                                    <div className="text-[10px] text-t2-ink-3 font-normal">Termine & Wochenansicht</div>
+                                    <div className="text-[11px] text-t2-ink-3 font-normal">Termine & Wochenansicht</div>
                                 </div>
                             </button>
 
@@ -363,7 +363,7 @@ export default function TabList({
                                 <ListTodo size={15} className="text-emerald-500 shrink-0" />
                                 <div className="truncate">
                                     <div className="font-medium">Aufgaben & Todos</div>
-                                    <div className="text-[10px] text-t2-ink-3 font-normal">Task Management</div>
+                                    <div className="text-[11px] text-t2-ink-3 font-normal">Task Management</div>
                                 </div>
                             </button>
 
@@ -380,7 +380,7 @@ export default function TabList({
                                     <Smile size={15} className="text-amber-500 shrink-0" />
                                     <div className="truncate">
                                         <div className="font-medium">Umfragen & Mood</div>
-                                        <div className="text-[10px] text-t2-ink-3 font-normal">Stimmungsbild & Umfragen</div>
+                                        <div className="text-[11px] text-t2-ink-3 font-normal">Stimmungsbild & Umfragen</div>
                                     </div>
                                 </button>
                             )}
@@ -398,7 +398,7 @@ export default function TabList({
                                     <Users size={15} className="text-t2-accent shrink-0" />
                                     <div className="truncate">
                                         <div className="font-medium">Social Hub</div>
-                                        <div className="text-[10px] text-t2-ink-3 font-normal">Chat & Kontakte</div>
+                                        <div className="text-[11px] text-t2-ink-3 font-normal">Chat & Kontakte</div>
                                     </div>
                                 </button>
                             )}
@@ -473,7 +473,7 @@ export default function TabList({
                                         <button
                                             type="button"
                                             onClick={() => setMyStatus('online')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-all ${myStatus === 'online' ? 'bg-t2-surface  text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
+                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'online' ? 'bg-t2-surface  text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
                                             title="Online"
                                         >
                                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -482,7 +482,7 @@ export default function TabList({
                                         <button
                                             type="button"
                                             onClick={() => setMyStatus('away')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-all ${myStatus === 'away' ? 'bg-t2-surface  text-amber-600 dark:text-amber-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
+                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'away' ? 'bg-t2-surface  text-amber-600 dark:text-amber-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
                                             title="Abwesend"
                                         >
                                             <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
@@ -491,7 +491,7 @@ export default function TabList({
                                         <button
                                             type="button"
                                             onClick={() => setMyStatus('offline')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[10px] font-medium transition-all ${myStatus === 'offline' ? 'bg-t2-surface  text-t2-ink  shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
+                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'offline' ? 'bg-t2-surface  text-t2-ink  shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
                                             title="Offline"
                                         >
                                             <span className="w-1.5 h-1.5 rounded-full bg-t2-ink-3 shrink-0" />
@@ -515,7 +515,7 @@ export default function TabList({
                                                 <span>Social</span>
                                             </div>
                                             {pendingRequests.length > 0 && (
-                                                <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
+                                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
                                                     {pendingRequests.length}
                                                 </span>
                                             )}

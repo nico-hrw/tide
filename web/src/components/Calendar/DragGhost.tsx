@@ -87,9 +87,9 @@ export const DragGhost: React.FC<DragGhostProps> = ({
             <div className="relative z-10 p-2 overflow-hidden flex flex-col h-full">
                 <p className="font-bold text-[11px] truncate leading-tight">{event.title}</p>
                 {(event as any).description && durationMinutes > 40 && (
-                    <p className="text-[10px] opacity-80 truncate mt-0.5">{ (event as any).description }</p>
+                    <p className="text-[11px] opacity-80 truncate mt-0.5">{ (event as any).description }</p>
                 )}
-                <p className="text-[10px] font-bold mt-auto">{format(new Date(event.start), "HH:mm")}</p>
+                <p className="text-[11px] font-bold mt-auto">{format(new Date(event.start), "HH:mm")}</p>
             </div>
         </motion.div>,
         document.body

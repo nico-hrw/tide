@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { selectTags, normalizeTagName, missingTagNames, buildTagPatches, type Tag } from '../tags';
+import { selectTags, normalizeTagName, filterTagsByQuery, canCreateTag, missingTagNames, buildTagPatches, type Tag } from '../tags';
 import type { CalendarEvent } from '@/components/Calendar/types';
 import type { DataItem, TaskItem } from '@/store/slices/types';
 
@@ -88,5 +88,34 @@ describe('buildTagPatches', () => {
         );
         expect(r.eventPatches.map((p) => p.id)).toEqual(['mine']);
         expect(r.taskPatches).toEqual([]);
+    });
+});
+
+describe('filterTagsByQuery', () => {
+    const list: Tag[] = [{ id: '1', title: 'Uni' }, { id: '2', title: 'NZ Reise' }, { id: '3', title: 'Arbeit' }];
+    it('returns all tags for an empty or whitespace query', () => {
+        expect(filterTagsByQuery(list, '')).toEqual(list);
+        expect(filterTagsByQuery(list, '   ')).toEqual(list);
+    });
+    it('matches case-insensitive substrings and keeps order', () => {
+        expect(filterTagsByQuery(list, 'nz')).toEqual([list[1]]);
+        expect(filterTagsByQuery(list, 'I')).toEqual([list[0], list[1], list[2]]);
+    });
+    it('returns [] without a match', () => {
+        expect(filterTagsByQuery(list, 'xyz')).toEqual([]);
+    });
+});
+
+describe('canCreateTag', () => {
+    const list: Tag[] = [{ id: '1', title: 'NZ Reise' }];
+    it('is false for empty or whitespace', () => {
+        expect(canCreateTag(list, '')).toBe(false);
+        expect(canCreateTag(list, '  ')).toBe(false);
+    });
+    it('is false for an existing name in another case or spacing', () => {
+        expect(canCreateTag(list, ' nz   reise ')).toBe(false);
+    });
+    it('is true for a new name', () => {
+        expect(canCreateTag(list, 'Reise')).toBe(true);
     });
 });

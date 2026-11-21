@@ -1,3 +1,4 @@
+import { isInsideTagPickerPanel } from '@/components/Tags/tagPickerPanelMarker';
 import React, { useState, useEffect, useRef, useCallback, useLayoutEffect } from "react";
 import { addDays, format, getHours, getMinutes, isSameDay } from "date-fns";
 import { useDataStore } from "@/store/useDataStore";
@@ -371,6 +372,9 @@ export function useCalendarScroll({
                     return;
                 }
                 // Ignore scroll events originating from within the popover itself (e.g. long title inputs scrolling horizontally)
+                if (isInsideTagPickerPanel(e.target)) {
+                    return;
+                }
                 const popoverEl = document.getElementById('active-event-popover');
                 if (popoverEl && popoverEl.contains(e.target as Node)) {
                     return;
@@ -420,6 +424,9 @@ export function useCalendarScroll({
                 if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
                     return;
                 }
+                if (isInsideTagPickerPanel(e.target)) {
+                    return;
+                }
                 const popoverEl = document.getElementById('active-event-popover');
                 if (popoverEl && popoverEl.contains(e.target as Node)) {
                     return;
@@ -431,6 +438,9 @@ export function useCalendarScroll({
         const globalTouchHandler = (e: TouchEvent) => {
             if (activePopover) {
                 if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
+                    return;
+                }
+                if (isInsideTagPickerPanel(e.target)) {
                     return;
                 }
                 const popoverEl = document.getElementById('active-event-popover');

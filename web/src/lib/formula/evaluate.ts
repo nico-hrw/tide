@@ -1,5 +1,6 @@
 import { FormulaError, err, isErr, type Expr, type Value } from './types';
 import { parseNumber } from './parser';
+import { formatResult } from './format';
 import { ALIASES, BUILTINS, toNum, type Arg } from './functions';
 
 export interface EvalContext {
@@ -10,6 +11,9 @@ export interface EvalContext {
     /** A user-defined function (case-insensitive name, upper-cased by the parser), if any. */
     userFunction(name: string): ((args: Value[]) => Value) | undefined;
 }
+
+/** Longest text a concatenation may produce (Excel's cell limit). */
+export const MAX_TEXT_LENGTH = 32767;
 
 /** Largest range a single reference may expand to. */
 export const MAX_RANGE_CELLS = 10_000;
@@ -38,6 +42,18 @@ function compare(op: string, l: Value, r: Value): number {
     return res ? 1 : 0;
 }
 
+/** Text view of a scalar for concatenation: numbers German-formatted, text unchanged. */
+function toText(v: number | string): string {
+    return typeof v === 'number' ? formatResult(v) : v;
+}
+
+/** True when `v` is non-empty text that `toNum` does not accept as a number (empty text stays numeric 0). */
+function isPlainText(v: number | string): v is string {
+    if (typeof v === 'number') return false;
+    if (v.trim() === '') return false;
+    try { toNum(v); return false; } catch { return true; }
+}
+
 function scalar(r: Value | Value[]): Value {
     if (Array.isArray(r)) throw new FormulaError('#WERT', 'Bereich ohne Funktion');
     return r;
@@ -61,6 +77,13 @@ function evalRaw(e: Expr, ctx: EvalContext): Value | Value[] {
             const l = scalar(evalRaw(e.l, ctx));
             const r = scalar(evalRaw(e.r, ctx));
             if (['=', '<>', '<', '>', '<=', '>='].includes(e.op)) return compare(e.op, l, r);
+            if (isErr(l)) throw new FormulaError(l.error, l.detail);
+            if (isErr(r)) throw new FormulaError(r.error, r.detail);
+            if (e.op === '&' || (e.op === '+' && (isPlainText(l) || isPlainText(r)))) {
+                const a = toText(l), b = toText(r);
+                if (a.length + b.length > MAX_TEXT_LENGTH) throw new FormulaError('#WERT', 'Text zu lang');
+                return a + b;
+            }
             const a = toNum(l), b = toNum(r);
             switch (e.op) {
                 case '+': return a + b;

@@ -262,7 +262,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                         return (
                                             <g key={s}>
                                                 <line x1={padX} y1={y} x2={svgW - padX} y2={y} stroke="currentColor" strokeDasharray="4 4" className="text-t2-ink-3 " strokeWidth="1" />
-                                                <text x={padX - 8} y={y + 4} textAnchor="end" className="fill-gray-400 dark:fill-gray-500 text-[10px]">
+                                                <text x={padX - 8} y={y + 4} textAnchor="end" className="fill-gray-400 dark:fill-gray-500 text-[11px]">
                                                     {s === 3 ? 'Super' : s === 2 ? 'Okay' : 'Schlecht'}
                                                 </text>
                                             </g>
@@ -314,7 +314,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                         </svg>
                                         <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
                                             <span className="text-xl font-bold">{filtered.length}</span>
-                                            <span className="text-[9px] text-t2-ink-3 uppercase tracking-wider">Logs</span>
+                                            <span className="text-[11px] text-t2-ink-3 uppercase tracking-wider">Logs</span>
                                         </div>
                                     </div>
                                 </div>
@@ -357,7 +357,7 @@ export default function SurveyAnalytics({ className = '' }: { className?: string
                                             <div className="h-1.5 w-full bg-t2-stage  rounded-full overflow-hidden">
                                                 <div className="h-full bg-t2-accent rounded-full transition-all duration-500" style={{ width: `${Math.max(fill, 5)}%` }} />
                                             </div>
-                                            <div className="text-[10px] text-t2-ink-3 mt-1.5 text-right">{s.count} {s.count === 1 ? 'Eintrag' : 'Einträge'}</div>
+                                            <div className="text-[11px] text-t2-ink-3 mt-1.5 text-right">{s.count} {s.count === 1 ? 'Eintrag' : 'Einträge'}</div>
                                         </div>
                                     </div>
                                 );

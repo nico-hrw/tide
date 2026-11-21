@@ -125,11 +125,11 @@ export const NoteCard = React.memo(function NoteCard(props: {
       </span>
 
       {isShared ? (
-        <span className="mt-1 text-[9px] font-semibold px-1.5 py-0.5 rounded-full bg-t2-sub text-t2-accent   leading-none">
+        <span className="mt-1 text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-t2-sub text-t2-accent   leading-none">
           Geteilt
         </span>
       ) : dateStr ? (
-        <span className="mt-1 text-[10px] text-t2-ink-3  leading-none">
+        <span className="mt-1 text-[11px] text-t2-ink-3  leading-none">
           {dateStr}
         </span>
       ) : null}
@@ -237,7 +237,7 @@ export const FolderCard = React.memo(function FolderCard({
               {displayTitle}
             </span>
             <span
-              className="text-[10px] font-bold px-1.5 py-0.5 rounded-full text-white shadow-xs leading-none"
+              className="text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white shadow-xs leading-none"
               style={{ backgroundColor: colorDef.hex }}
             >
               {children.length}
@@ -317,7 +317,7 @@ export const FolderCard = React.memo(function FolderCard({
         )}
         {children.length > 0 && (
           <span
-            className="absolute bottom-0 right-1 px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white shadow-xs leading-none"
+            className="absolute bottom-0 right-1 px-1.5 py-0.5 rounded-full text-[11px] font-bold text-white shadow-xs leading-none"
             style={{ backgroundColor: colorDef.hex }}
           >
             {children.length}

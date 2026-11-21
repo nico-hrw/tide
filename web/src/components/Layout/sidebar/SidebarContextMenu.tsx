@@ -176,7 +176,7 @@ export default function SidebarContextMenu({
                                                 isLeft ? 'right-full mr-1' : 'left-full ml-1'
                                             } top-0 w-44 bg-t2-surface  border border-t2-line  rounded-xl shadow-2xl py-1 z-[10000] animate-in fade-in zoom-in-95 duration-100`}
                                         >
-                                            <div className="px-2.5 py-1 text-[10px] font-semibold text-t2-ink-3  uppercase tracking-wider border-b border-t2-line-soft  mb-1">
+                                            <div className="px-2.5 py-1 text-[11px] font-semibold text-t2-ink-3  uppercase tracking-wider border-b border-t2-line-soft  mb-1">
                                                 Workspace wählen
                                             </div>
                                             <div className="px-1 flex flex-col gap-0.5">

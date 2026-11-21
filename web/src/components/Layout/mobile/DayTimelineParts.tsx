@@ -78,7 +78,7 @@ export function NowLine({ time, dark, fraction }: { time: Date; dark: boolean; f
     >
       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
       <span className="flex-1 h-px" style={{ background: color }} />
-      <span className="text-[10px] font-bold px-1.5" style={{ color }}>{time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
+      <span className="text-[11px] font-bold px-1.5" style={{ color }}>{time.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' })}</span>
     </div>
   );
 }

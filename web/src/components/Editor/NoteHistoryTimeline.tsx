@@ -17,8 +17,29 @@ interface NoteHistoryTimelineProps {
     canRestore: boolean;
     /** Closes the timeline (close button and Escape). */
     onClose?: () => void;
-    /** Placed beside the right edge of the A4 sheet (true) or in the top-right corner of the note area (false). */
-    edge?: boolean;
+}
+
+/** Width reserved at the right of the scroll container while the history is open (the literal classes below must use the same number). */
+export const HISTORY_GUTTER_PX = 300;
+
+/** Padding of the scroll container: the sheet shifts left to leave the gutter free. */
+export function timelineGutterClasses({ open }: { open: boolean }): string {
+    return open ? "lg:pr-[300px]" : "";
+}
+
+/** The wrapper is an in-flow child of the padded container; the negative margin lets it reach the container's real right edge so `right-4` is measured from there. */
+export function timelineWrapperClasses({ open }: { open: boolean }): string {
+    return `sticky top-0 h-0 z-30 pointer-events-none ${open ? "lg:-mr-[300px]" : ""}`.trim();
+}
+
+/** Placement of the panel: anchored inside the scroll container's right edge (never past it), on top of the sheet margin if need be. */
+export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper: string; panel: string } {
+    return {
+        wrapper: timelineWrapperClasses({ open }),
+        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none] ${
+            open ? "open pointer-events-auto z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3" : ""
+        }`,
+    };
 }
 
 const MIN_GAP = 88;
@@ -43,7 +64,7 @@ function sourceOf(p: NoteBackupPoint): string {
 
 /** Vertical on-page timeline: a line grows down the right edge, save points sit at heights proportional to their age. */
 export default function NoteHistoryTimeline({
-    open, points, activeIndex, onSelectIndex, isLoading = false, error, onRestore, canRestore, onClose, edge = false,
+    open, points, activeIndex, onSelectIndex, isLoading = false, error, onRestore, canRestore, onClose,
 }: NoteHistoryTimelineProps) {
     const wrapRef = useRef<HTMLDivElement>(null);
     const [height, setHeight] = useState(600);
@@ -89,12 +110,12 @@ export default function NoteHistoryTimeline({
 
     const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
 
+    const cls = timelinePlacementClasses({ open });
     return (
-        // Beside the sheet it is taken out of the flow (absolute), so the sheet's content keeps its place.
-        <div className={`sticky top-0 h-0 z-30 pointer-events-none ${edge ? "lg:absolute lg:left-full lg:top-24 lg:ml-6 lg:w-56" : ""}`}>
+        <div className={cls.wrapper}>
             <div
                 ref={wrapRef}
-                className={`t2-vtl ${open ? "open pointer-events-auto" : ""} absolute ${edge ? "right-4 top-20 lg:left-0 lg:right-auto lg:top-0" : "right-4 top-20"} w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none]`}
+                className={cls.panel}
                 style={{ height }}
                 role="region"
                 aria-label="Versionsverlauf"

@@ -50,10 +50,10 @@ function SquareFace({ model, text }: { model: IslandModel; text: IslandText }) {
     }
     return (
         <div className="flex h-full flex-col justify-between">
-            <small className="block text-[10px] font-bold uppercase leading-tight tracking-[0.09em]">{text.weekdayShort(model.now)}</small>
+            <small className="block text-[11px] font-bold uppercase leading-tight tracking-[0.09em]">{text.weekdayShort(model.now)}</small>
             <div className="flex items-end justify-between">
                 <b className="text-[42px] font-bold leading-[0.9] tracking-[-0.05em]">{model.now.getDate()}</b>
-                <small className="text-[10px] font-bold uppercase tracking-[0.09em] opacity-55">{text.monthName(model.now).slice(0, 3)}</small>
+                <small className="text-[11px] font-bold uppercase tracking-[0.09em] opacity-55">{text.monthName(model.now).slice(0, 3)}</small>
             </div>
         </div>
     );

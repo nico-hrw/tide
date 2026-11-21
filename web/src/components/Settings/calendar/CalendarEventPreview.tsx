@@ -28,7 +28,7 @@ export function CalendarEventPreview({ palette, overlap }: CalendarEventPreviewP
 
     return (
         <div className="relative h-[150px] select-none overflow-hidden rounded-card bg-t2-bg ring-1 ring-t2-line" aria-label={t('cal.preview')} role="img">
-            <div className="absolute inset-y-0 left-0 flex w-[46px] flex-col justify-between border-r border-t2-line-soft bg-t2-sub px-2 py-3 text-[10px] font-medium text-t2-ink-3">
+            <div className="absolute inset-y-0 left-0 flex w-[46px] flex-col justify-between border-r border-t2-line-soft bg-t2-sub px-2 py-3 text-[11px] font-medium text-t2-ink-3">
                 <span>09:00</span>
                 <span>10:00</span>
                 <span>11:00</span>
@@ -37,7 +37,7 @@ export function CalendarEventPreview({ palette, overlap }: CalendarEventPreviewP
                 {events.map((ev) => (
                     <div
                         key={ev.title}
-                        className="absolute rounded-[8px] p-1.5 text-[10px] font-semibold shadow-sm transition-all duration-300"
+                        className="absolute rounded-[8px] p-1.5 text-[11px] font-semibold shadow-sm transition-all duration-300"
                         style={{ ...ev.style, backgroundColor: colors[ev.color], color: colors.text }}
                     >
                         {ev.title}

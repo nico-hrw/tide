@@ -36,7 +36,7 @@ function StylePicker({ color, emoji, onColor, onEmoji }: StylePickerProps) {
                     onClick={() => onColor(undefined)}
                     title={t('ref.noColor')}
                     aria-label={t('ref.noColor')}
-                    className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[10px] text-t2-ink-3 ring-1', !color ? 'ring-2 ring-t2-accent' : 'ring-t2-line')}
+                    className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[11px] text-t2-ink-3 ring-1', !color ? 'ring-2 ring-t2-accent' : 'ring-t2-line')}
                 >
                     <X className="h-3 w-3" />
                 </button>

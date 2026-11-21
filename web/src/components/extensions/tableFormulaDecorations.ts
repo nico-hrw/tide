@@ -8,6 +8,7 @@ import { formatResult } from '@/lib/formula/format';
 import { parseNumber } from '@/lib/formula/parser';
 import { colToLetters, isErr, refKey, type Value } from '@/lib/formula/types';
 import { locateCell } from './tableFormulaUtils';
+import { resultStyleFromMarks } from './formulaResultStyle';
 
 interface DocTable {
     id: string; // "T1", "T2", ...
@@ -97,9 +98,11 @@ export function buildFormulaDecorations(state: EditorState, scope: CalcScope): D
                 const classes = ['tt-formula-cell'];
                 if (typeof v === 'number') classes.push('tt-num');
                 if (isErr(v)) classes.push('tt-err');
+                const style = resultStyleFromMarks(firstTextMarks(cell));
                 decos.push(Decoration.node(cellPos, end, {
                     class: classes.join(' '),
                     'data-result': formatResult(v),
+                    ...(style ? { style } : {}),
                     ...(isErr(v) && v.detail ? { title: `${v.error}: ${v.detail}` } : {}),
                 }));
             }
@@ -109,6 +112,18 @@ export function buildFormulaDecorations(state: EditorState, scope: CalcScope): D
     }
 
     return DecorationSet.create(doc, decos);
+}
+
+/** Marks of the first text node in the cell; the result takes over the style of the formula text. */
+function firstTextMarks(cell: PmNode) {
+    let marks: readonly { type: { name: string }; attrs: Record<string, unknown> }[] = [];
+    let found = false;
+    cell.descendants((n) => {
+        if (found) return false;
+        if (n.isText) { marks = n.marks; found = true; return false; }
+        return true;
+    });
+    return marks;
 }
 
 function isNumeric(grid: PmGrid, results: Map<string, Value>, c: number, r: number): boolean {

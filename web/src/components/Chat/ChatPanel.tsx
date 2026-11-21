@@ -1202,7 +1202,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                 {isNewDay && (
                                                     <div className="flex items-center gap-3 my-6">
                                                         <div className="flex-1 h-[1px] bg-t2-stage "></div>
-                                                        <span className="px-3 py-0.5 rounded-full text-[10px] font-semibold tracking-wider text-t2-ink-2  bg-t2-hover  border border-t2-line  whitespace-nowrap">
+                                                        <span className="px-3 py-0.5 rounded-full text-[11px] font-semibold tracking-wider text-t2-ink-2  bg-t2-hover  border border-t2-line  whitespace-nowrap">
                                                             {getDateLabel(mDate)}
                                                         </span>
                                                         <div className="flex-1 h-[1px] bg-t2-stage "></div>
@@ -1216,16 +1216,16 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                 {shareData.file_type === 'event' ? (
                                                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-t2-sub  border border-t2-line ">
                                                                         <Calendar size={13} className="text-t2-accent" />
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-t2-accent ">Termin</span>
+                                                                        <span className="text-[11px] uppercase font-bold tracking-wider text-t2-accent ">Termin</span>
                                                                     </div>
                                                                 ) : (
                                                                     <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20">
                                                                         <FileText size={13} className="text-amber-500" />
-                                                                        <span className="text-[10px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400">Notiz</span>
+                                                                        <span className="text-[11px] uppercase font-bold tracking-wider text-amber-600 dark:text-amber-400">Notiz</span>
                                                                     </div>
                                                                 )}
                                                                 {shareData.permission ? (
-                                                                    <span className={`text-[10px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full border ${
+                                                                    <span className={`text-[11px] uppercase font-semibold tracking-wider px-2 py-0.5 rounded-full border ${
                                                                         shareData.permission === 'view'
                                                                             ? 'bg-t2-hover  text-t2-ink-2  border-t2-line '
                                                                             : 'bg-emerald-50 dark:bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-200/60 dark:border-emerald-500/20'
@@ -1233,7 +1233,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         {shareData.permission === 'view' ? 'Nur Lesen' : 'Bearbeiten'}
                                                                     </span>
                                                                 ) : (
-                                                                    <span className="text-[10px] font-mono text-t2-ink-3 ">
+                                                                    <span className="text-[11px] font-mono text-t2-ink-3 ">
                                                                         {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                     </span>
                                                                 )}
@@ -1329,7 +1329,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                     <CheckCircle size={14} />
                                                                                     Vom Kontakt übernommen
                                                                                 </span>
-                                                                                <span className="text-[10px] font-mono opacity-75">
+                                                                                <span className="text-[11px] font-mono opacity-75">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1339,7 +1339,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                     <XCircle size={14} />
                                                                                     Vom Kontakt abgelehnt
                                                                                 </span>
-                                                                                <span className="text-[10px] font-mono opacity-75">
+                                                                                <span className="text-[11px] font-mono opacity-75">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1348,7 +1348,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 <span className="truncate">
                                                                                     Gesendet an <strong className="font-semibold text-t2-ink ">{partner?.username || "Kontakt"}</strong>
                                                                                 </span>
-                                                                                <span className="shrink-0 text-[10px] uppercase font-bold tracking-wider text-amber-500 dark:text-amber-400 ml-2">
+                                                                                <span className="shrink-0 text-[11px] uppercase font-bold tracking-wider text-amber-500 dark:text-amber-400 ml-2">
                                                                                     Warte auf Annahme
                                                                                 </span>
                                                                             </div>
@@ -1361,7 +1361,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 <FolderOpen size={13} />
                                                                                 Datei anzeigen
                                                                             </button>
-                                                                            <span className="text-[10px] font-mono text-t2-ink-3 ">
+                                                                            <span className="text-[11px] font-mono text-t2-ink-3 ">
                                                                                 {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                             </span>
                                                                         </div>
@@ -1397,7 +1397,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                     <XCircle size={14} />
                                                                                     <span>Anfrage abgelehnt</span>
                                                                                 </div>
-                                                                                <span className="text-[10px] font-mono text-t2-ink-3 ">
+                                                                                <span className="text-[11px] font-mono text-t2-ink-3 ">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1434,7 +1434,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                                 </button>
                                                                             </div>
                                                                             <div className="flex justify-end pt-0.5">
-                                                                                <span className="text-[10px] font-mono text-t2-ink-3 ">
+                                                                                <span className="text-[11px] font-mono text-t2-ink-3 ">
                                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                                 </span>
                                                                             </div>
@@ -1455,10 +1455,10 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                             <div className="text-[14.5px] leading-relaxed font-normal break-words whitespace-pre-wrap selection:bg-t2-hover selection:text-t2-accent">
                                                                 {isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "...") : m.content}
                                                             </div>
-                                                            <div className={`text-[10px] mt-1.5 flex items-center justify-between gap-3 select-none ${isMe ? 'text-t2-accent' : 'text-t2-ink-3 '}`}>
+                                                            <div className={`text-[11px] mt-1.5 flex items-center justify-between gap-3 select-none ${isMe ? 'text-t2-accent' : 'text-t2-ink-3 '}`}>
                                                                 {isE2EEMessage(m.content) ? (
                                                                     <span
-                                                                        className={`inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md ${
+                                                                        className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-bold px-1.5 py-0.5 rounded-md ${
                                                                             isMe
                                                                                 ? 'bg-white/15 text-white'
                                                                                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 border border-emerald-200/50 dark:border-emerald-800/30'
@@ -1470,7 +1470,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                 ) : (
                                                                     <span />
                                                                 )}
-                                                                <span className="font-mono text-[10px] ml-auto">
+                                                                <span className="font-mono text-[11px] ml-auto">
                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                                 </span>
                                                             </div>

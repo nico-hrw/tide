@@ -111,7 +111,7 @@ export default function SidebarNavTree({
                                     </span>
                                     {isRelatedFolderOpen ? <FolderOpen size={15} className="text-t2-accent shrink-0" /> : <Folder size={15} className="text-t2-accent shrink-0" />}
                                     <span className="text-sm font-semibold text-t2-ink  truncate">Verwandt</span>
-                                    <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
+                                    <span className="text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                                         {relatedItems.length}
                                     </span>
                                 </div>
@@ -162,7 +162,7 @@ export default function SidebarNavTree({
                                     {isSharedFolderOpen ? <FolderOpen size={15} className="text-t2-accent shrink-0" /> : <Folder size={15} className="text-t2-accent shrink-0" />}
                                     <span className="text-sm font-semibold text-t2-ink  truncate">Geteilt mit mir</span>
                                     {pendingShareCount > 0 && (
-                                        <span className="text-[10px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
+                                        <span className="text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                                             {pendingShareCount} neu
                                         </span>
                                     )}

@@ -1,20 +1,26 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Flag, Folder, Link2, Plus, Trash2, X } from 'lucide-react';
+import { Calendar, Flag, Folder, Link2, Plus, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { TaskItem, useDataStore } from '@/store/useDataStore';
 import { Priority, getTaskPriority, getPriorityColor, parseDateSafe } from './types';
-import { TodoCheckbox, TodoPriorityIcon, T2_PRIORITY_LABEL } from './TodoCardParts';
+import { TodoPriorityIcon, T2_PRIORITY_LABEL } from './TodoCardParts';
+import { SubtaskRow } from './SubtaskRow';
+import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
 
 export interface TodoDetailPaneProps {
   task: TaskItem;
+  /** Parent todo when `task` is a subtask. */
+  parent?: TaskItem;
   subtasks: TaskItem[];
   folders: string[];
   onUpdate: (id: string, patch: Partial<TaskItem>) => void;
   onToggleSubtask: (id: string) => void;
   onAddSubtask: (title: string, parent: TaskItem) => void | Promise<void>;
   onDelete: (id: string) => void;
+  /** Opens another todo (a subtask or the parent) in this pane. */
+  onOpenTask: (id: string) => void;
 }
 
 const PRIORITIES: Priority[] = ['high', 'medium', 'low'];
@@ -28,18 +34,25 @@ const Row: React.FC<{ label: string; icon: React.ReactNode; children: React.Reac
 );
 
 export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
-  task, subtasks, folders, onUpdate, onToggleSubtask, onAddSubtask, onDelete,
+  task, parent, subtasks, folders, onUpdate, onToggleSubtask, onAddSubtask, onDelete, onOpenTask,
 }) => {
   const notes = useDataStore((s) => s.notes);
   const [title, setTitle] = useState(task.title);
   const [adding, setAdding] = useState(false);
   const [newSub, setNewSub] = useState('');
+  const [description, setDescription] = useState(task.description ?? '');
 
   const priority = getTaskPriority(task);
   const due = parseDateSafe(task.dueDate || task.scheduledDate);
   const doneCount = subtasks.filter((s) => s.isCompleted).length;
   const linkedNote = task.linkedNoteId ? notes.find((n) => n.id === task.linkedNoteId) : undefined;
   const folderOptions = task.folder && !folders.includes(task.folder) ? [task.folder, ...folders] : folders;
+
+  const maxDate = subtaskDateMax(task, parent);
+
+  const commitDescription = () => {
+    if (description !== (task.description ?? '')) onUpdate(task.id, { description });
+  };
 
   const commitTitle = () => {
     const t = title.trim();
@@ -58,7 +71,16 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
     <div className="border-l border-t2-line px-[34px] py-1.5 overflow-auto flex flex-col gap-5 min-h-0">
       <div>
         <div className="flex items-start justify-between gap-3">
-          <div className="text-[13px] text-t2-ink-3">{task.folder || 'Ohne Ordner'}</div>
+          {parent ? (
+            <div className="text-[13px] text-t2-ink-3">
+              Untertodo von{' '}
+              <button type="button" onClick={() => onOpenTask(parent.id)} className="text-t2-ink-2 hover:text-t2-ink underline cursor-pointer">
+                «{parent.title}»
+              </button>
+            </div>
+          ) : (
+            <div className="text-[13px] text-t2-ink-3">{task.folder || 'Ohne Ordner'}</div>
+          )}
           <button
             type="button"
             onClick={() => onDelete(task.id)}
@@ -83,7 +105,11 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
           <input
             type="date"
             value={due ? format(due, 'yyyy-MM-dd') : ''}
-            onChange={(e) => onUpdate(task.id, { dueDate: e.target.value || undefined, scheduledDate: e.target.value || undefined })}
+            max={maxDate ? maxDate.slice(0, 10) : undefined}
+            onChange={(e) => {
+              const v = clampSubtaskDate(e.target.value, maxDate?.slice(0, 10)) || undefined;
+              onUpdate(task.id, { dueDate: v, scheduledDate: v });
+            }}
             aria-label="Fälligkeitsdatum"
             className="bg-transparent outline-none text-sm text-t2-ink cursor-pointer"
           />
@@ -123,23 +149,24 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
         </Row>
       </div>
 
+      <textarea
+        data-testid="todo-description"
+        value={description}
+        onChange={(e) => setDescription(e.target.value)}
+        onBlur={commitDescription}
+        placeholder="Beschreibung"
+        aria-label="Beschreibung"
+        rows={4}
+        className="w-full resize-y bg-transparent outline-none text-sm text-t2-ink placeholder:text-t2-ink-3 border border-t2-line rounded-md px-3 py-2"
+      />
+
+      {!parent && (
       <div>
         <h3 className="text-[13px] font-semibold text-t2-ink-2 mb-1">
           Untertodos{subtasks.length > 0 && <span className="font-normal text-t2-ink-3"> · {doneCount} von {subtasks.length}</span>}
         </h3>
         {subtasks.map((s) => (
-          <div key={s.id} className="group flex items-center gap-3 py-[9px] border-b border-t2-line-soft">
-            <TodoCheckbox checked={s.isCompleted} label={`${s.title} abhaken`} onClick={() => onToggleSubtask(s.id)} />
-            <span className={`flex-1 text-sm font-medium ${s.isCompleted ? 'line-through text-t2-ink-3 font-normal' : 'text-t2-ink'}`}>{s.title}</span>
-            <button
-              type="button"
-              onClick={() => onDelete(s.id)}
-              aria-label="Untertodo löschen"
-              className="opacity-0 group-hover:opacity-100 p-0.5 text-t2-ink-3 hover:text-t2-ink cursor-pointer"
-            >
-              <X size={14} />
-            </button>
-          </div>
+          <SubtaskRow key={s.id} task={s} onOpen={onOpenTask} onToggle={onToggleSubtask} onDelete={onDelete} />
         ))}
         {adding ? (
           <input
@@ -164,6 +191,7 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
           </button>
         )}
       </div>
+      )}
     </div>
   );
 };

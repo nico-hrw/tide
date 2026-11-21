@@ -755,7 +755,7 @@ function AuthContent() {
                                 <div className="mt-4 p-4 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-xs">
                                     <div className="font-bold text-amber-600 dark:text-amber-400 mb-2 flex items-center justify-between">
                                         <span>🛠️ Dev / Demo Schnellzugriff</span>
-                                        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20">Kein OTP / PIN</span>
+                                        <span className="text-[11px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-amber-500/20">Kein OTP / PIN</span>
                                     </div>
                                     <p className="text-t2-ink-2  mb-3 text-[11px]">
                                         Direkter 1-Klick Login für schnelle Tests und Entwicklung ohne E-Mail.

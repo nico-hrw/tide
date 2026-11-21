@@ -3,6 +3,7 @@ import { Editor } from '@tiptap/core';
 import Document from '@tiptap/extension-document';
 import Paragraph from '@tiptap/extension-paragraph';
 import Text from '@tiptap/extension-text';
+import Bold from '@tiptap/extension-bold';
 import { Table } from '@tiptap/extension-table';
 import { TableRow } from '@tiptap/extension-table-row';
 import { TableCellAligned, TableHeaderAligned } from '../TableCellAttrs';
@@ -23,7 +24,7 @@ function makeEditor(rows: string[][]) {
   const element = document.body.appendChild(document.createElement('div'));
   const editor = new Editor({
     element,
-    extensions: [Document, Paragraph, Text, Table, TableRow, TableHeaderAligned, TableCellAligned, TableFormulas],
+    extensions: [Document, Paragraph, Text, Bold, Table, TableRow, TableHeaderAligned, TableCellAligned, TableFormulas],
     content: html(rows),
   });
   editors.push(editor);
@@ -100,6 +101,16 @@ describe('TableFormulas', () => {
     // the view re-renders after the first insert, so look the target up again (like the live element under the pointer)
     cellEls(editor)[3].dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true, button: 0 }));
     expect(editor.state.doc.firstChild!.child(2).child(0).textContent).toBe('=A1:B2');
+  });
+});
+
+describe('TableFormulas result styling', () => {
+  it('copies the formula text marks onto the result cell as a style', () => {
+    const editor = makeEditor([['x', '<strong>=1+1</strong>'], ['=2+2', 'y']]);
+    editor.commands.setTextSelection(3); // inside A1, no formula
+    const cells = cellEls(editor);
+    expect(cells[1].getAttribute('style') ?? '').toMatch(/font-weight:\s*700/);
+    expect(cells[2].hasAttribute('style')).toBe(false);
   });
 });
 

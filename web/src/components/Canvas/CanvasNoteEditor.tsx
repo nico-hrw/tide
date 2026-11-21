@@ -678,7 +678,7 @@ export default function CanvasNoteEditor({
                                 <path d="M5.653 4.316a.8.8 0 0 0-1.127.884l2.58 13.54a.8.8 0 0 0 1.455.158l3.32-5.753 5.753 3.32a.8.8 0 0 0 1.096-.294l1.24-2.148a.8.8 0 0 0-.294-1.096l-5.753-3.32 3.32-5.753a.8.8 0 0 0-.884-1.127L5.653 4.316z" />
                             </svg>
                             <div
-                                className="text-[10px] font-medium text-white px-1.5 py-0.5 rounded shadow whitespace-nowrap mt-0.5"
+                                className="text-[11px] font-medium text-white px-1.5 py-0.5 rounded shadow whitespace-nowrap mt-0.5"
                                 style={{ backgroundColor: peer.user.color || '#6366f1' }}
                             >
                                 {peer.user.name || 'User'}

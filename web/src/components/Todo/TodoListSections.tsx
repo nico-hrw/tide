@@ -337,7 +337,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 ">
                     {section.title}
                   </span>
-                  <span className="text-[10px] font-medium text-t2-ink-3 ">
+                  <span className="text-[11px] font-medium text-t2-ink-3 ">
                     {section.tasks.length}
                   </span>
                   <div className="h-px flex-1 bg-t2-stage " />
@@ -414,9 +414,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 />
                 <CheckCircle2 size={15} className="text-emerald-500" />
                 <span>Kürzlich erledigt</span>
-                <span className="text-[10px] text-t2-ink-3  font-normal">(letzte 7 Tage)</span>
+                <span className="text-[11px] text-t2-ink-3  font-normal">(letzte 7 Tage)</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-t2-hover  text-t2-ink-2 ">
+              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-t2-hover  text-t2-ink-2 ">
                 {recentlyCompletedTasks.length}
               </span>
             </motion.button>
@@ -477,9 +477,9 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     />
                     <Archive size={15} className="text-t2-ink-2 " />
                     <span>Archiv</span>
-                    <span className="text-[10px] text-t2-ink-3  font-normal">(&gt; 7 Tage)</span>
+                    <span className="text-[11px] text-t2-ink-3  font-normal">(&gt; 7 Tage)</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-t2-hover  text-t2-ink-2 ">
+                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-t2-hover  text-t2-ink-2 ">
                     {archivedTasks.length}
                   </span>
                 </button>
@@ -522,7 +522,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                                   <span className="text-xs font-bold text-t2-ink ">
                                     {tierCfg.label}
                                   </span>
-                                  <span className="text-[10px] text-t2-ink-3  font-normal">
+                                  <span className="text-[11px] text-t2-ink-3  font-normal">
                                     ({tierCfg.sublabel})
                                   </span>
                                 </div>

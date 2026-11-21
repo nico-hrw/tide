@@ -386,7 +386,7 @@ export default function EventPopover({
                     {event.shading !== undefined && event.shading > 0 && (
                         <button 
                             onClick={() => onEventSave(event.id, { shading: 0 })}
-                            className="ml-auto text-[10px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg font-bold uppercase tracking-wider"
+                            className="ml-auto text-[11px] bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400 px-2 py-1 rounded-lg font-bold uppercase tracking-wider"
                             title="Graustufe entfernen (Legacy)"
                         >
                             Graustufe entfernen
@@ -408,21 +408,21 @@ export default function EventPopover({
                         })()}
                     </span>
                     {isCancelled && (
-                        <span className="text-[9px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-500/20 px-1.5 py-0.5 rounded">
+                        <span className="text-[11px] font-bold uppercase tracking-wider text-red-600 dark:text-red-400 bg-red-100/80 dark:bg-red-500/20 px-1.5 py-0.5 rounded">
                             Abgesagt
                         </span>
                     )}
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-t2-ink-2 ">
                     {event.allDay ? (
-                        <span className="font-bold uppercase tracking-wider text-[10px] bg-t2-stage  px-2 py-0.5 rounded-full">Ganztägig</span>
+                        <span className="font-bold uppercase tracking-wider text-[11px] bg-t2-stage  px-2 py-0.5 rounded-full">Ganztägig</span>
                     ) : (
                         <>
                             <Clock size={12} className="text-t2-ink-3 " />
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>
                             <span className="text-t2-ink-3 ">→</span>
                             <span className="font-medium">{format(new Date(event.end), "HH:mm")}</span>
-                            <span className="text-[10px] text-t2-ink-2  bg-t2-stage  px-1.5 py-0.5 rounded-full font-bold ml-0.5">
+                            <span className="text-[11px] text-t2-ink-2  bg-t2-stage  px-1.5 py-0.5 rounded-full font-bold ml-0.5">
                                 {(() => { const m = Math.round((new Date(event.end).getTime() - new Date(event.start).getTime()) / 60000); return m >= 60 ? `${Math.floor(m / 60)}h${m % 60 > 0 ? ` ${m % 60}m` : ''}` : `${m}m`; })()}
                             </span>
                         </>
@@ -435,9 +435,9 @@ export default function EventPopover({
                 {/* Tags: first selected tag sets the style/color */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
-                        <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest">Tags</span>
+                        <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest">Tags</span>
                         {pickerValue.length > 0 && (
-                            <span className="text-[9px] text-t2-ink-3 font-medium">Der erste Tag bestimmt die Farbe</span>
+                            <span className="text-[11px] text-t2-ink-3 font-medium">Der erste Tag bestimmt die Farbe</span>
                         )}
                     </div>
                     <TagPicker tags={themes} value={pickerValue} onChange={updateGroupIds} onCreate={createTag} compact />
@@ -448,7 +448,7 @@ export default function EventPopover({
 
                 {/* Wiederholen */}
                 <div className="flex flex-col gap-1">
-                    <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Wiederholen</span>
+                    <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Wiederholen</span>
                     <ModernDropdown
                         value={freq}
                         options={[
@@ -486,7 +486,7 @@ export default function EventPopover({
             )}
             {freq !== 'none' && (
                 <div className="flex flex-col gap-1 -mt-0.5">
-                    <span className="text-[9px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Endet am (Optional)</span>
+                    <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Endet am (Optional)</span>
                     <div className="relative flex items-center">
                         <input 
                             type="date"
@@ -530,7 +530,7 @@ export default function EventPopover({
             {/* ── Expand toggle ── */}
             <button
                 onClick={() => setIsExpanded(!isExpanded)}
-                className="flex items-center justify-center gap-2 py-1.5 text-[10px] font-bold uppercase tracking-widest text-t2-ink-3  hover:text-t2-ink-2  transition-colors group"
+                className="flex items-center justify-center gap-2 py-1.5 text-[11px] font-bold uppercase tracking-widest text-t2-ink-3  hover:text-t2-ink-2  transition-colors group"
             >
                 <div className="flex-1 h-px bg-t2-hover " />
                 <span className="flex items-center gap-1.5">

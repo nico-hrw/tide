@@ -453,7 +453,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                 }}
               >
                 <span
-                  className="text-[10px] uppercase tracking-wider"
+                  className="text-[11px] uppercase tracking-wider"
                   style={{
                     color: isTodayDate
                       ? (theme === 'dark' ? '#ffffff' : '#000000')

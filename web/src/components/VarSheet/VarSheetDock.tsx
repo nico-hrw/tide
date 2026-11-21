@@ -83,7 +83,7 @@ function ErrorBadge({ code, message }: ErrorBadgeProps) {
                     e.stopPropagation();
                     setPinned((prev) => !prev);
                 }}
-                className="w-4 h-4 rounded-full bg-red-500 text-white text-[10px] font-bold leading-none flex items-center justify-center hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-colors"
+                className="w-4 h-4 rounded-full bg-red-500 text-white text-[11px] font-bold leading-none flex items-center justify-center hover:bg-red-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-400 transition-colors"
             >
                 !
             </button>
@@ -94,7 +94,7 @@ function ErrorBadge({ code, message }: ErrorBadgeProps) {
                     className="absolute right-0 bottom-full mb-1.5 z-50 w-56 rounded-[10px] border border-t2-line bg-t2-surface px-2.5 py-2 text-[11px] leading-snug text-t2-ink shadow-float"
                 >
                     {code && (
-                        <div className="font-mono text-[10px] font-semibold text-red-500 mb-0.5">
+                        <div className="font-mono text-[11px] font-semibold text-red-500 mb-0.5">
                             {code}
                         </div>
                     )}
@@ -480,7 +480,7 @@ export function VarSheetDock({ noteId, engine, isOpen = true, onClose, initialCo
                 <span>
                     {lineLabel} · {varLabel}
                 </span>
-                <span className="font-mono text-[10px] opacity-75">Shift+↵ Block</span>
+                <span className="font-mono text-[11px] opacity-75">Shift+↵ Block</span>
             </footer>
         </aside>
     );

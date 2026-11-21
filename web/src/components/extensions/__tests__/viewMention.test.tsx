@@ -64,26 +64,37 @@ describe('ViewMentionNodeView', () => {
   const props = (viewId: string) => ({ node: { attrs: { viewId } } }) as unknown as NodeViewProps;
   const chip = () => host.querySelector('[data-view-chip]') as HTMLElement;
 
-  it('shows the live view name and dispatches viewMention:click on click', () => {
+  const nameBtn = () => host.querySelector('[data-view-open="calendar"]') as HTMLElement;
+  const todosBtn = () => host.querySelector('[data-view-open="todos"]') as HTMLElement;
+  const clickDetails = (viewId: string, el: () => HTMLElement) => {
     const spy = vi.fn();
     window.addEventListener('viewMention:click', spy);
+    act(() => root.render(<ViewMentionNodeView {...props(viewId)} />));
+    act(() => el().click());
+    window.removeEventListener('viewMention:click', spy);
+    return spy.mock.calls.map((c) => (c[0] as CustomEvent).detail);
+  };
+
+  it('shows the live view name and dispatches target calendar on a name click', () => {
     act(() => root.render(<ViewMentionNodeView {...props('v1')} />));
     expect(chip().textContent).toContain('Reise Japan');
-    act(() => chip().click());
-    window.removeEventListener('viewMention:click', spy);
-    expect(spy).toHaveBeenCalledTimes(1);
-    expect((spy.mock.calls[0][0] as CustomEvent).detail).toEqual({ viewId: 'v1' });
+    expect(clickDetails('v1', nameBtn)).toEqual([{ viewId: 'v1', target: 'calendar' }]);
+    expect(nameBtn().getAttribute('aria-label')).toBe('Kalender öffnen: Reise Japan');
+  });
+
+  it('dispatches target todos on a click on the Todos part', () => {
+    expect(clickDetails('v1', todosBtn)).toEqual([{ viewId: 'v1', target: 'todos' }]);
+    expect(todosBtn().textContent).toContain('Todos');
+    expect(todosBtn().getAttribute('aria-label')).toBe('Todos öffnen: Reise Japan');
   });
 
   it('is greyed out and does not dispatch when the view is gone', () => {
-    const spy = vi.fn();
-    window.addEventListener('viewMention:click', spy);
-    act(() => root.render(<ViewMentionNodeView {...props('gone')} />));
+    expect(clickDetails('gone', nameBtn)).toEqual([]);
+    expect(clickDetails('gone', todosBtn)).toEqual([]);
     expect(chip().textContent).toContain('Ansicht gelöscht');
     expect(chip().getAttribute('data-missing')).toBe('true');
-    act(() => chip().click());
-    window.removeEventListener('viewMention:click', spy);
-    expect(spy).not.toHaveBeenCalled();
+    expect(nameBtn().getAttribute('aria-disabled')).toBe('true');
+    expect(todosBtn().getAttribute('aria-disabled')).toBe('true');
   });
 });
 

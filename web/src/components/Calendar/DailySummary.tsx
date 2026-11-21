@@ -138,12 +138,12 @@ export default function DailySummary({
                         <div className="bg-t2-sub  p-4 rounded-3xl border border-t2-line  flex flex-col items-center gap-1">
                             <Calendar className="w-5 h-5 text-t2-accent mb-1" />
                             <span className="text-lg font-bold text-t2-ink ">{eventsToday}</span>
-                            <span className="text-[10px] font-bold text-t2-accent  uppercase tracking-tighter">Events Today</span>
+                            <span className="text-[11px] font-bold text-t2-accent  uppercase tracking-tighter">Events Today</span>
                         </div>
                         <div className="bg-emerald-50 dark:bg-emerald-500/10 p-4 rounded-3xl border border-emerald-100 dark:border-emerald-500/20 flex flex-col items-center gap-1">
                             <CheckCircle2 className="w-5 h-5 text-emerald-500 mb-1" />
                             <span className="text-lg font-bold text-t2-ink ">{completedTasksToday}</span>
-                            <span className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">Tasks Done</span>
+                            <span className="text-[11px] font-bold text-emerald-600 dark:text-emerald-400 uppercase tracking-tighter">Tasks Done</span>
                         </div>
                     </div>
 

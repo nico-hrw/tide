@@ -88,7 +88,7 @@ function GroupRow({ group, hidden, isProtected, onToggleVisibility, onUpdate, on
                                         className={cx('flex flex-col items-center gap-1 rounded-md p-1 ring-1', active ? 'ring-2 ring-t2-accent' : 'ring-t2-line hover:ring-t2-ink-3')}
                                     >
                                         <span className={cx('block h-3 w-7 rounded-sm', id !== 'none' && `effect-${id}`)} style={{ backgroundColor: color, opacity: id === 'dimmed' ? 0.55 : 1 }} />
-                                        <span className="text-[10px] font-medium text-t2-ink-3">{t(`cal.effect.${id}`)}</span>
+                                        <span className="text-[11px] font-medium text-t2-ink-3">{t(`cal.effect.${id}`)}</span>
                                     </button>
                                 );
                             })}

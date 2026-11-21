@@ -369,7 +369,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
 
                                 <div className="flex flex-col md:flex-row gap-4">
                                     <div className="flex-1">
-                                        <label className="block text-[10px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Color</label>
+                                        <label className="block text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Color</label>
                                         <div className="flex flex-wrap gap-2">
                                             {['#ef4444', '#f97316', '#f59e0b', '#10b981', '#06b6d4', '#3b82f6', '#6366f1', '#8b5cf6', '#d946ef', '#ec4899', '#64748b'].map(c => (
                                                 <button
@@ -383,7 +383,7 @@ export function ScheduleModal({ isOpen, onClose, onApply, existingThemes, notes,
                                     </div>
 
                                     <div className="w-full md:w-32">
-                                        <label className="block text-[10px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
+                                        <label className="block text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest mb-1.5 ml-1">Effect</label>
                                         <select
                                             value={themeEffect}
                                             onChange={(e) => setThemeEffect(e.target.value)}

@@ -144,7 +144,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto px-2 pb-2">
-              <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
+              <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt</p>
               {recentFiles.map((f) => (
                 <NoteRow
                   key={f.id}
@@ -156,7 +156,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                 />
               ))}
 
-              <p className="px-4 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Notizen</p>
+              <p className="px-4 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Notizen</p>
               {rootFolders.map((folder) => (
                 <FolderItem
                   key={folder.id}
@@ -199,7 +199,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
                       style={{ background: T.hov, border: `1px solid ${T.brd}`, opacity: enabled ? 1 : 0.35, minWidth: 60 }}
                     >
                       <span style={{ color: T.sec }}>{tab.icon}</span>
-                      <span className="text-[10px] font-semibold" style={{ color: T.sec }}>{tab.label}</span>
+                      <span className="text-[11px] font-semibold" style={{ color: T.sec }}>{tab.label}</span>
                     </button>
                   );
                 })}

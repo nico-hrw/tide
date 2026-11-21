@@ -267,7 +267,7 @@ export function MobileNotesTab({
                     <Folder size={16} className="text-t2-accent shrink-0" />
                   )}
                   <span className="text-sm font-semibold flex-1 truncate" style={{ color: T.pri }}>Geteilt mit mir</span>
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
                     {sharedNotes.length}
                   </span>
                 </button>
@@ -288,7 +288,7 @@ export function MobileNotesTab({
             {/* Zuletzt */}
             {recentFiles.length > 0 && (
               <div>
-                <p className="px-3 pt-2 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt bearbeitet</p>
+                <p className="px-3 pt-2 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Zuletzt bearbeitet</p>
                 {notesViewMode === 'grid' ? (
                   <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                     {recentFiles.map(renderNoteCard)}
@@ -312,7 +312,7 @@ export function MobileNotesTab({
             {/* Ordner */}
             {rootFolders.length > 0 && (
               <div>
-                <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
+                <p className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Ordner</p>
                 {notesViewMode === 'grid' ? (
                   <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                     {rootFolders.map(renderFolderCard)}
@@ -328,7 +328,7 @@ export function MobileNotesTab({
             {/* Alle Notizen */}
             {rootNotes.length > 0 && (
               <div>
-                <p className="px-3 pt-3 pb-1 text-[10px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
+                <p className="px-3 pt-3 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Alle Notizen</p>
                 {notesViewMode === 'grid' ? (
                   <div className="grid grid-cols-3 min-[480px]:grid-cols-4 gap-2 p-1">
                     {rootNotes.map(renderNoteCard)}

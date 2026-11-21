@@ -126,14 +126,14 @@ export default function DesktopMonthView({
                                             {format(day, "d")}
                                         </span>
                                         {isTod && (
-                                            <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-t2-accent text-t2-accent-ink shadow-xs">
+                                            <span className="px-1.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-t2-accent text-t2-accent-ink shadow-xs">
                                                 Heute
                                             </span>
                                         )}
                                         {holiday && (
                                             <span
                                                 title={holiday.name}
-                                                className="hidden sm:inline-block truncate text-[10px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded"
+                                                className="hidden sm:inline-block truncate text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded"
                                             >
                                                 {holiday.name}
                                             </span>
@@ -215,7 +215,7 @@ export default function DesktopMonthView({
                                             title={`${ev.title}${isTimed ? ` (${format(new Date(ev.start), "HH:mm")})` : ""}`}
                                         >
                                             {isTimed && (
-                                                <span className="text-[10px] font-semibold text-t2-ink-2  shrink-0">
+                                                <span className="text-[11px] font-semibold text-t2-ink-2  shrink-0">
                                                     {format(new Date(ev.start), "HH:mm")}
                                                 </span>
                                             )}
@@ -236,7 +236,7 @@ export default function DesktopMonthView({
                                             e.stopPropagation();
                                             onDayClick(day);
                                         }}
-                                        className="text-[10px] font-bold text-t2-accent  hover:underline px-1 pt-0.5 cursor-pointer"
+                                        className="text-[11px] font-bold text-t2-accent  hover:underline px-1 pt-0.5 cursor-pointer"
                                     >
                                         +{hiddenCount} weitere
                                     </div>

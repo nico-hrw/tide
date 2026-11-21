@@ -1077,7 +1077,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             <Folder size={14} />
                             <span>Ordner</span>
                             {allFolders.length > 0 && (
-                              <span className="px-1 py-0.2 rounded-full text-[9px] bg-t2-sub  text-t2-accent  font-semibold">
+                              <span className="px-1 py-0.2 rounded-full text-[11px] bg-t2-sub  text-t2-accent  font-semibold">
                                 {allFolders.length}
                               </span>
                             )}
@@ -1166,7 +1166,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                                 setSelectedDateFilter(null);
                                 setIsFilterMenuOpen(false);
                               }}
-                              className="text-[10px] text-t2-accent  hover:underline cursor-pointer"
+                              className="text-[11px] text-t2-accent  hover:underline cursor-pointer"
                             >
                               Zurücksetzen
                             </button>

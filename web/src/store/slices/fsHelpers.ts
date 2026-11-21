@@ -281,6 +281,10 @@ export function mergeMetadataCache(
     return merged;
 }
 
+function normalizeNoteTagIds(raw: unknown): string[] {
+    return Array.isArray(raw) ? raw.filter((t): t is string => typeof t === 'string') : [];
+}
+
 export async function decryptAndNormalizeFileItem(
     file: RawFileItem,
     privateKey: CryptoKey | null,
@@ -320,6 +324,9 @@ export async function decryptAndNormalizeFileItem(
                 color: (typeof cached.color === 'string' && cached.color) || (typeof file.metadata?.color === 'string' ? file.metadata.color : undefined) || (file.color as string | undefined),
                 safe: cachedSafe || 'Standard',
             };
+            if (file.type !== 'event' && file.type !== 'folder') {
+                normalizedCached.tagIds = normalizeNoteTagIds(cached.tagIds ?? file.metadata?.tagIds);
+            }
             return {
                 item: normalizedCached,
                 type: file.type === 'event' ? 'event' : 'note',
@@ -445,6 +452,9 @@ export async function decryptAndNormalizeFileItem(
         };
     }
 
+    if (file.type !== 'folder') {
+        normalizedItem.tagIds = normalizeNoteTagIds(file.metadata?.tagIds ?? metaData.tagIds);
+    }
     return {
         item: normalizedItem,
         type: 'note',
