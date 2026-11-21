@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { timelinePlacementClasses } from '../NoteHistoryTimeline';
+import { HISTORY_GUTTER_PX, timelineGutterClasses, timelinePlacementClasses, timelineWrapperClasses } from '../NoteHistoryTimeline';
 
 describe('timelinePlacementClasses', () => {
   it('closed: anchored inside the container, no surface, no pointer events', () => {
@@ -17,5 +17,20 @@ describe('timelinePlacementClasses', () => {
     expect(c.panel).toContain('right-4');
     expect(c.panel).toContain('z-30');
     expect(c.panel).toContain('bg-t2-surface');
+  });
+});
+
+describe('history gutter', () => {
+  it('open: wrapper margin matches the container padding', () => {
+    const pad = timelineGutterClasses({ open: true });
+    const wrap = timelineWrapperClasses({ open: true });
+    expect(pad).toBe(`lg:pr-[${HISTORY_GUTTER_PX}px]`);
+    expect(wrap).toContain(`lg:-mr-[${HISTORY_GUTTER_PX}px]`);
+    expect(wrap).toContain('sticky');
+  });
+
+  it('closed: no reserve, no negative margin', () => {
+    expect(timelineGutterClasses({ open: false })).toBe('');
+    expect(timelineWrapperClasses({ open: false })).not.toMatch(/-mr-|pr-/);
   });
 });

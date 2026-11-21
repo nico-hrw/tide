@@ -19,10 +19,23 @@ interface NoteHistoryTimelineProps {
     onClose?: () => void;
 }
 
+/** Width reserved at the right of the scroll container while the history is open (the literal classes below must use the same number). */
+export const HISTORY_GUTTER_PX = 300;
+
+/** Padding of the scroll container: the sheet shifts left to leave the gutter free. */
+export function timelineGutterClasses({ open }: { open: boolean }): string {
+    return open ? "lg:pr-[300px]" : "";
+}
+
+/** The wrapper is an in-flow child of the padded container; the negative margin lets it reach the container's real right edge so `right-4` is measured from there. */
+export function timelineWrapperClasses({ open }: { open: boolean }): string {
+    return `sticky top-0 h-0 z-30 pointer-events-none ${open ? "lg:-mr-[300px]" : ""}`.trim();
+}
+
 /** Placement of the panel: anchored inside the scroll container's right edge (never past it), on top of the sheet margin if need be. */
 export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper: string; panel: string } {
     return {
-        wrapper: "sticky top-0 h-0 z-30 pointer-events-none",
+        wrapper: timelineWrapperClasses({ open }),
         panel: `t2-vtl absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none] ${
             open ? "open pointer-events-auto z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3" : ""
         }`,

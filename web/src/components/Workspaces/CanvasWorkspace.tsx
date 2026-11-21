@@ -20,7 +20,7 @@ import SaveStateIcon from '@/components/Editor/SaveStateIcon';
 import NoteOutline from '@/components/Editor/NoteOutline';
 import NoteHistoryLabel from '@/components/Editor/NoteHistoryLabel';
 import NoteHeaderActions from '@/components/Workspaces/NoteHeaderActions';
-import NoteHistoryTimeline from '@/components/Editor/NoteHistoryTimeline';
+import NoteHistoryTimeline, { timelineGutterClasses } from '@/components/Editor/NoteHistoryTimeline';
 import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
 import NoteSettingsMenuComponent from './NoteSettingsMenu';
@@ -360,7 +360,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         <div className={`flex-1 min-h-0 relative ${isHidden ? 'hidden' : 'flex flex-col'}`}>
             {/* Note and VarSheet sit side by side: the sheet takes its own column, so it can never cover the page. */}
             <div className="flex-1 min-h-0 relative flex">
-            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${isHistoryMode ? 'lg:pr-[300px]' : ''}`}>
+            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${timelineGutterClasses({ open: isHistoryMode })}`}>
                 {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
             {!isHidden && !isLoadingContent && timeline}
             {isLoadingContent ? (
