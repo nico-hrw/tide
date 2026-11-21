@@ -143,6 +143,8 @@ async function putEventWithConflictRetry(baseId: string, event: CalendarEventRec
                         syncVersionInStore(baseId, retryData.version);
                     }
                 }
+            } else if (strict) {
+                throw new Error("Event save conflict without current version");
             }
         } catch (e) {
             if (strict) throw e;

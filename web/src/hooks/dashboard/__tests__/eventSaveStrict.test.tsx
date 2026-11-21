@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import React, { act } from 'react';
+import React, { act, useEffect } from 'react';
 import { createRoot } from 'react-dom/client';
 import { useCalendarActions, type UseCalendarActionsReturn } from '../useCalendarActions';
 import { useDataStore } from '@/store/useDataStore';
@@ -18,14 +18,15 @@ vi.mock('@/lib/cryptoV2', () => ({
 
 const key = {} as CryptoKey;
 function hook(keys: CryptoKey | null): UseCalendarActionsReturn {
-    let api: UseCalendarActionsReturn | null = null;
-    const Probe = () => {
-        api = useCalendarActions({ publicKey: keys, privateKey: keys, myId: 'me' });
+    const out: { current: UseCalendarActionsReturn | null } = { current: null };
+    const Probe = ({ onApi }: { onApi: (a: UseCalendarActionsReturn) => void }) => {
+        const api = useCalendarActions({ publicKey: keys, privateKey: keys, myId: 'me' });
+        useEffect(() => { onApi(api); });
         return null;
     };
     const root = createRoot(document.createElement('div'));
-    act(() => root.render(<Probe />));
-    return api as unknown as UseCalendarActionsReturn;
+    act(() => root.render(<Probe onApi={(a) => { out.current = a; }} />));
+    return out.current as unknown as UseCalendarActionsReturn;
 }
 
 describe('handleEventSave strict option', () => {
@@ -55,5 +56,11 @@ describe('handleEventSave strict option', () => {
         await expect(hook(null).handleEventSave('e1', { groupIds: [] })).resolves.toBeUndefined();
         await expect(hook(key).handleEventSave('zzz', { groupIds: [] }, { strict: true })).rejects.toThrow();
         await expect(hook(key).handleEventSave('zzz', { groupIds: [] })).resolves.toBeUndefined();
+    });
+
+    it('strict: rejects when a 409 carries no current_version, default stays silent', async () => {
+        vi.mocked(apiFetch).mockResolvedValue({ ok: false, status: 409, json: async () => ({}) } as Response);
+        await expect(hook(key).handleEventSave('e1', { groupIds: [] }, { strict: true })).rejects.toThrow();
+        await expect(hook(key).handleEventSave('e1', { groupIds: [] })).resolves.toBeUndefined();
     });
 });

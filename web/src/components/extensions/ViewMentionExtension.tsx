@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React from 'react';
 import { Node, mergeAttributes } from '@tiptap/core';
 import { NodeViewWrapper, ReactNodeViewRenderer, NodeViewProps } from '@tiptap/react';
 import { useDataStore } from '@/store/useDataStore';
@@ -21,12 +21,12 @@ export const ViewMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
     const view = resolveViewMention(viewId, views);
     const colors = view ? viewDotColors(view, selectTags(notes)) : [];
 
-    const handleClick = useCallback((e: React.MouseEvent) => {
+    const handleClick = (e: React.MouseEvent) => {
         e.preventDefault();
         e.stopPropagation();
         if (!view) return;
         window.dispatchEvent(new CustomEvent('viewMention:click', { detail: { viewId } }));
-    }, [view, viewId]);
+    };
 
     return (
         <NodeViewWrapper style={{ display: 'inline' }}>
