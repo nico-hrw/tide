@@ -6,6 +6,9 @@ import type { TaskItem } from '@/store/slices/types';
 import { getTaskPriority, PRIORITY_OPTIONS, type Priority } from './types';
 import { TodoProgressRing, CheckMark } from './MobileTodoParts';
 import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
+import TagPicker from '@/components/Tags/TagPicker';
+import { useTagCreate } from '@/components/Tags/useTagCreate';
+import { useTagRegistry } from './useTodoTags';
 
 /** Vollansicht eines Todos am Handy: Eigenschaften bearbeitbar, großer Ring und alle Untertodos. */
 export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
@@ -21,6 +24,8 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
   const updateTask = useDataStore((s) => s.updateTask);
   const deleteTask = useDataStore((s) => s.deleteTask);
   const [draft, setDraft] = useState('');
+  const { tags: allTags } = useTagRegistry();
+  const createTag = useTagCreate();
   const isSubtask = !!task.parentId;
   const maxDate = subtaskDateMax(task, parent)?.slice(0, 10);
 
@@ -68,12 +73,6 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
 
   const savePriority = (value: string) => {
     void updateTask(task.id, { priority: value as Priority });
-  };
-
-  const saveFolder = (value: string) => {
-    const folder = value.trim() || undefined;
-    if (folder === (task.folder || undefined)) return;
-    void updateTask(task.id, { folder });
   };
 
   return (
@@ -133,16 +132,13 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
               ))}
             </select>
           </Fact>
-          <Fact label="Ordner">
-            <input
-              key={`folder-${task.id}-${task.folder ?? ''}`}
-              defaultValue={task.folder || ''}
-              placeholder="Kein Ordner"
-              onBlur={(e) => saveFolder(e.target.value)}
-              onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
-              aria-label="Ordner"
-              enterKeyHint="done"
-              className="w-full bg-transparent text-right text-t2-ink outline-none placeholder:text-t2-ink-3"
+          <Fact label="Tags">
+            <TagPicker
+              tags={allTags}
+              value={task.tags ?? []}
+              onChange={(tags) => { void updateTask(task.id, { tags }); }}
+              onCreate={createTag}
+              compact
             />
           </Fact>
         </div>

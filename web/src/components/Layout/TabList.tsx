@@ -28,6 +28,10 @@ import Avatar from '../Profile/Avatar';
 import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
+import TabHoverPreview, { type TabPreviewTarget } from './TabHoverPreview';
+
+/** Delay before the hover preview of a tab appears. */
+const PREVIEW_DELAY_MS = 450;
 
 export interface Tab {
     id: string;
@@ -98,6 +102,21 @@ export default function TabList({
     const scrollRef = useRef<HTMLDivElement>(null);
     const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
     const pluginMenuRef = useRef<HTMLDivElement>(null);
+    const [preview, setPreview] = useState<TabPreviewTarget | null>(null);
+    const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+    const hidePreview = () => {
+        if (previewTimer.current) clearTimeout(previewTimer.current);
+        previewTimer.current = null;
+        setPreview(null);
+    };
+    const schedulePreview = (tab: Tab, el: HTMLElement) => {
+        hidePreview();
+        previewTimer.current = setTimeout(() => {
+            setPreview({ id: tab.id, title: getTabLabel(tab), isNote: tab.type === 'file', rect: el.getBoundingClientRect() });
+        }, PREVIEW_DELAY_MS);
+    };
+    useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current); }, []);
 
     useEffect(() => {
         if (!isPluginMenuOpen) return;
@@ -221,7 +240,9 @@ export default function TabList({
                                                     onTabSelect(tab.id, tab.type);
                                                 }
                                             }}
-                                            title={getTabLabel(tab)}
+                                            onMouseEnter={(e) => schedulePreview(tab, e.currentTarget)}
+                                            onMouseLeave={hidePreview}
+                                            onPointerDown={hidePreview}
                                             style={{ borderRadius: DT.radius }}
                                             className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[100px] border
                                                 ${isActive
@@ -281,6 +302,8 @@ export default function TabList({
 
                 </div>
             </div>
+
+            {preview && <TabHoverPreview target={preview} />}
 
             {/* Zone 3: Right balanced zone (Plugin Slot, Dropdown & Profile) */}
             <div className="flex items-center justify-end gap-2 flex-1 min-w-0 shrink-0">

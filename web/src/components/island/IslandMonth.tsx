@@ -1,11 +1,9 @@
 'use client';
 
-import React, { useMemo } from 'react';
+import React from 'react';
 import { addDays, endOfMonth, endOfWeek, isSameDay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns';
 import { Plus } from 'lucide-react';
-import { useCalendarEvents, useWeekStartsOn } from '@/store/useDataStore';
-import { getEventsForDate, type CalendarEvent } from '@/lib/calendarUtils';
-import { dayKey } from './islandLogic';
+import { useWeekStartsOn } from '@/store/useDataStore';
 import type { IslandModel } from './useIslandModel';
 import { useIslandText } from './islandText';
 import { paletteFor } from '@/components/Layout/mobile/eventPalette';
@@ -17,27 +15,19 @@ interface IslandMonthProps {
     onSelectDate?: (d: Date) => void;
 }
 
-/** Ruhezustand: Monatsraster ohne Terminliste. Heute ist rot markiert, Tage mit Terminen haben einen Punkt. */
+/** Ruhezustand: Monatsraster ohne Terminliste und ohne Punkte. Heute ist rot markiert, der gewählte Tag hat einen Ring. */
 export default function IslandMonth({ model, selectedDate, onSelectDate }: IslandMonthProps) {
     const text = useIslandText();
     const weekStartsOn = useWeekStartsOn();
-    const { events } = useCalendarEvents();
     const shown = selectedDate ?? model.now;
 
-    const days = useMemo(() => {
+    const days = React.useMemo(() => {
         const first = startOfWeek(startOfMonth(shown), { weekStartsOn });
         const last = endOfWeek(endOfMonth(shown), { weekStartsOn });
         const out: Date[] = [];
         for (let d = first; d <= last; d = addDays(d, 1)) out.push(d);
         return out;
     }, [shown, weekStartsOn]);
-
-    const withEvents = useMemo(() => {
-        const raw = events as unknown as CalendarEvent[];
-        const set = new Set<string>();
-        for (const d of days) if (getEventsForDate(d, raw).length > 0) set.add(dayKey(d));
-        return set;
-    }, [days, events]);
 
     const heads = days.slice(0, 7);
 
@@ -62,7 +52,7 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
                     <Plus size={16} strokeWidth={1.8} />
                 </button>
             </div>
-            <div className="grid h-4 grid-cols-7 text-center text-[11px] font-semibold text-t2-ink-3">
+            <div className="grid h-4 grid-cols-7 text-center text-[11px] font-semibold text-t2-ink-2">
                 {heads.map((d) => (
                     <span key={d.getDay()}>{text.weekdayShort(d).charAt(0)}</span>
                 ))}
@@ -78,16 +68,13 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
                             type="button"
                             tabIndex={-1}
                             onClick={(e) => { e.stopPropagation(); onSelectDate?.(d); }}
-                            className={`relative z-0 grid place-items-center text-[11.5px] ${
-                                today ? 'font-bold text-t2-bg' : inMonth ? 'text-t2-ink-2' : 'text-t2-ink-3 opacity-50'
+                            className={`relative z-0 grid place-items-center text-[12px] ${
+                                today ? 'font-bold text-white' : picked ? 'font-semibold text-t2-ink' : inMonth ? 'font-medium text-t2-ink' : 'text-t2-ink-3 opacity-60'
                             }`}
                         >
-                            {today && <span className="absolute -z-10 h-5 w-5 rounded-full bg-t2-now" />}
-                            {picked && <span className="absolute -z-10 h-5 w-5 rounded-full bg-t2-hover" />}
+                            {today && <span className="absolute -z-10 h-6 w-6 rounded-full bg-t2-now shadow-sm" />}
+                            {picked && <span className="absolute -z-10 h-6 w-6 rounded-full bg-t2-hover ring-[1.5px] ring-t2-ink-3" />}
                             {d.getDate()}
-                            {!today && withEvents.has(dayKey(d)) && (
-                                <span className="absolute bottom-px h-[3px] w-[3px] rounded-full bg-current opacity-50" />
-                            )}
                         </button>
                     );
                 })}

@@ -36,15 +36,21 @@ export function timelineWrapperClasses({ open }: { open: boolean }): string {
 export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper: string; panel: string } {
     return {
         wrapper: timelineWrapperClasses({ open }),
-        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none] ${
+        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-hidden ${
             open ? "open pointer-events-auto z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3" : ""
         }`,
     };
 }
 
-const MIN_GAP = 88;
+/** Preferred and hard-minimum distance between two save points. */
+const MAX_GAP = 88;
+const MIN_GAP = 36;
 const TOP_PAD = 12;
-const BOTTOM_PAD = 96;
+/** Room below the last point for the active entry's restore button. */
+const BOTTOM_PAD = 72;
+/** Panel chrome: `top-20` offset, bottom margin, and the header row with its padding. */
+const PANEL_OFFSET = 96;
+const HEADER_H = 48;
 
 function formatWhen(iso: string): string {
     const d = new Date(iso);
@@ -92,23 +98,36 @@ export default function NoteHistoryTimeline({
         return () => ro.disconnect();
     }, []);
 
+    // The panel never scrolls: it is as tall as the visible area, and the points are squeezed (or the oldest ones left out) to fit.
+    const panelHeight = Math.max(height - PANEL_OFFSET, 220);
+    const usable = Math.max(panelHeight - HEADER_H - TOP_PAD - BOTTOM_PAD, MIN_GAP);
+    const maxPoints = Math.max(2, Math.floor(usable / MIN_GAP) + 1);
+    const shown = useMemo(() => points.slice(0, maxPoints), [points, maxPoints]);
+
     const tops = useMemo(() => {
-        const times = points.map((p) => new Date(p.updatedAt || p.timestamp || "").getTime());
-        const newest = Math.max(...times.filter((t) => !isNaN(t)), 0);
-        const oldest = Math.min(...times.filter((t) => !isNaN(t)), newest);
+        const times = shown.map((p) => new Date(p.updatedAt || p.timestamp || "").getTime());
+        const valid = times.filter((t) => !isNaN(t));
+        const newest = Math.max(...valid, 0);
+        const oldest = Math.min(...valid, newest);
         const span = Math.max(newest - oldest, 1);
-        const usable = Math.max(height - TOP_PAD - BOTTOM_PAD, MIN_GAP);
+        const gap = Math.min(MAX_GAP, usable / Math.max(shown.length - 1, 1));
         const out: number[] = [];
-        points.forEach((_, i) => {
+        shown.forEach((_, i) => {
             const t = isNaN(times[i]) ? oldest : times[i];
             let top = TOP_PAD + ((newest - t) / span) * usable;
-            if (i > 0) top = Math.max(top, out[i - 1] + MIN_GAP);
+            if (i > 0) top = Math.max(top, out[i - 1] + gap);
             out.push(top);
         });
+        const last = out[out.length - 1] ?? 0;
+        const limit = TOP_PAD + usable;
+        if (last > limit) {
+            const k = (limit - TOP_PAD) / Math.max(last - TOP_PAD, 1);
+            return out.map((v) => TOP_PAD + (v - TOP_PAD) * k);
+        }
         return out;
-    }, [points, height]);
+    }, [shown, usable]);
 
-    const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
+    const trackHeight = panelHeight - HEADER_H;
 
     const cls = timelinePlacementClasses({ open });
     return (
@@ -116,7 +135,7 @@ export default function NoteHistoryTimeline({
             <div
                 ref={wrapRef}
                 className={cls.panel}
-                style={{ height }}
+                style={{ height: panelHeight }}
                 role="region"
                 aria-label="Versionsverlauf"
                 aria-hidden={!open}
@@ -130,8 +149,8 @@ export default function NoteHistoryTimeline({
                     )}
                 </div>
                 <div className="relative" style={{ height: trackHeight }}>
-                    <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" style={open ? { height: "100%" } : undefined} />
-                    {points.map((p, i) => {
+                    <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" />
+                    {shown.map((p, i) => {
                         const on = i === activeIndex;
                         return (
                             <div

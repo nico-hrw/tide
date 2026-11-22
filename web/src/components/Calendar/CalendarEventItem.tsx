@@ -370,7 +370,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const effectStyle = !isCancelled ? getEffectStyle(event.effect) : undefined;
 
     const isTimePoint = durationMinutes === 0;
-    const isShortEvent = !isTimePoint && durationMinutes < 40;
+    const isShortEvent = !isTimePoint && durationMinutes < 50;
     const minRenderedMinutes = isTimePoint ? 0 : Math.max(durationMinutes, 5);
 
     let style: any;
@@ -544,7 +544,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 75 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -677,7 +677,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </span>
                 </div>
             ) : isShortEvent ? (
-                /* Short event (< 40 min): Single-row compact layout with clear title & inline time */
+                /* Short event (< 50 min): Single-row compact layout with clear title & inline time */
                 <div className="relative z-10 flex items-center h-full w-full overflow-hidden gap-1.5 min-w-0 pr-5">
                     {event.is_task && (
                         <button

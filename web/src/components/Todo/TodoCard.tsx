@@ -58,7 +58,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
   const surface = dark
     ? 'bg-cal-praktikum text-white'
     : 'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink';
-  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-t2-ink/20') : '';
+  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-black/20 dark:ring-white/25') : '';
   const muted = dark ? 'text-white/70' : 'text-t2-ink-3';
 
   return (
@@ -67,7 +67,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       tabIndex={0}
       onClick={() => onActivate(task)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onActivate(task); }}
-      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-t2-ink/15 ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
+      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-black/15 dark:hover:ring-white/20 ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
     >
       <div className={`w-[54px] shrink-0 text-center leading-[1.15] pt-px ${muted}`}>
         {due && (today ? (
@@ -88,7 +88,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
         />
       </div>
       <span className="w-[18px] h-5 grid place-items-center shrink-0">
-        <TodoPriorityIcon priority={priority} size={16} inherit={dark} className={dark ? 'text-white/85' : undefined} />
+        <TodoPriorityIcon priority={priority} size={16} onDark={dark} />
       </span>
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
@@ -97,7 +97,6 @@ export const TodoCard: React.FC<TodoCardProps> = ({
             <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>
           )}
         </div>
-        {task.folder && <small className={`block text-[12.5px] ${muted}`}>{task.folder}</small>}
         {subs.length > 0 && (
           <div className="mt-2.5 flex flex-col gap-[7px]">
             {shown.map((s) => {

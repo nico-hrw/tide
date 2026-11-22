@@ -27,7 +27,7 @@ export const NoteTagsRow: React.FC<{ noteId: string; isOwner: boolean }> = ({ no
   if (!isOwner) return null;
   return (
     <div className="-mt-3 mb-5">
-      <TagPicker tags={registry} value={value} onChange={handleChange} onCreate={create} compact />
+      <TagPicker tags={registry} value={value} onChange={handleChange} onCreate={create} compact variant="hash" />
     </div>
   );
 };

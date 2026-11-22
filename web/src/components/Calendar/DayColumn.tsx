@@ -93,6 +93,13 @@ const resolveTaskColor = (task: { color?: string; priority?: string }): string |
 // Layout helper for overlapping events within a single day
 // "Background" events (group parents with children, or multi-day midpoints) are excluded
 // from collision detection so they render full-width behind all other events.
+/** Rendered events are at least ~22px tall, which is about this many minutes at the default hour height; they must not be placed on top of each other below it. */
+const MIN_VISUAL_MS = 30 * 60 * 1000;
+const visualEnd = (evt: CalendarEvent): number => {
+    const start = new Date(evt.start).getTime();
+    return Math.max(new Date(evt.end).getTime(), start + MIN_VISUAL_MS);
+};
+
 const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: CalendarEvent[], overlapMode: 'overlap' | 'stack' = 'stack') => {
     const allEvts = allEvents || timedEvents;
 
@@ -120,7 +127,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
     const sorted = [...normalEvents].sort((a, b) => {
         if (a.start === b.start) {
-            return new Date(b.end).getTime() - new Date(a.end).getTime();
+            return visualEnd(b) - visualEnd(a);
         }
         return new Date(a.start).getTime() - new Date(b.start).getTime();
     });
@@ -131,7 +138,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
     sorted.forEach(evt => {
         const start = new Date(evt.start).getTime();
-        const end = new Date(evt.end).getTime();
+        const end = visualEnd(evt);
 
         if (currentCluster.length === 0) {
             currentCluster.push(evt);
@@ -162,7 +169,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
         cluster.forEach(evt => {
             const start = new Date(evt.start).getTime();
-            const end = new Date(evt.end).getTime();
+            const end = visualEnd(evt);
 
             let placed = false;
             for (let i = 0; i < lanes.length; i++) {
@@ -195,12 +202,12 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
             cluster.forEach(evt => {
                 const lane = eventLanes.get(evt.id) || 0;
                 const start = new Date(evt.start).getTime();
-                const end = new Date(evt.end).getTime();
+                const end = visualEnd(evt);
                 let span = 1;
                 for (let next = lane + 1; next < laneCount; next++) {
                     const blocked = cluster.some(other => {
                         if (other.id === evt.id || eventLanes.get(other.id) !== next) return false;
-                        return new Date(other.start).getTime() < end && new Date(other.end).getTime() > start;
+                        return new Date(other.start).getTime() < end && visualEnd(other) > start;
                     });
                     if (blocked) break;
                     span++;
@@ -1033,7 +1040,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         
                         {/* Minimal Label */}
                         {currentEventInfo && (
-                            <div className="absolute left-3 -top-[14px] text-[11px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
+                            <div className="absolute right-1 -top-[14px] text-[11px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
                                 {currentEventInfo} left
                             </div>
                         )}

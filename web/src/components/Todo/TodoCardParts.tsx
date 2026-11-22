@@ -11,6 +11,13 @@ export const T2_PRIORITY_COLOR: Record<Priority, string> = {
   low: '#7E9A83',
 };
 
+/** Auf der grünen Heute-Karte würden die normalen Farben verschwinden (Niedrig ist dort sogar gleichfarbig), deshalb hellere Varianten. */
+export const T2_PRIORITY_COLOR_ON_DARK: Record<Priority, string> = {
+  high: '#FFB38A',
+  medium: '#FFE08A',
+  low: '#C9F2D0',
+};
+
 export const T2_PRIORITY_LABEL: Record<Priority, string> = {
   high: 'Hoch',
   medium: 'Mittel',
@@ -21,11 +28,11 @@ interface PriorityIconProps {
   priority: Priority;
   size?: number;
   className?: string;
-  /** Farbe vom Elternelement erben (z. B. weiß auf der grünen Heute-Karte). */
-  inherit?: boolean;
+  /** Icon liegt auf der grünen Heute-Karte: helle, aber weiterhin farbige Varianten. */
+  onDark?: boolean;
 }
 
-export const TodoPriorityIcon: React.FC<PriorityIconProps> = ({ priority, size = 16, className, inherit }) => {
+export const TodoPriorityIcon: React.FC<PriorityIconProps> = ({ priority, size = 16, className, onDark }) => {
   const Icon = priority === 'high' ? ChevronUp : priority === 'low' ? ChevronDown : Minus;
   return (
     <Icon
@@ -33,7 +40,7 @@ export const TodoPriorityIcon: React.FC<PriorityIconProps> = ({ priority, size =
       strokeWidth={2.4}
       aria-label={`Priorität ${T2_PRIORITY_LABEL[priority]}`}
       className={className}
-      style={inherit ? undefined : { color: T2_PRIORITY_COLOR[priority] }}
+      style={{ color: (onDark ? T2_PRIORITY_COLOR_ON_DARK : T2_PRIORITY_COLOR)[priority] }}
     />
   );
 };

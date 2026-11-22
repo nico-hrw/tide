@@ -26,6 +26,9 @@ import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
 
+/** How long a loaded note stays hidden before it fades in. */
+const REVEAL_DELAY_MS = 500;
+
 export default function Editor(props: EditorProps) {
     const [mounted, setMounted] = useState(false);
     useEffect(() => { setMounted(true); }, []);
@@ -535,6 +538,15 @@ function CollaborativeEditor(props: EditorProps) {
         handleInkStrokesChange(remaining);
     }, [selectedStrokeIds, inkStrokes, handleInkStrokesChange]);
 
+    // The note is rendered right away but only shown after a short hold, so it fades in as one piece instead of building up on screen.
+    const ready = Boolean(editor) && (!provider || isSynced);
+    const [revealed, setRevealed] = useState(false);
+    useEffect(() => {
+        if (!ready) { setRevealed(false); return; }
+        const timer = setTimeout(() => setRevealed(true), REVEAL_DELAY_MS);
+        return () => clearTimeout(timer);
+    }, [ready]);
+
     if (isNoteTab && !activeDek) {
         return (
             <div className="flex flex-col items-center justify-center min-h-[200px] text-muted-foreground/60 text-sm gap-2">
@@ -558,6 +570,15 @@ function CollaborativeEditor(props: EditorProps) {
 
     return (
         <div className="editor-container w-full max-w-full overflow-x-hidden relative">
+            {!revealed && (
+                <div className="absolute inset-x-0 top-0 flex justify-center pt-24 pointer-events-none" aria-hidden>
+                    <div className="w-5 h-5 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+                </div>
+            )}
+            <div
+                className={`transition-opacity duration-300 ease-out ${revealed ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+                style={{ willChange: revealed ? undefined : 'opacity' }}
+            >
             <FormatSearch editor={editor} />
             <TableCellBar editor={editor} />
             <EditorBubbleMenu
@@ -652,6 +673,7 @@ function CollaborativeEditor(props: EditorProps) {
             )}
 
             <EditorInlineSearch editor={editor} />
+            </div>
         </div>
     );
 }

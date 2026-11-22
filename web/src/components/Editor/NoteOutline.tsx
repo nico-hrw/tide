@@ -87,7 +87,7 @@ export default function NoteOutline({ editor }: NoteOutlineProps) {
                         <i key={it.pos} className={`${it.level === 1 ? "l1" : it.level === 2 ? "l2" : "l3"}${i === active ? " on" : ""}`} />
                     ))}
                 </div>
-                <div className="t2-ol-card hidden absolute -left-1 -top-1.5 min-w-[250px] max-w-[320px] py-2.5 px-2 rounded-[14px] bg-t2-surface shadow-lg ring-1 ring-t2-line">
+                <div className="t2-ol-card absolute -left-1 -top-1.5 min-w-[250px] max-w-[320px] py-2.5 px-2 rounded-[14px] bg-t2-surface shadow-lg ring-1 ring-t2-line">
                     {items.map((it, i) => (
                         <button
                             key={it.pos}

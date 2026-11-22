@@ -395,6 +395,17 @@ export default function Dashboard() {
             activeTabId={activeTabId} onReturnToTab={(tabId) => setActiveTabId(tabId)} />
     );
 
+    // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
+    const mobileRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    const handleMobileNoteRename = (id: string, title: string) => {
+        if (mobileRenameTimerRef.current) clearTimeout(mobileRenameTimerRef.current);
+        if (id !== activeNoteId) { void submitRename(id, title, true); return; }
+        setFileName(title);
+        setSaveStatus("unsaved");
+        setOpenTabs((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+        mobileRenameTimerRef.current = setTimeout(() => { void submitRename(id, title, true); }, 600);
+    };
+
     const desktopContentProps: DashboardDesktopContentProps = {
         isSidebarOpen, toggleSidebarCollapse, openTabs, setOpenTabs, activeTabId, setActiveTabId,
         handleTabSelect, handleTabClose, handleNewNote, switchTab, userProfile, myId, privateKey, publicKey,
@@ -438,7 +449,7 @@ export default function Dashboard() {
                     socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
-                    userProfile={userProfile} editorElement={mobileEditorElement}
+                    userProfile={userProfile} editorElement={mobileEditorElement} onNoteRename={handleMobileNoteRename}
                     themes={mobileThemes} />
             ) : (
                 <>

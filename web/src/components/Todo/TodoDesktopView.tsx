@@ -22,7 +22,6 @@ export interface TodoDesktopViewProps {
   showArchive: boolean;
   setShowCompleted: React.Dispatch<React.SetStateAction<boolean>>;
   setShowArchive: React.Dispatch<React.SetStateAction<boolean>>;
-  folders: string[];
   completingTaskIds: Set<string>;
   initialTaskId?: string | null;
   onSelectTask?: (task: TaskItem) => void;
@@ -31,7 +30,7 @@ export interface TodoDesktopViewProps {
   onUpdateTask: (id: string, patch: Partial<TaskItem>) => void;
   onAddSubtask: (title: string, parent: TaskItem) => void | Promise<void>;
   onDeleteTask: (id: string) => void;
-  /** Inhalt über der Liste (Ordner-Banner, Erstellformular). */
+  /** Inhalt über der Liste (Erstellformular). */
   topSlot?: React.ReactNode;
 }
 
@@ -56,7 +55,7 @@ const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void
 
 export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   tasks, tasksToRender, recentlyCompletedTasks, archivedTasks, archivedByTier, filterStatus,
-  showCompleted, showArchive, setShowCompleted, setShowArchive, folders, completingTaskIds,
+  showCompleted, showArchive, setShowCompleted, setShowArchive, completingTaskIds,
   initialTaskId, onSelectTask, onToggleTask, onToggleSubtask, onUpdateTask, onAddSubtask, onDeleteTask, topSlot,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
@@ -178,7 +177,6 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
           task={selected}
           parent={parentTask}
           subtasks={subtasks}
-          folders={folders}
           onUpdate={onUpdateTask}
           onToggleSubtask={onToggleSubtask}
           onAddSubtask={onAddSubtask}

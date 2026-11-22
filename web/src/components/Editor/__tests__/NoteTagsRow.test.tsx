@@ -39,7 +39,7 @@ const chips = () => Array.from(host.querySelectorAll('[data-tag-chip]')).map((c)
 describe('NoteTagsRow', () => {
   it('shows the known tags of the note as chips for the owner', () => {
     act(() => root.render(<NoteTagsRow noteId="n1" isOwner />));
-    expect(chips()).toEqual(['Arbeit']);
+    expect(chips()).toEqual(['#Arbeit']);
     expect(host.querySelector('button[aria-label="Tag hinzufügen"]')).not.toBeNull();
   });
 

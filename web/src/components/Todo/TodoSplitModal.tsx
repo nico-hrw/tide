@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { GitFork, Plus, X, Check, ListTree, Tag, Folder, AlertCircle } from 'lucide-react';
+import { GitFork, Plus, X, Check, ListTree, Tag, AlertCircle } from 'lucide-react';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
 import { useTagRegistry } from './useTodoTags';
 import { Priority, PRIORITY_OPTIONS, TaskWithChildren, getTaskPriority } from './types';
@@ -90,7 +90,6 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
       const resolvedPriority: Priority =
         priorityChoice === 'inherit' ? getTaskPriority(parentTask) : priorityChoice;
 
-      const subtaskFolder = inheritMeta && parentTask.folder ? parentTask.folder : undefined;
       const subtaskTags = inheritMeta && parentTask.tags ? [...parentTask.tags] : [];
 
       for (let i = 0; i < parsedSubtasks.length; i++) {
@@ -98,7 +97,6 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
         await addTask({
           title,
           parentId: parentTask.id,
-          folder: subtaskFolder,
           tags: subtaskTags,
           priority: resolvedPriority,
           isCompleted: false,
@@ -176,15 +174,9 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                   {parentTask.title}
                 </span>
 
-                {/* Show badges if parent task has folder or tags */}
-                {(parentTask.folder || (parentTask.tags && parentTask.tags.length > 0)) && (
+                {/* Show badges if parent task has tags */}
+                {(parentTask.tags && parentTask.tags.length > 0) && (
                   <div className="flex flex-wrap items-center gap-1.5 mt-1 pt-1 border-t border-t2-line ">
-                    {parentTask.folder && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-medium bg-t2-sub text-t2-accent ">
-                        <Folder size={10} />
-                        <span>{parentTask.folder}</span>
-                      </span>
-                    )}
                     {resolveTags(parentTask.tags).map((tag) => (
                       <span
                         key={tag.id}
@@ -312,7 +304,7 @@ export const TodoSplitModal: React.FC<TodoSplitModalProps> = ({
                     onChange={(e) => setInheritMeta(e.target.checked)}
                     className="rounded border-t2-line  text-t2-accent focus:ring-t2-accent cursor-pointer h-4 w-4"
                   />
-                  <span>Ordner & Tags der übergeordneten Aufgabe übernehmen</span>
+                  <span>Tags der übergeordneten Aufgabe übernehmen</span>
                 </label>
               </div>
 

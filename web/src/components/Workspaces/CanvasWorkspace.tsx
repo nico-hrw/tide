@@ -361,7 +361,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         <div className={`flex-1 min-h-0 relative ${isHidden ? 'hidden' : 'flex flex-col'}`}>
             {/* Note and VarSheet sit side by side: the sheet takes its own column, so it can never cover the page. */}
             <div className="flex-1 min-h-0 relative flex">
-            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${timelineGutterClasses({ open: isHistoryMode })}`}>
+            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto ${timelineGutterClasses({ open: isHistoryMode })}`}>
                 {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
             {!isHidden && !isLoadingContent && timeline}
             {isLoadingContent ? (

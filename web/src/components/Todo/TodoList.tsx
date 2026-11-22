@@ -3,7 +3,7 @@
 import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Plus, X, ListTodo, Folder, Inbox, ArrowLeft, FolderPlus,
+  Plus, X, ListTodo, Inbox, ArrowLeft,
   ChevronRight, Archive, CheckCircle2, Circle, Calendar, Repeat, Trash2, Check, Timer, RotateCcw, Clock, History, Search, SlidersHorizontal, AlertCircle,
 } from 'lucide-react';
 import {
@@ -15,18 +15,14 @@ import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
 import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
 import TodoTagFilterPanel from './TodoTagFilterPanel';
-import TodoFolderOverview, { FolderStat } from './TodoFolderOverview';
 import TodoTreeItem from './TodoTreeItem';
 import TodoListHeader from './TodoListHeader';
-import TodoFolderBanner from './TodoFolderBanner';
 import TodoListSections from './TodoListSections';
 import TodoDateFilterStrip from './TodoDateFilterStrip';
-import TodoFolderModal from './TodoFolderModal';
 import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
 import TodoFocusedGroupView from './TodoFocusedGroupView';
 import TodoDesktopView from './TodoDesktopView';
 import { buildTaskTree } from './treeUtils';
-import { loadTodoFoldersMeta, saveTodoFoldersMeta } from '../../lib/folderColors';
 import {
   Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft, TaskWithChildren,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
@@ -43,92 +39,6 @@ export {
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
   const isDesktopVariant = variant === 'desktop';
-
-  const [viewMode, setViewMode] = useState<'tasks' | 'folders'>('tasks');
-  const [selectedFolder, setSelectedFolder] = useState<string | null>(null);
-  const [createdFolders, setCreatedFolders] = useState<string[]>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const saved = localStorage.getItem('tide_todo_folders');
-        return saved ? JSON.parse(saved) : [];
-      } catch {
-        return [];
-      }
-    }
-    return [];
-  });
-
-  const handleCreateFolder = (name: string, color?: string, showInCalendar?: boolean) => {
-    const trimmed = name.trim();
-    if (!trimmed) return;
-    setCreatedFolders((prev) => {
-      if (prev.includes(trimmed)) return prev;
-      const next = [...prev, trimmed];
-      try {
-        localStorage.setItem('tide_todo_folders', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-    try {
-      const meta = loadTodoFoldersMeta();
-      meta[trimmed] = {
-        id: trimmed,
-        name: trimmed,
-        color: color || 'blue',
-        showInCalendar: showInCalendar !== false,
-      };
-      saveTodoFoldersMeta(meta);
-    } catch {}
-  };
-
-  const handleDeleteFolder = (name: string) => {
-    setCreatedFolders((prev) => {
-      const next = prev.filter((f) => f !== name);
-      try {
-        localStorage.setItem('tide_todo_folders', JSON.stringify(next));
-      } catch {}
-      return next;
-    });
-    try {
-      const meta = loadTodoFoldersMeta();
-      delete meta[name];
-      saveTodoFoldersMeta(meta);
-    } catch {}
-    tasks.filter((t) => t.folder === name).forEach((t) => {
-      updateTask(t.id, { folder: undefined });
-    });
-    if (selectedFolder === name) {
-      setSelectedFolder(null);
-    }
-  };
-
-  const allFolders = useMemo(() => {
-    const taskFolders = tasks.map((t) => t.folder).filter(Boolean) as string[];
-    return Array.from(new Set([...taskFolders, ...createdFolders])).sort();
-  }, [tasks, createdFolders]);
-
-  const folderStats: FolderStat[] = useMemo(() => {
-    return allFolders.map((name) => {
-      const folderTasks = tasks.filter((t) => t.folder === name);
-      const total = folderTasks.length;
-      const completed = folderTasks.filter((t) => t.isCompleted).length;
-      const inProgress = folderTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length;
-      return { name, total, completed, active: total - completed - inProgress, inProgress };
-    });
-  }, [allFolders, tasks]);
-
-  const unfiledCount = useMemo(() => {
-    const unfiledTasks = tasks.filter((t) => !t.folder);
-    const total = unfiledTasks.length;
-    const completed = unfiledTasks.filter((t) => t.isCompleted).length;
-    const inProgress = unfiledTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length;
-    return { total, completed, active: total - completed - inProgress, inProgress };
-  }, [tasks]);
-
-  const selectedFolderActiveCount = useMemo(() => {
-    if (selectedFolder === null) return 0;
-    return tasks.filter((t) => (selectedFolder === '' ? !t.folder : t.folder === selectedFolder) && !t.isCompleted).length;
-  }, [tasks, selectedFolder]);
 
   const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);
   const rawTagFilter = useDataStore((st) => st.todoTagFilter);
@@ -150,7 +60,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [draft, setDraft] = useState<TaskCreateDraft>({
     title: '', description: '', priority: 'medium' as Priority,
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
-    folder: '', tags: [] as string[],
+    tags: [] as string[],
     showInCalendar: true,
   });
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -187,8 +97,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const [filterPriority, setFilterPriority] = useState<Priority | 'all'>('all');
   const [selectedDateFilter, setSelectedDateFilter] = useState<Date | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>('deadline');
-  const [isFolderModalOpen, setIsFolderModalOpen] = useState(false);
-  const [newFolderNameInput, setNewFolderNameInput] = useState('');
 
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -203,8 +111,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     if (selectedDateFilter !== null) return;
     if (hasAutoScrolledToTodayRef.current) return;
     if (tasks.length === 0) return;
-    if (viewMode !== 'tasks') return;
-
     const timer = setTimeout(() => {
       const container = listScrollRef.current;
       const todayEl = document.getElementById('todo-section-today');
@@ -219,7 +125,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }, 120);
 
     return () => clearTimeout(timer);
-  }, [tasks.length, selectedDateFilter, viewMode]);
+  }, [tasks.length, selectedDateFilter]);
 
   const cancelEditing = (id?: string) => {
     if (!id || id === editingTaskId) {
@@ -232,7 +138,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   useEffect(() => {
     if (initialTaskId) {
-      setViewMode('tasks');
       setEditingTaskId(initialTaskId);
     }
   }, [initialTaskId]);
@@ -271,7 +176,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   useEffect(() => {
     const handleNewTodoEvent = () => {
-      setViewMode('tasks');
       setIsCreateOpen(true);
       setTimeout(() => {
         titleInputRef.current?.focus();
@@ -280,9 +184,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const handleToggleFilterEvent = () => {
       setIsFilterMenuOpen((prev) => !prev);
       setIsAddMenuOpen(false);
-    };
-    const handleNewFolderEvent = () => {
-      setIsFolderModalOpen(true);
     };
 
     const handleCancelEdit = (e?: Event) => {
@@ -311,12 +212,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     const handleSelectTodo = (e: Event) => {
       const customEvent = e as CustomEvent<{ id?: string }>;
       if (customEvent.detail?.id) {
-        setViewMode('tasks');
         setEditingTaskId(customEvent.detail.id);
       }
     };
     const handleScrollToToday = () => {
-      setViewMode((prev) => (prev !== 'tasks' ? 'tasks' : prev));
       setSelectedDateFilter((prev) => (prev !== null ? null : prev));
       if (editingTaskIdRef.current) {
         cancelEditingRef.current(editingTaskIdRef.current);
@@ -335,7 +234,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
     window.addEventListener('tide:new-todo', handleNewTodoEvent);
     window.addEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
-    window.addEventListener('tide:new-todo-folder', handleNewFolderEvent);
     window.addEventListener('tide:todo-cancel-edit', handleCancelEdit);
     window.addEventListener('tide:todo-save-edit', handleSaveEdit);
     window.addEventListener('tide:todo-delete', handleDeleteTask as EventListener);
@@ -345,7 +243,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return () => {
       window.removeEventListener('tide:new-todo', handleNewTodoEvent);
       window.removeEventListener('tide:toggle-todo-filter', handleToggleFilterEvent);
-      window.removeEventListener('tide:new-todo-folder', handleNewFolderEvent);
       window.removeEventListener('tide:todo-cancel-edit', handleCancelEdit);
       window.removeEventListener('tide:todo-save-edit', handleSaveEdit);
       window.removeEventListener('tide:todo-delete', handleDeleteTask as EventListener);
@@ -396,7 +293,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     title: '', description: '', priority: 'medium' as Priority,
     status: 'todo',
     dueDate: '', recurrence: 'none' as RecurrenceType, recurrenceEnd: '',
-    folder: '', tags: [] as string[],
+    tags: [] as string[],
     showInCalendar: true,
   });
 
@@ -519,22 +416,17 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
     try {
       setIsSubmitting(true);
-      const folderVal = draft.folder.trim() || undefined;
       await addTask({
         title: draft.title.trim(), description: draft.description.trim() || undefined,
         priority: draft.priority, color: getPriorityColor(draft.priority, (draft as { color?: string }).color),
         scheduledDate: draft.dueDate || undefined, dueDate: draft.dueDate || undefined,
         recurrence: draft.recurrence, recurrence_rule: buildRecurrenceRule(draft.recurrence),
         recurrence_end: draft.recurrence !== 'none' && draft.recurrenceEnd ? draft.recurrenceEnd : undefined,
-        folder: folderVal,
         tags: draft.tags.length > 0 ? draft.tags : undefined,
         showInCalendar: draft.showInCalendar,
         isCompleted: false,
       });
-      if (folderVal && !createdFolders.includes(folderVal)) {
-        handleCreateFolder(folderVal);
-      }
-      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', folder: selectedFolder || '', tags: [], showInCalendar: true });
+      setDraft({ title: '', description: '', priority: 'medium', dueDate: '', recurrence: 'none', recurrenceEnd: '', tags: [], showInCalendar: true });
       setIsCreateOpen(false);
     } finally {
       setIsSubmitting(false);
@@ -542,9 +434,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   };
 
   const handleOpenCreateTask = () => {
-    if (viewMode === 'folders') {
-      setViewMode('tasks');
-    }
     setDraft({
       title: '',
       description: '',
@@ -552,7 +441,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       dueDate: '',
       recurrence: 'none',
       recurrenceEnd: '',
-      folder: selectedFolder || '',
       tags: [],
       showInCalendar: true,
     });
@@ -561,11 +449,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     setTimeout(() => {
       titleInputRef.current?.focus();
     }, 50);
-  };
-
-  const handleOpenCreateFolder = () => {
-    setIsFolderModalOpen(true);
-    setIsAddMenuOpen(false);
   };
 
   const lastRowClickRef = useRef<{ id: string; time: number }>({ id: '', time: 0 });
@@ -578,7 +461,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       title: task.title, description: task.description || '', priority: getTaskPriority(task),
       status: task.isCompleted ? 'completed' : (task.status || 'todo'),
       dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none', recurrenceEnd: task.recurrence_end || '',
-      folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
+      tags: task.tags ? [...task.tags] : [],
       showInCalendar: task.showInCalendar !== false,
     });
     setEditNewTagInput('');
@@ -587,7 +470,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const saveEditing = (id: string, specificDraft?: TaskEditDraft) => {
     const draftToUse = specificDraft || editDraft;
     if (!draftToUse.title.trim()) return;
-    const folderVal = draftToUse.folder ? draftToUse.folder.trim() || undefined : undefined;
     const isCompleted = draftToUse.status === 'completed';
     updateTask(id, {
       title: draftToUse.title.trim(),
@@ -601,13 +483,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       recurrence: draftToUse.recurrence,
       recurrence_rule: buildRecurrenceRule(draftToUse.recurrence),
       recurrence_end: draftToUse.recurrence !== 'none' && draftToUse.recurrenceEnd ? draftToUse.recurrenceEnd : undefined,
-      folder: folderVal,
       tags: draftToUse.tags,
       showInCalendar: draftToUse.showInCalendar,
     });
-    if (folderVal && !createdFolders.includes(folderVal)) {
-      handleCreateFolder(folderVal);
-    }
     if (id === editingTaskId) {
       setEditingTaskId(null);
     }
@@ -650,13 +528,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     };
 
     return taskTree.filter((t) => {
-      if (selectedFolder !== null) {
-        if (selectedFolder === '') {
-          if (t.folder) return false;
-        } else {
-          if (t.folder !== selectedFolder) return false;
-        }
-      }
       if (!matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds)) return false;
       const archived = isTaskArchived(t);
       if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
@@ -671,7 +542,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       if (q && !matchesSearch(t)) return false;
       return true;
     });
-  }, [taskTree, selectedFolder, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
+  }, [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -733,10 +604,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         setEditDraft={setEditDraft}
         editNewTagInput={editNewTagInput}
         setEditNewTagInput={setEditNewTagInput}
-        allFolders={allFolders}
-        selectedFolder={selectedFolder}
-        setSelectedFolder={setSelectedFolder}
-        setViewMode={setViewMode}
         handleCreateTag={ensureTag}
         handleToggleTask={handleToggleTask}
         handleToggleInProgress={handleToggleInProgress}
@@ -754,10 +621,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     editNewTagInput,
     setEditNewTagInput,
     ensureTag,
-    allFolders,
-    selectedFolder,
-    setSelectedFolder,
-    setViewMode,
     handleToggleTask,
     handleToggleInProgress,
     saveEditing,
@@ -770,9 +633,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   return (
     <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] '} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
-        viewMode={viewMode}
-        setViewMode={setViewMode}
-        selectedFolder={selectedFolder}
         activeCycleTotal={activeCycleTotal}
         activeCycleCompletedCount={activeCycleCompletedCount}
         activeCycleInProgressCount={activeCycleInProgressCount}
@@ -780,31 +640,13 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
         activeCycleOpenNonOverdueCount={activeCycleOpenNonOverdueCount}
         archivedCount={archivedCount}
         tasks={tasks}
-        allFolders={allFolders}
         setDraft={setDraft}
         setIsCreateOpen={setIsCreateOpen}
-        setIsFolderModalOpen={setIsFolderModalOpen}
         hideProgress={editingTaskId !== null}
       />
 
 
-      {viewMode === 'folders' ? (
-        <div className="flex-1 overflow-y-auto min-h-0">
-          <TodoFolderOverview
-            folders={folderStats}
-            unfiledCount={unfiledCount}
-            totalAllTasks={totalCount}
-            onSelectFolder={(folder) => {
-              setSelectedFolder(folder);
-              setViewMode('tasks');
-            }}
-            onCreateFolder={handleCreateFolder}
-            onDeleteFolder={handleDeleteFolder}
-            onBackToTasks={() => setViewMode('tasks')}
-            onAssignTaskFolder={(taskId, folderName) => updateTask(taskId, { folder: folderName || undefined })}
-          />
-        </div>
-      ) : isDesktopVariant ? (
+      {isDesktopVariant ? (
         <TodoDesktopView
           tasks={tasks}
           tasksToRender={tasksToRender}
@@ -816,7 +658,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           showArchive={showArchive}
           setShowCompleted={setShowCompleted}
           setShowArchive={setShowArchive}
-          folders={allFolders}
           completingTaskIds={completingTaskIds}
           initialTaskId={initialTaskId}
           onSelectTask={onSelectTask}
@@ -828,7 +669,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             await addTask({
               title,
               parentId: parent.id,
-              folder: parent.folder,
               tags: parent.tags ? [...parent.tags] : [],
               priority: parent.priority || 'medium',
               isCompleted: false,
@@ -838,16 +678,10 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
           }}
           topSlot={(
             <>
-              <TodoFolderBanner
-                setViewMode={setViewMode}
-                selectedFolder={selectedFolder}
-                setSelectedFolder={setSelectedFolder}
-                selectedFolderActiveCount={selectedFolderActiveCount}
-              />
               {isCreateOpen && (
                 <TodoCreateCard
                   draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                  allTags={allTags} allFolders={allFolders}
+                  allTags={allTags}
                   isSubmitting={isSubmitting} handleAddTask={handleAddTask}
                   handleCreateTag={ensureTag}
                   onClose={() => setIsCreateOpen(false)}
@@ -888,7 +722,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       await addTask({
                         title,
                         parentId,
-                        folder: focusedTask.folder,
                         tags: focusedTask.tags ? [...focusedTask.tags] : [],
                         priority: focusedTask.priority || 'medium',
                         isCompleted: false,
@@ -907,18 +740,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
                   className={`flex flex-col ${editingTaskId !== null ? 'h-full flex-1 min-h-0 gap-0' : 'gap-4 sm:gap-5'}`}
                 >
-                  <TodoFolderBanner
-                    setViewMode={setViewMode}
-                    selectedFolder={selectedFolder}
-                    setSelectedFolder={setSelectedFolder}
-                    selectedFolderActiveCount={selectedFolderActiveCount}
-                  />
-
                   {/* Task Creation Form Card (Collapsed by default) */}
                   {isCreateOpen && (
                     <TodoCreateCard
                       draft={draft} setDraft={setDraft} titleInputRef={titleInputRef}
-                      allTags={allTags} allFolders={allFolders}
+                      allTags={allTags}
                       isSubmitting={isSubmitting} handleAddTask={handleAddTask}
                       handleCreateTag={ensureTag}
                       onClose={() => setIsCreateOpen(false)}
@@ -929,7 +755,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
 
                   {/* Horizontal Date Scrollbar / Strip ("Datumsfilter") */}
-                  {editingTaskId === null && viewMode === 'tasks' && (
+                  {editingTaskId === null && (
                     <TodoDateFilterStrip
                       selectedDate={selectedDateFilter}
                       onSelectDate={setSelectedDateFilter}
@@ -938,8 +764,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                   )}
 
                   <TodoListSections
-                    selectedFolder={selectedFolder}
-                    setSelectedFolder={setSelectedFolder}
                     filterStatus={filterStatus}
                     searchQuery={searchQuery}
                     tasks={tasks}
@@ -1040,50 +864,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       </div>
                       </>
                       )}
-
-                      {/* View Mode Switcher */}
-                      <div>
-                        <div className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3  mb-1.5">
-                          Ansicht
-                        </div>
-                        <div className="grid grid-cols-2 gap-1.5 bg-t2-hover  p-1 rounded-xl border border-t2-line ">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViewMode('tasks');
-                              setIsFilterMenuOpen(false);
-                            }}
-                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                              viewMode === 'tasks'
-                                ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                                : 'text-t2-ink-2  hover:text-t2-ink '
-                            }`}
-                          >
-                            <ListTodo size={14} />
-                            <span>Liste</span>
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setViewMode('folders');
-                              setIsFilterMenuOpen(false);
-                            }}
-                            className={`flex items-center justify-center gap-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                              viewMode === 'folders'
-                                ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                                : 'text-t2-ink-2  hover:text-t2-ink '
-                            }`}
-                          >
-                            <Folder size={14} />
-                            <span>Ordner</span>
-                            {allFolders.length > 0 && (
-                              <span className="px-1 py-0.2 rounded-full text-[11px] bg-t2-sub  text-t2-accent  font-semibold">
-                                {allFolders.length}
-                              </span>
-                            )}
-                          </button>
-                        </div>
-                      </div>
 
                       {/* Filter nach Status */}
                       <div>
@@ -1240,60 +1020,21 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
             <span>Filter</span>
           </button>
 
-          {/* Plus button with popover */}
-          <div ref={addMenuRef} className="relative">
-            <AnimatePresence>
-              {isAddMenuOpen && (
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.95, y: 8 }}
-                  animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: 8 }}
-                  transition={{ duration: 0.15, ease: [0.16, 1, 0.3, 1] }}
-                  className="absolute bottom-full right-0 mb-3 w-48 bg-t2-surface  backdrop-blur-xl border border-t2-line  rounded-2xl shadow-xl p-1.5 flex flex-col gap-1 z-50 text-xs"
-                >
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateTask}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-t2-ink  hover:bg-t2-hover  transition-colors font-medium cursor-pointer"
-                  >
-                    <Plus size={15} className="text-t2-accent" />
-                    <span>Aufgabe erstellen</span>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={handleOpenCreateFolder}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 text-left rounded-xl text-t2-ink  hover:bg-t2-hover  transition-colors font-medium cursor-pointer"
-                  >
-                    <FolderPlus size={15} className="text-t2-accent" />
-                    <span>Ordner erstellen</span>
-                  </button>
-                </motion.div>
-              )}
-            </AnimatePresence>
-
-            <button
-              type="button"
-              aria-label="Aufgabe hinzufügen"
-              onClick={() => {
-                setIsAddMenuOpen((prev) => !prev);
-                setIsFilterMenuOpen(false);
-              }}
-              className="flex items-center gap-2 px-4 py-2.5 bg-t2-accent hover:opacity-90   text-t2-accent-ink rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
-            >
-              <Plus size={18} />
-              <span>Aufgabe</span>
-            </button>
-          </div>
+          <button
+            type="button"
+            aria-label="Aufgabe hinzufügen"
+            onClick={() => {
+              setIsFilterMenuOpen(false);
+              handleOpenCreateTask();
+            }}
+            className="flex items-center gap-2 px-4 py-2.5 bg-t2-accent hover:opacity-90   text-t2-accent-ink rounded-xl shadow-lg transition-all active:scale-95 font-medium text-sm cursor-pointer select-none"
+          >
+            <Plus size={18} />
+            <span>Aufgabe</span>
+          </button>
         </div>
       )}
 
-      <TodoFolderModal
-            setIsFolderModalOpen={setIsFolderModalOpen}
-            isFolderModalOpen={isFolderModalOpen}
-            newFolderNameInput={newFolderNameInput}
-            setNewFolderNameInput={setNewFolderNameInput}
-            handleCreateFolder={handleCreateFolder}
-          />
     </div>
   );
 };

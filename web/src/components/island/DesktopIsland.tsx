@@ -60,7 +60,7 @@ function DesktopPanel({ rect, selectedDate, onSelectDate }: { rect: Rect } & Pic
                 onClick={interactive ? model.tap : undefined}
                 onKeyDown={interactive ? onActivateKey(model.tap) : undefined}
                 style={{ maxHeight: 'calc(100dvh - 24px)' }}
-                className={`pointer-events-auto absolute bottom-0 left-0 origin-bottom-left overflow-hidden rounded-[18px] bg-t2-surface text-left text-t2-ink shadow-[0_0_0_1px_var(--t2-line),var(--shadow-float)] will-change-transform ${
+                className={`pointer-events-auto absolute bottom-0 left-0 origin-bottom-left overflow-hidden rounded-[18px] bg-[color-mix(in_srgb,var(--t2-ink)_4%,var(--t2-surface))] text-left text-t2-ink shadow-[0_0_0_1.5px_var(--t2-line),var(--shadow-float)] will-change-transform ${
                     model.expanded ? 'w-[340px] max-w-[calc(100vw-24px)]' : 'h-full w-full'
                 } ${interactive ? 'cursor-pointer' : ''}`}
             >

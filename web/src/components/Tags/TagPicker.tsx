@@ -15,6 +15,8 @@ export interface TagPickerProps {
   onCreate: (title: string) => Promise<string | undefined>;
   /** Accepted for compatibility; the structure is the same for every usage. */
   compact?: boolean;
+  /** "hash" renders selected tags as plain "#title" text in the tag colour instead of boxed chips. */
+  variant?: 'chip' | 'hash';
 }
 
 const PANEL_MIN_WIDTH = 240;
@@ -26,7 +28,7 @@ const VIEWPORT_GAP = 8;
  * The panel is portaled with fixed positioning so overflow-hidden ancestors (mobile cards,
  * popovers) cannot clip it.
  */
-export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onCreate, compact }) => {
+export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onCreate, compact, variant = 'chip' }) => {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(-1);
@@ -138,7 +140,24 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
 
   return (
     <div ref={wrapRef} className="flex flex-wrap items-center gap-1.5">
-      {selectedTags.map((tag) => (
+      {selectedTags.map((tag) => variant === 'hash' ? (
+        <span
+          key={tag.id}
+          data-tag-chip
+          className="group inline-flex items-center text-sm font-medium"
+          style={{ color: tag.color || DEFAULT_TAG_COLOR }}
+        >
+          <span>#{tag.title}</span>
+          <button
+            type="button"
+            aria-label={`Tag entfernen: ${tag.title}`}
+            onClick={() => onChange(value.filter((v) => v !== tag.id))}
+            className="inline-flex items-center justify-center w-0 overflow-hidden opacity-0 group-hover:w-5 group-hover:opacity-70 focus-visible:w-5 focus-visible:opacity-70 hover:!opacity-100 transition-all cursor-pointer"
+          >
+            <X size={11} />
+          </button>
+        </span>
+      ) : (
         <span
           key={tag.id}
           data-tag-chip
