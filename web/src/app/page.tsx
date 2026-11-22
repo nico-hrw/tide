@@ -104,6 +104,7 @@ export default function Dashboard() {
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
     const [, setMinimizedEventIds] = useState<string[]>([]);
     const syncingTaskIdsRef = useRef<Set<string>>(new Set());
+    const mobileRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
     const [pendingBindBlockId, setPendingBindBlockId] = useState<string | null>(null);
     const [isLinkingMode, setIsLinkingMode] = useState(false);
@@ -396,7 +397,6 @@ export default function Dashboard() {
     );
 
     // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
-    const mobileRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const handleMobileNoteRename = (id: string, title: string) => {
         if (mobileRenameTimerRef.current) clearTimeout(mobileRenameTimerRef.current);
         if (id !== activeNoteId) { void submitRename(id, title, true); return; }
