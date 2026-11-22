@@ -1,5 +1,6 @@
 "use client";
 
+import { getSearchIndexFileId } from "@/lib/searchIndex";
 import { useEffect, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -198,6 +199,10 @@ export function useRealtimeSync({
                     if (['file_created', 'file_updated', 'file_deleted', 'file_shared', 'NOTE_WAL_APPENDED', 'NOTE_META_UPDATED'].includes(data.type)) {
                         const targetFileId = data.file_id || data.fileId || data.id;
                         const currentActiveId = useActiveNoteStore.getState().activeNoteId || useDataStore.getState().activeNoteId || activeNoteId || null;
+
+                        // The encrypted search index is rewritten after every file-list refresh; reacting to its own
+                        // update would refresh the list again and loop forever.
+                        if (targetFileId && targetFileId === getSearchIndexFileId()) return;
 
                         // BUG-12: When receiving SSE events for the currently active note:
                         // NEVER trigger reload_note, reloadFromRemote, or window reload!

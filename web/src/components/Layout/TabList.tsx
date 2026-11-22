@@ -117,6 +117,8 @@ export default function TabList({
         }, PREVIEW_DELAY_MS);
     };
     useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current); }, []);
+    // A tab that closes or changes under the pointer never sends mouseleave, which would leave the card stuck
+    useEffect(() => { hidePreview(); }, [tabs.length, activeTabId]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
         if (!isPluginMenuOpen) return;

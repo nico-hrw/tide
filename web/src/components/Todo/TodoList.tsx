@@ -27,7 +27,7 @@ import {
   Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft, TaskWithChildren,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
   getTaskPriority, getPriorityColor, buildRecurrenceRule, parseDateSafe,
-  isTaskArchived, getTaskArchiveTier,
+  isTaskArchived, getTaskArchiveTier, getTaskCompletionTime,
 } from './types';
 
 export type { Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier } from './types';
@@ -35,6 +35,9 @@ export {
   PRIORITY_COLORS, SEVEN_DAYS_MS, THIRTY_DAYS_MS, ONE_YEAR_MS, ARCHIVE_TIER_CONFIG,
   getTaskCompletionTime, isTaskArchived, getTaskArchiveTier,
 } from './types';
+
+/** How long a checked-off todo stays in place with the "delay" setting. */
+const LINGER_DELAY_MS = 5000;
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
   const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
@@ -384,6 +387,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
       setCompletingTaskIds((prev) => new Set(prev).add(task.id));
       setTimeout(() => {
         executeToggleTask(task);
+        if (hideDone === 'leave') setLingerIds((prev) => new Set(prev).add(task.id));
         setCompletingTaskIds((prev) => {
           const next = new Set(prev);
           next.delete(task.id);
@@ -570,8 +574,41 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     return 0;
   }), [filteredTasks, sortBy, resolveTags]);
 
-  const activeTasks = useMemo(() => sortedTasks.filter((t) => !t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
-  const recentlyCompletedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted && !isTaskArchived(t)), [sortedTasks]);
+  // Checked-off todos stay in the main list for as long as the "hide completed" setting says.
+  const hideDone = useDataStore((st) => st.todoHideDone);
+  const [lingerIds, setLingerIds] = useState<Set<string>>(new Set());
+  const [lingerTick, setLingerTick] = useState(0);
+  useEffect(() => {
+    if (hideDone !== 'leave' || lingerIds.size === 0) return;
+    const onDown = (e: PointerEvent) => {
+      const card = (e.target as HTMLElement | null)?.closest?.('[data-task-id]');
+      const id = card?.getAttribute('data-task-id');
+      if (id && lingerIds.has(id)) return;
+      setLingerIds(new Set());
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [hideDone, lingerIds]);
+  useEffect(() => { if (hideDone !== 'leave') setLingerIds(new Set()); }, [hideDone]);
+  const isLingering = useCallback((t: TaskItem): boolean => {
+    if (!t.isCompleted || isTaskArchived(t) || hideDone === 'instant') return false;
+    if (hideDone === 'never') return true;
+    if (hideDone === 'leave') return lingerIds.has(t.id);
+    const doneAt = getTaskCompletionTime(t);
+    if (doneAt === null) return false;
+    if (hideDone === 'delay') return Date.now() - doneAt < LINGER_DELAY_MS;
+    return isSameDay(new Date(doneAt), new Date());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hideDone, lingerIds, lingerTick]);
+  const hasDelayLinger = hideDone === 'delay' && sortedTasks.some((t) => t.isCompleted && isLingering(t));
+  useEffect(() => {
+    if (!hasDelayLinger) return;
+    const timer = setTimeout(() => setLingerTick((n) => n + 1), 1000);
+    return () => clearTimeout(timer);
+  }, [hasDelayLinger, lingerTick]);
+
+  const activeTasks = useMemo(() => sortedTasks.filter((t) => (!t.isCompleted && !isTaskArchived(t)) || isLingering(t)), [sortedTasks, isLingering]);
+  const recentlyCompletedTasks = useMemo(() => sortedTasks.filter((t) => t.isCompleted && !isTaskArchived(t) && !isLingering(t)), [sortedTasks, isLingering]);
   const archivedTasks = useMemo(() => sortedTasks.filter((t) => isTaskArchived(t)), [sortedTasks]);
 
   const tasksToRender = useMemo(() => {

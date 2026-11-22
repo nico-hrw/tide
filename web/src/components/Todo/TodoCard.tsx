@@ -65,6 +65,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
     <div
       role="button"
       tabIndex={0}
+      data-task-id={task.id}
       onClick={() => onActivate(task)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onActivate(task); }}
       className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-black/15 dark:hover:ring-white/20 ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}

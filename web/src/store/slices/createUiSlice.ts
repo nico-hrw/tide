@@ -9,6 +9,7 @@ import type {
     SettingsModalTab,
     SmartIslandState,
     ThemePreference,
+    TodoHideDone,
     UiSlice,
 } from './types';
 
@@ -114,12 +115,29 @@ function getInitialA4SideBorders(): boolean {
     return stored !== null ? stored === 'true' : true;
 }
 
+const HIDE_DONE_MODES: readonly TodoHideDone[] = ['instant', 'leave', 'delay', 'nextDay', 'never'];
+
+function loadTodoHideDone(): TodoHideDone {
+    if (typeof window === 'undefined') return 'instant';
+    try {
+        const raw = localStorage.getItem('tide_todo_hide_done') as TodoHideDone | null;
+        return raw && HIDE_DONE_MODES.includes(raw) ? raw : 'instant';
+    } catch {
+        return 'instant';
+    }
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
     isVariablesModalOpen: false,
     smartIslandState: null,
     todoTagFilter: { tagIds: [], untagged: false },
+    todoHideDone: loadTodoHideDone(),
+    setTodoHideDone: (mode) => {
+        try { localStorage.setItem('tide_todo_hide_done', mode); } catch { /* private mode */ }
+        set({ todoHideDone: mode });
+    },
     setTodoTagFilter: (filter) => set({ todoTagFilter: filter }),
     calendarTagFilter: { tagIds: [], untagged: false },
     setCalendarTagFilter: (filter) => set({ calendarTagFilter: filter }),

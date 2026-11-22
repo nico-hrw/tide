@@ -225,5 +225,9 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'todos.overdueDesc': 'Marked red so nothing slips by.',
     'todos.hideDone': 'Hide completed',
     'todos.hideDoneDesc': 'When checked-off todos disappear.',
-    'todos.hideDoneDay': 'After one day',
+    'todos.hideDoneDay': 'Next day',
+    'todos.hideDoneInstant': 'Immediately',
+    'todos.hideDoneLeave': 'When clicking away',
+    'todos.hideDoneDelay': 'After a delay (5 s)',
+    'todos.hideDoneNever': 'Never',
 };

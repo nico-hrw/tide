@@ -223,5 +223,9 @@ export const settingsCoreDe = {
     'todos.overdueDesc': 'Rot markiert, damit nichts untergeht.',
     'todos.hideDone': 'Erledigte ausblenden',
     'todos.hideDoneDesc': 'Wann abgehakte Todos verschwinden.',
-    'todos.hideDoneDay': 'Nach einem Tag',
+    'todos.hideDoneDay': 'Am nächsten Tag',
+    'todos.hideDoneInstant': 'Sofort',
+    'todos.hideDoneLeave': 'Beim Wegklicken',
+    'todos.hideDoneDelay': 'Mit Verzögerung (5 s)',
+    'todos.hideDoneNever': 'Gar nicht',
 } as const;

@@ -332,7 +332,8 @@ export default function Sidebar({
                     <span className="min-w-0 truncate text-[14px] font-semibold text-t2-ink">{validUsername || emailPrefix || 'Profil'}</span>
                 </div>
             )}
-            <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-2 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
+            <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-0.5 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <button
                     type="button"
                     onClick={() => (onOpenStudium ? onOpenStudium() : onOpenCalendar?.())}
@@ -352,6 +353,7 @@ export default function Sidebar({
                     Todos
                 </button>
             </nav>
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <SidebarQuickNotes
                     activeTabId={activeTabId}
@@ -363,6 +365,7 @@ export default function Sidebar({
                     onImport={() => handleImport(null)}
                 />
             </div>
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 ref={scrollContainerRef}
@@ -447,7 +450,7 @@ export default function Sidebar({
 
             {/* Smart Island: Quadrat in der Seitenleiste, die Karte wächst per Portal darüber hinaus */}
             {navigationMode !== 'folders' && (
-                <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
+                <><div className="mx-3 h-px shrink-0 bg-t2-line-soft" role="separator" /><SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} /></>
             )}
 
             <SidebarContextMenu

@@ -50,6 +50,8 @@ export interface SmartIslandState {
     anchorElement?: HTMLElement | null;
 }
 
+export type TodoHideDone = 'instant' | 'leave' | 'delay' | 'nextDay' | 'never';
+
 export type SettingsModalTab =
     | 'account'
     | 'calendar'
@@ -194,6 +196,9 @@ export interface UiSlice {
     setA4SideBorders: (on: boolean) => void;
     /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
     todoTagFilter: TagFilter;
+    /** When a checked-off todo leaves the main list. Stored on this device only. */
+    todoHideDone: TodoHideDone;
+    setTodoHideDone: (mode: TodoHideDone) => void;
     setTodoTagFilter: (filter: TagFilter) => void;
     /** Calendar tag filter (multi-select, OR). Not persisted. */
     calendarTagFilter: TagFilter;
