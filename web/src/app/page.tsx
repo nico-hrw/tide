@@ -396,6 +396,15 @@ export default function Dashboard() {
             activeTabId={activeTabId} onReturnToTab={(tabId) => setActiveTabId(tabId)} />
     );
 
+    const handleAvatarLogout = () => {
+        setIsAvatarMenuOpen(false);
+        sessionStorage.clear();
+        localStorage.removeItem("tide_user_email");
+        localStorage.removeItem("tide_user_id");
+        localStorage.removeItem("tide_session_token");
+        window.location.reload();
+    };
+
     // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
     const handleMobileNoteRename = (id: string, title: string) => {
         if (mobileRenameTimerRef.current) clearTimeout(mobileRenameTimerRef.current);
@@ -472,7 +481,10 @@ export default function Dashboard() {
                                 onOpenCalendar={() => handleTabSelect("calendar", "calendar")} onOpenSocial={() => setActiveTabId("social")}
                                 onOpenExams={() => handleTabSelect("job_planner", "job_planner")}
                                 onOpenStudium={() => handleTabSelect("job_planner", "job_planner")}
-                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos} />
+                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos}
+                                isAvatarMenuOpen={isAvatarMenuOpen} setIsAvatarMenuOpen={shouldShowSidebar ? setIsAvatarMenuOpen : undefined} avatarMenuRef={avatarMenuRef}
+                                onOpenSettings={() => setSettingsModalOpen(true)} onOpenTrash={() => setActiveTabId("trash")}
+                                onLogout={handleAvatarLogout} />
                         </div>
                         {shouldShowSidebar && (
                             <div onMouseDown={startSidebarDrag} title="Drag to resize sidebar"

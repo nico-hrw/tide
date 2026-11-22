@@ -24,7 +24,7 @@ import {
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
 import { motion, Reorder, AnimatePresence } from 'framer-motion';
-import Avatar from '../Profile/Avatar';
+import AvatarMenu from './AvatarMenu';
 import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
@@ -204,6 +204,22 @@ export default function TabList({
                 className={`flex items-center min-w-0 py-1 ${navigationMode === 'folders' ? 'flex-1 justify-start overflow-x-auto no-scrollbar' : 'max-w-full overflow-x-auto no-scrollbar'}`}
             >
                 <div className={`flex items-center gap-1.5 shrink-0 ${navigationMode === 'folders' ? 'justify-start' : 'mx-auto'}`}>
+                    {/* Tablet (no sidebar): Todos is a fixed tab, otherwise it is only reachable through sub-menus */}
+                    {navigationMode === 'folders' && (
+                        <button
+                            type="button"
+                            onClick={() => onTabSelect('todos', 'todos')}
+                            style={{ borderRadius: DT.radius }}
+                            className={`mr-1 flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
+                                activeTabId === 'todos'
+                                    ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
+                                    : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
+                            }`}
+                        >
+                            <ListTodo size={13} />
+                            <span>Todos</span>
+                        </button>
+                    )}
                     <Reorder.Group
                         axis="x"
                         values={tabs}
@@ -212,7 +228,7 @@ export default function TabList({
                         layout
                     >
                         <AnimatePresence initial={false} mode="popLayout">
-                            {tabs.map((tab) => {
+                            {tabs.filter((tab) => !(navigationMode === 'folders' && tab.type === 'todos')).map((tab) => {
                                 const isActive = activeTabId === tab.id;
 
                                 return (
@@ -459,123 +475,20 @@ export default function TabList({
                     )}
                 </div>
 
-                {/* Right side: Profile / Avatar Menu */}
-                {setIsAvatarMenuOpen && avatarMenuRef && (
-                    <div ref={avatarMenuRef} className="relative shrink-0 flex items-center">
-                        <button
-                            onClick={() => setIsAvatarMenuOpen(o => !o)}
-                            className="relative w-14 h-14 rounded-full hover:ring-2 hover:ring-t2-accent transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                            title="Profil"
-                        >
-                            <div className="w-full h-full rounded-full overflow-hidden">
-                                <Avatar
-                                    seed={(userProfile?.avatar_seed || userProfile?.user_id || userProfile?.id || myId || 'default') + (userProfile?.avatar_salt || '')}
-                                    size={56}
-                                />
-                            </div>
-                            <span
-                                className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full ring-2 ring-white dark:ring-slate-900 z-10 ${
-                                    myStatus === 'online' ? 'bg-emerald-500' :
-                                    myStatus === 'away' ? 'bg-amber-500' :
-                                    'bg-t2-ink-3'
-                                }`}
-                                title={myStatus === 'online' ? 'Online' : myStatus === 'away' ? 'Abwesend' : 'Offline'}
-                            />
-                            {pendingRequests.length > 0 && (
-                                <span className="absolute top-0 right-0 w-3.5 h-3.5 bg-red-500 border-2 border-t2-line  rounded-full z-10" />
-                            )}
-                        </button>
-
-                        {isAvatarMenuOpen && (
-                            <div className="absolute right-0 top-16 w-48 bg-t2-surface  border border-t2-line  rounded-xl shadow-2xl py-1 z-[150] animate-in fade-in zoom-in-95 duration-100">
-                                <div className="px-3 py-2 border-b border-t2-line-soft ">
-                                    <p className="text-xs font-semibold text-t2-ink  truncate">{userProfile?.username || 'User'}</p>
-                                    <p className="text-xs text-t2-ink-3 truncate">{userProfile?.email || ''}</p>
-                                    {/* Status Selector */}
-                                    <div className="mt-2 flex items-center gap-1 p-0.5 bg-t2-hover  rounded-lg">
-                                        <button
-                                            type="button"
-                                            onClick={() => setMyStatus('online')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'online' ? 'bg-t2-surface  text-emerald-600 dark:text-emerald-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
-                                            title="Online"
-                                        >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-                                            <span>Online</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setMyStatus('away')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'away' ? 'bg-t2-surface  text-amber-600 dark:text-amber-400 shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
-                                            title="Abwesend"
-                                        >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                                            <span>Abwesend</span>
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => setMyStatus('offline')}
-                                            className={`flex-1 flex items-center justify-center gap-1 py-1 rounded text-[11px] font-medium transition-all ${myStatus === 'offline' ? 'bg-t2-surface  text-t2-ink  shadow-xs font-semibold' : 'text-t2-ink-2 hover:text-t2-ink '}`}
-                                            title="Offline"
-                                        >
-                                            <span className="w-1.5 h-1.5 rounded-full bg-t2-ink-3 shrink-0" />
-                                            <span>Offline</span>
-                                        </button>
-                                    </div>
-                                </div>
-                                <div className="py-1 px-1">
-                                    {onOpenSocial && (
-                                        <button
-                                            onClick={() => { setIsAvatarMenuOpen(false); onOpenSocial(); }}
-                                            className="w-full flex items-center justify-between px-3 py-2 text-xs font-medium text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors"
-                                        >
-                                            <div className="flex items-center gap-3">
-                                                <div className="relative">
-                                                    <Users size={14} className="text-t2-ink-3 " />
-                                                    {pendingRequests.length > 0 && (
-                                                        <span className="absolute -top-1 -right-1 w-2 h-2 bg-red-500 rounded-full" />
-                                                    )}
-                                                </div>
-                                                <span>Social</span>
-                                            </div>
-                                            {pendingRequests.length > 0 && (
-                                                <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-full bg-red-500 text-white shrink-0 leading-none">
-                                                    {pendingRequests.length}
-                                                </span>
-                                            )}
-                                        </button>
-                                    )}
-                                    {onOpenSettings && (
-                                        <button
-                                            onClick={() => { setIsAvatarMenuOpen(false); onOpenSettings(); }}
-                                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors"
-                                        >
-                                            <Settings size={14} className="text-t2-ink-3 " />
-                                            <span>Einstellungen</span>
-                                        </button>
-                                    )}
-                                    {onOpenTrash && (
-                                        <button
-                                            onClick={() => { setIsAvatarMenuOpen(false); onOpenTrash(); }}
-                                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-t2-ink  hover:bg-t2-hover  rounded-lg transition-colors"
-                                        >
-                                            <Trash2 size={14} className="text-t2-ink-3 " />
-                                            <span>Papierkorb</span>
-                                        </button>
-                                    )}
-                                    <div className="h-px bg-t2-hover  my-1" />
-                                    {onLogout && (
-                                        <button
-                                            onClick={onLogout}
-                                            className="w-full flex items-center gap-3 px-3 py-2 text-xs font-medium text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
-                                        >
-                                            <LogOut size={14} className="text-rose-500" />
-                                            <span>Abmelden</span>
-                                        </button>
-                                    )}
-                                </div>
-                            </div>
-                        )}
-                    </div>
+                {/* Profile lives in the sidebar; it only shows here while the sidebar is hidden */}
+                {setIsAvatarMenuOpen && avatarMenuRef && !(isSidebarOpen && navigationMode !== 'folders') && (
+                    <AvatarMenu
+                        userProfile={userProfile}
+                        myId={myId}
+                        isOpen={isAvatarMenuOpen}
+                        setOpen={setIsAvatarMenuOpen}
+                        menuRef={avatarMenuRef}
+                        onOpenSocial={onOpenSocial}
+                        onOpenSettings={onOpenSettings}
+                        onOpenTrash={onOpenTrash}
+                        onLogout={onLogout}
+                        size={40}
+                    />
                 )}
             </div>
         </div>

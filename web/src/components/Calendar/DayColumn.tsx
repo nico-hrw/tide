@@ -422,45 +422,34 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
     const minuteHeight = hourHeight / 60;
 
+    // The drag value is a screen Y (px); the preview is computed in minutes and snapped exactly like the drop.
+    const creationDeltaMins = (deltaY: number, startMins: number) => {
+        const snapped = Math.round(deltaY / minuteHeight / snapInterval) * snapInterval;
+        return Math.max(-startMins, Math.min(snapped, 1440 - startMins));
+    };
+
     const creationPreviewTop = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
-        const deltaY = currentY - creationDrag.startY;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        const topMinutes = deltaY < 0 ? Math.max(0, startMins + snappoints) : startMins;
-        return (topMinutes * minuteHeight) + 'px';
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        return ((delta < 0 ? startMins + delta : startMins) * minuteHeight) + 'px';
     });
 
     const creationPreviewHeight = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
-        const deltaY = currentY - creationDrag.startY;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        // Clamp: if dragging forward, end can never exceed 1440 min (midnight)
-        const rawHeight = Math.max(10, Math.abs(snappoints));
-        const durationMinutes = deltaY >= 0
-            ? Math.min(rawHeight, 1440 - startMins) // forward drag: cap at midnight
-            : Math.min(rawHeight, startMins);         // backward drag: cap at start-of-day
-        return (durationMinutes * minuteHeight) + 'px';
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        return (Math.max(snapInterval, Math.abs(delta)) * minuteHeight) + 'px';
     });
 
-    // Live end-time label for the creation preview — driven by the same MotionValue as the ghost block
+    // Live end-time label for the creation preview, driven by the same value as the preview block
     const creationEndTimeLabel = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return '';
-        const deltaY = currentY - creationDrag.startY;
-        let snapped = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snapped = Math.ceil(deltaY / snapInterval) * snapInterval;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        const rawEnd = deltaY >= 0
-            ? startMins + Math.max(snapInterval, snapped)
-            : startMins + snapped - snapInterval;
-        // Hard clamp: never show past 23:59 (1440) or before 00:00
-        const clamped = Math.max(0, Math.min(1440, rawEnd));
-        const h = Math.floor(clamped / 60);
-        const m = clamped % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        const end = delta < 0 ? startMins : startMins + Math.max(snapInterval, delta);
+        const clamped = Math.max(0, Math.min(1440, end));
+        return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
     });
 
     const creationStartTimeStr = useMemo(() => {

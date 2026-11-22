@@ -87,4 +87,10 @@ export interface SidebarProps {
     onOpenTodos?: () => void;
     isTodosActive?: boolean;
     onToggleTodos?: () => void;
+    /** Profile picture and account menu at the top of the sidebar. */
+    isAvatarMenuOpen?: boolean;
+    setIsAvatarMenuOpen?: React.Dispatch<React.SetStateAction<boolean>>;
+    avatarMenuRef?: React.RefObject<HTMLDivElement | null>;
+    onOpenTrash?: () => void;
+    onLogout?: () => void;
 }

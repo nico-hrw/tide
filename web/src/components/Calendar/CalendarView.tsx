@@ -121,6 +121,8 @@ export default function CalendarView({
         creationEndYMV,
         cursorX,
         cursorY,
+        dragOverlayX,
+        dragOverlayY,
         isPreciseMode,
         isPreciseModeRef,
         dropBounds,
@@ -284,8 +286,8 @@ export default function CalendarView({
                             resizeDragState={resizeDragState}
                             resizeHeightMV={resizeHeightMV}
                             creationEndYMV={creationEndYMV}
-                            cursorX={cursorX}
-                            cursorY={cursorY}
+                            cursorX={dragOverlayX}
+                            cursorY={dragOverlayY}
                         />
                     </div>
                 )}
@@ -320,8 +322,8 @@ export default function CalendarView({
                             resizeDragState={resizeDragState}
                             resizeHeightMV={resizeHeightMV}
                             creationEndYMV={creationEndYMV}
-                            cursorX={cursorX}
-                            cursorY={cursorY}
+                            cursorX={dragOverlayX}
+                            cursorY={dragOverlayY}
                             themes={themes}
                         />
                     </div>

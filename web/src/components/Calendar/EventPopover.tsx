@@ -49,7 +49,7 @@ function ModernDropdown({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  hover:bg-t2-hover  transition-all text-left"
+                className="w-full flex items-center justify-between bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  hover:bg-t2-hover  transition-all text-left"
             >
                 <div className="flex items-center gap-1.5 truncate">
                     {selectedOption?.color && (
@@ -305,11 +305,9 @@ export default function EventPopover({
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[1000] w-[344px] max-w-[calc(100vw-24px)] bg-t2-surface rounded-[20px] shadow-[0_0_0_1px_var(--t2-line),0_18px_44px_rgba(0,0,0,0.16)] px-4 pb-4 pt-5 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150"
-            style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
+            className="fixed z-[1000] w-[344px] max-w-[calc(100vw-24px)] bg-t2-surface rounded-[20px] shadow-[0_0_0_1px_var(--t2-line),0_18px_44px_rgba(0,0,0,0.16)] p-4 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150"
+            style={{ top: `${pos.top}px`, left: `${pos.left}px`, '--ev': accent } as React.CSSProperties}
         >
-            {/* Colour strip: shows at a glance which category the event belongs to */}
-            <div className="absolute inset-x-0 top-0 h-1 rounded-t-[20px] transition-colors" style={{ backgroundColor: accent }} aria-hidden />
             {/* ── Header ── */}
             <div className="flex items-center gap-2.5">
                 <button
@@ -376,7 +374,7 @@ export default function EventPopover({
 
             {/* Color picker */}
             {showColorPicker && (
-                <div className="bg-t2-sub  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
+                <div className="bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
                     {CALENDAR_CATEGORIES.map(cat => cat.key).map(c => (
                         <button
                             key={c}
@@ -400,7 +398,7 @@ export default function EventPopover({
             )}
 
             {/* Time & Date */}
-            <div className="flex items-center justify-between gap-2 bg-t2-sub rounded-2xl px-3.5 py-2.5 border border-t2-line-soft">
+            <div className="flex items-center justify-between gap-2 bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] rounded-2xl px-3.5 py-2.5 border border-[color-mix(in_srgb,var(--ev)_32%,transparent)] ">
                 <div className="flex items-center gap-2 min-w-0">
                     <CalendarDays size={14} className="text-t2-ink-3 shrink-0" />
                     <span className="text-[13px] font-semibold text-t2-ink whitespace-nowrap">
@@ -483,7 +481,7 @@ export default function EventPopover({
                                 if (isNaN(v) || v < 1) v = 1; 
                                 updateRecurrence(freq, v); 
                             }}
-                            className="w-8 text-center bg-t2-sub  border border-t2-line  rounded-md py-0.5 text-xs font-bold text-t2-accent font-mono outline-none focus:ring-1 focus:ring-t2-accent" 
+                            className="w-8 text-center bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-md py-0.5 text-xs font-bold text-t2-accent font-mono outline-none focus:ring-1 focus:ring-t2-accent" 
                         />
                         <span>{freq === 'daily' ? 'Tag(e)' : freq === 'weekly' ? 'Woche(n)' : freq === 'monthly' ? 'Monat(e)' : 'Jahr(e)'}</span>
                     </div>
@@ -506,7 +504,7 @@ export default function EventPopover({
                                 }
                             }}
                             onBlur={() => handleSave()}
-                            className="bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-t2-hover  transition-colors"
+                            className="bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-t2-hover  transition-colors"
                         />
                         {recurrenceEnd && (
                             <button
@@ -529,7 +527,7 @@ export default function EventPopover({
                 onBlur={() => handleSave()}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
-                className="w-full bg-transparent border border-t2-line-soft  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
+                className="w-full bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 
             {/* ── Expand toggle ── */}

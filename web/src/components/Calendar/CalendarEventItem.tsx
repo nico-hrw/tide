@@ -356,10 +356,13 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         }
     };
 
+    // The resize value is in minutes; the block's height is in px of the hour grid.
+    const resizeHeightPx = useTransform(resizeHeightMV || fallbackMV, (h) => `calc(var(--hour-height, 48px) / 60 * ${h} - 4px)`);
+
     // This hook is now at the top level of the component.
     const liveTimeTransform = useTransform(resizeHeightMV || fallbackMV, (h) => {
         const maxDuration = 1440 - startMinutes;
-        const clampedDuration = Math.min(Math.max(15, h), maxDuration);
+        const clampedDuration = Math.min(Math.max(10, h), maxDuration);
         const newEndMinutes = startMinutes + clampedDuration;
         const hEnd = Math.floor(newEndMinutes / 60);
         const mEnd = Math.floor(newEndMinutes % 60);
@@ -390,7 +393,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     } else if (isResizing) {
         style = {
             top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
-            height: resizeHeightMV,
+            height: resizeHeightPx,
             minHeight: isTimePoint ? '6px' : '22px',
             left: `calc(${pos.left}% + 3px)`,
             width: `calc(${pos.width}% - 6px)`,

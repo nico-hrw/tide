@@ -137,7 +137,9 @@ export function useCalendarDragState({
         dId: string,
         dState: { originalTop: number, startY: number, startX: number, initialScrollTop: number },
         clientX: number,
-        clientY: number
+        clientY: number,
+        /** The snapped start minute the user last saw; wins over recomputing it from the mouse. */
+        snappedStartMins?: number
     ) => {
         const updateFn = onEventUpdateRef.current;
         if (!updateFn) return;
@@ -153,7 +155,7 @@ export function useCalendarDragState({
 
             const deltaMinutes = deltaY / (hourHeight / 60);
             let newStartMins = dState.originalTop + deltaMinutes;
-            newStartMins = Math.round(newStartMins / snapInterval) * snapInterval;
+            newStartMins = snappedStartMins ?? Math.round(newStartMins / snapInterval) * snapInterval;
             // MIDNIGHT SWAP FIX: clamp so start can never exceed end boundary
             newStartMins = Math.max(0, Math.min(newStartMins, 1440 - minDuration));
 
@@ -259,6 +261,7 @@ export function useCalendarDragState({
         const end = new Date(eEnd);
         const startMinutes = start.getHours() * 60 + start.getMinutes();
 
+        resizeHeightMV.set((end.getTime() - start.getTime()) / 60000);
         setResizingId(id);
         setResizeDragState({
             startY: gearedMouseRef.current.y,
