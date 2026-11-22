@@ -19,30 +19,29 @@ interface NoteHistoryTimelineProps {
     onClose?: () => void;
 }
 
-/** Width reserved at the right of the scroll container while the history is open (the literal classes below must use the same number). */
+/** Space the open timeline needs at the right of the page (px). The page slides left by half of it, so it stays centred in what is left. */
 export const HISTORY_GUTTER_PX = 300;
 
-/** Padding of the scroll container: the sheet shifts left to leave the gutter free. */
-export function timelineGutterClasses({ open }: { open: boolean }): string {
-    return open ? "lg:pr-[300px]" : "";
+/** Shift of the note sheet while the history is open: a transform (no reflow per frame), only on wide screens. */
+export function timelineShiftClasses({ open }: { open: boolean }): string {
+    return open ? "lg:-translate-x-[150px]" : "";
 }
 
-/** The wrapper is an in-flow child of the padded container; the negative margin lets it reach the container's real right edge so `right-4` is measured from there. */
-export function timelineWrapperClasses({ open }: { open: boolean }): string {
-    return `sticky top-0 h-0 z-30 pointer-events-none ${open ? "lg:-mr-[300px]" : ""}`.trim();
+/** The wrapper is an in-flow zero-height anchor, so the panel is positioned from the scroll container's right edge. */
+export function timelineWrapperClasses(): string {
+    return "sticky top-0 h-0 z-30 pointer-events-none";
 }
 
-/** Placement of the panel: anchored inside the scroll container's right edge (never past it), on top of the sheet margin if need be. */
+/** Placement of the panel. It is always styled as a card and shown or hidden by opacity/transform, so closing animates too. */
 export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper: string; panel: string } {
     return {
-        wrapper: timelineWrapperClasses({ open }),
-        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-hidden ${
-            open ? "open pointer-events-auto z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3" : ""
+        wrapper: timelineWrapperClasses(),
+        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-hidden z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3 ${
+            open ? "open pointer-events-auto" : ""
         }`,
     };
 }
 
-/** Preferred and hard-minimum distance between two save points. */
 const MAX_GAP = 88;
 const MIN_GAP = 36;
 const TOP_PAD = 12;
@@ -140,7 +139,7 @@ export default function NoteHistoryTimeline({
                 aria-label="Versionsverlauf"
                 aria-hidden={!open}
             >
-                <div className={`flex items-center justify-between pb-2 pr-1 ${open ? "" : "hidden"}`}>
+                <div className="flex items-center justify-between pb-2 pr-1">
                     <span className="text-[12px] font-semibold uppercase tracking-wide text-t2-ink-3">Versionsverlauf</span>
                     {onClose && (
                         <button type="button" onClick={onClose} aria-label="Versionsverlauf schließen" title="Schließen (Esc)" className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-t2-line bg-t2-surface text-t2-ink-2 shadow-xs hover:bg-t2-hover hover:text-t2-ink">

@@ -5,6 +5,7 @@ import { format, differenceInMinutes } from "date-fns";
 import { CheckSquare, Clock, Square, X } from "lucide-react";
 import type { CalendarEvent } from "./types";
 import { getEventGroupIds, resolveTagTitles } from "../../lib/calendarUtils";
+import CalendarEventEditor from "./CalendarEventEditor";
 
 export interface DetailStat {
     value: string;
@@ -26,6 +27,8 @@ interface CalendarDetailPanelProps {
     themes?: { id: string; title: string }[];
     onClose: () => void;
     onEdit?: () => void;
+    /** When given, the selected event is edited right here (fields save on change) instead of through a popup. */
+    onUpdate?: (updates: Record<string, unknown>) => void;
     onDelete?: () => void;
     onToggleDone?: () => void;
 }
@@ -46,6 +49,7 @@ export default function CalendarDetailPanel({
     themes = [],
     onClose,
     onEdit,
+    onUpdate,
     onDelete,
     onToggleDone,
 }: CalendarDetailPanelProps) {
@@ -65,6 +69,28 @@ export default function CalendarDetailPanel({
                             </div>
                         ))}
                     </div>
+                )}
+            </aside>
+        );
+    }
+
+    if (onUpdate) {
+        return (
+            <aside className={base} aria-live="polite">
+                <button
+                    type="button"
+                    onClick={onClose}
+                    aria-label="Schließen"
+                    className="absolute right-3 top-1 rounded-[8px] p-1.5 text-t2-ink-3 transition-colors hover:bg-t2-hover"
+                >
+                    <X size={16} />
+                </button>
+                <CalendarEventEditor key={event.id} event={event} themes={themes} onUpdate={onUpdate} onDelete={onDelete} />
+                {event.is_task && onToggleDone && (
+                    <button type="button" onClick={onToggleDone} className="inline-flex items-center gap-2 text-[14px] text-t2-ink">
+                        {event.is_completed ? <CheckSquare size={16} /> : <Square size={16} />}
+                        <span>{event.is_completed ? "Erledigt" : "Als erledigt markieren"}</span>
+                    </button>
                 )}
             </aside>
         );

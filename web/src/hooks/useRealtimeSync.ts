@@ -338,6 +338,26 @@ export function useRealtimeSync({
         };
     }, [myId]);
 
+    // Safety net for missed live updates (sleeping tab, dropped connection): refresh when the tab comes back and once a minute.
+    useEffect(() => {
+        if (!myId) return;
+        let last = Date.now();
+        const refresh = () => {
+            if (document.visibilityState !== 'visible' || Date.now() - last < 10_000) return;
+            last = Date.now();
+            useDataStore.setState({ loadedDirectories: new Set() });
+            void useDataStore.getState().fetchDirectory(null);
+        };
+        const interval = setInterval(refresh, 60_000);
+        document.addEventListener('visibilitychange', refresh);
+        window.addEventListener('focus', refresh);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', refresh);
+            window.removeEventListener('focus', refresh);
+        };
+    }, [myId]);
+
     // SSE content-reload listener: dropped fallback reload to prevent BUG-12 state annihilation
     useEffect(() => {
         const handler = async (e: Event) => {

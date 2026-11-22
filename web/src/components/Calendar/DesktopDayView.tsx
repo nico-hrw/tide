@@ -248,6 +248,7 @@ export default function DesktopDayView({
                     themeTitle={selectedTheme?.title}
                     themes={themes}
                     onClose={() => setSelectedEventState(null)}
+                    onUpdate={selectedEvent && onEventSave ? (updates) => onEventSave(selectedEvent.id, updates) : undefined}
                     onEdit={
                         selectedEvent
                             ? () =>

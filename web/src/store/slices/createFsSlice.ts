@@ -15,6 +15,11 @@ import {
     type RawFileItem,
 } from './fsHelpers';
 
+/** A refresh was requested while one was running. */
+let rootRefetchQueued = false;
+/** Local events younger than this are not removed just because the server list does not show them yet. */
+const RECENT_EVENT_GRACE_MS = 20_000;
+
 export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
     privateKey: null,
     publicKey: null,
@@ -117,7 +122,11 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
 
         const dirKey = parentId === null ? 'root' : parentId;
 
-        if (state.fetchingDirectories.has(dirKey)) return;
+        if (state.fetchingDirectories.has(dirKey)) {
+            // A change arrived while a refresh is running; that refresh may predate it, so run once more afterwards.
+            if (dirKey === 'root') rootRefetchQueued = true;
+            return;
+        }
         if (!forceRefresh && state.loadedDirectories.has(dirKey)) return;
 
         set(s => {
@@ -127,6 +136,8 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
         });
 
         let finalMergedTasks: TaskItem[] | undefined;
+        // Ids of all events the server returned (null when the events request failed: then nothing is removed)
+        let serverEventIds: Set<string> | null = null;
 
         try {
             console.log(`[STATE-AUDIT] fetchDirectory START | ParentID: ${dirKey}`);
@@ -155,6 +166,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
 
                 if (results[1].status === 'fulfilled' && results[1].value.ok) {
                     eventsFiles.push(...(await parseSafeJson<RawFileItem[]>(results[1].value)));
+                    serverEventIds = new Set(eventsFiles.map((f) => f.id));
                 } else if (results[1].status === 'fulfilled' && results[1].value.status === 401) {
                     console.warn('[STATE-AUDIT] fetchDirectory | Events Unauthorized.');
                     if (typeof window !== 'undefined') window.location.href = '/auth';
@@ -270,6 +282,17 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                         eventMap.set(ve.id, ve);
                     }
                 });
+                // Events deleted on another device are gone from the server list; drop them here too.
+                // Very recent local ones stay (their creation may not have reached the list yet).
+                if (serverEventIds && dirKey === 'root') {
+                    const now = Date.now();
+                    for (const [id, ev] of eventMap) {
+                        if (serverEventIds.has(id)) continue;
+                        const born = new Date(((ev as { createdAt?: string; created_at?: string }).createdAt ?? (ev as { created_at?: string }).created_at ?? 0) as string).getTime();
+                        if (now - born < RECENT_EVENT_GRACE_MS) continue;
+                        eventMap.delete(id);
+                    }
+                }
                 const mergedEvents = Array.from(eventMap.values());
 
                 const mergedCache = mergeMetadataCache(s.metadataCache, newMetaCache);
@@ -292,6 +315,10 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             });
 
             console.log(`[STATE-AUDIT] fetchDirectory SUCCESS | ParentID: ${dirKey}`);
+            if (dirKey === 'root' && rootRefetchQueued) {
+                rootRefetchQueued = false;
+                void get().fetchDirectory(null);
+            }
         } catch (e) {
             console.error('[STATE-AUDIT ERROR] fetchDirectory |', e);
             if (finalMergedTasks !== undefined) {

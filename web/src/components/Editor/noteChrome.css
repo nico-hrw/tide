@@ -63,9 +63,9 @@
 .t2-outline:hover .t2-ol-bars, .t2-outline:focus-within .t2-ol-bars { opacity: 0; }
 
 /* History timeline */
-.t2-vtl { opacity: 0; transition: opacity 0.2s ease; will-change: opacity; }
-.t2-vtl.open { opacity: 1; }
-.t2-vline { transform: scaleY(0); transform-origin: top; transition: transform 0.6s ease; height: 100%; }
+.t2-vtl { opacity: 0; visibility: hidden; transform: translateX(18px); transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s linear 0.28s; will-change: opacity, transform; }
+.t2-vtl.open { opacity: 1; visibility: visible; transform: none; transition: opacity 0.22s ease, transform 0.28s cubic-bezier(0.2, 0.8, 0.2, 1), visibility 0s; }
+.t2-vline { transform: scaleY(0); transform-origin: top; transition: transform 0.45s ease 0.1s; height: 100%; }
 .t2-vtl.open .t2-vline { transform: scaleY(1); }
 .t2-vp { opacity: 0; transform: translateY(-6px); transition: opacity 0.3s, transform 0.3s; transition-delay: calc(var(--i, 0) * 90ms + 150ms); }
 .t2-vtl.open .t2-vp { opacity: 1; transform: none; }

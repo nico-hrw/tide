@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState } from "react";
 import {
     format,
     startOfMonth,
@@ -8,12 +8,14 @@ import {
     eachDayOfInterval,
     isSameMonth,
     isToday,
+    isSameDay,
 } from "date-fns";
 import { Plus, CheckSquare, Square } from "lucide-react";
 import { getHolidayForDate } from "@/lib/holidays";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import { useJobEventMatcher } from "@/hooks/useJobEventMatcher";
-import { useWeekStartsOn } from "@/store/useDataStore";
+import { useDataStore, useWeekStartsOn } from "@/store/useDataStore";
+import { MonthDayPanel, MonthEventInfo, eventColors } from "./MonthDayPanel";
 import { rotateWeekdayLabels } from "@/lib/calendarWeeks";
 import type { CalendarEvent } from "./types";
 
@@ -44,6 +46,23 @@ export default function DesktopMonthView({
 
     const isJobOrUniEvent = (e: CalendarEvent) => isJob(e);
 
+    // Tablet: tapping a day slides the grid to the left and shows that day's events next to it.
+    const tablet = useDataStore((st) => st.navigationMode === "folders");
+    const [sel, setSel] = useState<{ day: Date; ev: CalendarEvent | null } | null>(null);
+    const handleDay = (day: Date) => {
+        if (!tablet) return onDayClick(day);
+        // Second tap on the open day: the real day view
+        if (sel && isSameDay(sel.day, day)) {
+            setSel(null);
+            return onDayClick(day);
+        }
+        setSel({ day, ev: null });
+    };
+    const dayEvents = (day: Date): CalendarEvent[] => {
+        const key = format(day, "yyyy-MM-dd");
+        return [...(eventsByDay.allDayMap.get(key) || []), ...(eventsByDay.timedMap.get(key) || [])].filter((e) => !isJobOrUniEvent(e));
+    };
+
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
     const startDate = startOfWeek(monthStart, { weekStartsOn });
@@ -61,11 +80,15 @@ export default function DesktopMonthView({
         onEventCreate(start, end, false);
     };
 
+    const panelOpen = tablet && sel !== null;
+
     return (
-        <div className="flex-1 flex flex-col h-full select-none overflow-hidden bg-transparent p-3 sm:p-4">
+        <div className="flex-1 flex h-full min-h-0 select-none overflow-hidden bg-transparent">
+        <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-transparent transition-[flex-basis] duration-300">
+        <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4">
             <div className="flex-1 flex flex-col rounded-2xl border-2 border-t2-line  overflow-hidden shadow-md bg-t2-hover ">
                 {/* Weekday Header */}
-                <div className="grid grid-cols-7 border-b border-t2-line  bg-t2-surface  z-10 px-2">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] border-b border-t2-line  bg-t2-surface  z-10 px-2">
                     {weekdays.map((wd, i) => (
                         <div
                             key={wd}
@@ -79,7 +102,7 @@ export default function DesktopMonthView({
                 </div>
 
                 {/* Month Day Grid */}
-                <div className="grid grid-cols-7 flex-1 auto-rows-fr overflow-y-auto gap-1.5 p-2">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] flex-1 auto-rows-[minmax(96px,1fr)] overflow-y-auto gap-1.5 p-2">
                     {days.map((day) => {
                         const dayKey = format(day, "yyyy-MM-dd");
                         const isCurMonth = isSameMonth(day, currentDate);
@@ -102,8 +125,8 @@ export default function DesktopMonthView({
                         return (
                             <div
                                 key={day.toISOString()}
-                                onClick={() => onDayClick(day)}
-                                className={`group relative flex flex-col p-1.5 transition-colors cursor-pointer min-h-[96px] ${
+                                onClick={() => handleDay(day)}
+                                className={`group relative flex flex-col min-w-0 overflow-hidden p-1.5 transition-colors cursor-pointer min-h-[96px] ${panelOpen && sel && isSameDay(sel.day, day) ? "ring-2 ring-black dark:ring-white " : ""}${
                                     isTod
                                         ? "rounded-xl bg-t2-sub  border-2 border-t2-accent  shadow-xs hover:border-t2-accent  z-[2]"
                                         : isCurMonth
@@ -133,7 +156,7 @@ export default function DesktopMonthView({
                                         {holiday && (
                                             <span
                                                 title={holiday.name}
-                                                className="hidden sm:inline-block truncate text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded"
+                                                className="hidden xl:inline-block truncate text-[11px] font-medium text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 px-1 py-0.5 rounded"
                                             >
                                                 {holiday.name}
                                             </span>
@@ -150,14 +173,14 @@ export default function DesktopMonthView({
                             </div>
 
                             {/* Event Pills */}
-                            <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                            <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-hidden">
                                 {hasTasks && (
                                     <div
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onDayClick(day);
+                                            handleDay(day);
                                         }}
-                                        className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
+                                        className={`flex shrink-0 items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
                                             allCompleted
                                                 ? "border-emerald-500 text-t2-ink-2 "
                                                 : "border-t2-accent text-t2-ink "
@@ -196,31 +219,31 @@ export default function DesktopMonthView({
                                     const isCancelled = !!ev.is_cancelled;
                                     const groupIds = getEventGroupIds(ev);
                                     const matchedTheme = themes.find((t) => groupIds.includes(t.id));
-                                    const eventColor = ev.color || matchedTheme?.color || "#3b82f6";
+                                    const colors = eventColors(ev, themes);
                                     const isTimed = !ev.allDay;
+                                    void matchedTheme;
 
                                     return (
                                         <div
                                             key={ev.id}
                                             onClick={(e) => {
                                                 e.stopPropagation();
-                                                onEventClick(ev, e.currentTarget.getBoundingClientRect());
+                                                if (tablet) setSel({ day, ev });
+                                                else onEventClick(ev, e.currentTarget.getBoundingClientRect());
                                             }}
-                                            style={{
-                                                borderLeftColor: eventColor,
-                                            }}
-                                            className={`flex items-center gap-1 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
+                                            style={{ background: colors.bg, color: colors.ink }}
+                                            className={`flex shrink-0 items-center gap-1 px-1.5 py-[3px] min-h-[20px] rounded-md text-[11px] leading-tight font-semibold truncate cursor-pointer transition-[filter] hover:brightness-[0.93] ${
                                                 isCancelled ? "opacity-50 line-through" : ""
                                             } ${isCompleted ? "opacity-60" : ""}`}
                                             title={`${ev.title}${isTimed ? ` (${format(new Date(ev.start), "HH:mm")})` : ""}`}
                                         >
                                             {isTimed && (
-                                                <span className="text-[11px] font-semibold text-t2-ink-2  shrink-0">
+                                                <span className="text-[11px] font-semibold opacity-75 shrink-0 tabular-nums">
                                                     {format(new Date(ev.start), "HH:mm")}
                                                 </span>
                                             )}
                                             <span
-                                                className={`truncate text-t2-ink  ${
+                                                className={`truncate ${
                                                     isCompleted ? "line-through" : ""
                                                 }`}
                                             >
@@ -234,9 +257,9 @@ export default function DesktopMonthView({
                                     <div
                                         onClick={(e) => {
                                             e.stopPropagation();
-                                            onDayClick(day);
+                                            handleDay(day);
                                         }}
-                                        className="text-[11px] font-bold text-t2-accent  hover:underline px-1 pt-0.5 cursor-pointer"
+                                        className="shrink-0 text-[11px] font-bold text-t2-accent  hover:underline px-1 pt-0.5 cursor-pointer"
                                     >
                                         +{hiddenCount} weitere
                                     </div>
@@ -247,6 +270,37 @@ export default function DesktopMonthView({
                 })}
                 </div>
             </div>
+        </div>
+        {/* Details of the selected event: a few lines under the calendar */}
+        <div
+            className={`shrink-0 overflow-hidden transition-[max-height,opacity] duration-300 ease-out ${panelOpen && sel?.ev ? "max-h-[260px] opacity-100" : "max-h-0 opacity-0"}`}
+        >
+            {sel?.ev && (
+                <MonthEventInfo
+                    event={sel.ev}
+                    themes={themes}
+                    onEdit={(rect) => onEventClick(sel.ev as CalendarEvent, rect)}
+                    onClose={() => setSel((cur) => (cur ? { ...cur, ev: null } : cur))}
+                />
+            )}
+        </div>
+        </div>
+        {/* Day list: slides in from the right while the calendar shrinks */}
+        <div
+            className={`shrink-0 overflow-hidden transition-[width,opacity,padding] duration-300 ease-out ${panelOpen ? "w-[360px] opacity-100 py-3 pr-3 sm:py-4 sm:pr-4" : "w-0 opacity-0"}`}
+        >
+            {sel && (
+                <MonthDayPanel
+                    day={sel.day}
+                    events={dayEvents(sel.day)}
+                    themes={themes}
+                    selectedId={sel.ev?.id ?? null}
+                    onSelect={(ev) => setSel({ day: sel.day, ev })}
+                    onOpenDay={() => { const d = sel.day; setSel(null); onDayClick(d); }}
+                    onClose={() => setSel(null)}
+                />
+            )}
+        </div>
         </div>
     );
 }

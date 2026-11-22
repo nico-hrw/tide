@@ -356,6 +356,7 @@ export default function CalendarView({
                         }}
                         onEventCreate={onEventCreate}
                         onEventDelete={onEventDelete}
+                        onEventSave={onEventSave}
                         onTaskToggle={(id, currentIsCompleted) => {
                             if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });
                         }}
