@@ -190,6 +190,11 @@ export interface UiSlice {
     setShowPageBreaks: (show: boolean) => void;
     /** Numbers headings and sub-headings (1, 1.1, 1.1.1) by CSS counters; the text is not changed. */
     headingNumbering: boolean;
+    /** Show the title field and the "+ Tag" row at the top of a note (this device only). */
+    showNoteTitle: boolean;
+    setShowNoteTitle: (on: boolean) => void;
+    showNoteTags: boolean;
+    setShowNoteTags: (on: boolean) => void;
     setHeadingNumbering: (on: boolean) => void;
     /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
     a4SideBorders: boolean;

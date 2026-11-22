@@ -391,6 +391,7 @@ export default function CalendarView({
                     themes={themes}
                     onEventSave={onEventSave}
                     onEventDelete={onEventDelete}
+                    onEventShare={onEventShare}
                     onClose={() => setActivePopover(null)}
                     enabledExtensions={enabledExtensions}
                     showNoTagConfirm={noTagPrompt.promptId === activePopover.id}

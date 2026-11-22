@@ -128,7 +128,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'look.layout': 'Layout',
     'look.layoutHint': 'Navigation and type.',
     'look.tablet': 'Use tablet mode',
-    'look.tabletDesc': 'Shows folders and notes clearly on the home screen (default on iPad).',
+    'look.tabletDesc': 'Shows folders and notes clearly on the home screen (default on iPad). Applies to this device only; other devices on the same account keep their own choice.',
     'look.fontSize': 'Font size',
     'look.fontSizeDesc': 'Scales text across the interface.',
     'look.fontMedium': 'Medium',

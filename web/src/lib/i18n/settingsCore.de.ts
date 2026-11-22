@@ -126,7 +126,7 @@ export const settingsCoreDe = {
     'look.layout': 'Anordnung',
     'look.layoutHint': 'Navigation und Schrift.',
     'look.tablet': 'Tablet-Modus nutzen',
-    'look.tabletDesc': 'Zeigt Ordner und Notizen übersichtlich auf der Startseite (Standard auf dem iPad).',
+    'look.tabletDesc': 'Zeigt Ordner und Notizen übersichtlich auf der Startseite (Standard auf dem iPad). Gilt nur für dieses Gerät, andere Geräte desselben Kontos behalten ihre eigene Wahl.',
     'look.fontSize': 'Schriftgröße',
     'look.fontSizeDesc': 'Skalierung des Texts in der ganzen Oberfläche.',
     'look.fontMedium': 'Mittel',

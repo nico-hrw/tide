@@ -68,7 +68,7 @@ export const DragGhost: React.FC<DragGhostProps> = ({
 
     return typeof document !== 'undefined' ? createPortal(
         <motion.div
-            className="fixed top-0 left-0 pointer-events-none z-[9999] rounded-xl shadow-2xl overflow-hidden"
+            className="fixed top-0 left-0 pointer-events-none z-[9999] rounded-xl shadow-[0_12px_32px_rgba(0,0,0,0.35)] ring-2 ring-black/70 dark:ring-white/80 overflow-hidden"
             style={{
                 x: cursorX,
                 y: cursorY,
@@ -80,7 +80,7 @@ export const DragGhost: React.FC<DragGhostProps> = ({
                 borderLeft: `4px solid ${theme.border}`
             }}
             initial={{ opacity: 0, scale: 0.95 }}
-            animate={{ opacity: 0.85, scale: 1.0 }}
+            animate={{ opacity: 0.95, scale: 1.02 }}
             exit={{ opacity: 0, scale: 0.95 }}
             transition={{ duration: 0.1 }}
         >

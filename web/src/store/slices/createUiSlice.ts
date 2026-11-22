@@ -127,6 +127,12 @@ function loadTodoHideDone(): TodoHideDone {
     }
 }
 
+/** Boolean setting kept in localStorage; on unless explicitly turned off. */
+function readFlag(key: string): boolean {
+    if (typeof window === 'undefined') return true;
+    try { return localStorage.getItem(key) !== 'false'; } catch { return true; }
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
@@ -150,6 +156,16 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     paperPattern: getInitialPaperPattern(),
     showPageBreaks: getInitialShowPageBreaks(),
     headingNumbering: getInitialHeadingNumbering(),
+    showNoteTitle: readFlag('tide_note_show_title'),
+    setShowNoteTitle: (on: boolean) => {
+        try { localStorage.setItem('tide_note_show_title', String(on)); } catch { /* ignore */ }
+        set({ showNoteTitle: on });
+    },
+    showNoteTags: readFlag('tide_note_show_tags'),
+    setShowNoteTags: (on: boolean) => {
+        try { localStorage.setItem('tide_note_show_tags', String(on)); } catch { /* ignore */ }
+        set({ showNoteTags: on });
+    },
     setHeadingNumbering: (on: boolean) =>
         set(() => {
             if (typeof window !== 'undefined') localStorage.setItem('tide_heading_numbering', String(on));

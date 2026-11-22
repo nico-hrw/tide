@@ -3,7 +3,7 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { Star, Ban, Trash2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
+import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
 import { TagPicker } from "@/components/Tags/TagPicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
@@ -123,6 +123,8 @@ export interface EventPopoverProps {
     themes: Array<{ id: string; title: string; effect?: string; color?: string }>;
     onEventSave: (id: string, updates: Partial<EventPopoverEvent>) => void;
     onEventDelete?: (id: string) => void;
+    /** Opens the share dialog for this event. */
+    onEventShare?: (e: React.MouseEvent, id: string) => void;
     onClose: () => void;
     enabledExtensions: string[];
     /** Ask "Ohne Tag speichern?" in place of closing (set by the host for untagged new events). */
@@ -137,6 +139,7 @@ export default function EventPopover({
     themes,
     onEventSave,
     onEventDelete,
+    onEventShare,
     onClose,
     showNoTagConfirm,
     onNoTagConfirm,
@@ -279,6 +282,12 @@ export default function EventPopover({
         setPos({ top, left });
     }, [rect, isExpanded, showColorPicker, selectedGroupIds]);
 
+    // Tell the event block it is the open one (black outline) while this popover exists
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('tide:event-popover', { detail: { id: event.id } }));
+        return () => { window.dispatchEvent(new CustomEvent('tide:event-popover', { detail: { id: null } })); };
+    }, [event.id]);
+
     // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
     useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
@@ -353,6 +362,16 @@ export default function EventPopover({
                     >
                         <Ban size={15} className={isCancelled ? 'stroke-[2.5]' : ''} />
                     </button>
+                    {onEventShare && (
+                        <button
+                            type="button"
+                            onClick={(e) => onEventShare(e, event.id)}
+                            className="w-8 h-8 grid place-items-center rounded-full text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover transition-all"
+                            title="Teilen"
+                        >
+                            <Share2 size={15} />
+                        </button>
+                    )}
                     <button
                         type="button"
                         onClick={() => { onEventDelete?.(event.id); }}

@@ -462,7 +462,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-t2-line-soft  relative z-[10] bg-transparent`}
+            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-t2-line-soft  relative z-[10] bg-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors`}
             style={{ '--hour-height': `${hourHeight}px` } as React.CSSProperties}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -958,7 +958,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`border-b border-dashed ${isToday ? 'border-t2-line ' : 'border-t2-line '} ${hoveredHour === i ? 'bg-t2-hover ' : 'bg-transparent'}`}
+                        className={`border-b border-dashed ${isToday ? 'border-t2-line ' : 'border-t2-line '} ${hoveredHour === i ? 'bg-black/[0.045] dark:bg-white/[0.06]' : 'bg-transparent'}`}
                         style={{ height: 'var(--hour-height, 48px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}

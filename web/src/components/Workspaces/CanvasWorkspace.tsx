@@ -323,6 +323,8 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const headingNumbering = useDataStore((s) => s.headingNumbering);
     const a4SideBorders = useDataStore((s) => s.a4SideBorders);
     const noteMargin = useDataStore((s) => s.noteMargin);
+    const showNoteTitle = useDataStore((s) => s.showNoteTitle);
+    const showNoteTags = useDataStore((s) => s.showNoteTags);
     const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
@@ -506,6 +508,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             <input
                                                 id="note-title-input"
                                                 type="text"
+                                                hidden={!showNoteTitle}
                                                 autoFocus
                                                 value={fileName}
                                                 readOnly={(files.find(f => f.id === (titleInputNoteIdRef.current || activeNoteId)) as any)?.permission === 'view'}
@@ -564,6 +567,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
+                                            {!showNoteTitle && <div className="flex-1" />}
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
                                             <NoteHeaderActions
                                                 isOwner={headerIsOwner}
@@ -684,7 +688,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 </>}
                                             />
                                         </div>
-                                        {activeNoteId && <NoteTagsRow noteId={activeNoteId} isOwner={headerIsOwner} />}
+                                        {activeNoteId && showNoteTags && <NoteTagsRow noteId={activeNoteId} isOwner={headerIsOwner} />}
                                     </>
                                 )}
 

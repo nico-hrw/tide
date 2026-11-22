@@ -9,6 +9,7 @@ interface CalendarEventPopoverHostProps {
     themes?: CalendarViewProps["themes"];
     onEventSave: CalendarViewProps["onEventSave"];
     onEventDelete: CalendarViewProps["onEventDelete"];
+    onEventShare?: CalendarViewProps["onEventShare"];
     onClose: () => void;
     enabledExtensions: string[];
     showNoTagConfirm?: boolean;
@@ -23,6 +24,7 @@ export function CalendarEventPopoverHost({
     themes,
     onEventSave,
     onEventDelete,
+    onEventShare,
     onClose,
     enabledExtensions,
     showNoTagConfirm,
@@ -76,6 +78,7 @@ export function CalendarEventPopoverHost({
             themes={themes || []}
             onEventSave={onEventSave || (() => { })}
             onEventDelete={onEventDelete}
+            onEventShare={onEventShare}
             onClose={onClose}
             enabledExtensions={enabledExtensions}
             showNoTagConfirm={showNoTagConfirm}
