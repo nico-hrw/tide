@@ -1,6 +1,7 @@
 "use client";
 
 import { X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, UserMinus, Loader2, ShieldCheck, Variable } from "lucide-react";
+import { askConfirm, notifyError } from '@/lib/feedback';
 import { useState, useEffect, useCallback } from "react";
 import * as Y from "yjs";
 import { apiFetch } from "@/lib/api";
@@ -260,14 +261,14 @@ export default function ShareModal({
                 if (results && results.length > 0) {
                     setSearchResult(results[0]);
                 } else {
-                    alert("Nutzer nicht gefunden.");
+                    notifyError("Nutzer nicht gefunden.");
                 }
             } else {
-                alert("Suche fehlgeschlagen.");
+                notifyError("Suche fehlgeschlagen.");
             }
         } catch (e) {
             console.error("Search failed:", e);
-            alert("Suche fehlgeschlagen.");
+            notifyError("Suche fehlgeschlagen.");
         } finally {
             setLoading(false);
         }
@@ -358,7 +359,7 @@ export default function ShareModal({
             }
         } catch (err) {
             console.error("[ShareModal] Error updating role:", err);
-            alert("Fehler beim Aktualisieren der Berechtigung");
+            notifyError("Fehler beim Aktualisieren der Berechtigung");
             loadExistingShares();
         } finally {
             setUpdatingRoleId(null);
@@ -377,7 +378,7 @@ export default function ShareModal({
      * - Update activeDEK and keyEpoch in store.
      */
     const handleRevokeShare = async (targetUserId: string) => {
-        if (!confirm("Zugriff für diesen Nutzer wirklich widerrufen? (Schlüsselrotation & Vorwärtsgeheimnis werden angewendet)")) {
+        if (!(await askConfirm({ title: 'Zugriff widerrufen?', message: 'Schlüsselrotation und Vorwärtsgeheimnis werden angewendet.', confirmLabel: 'Widerrufen', tone: 'danger' }))) {
             return;
         }
 
@@ -513,7 +514,7 @@ export default function ShareModal({
             setExistingShares(prev => prev.filter(s => s.user_id !== targetUserId));
         } catch (err) {
             console.error("[ShareModal] Revoke & rotate failed:", err);
-            alert("Fehler beim Widerrufen der Freigabe");
+            notifyError("Fehler beim Widerrufen der Freigabe");
         } finally {
             setRevokingUserId(null);
         }

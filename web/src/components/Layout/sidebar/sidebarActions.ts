@@ -1,4 +1,5 @@
 import { useDataStore } from "@/store/useDataStore";
+import { notifyError } from '@/lib/feedback';
 import { importTideBundle, exportTideBundle, markdownToTipTap, tipTapToMarkdown } from "@/lib/bundleImportExport";
 import type { DecryptedFile } from "./types";
 
@@ -32,7 +33,7 @@ export const handleImport = (onFileSelect: (fileId: string, title: string) => vo
                     onFileSelect(newId, title);
                 } catch (err: any) {
                     console.error("Import error:", err);
-                    alert("Import fehlgeschlagen: " + (err?.message || "Ungültige Datei"));
+                    notifyError("Import fehlgeschlagen: " + (err?.message || "Ungültige Datei"));
                 }
             };
             reader.readAsText(file);
@@ -74,7 +75,7 @@ export const handleExport = async (files: DecryptedFile[], itemId: string, forma
             }
         } catch (err: any) {
             console.error("Export error:", err);
-            alert("Export fehlgeschlagen: " + (err?.message || "Fehler"));
+            notifyError("Export fehlgeschlagen: " + (err?.message || "Fehler"));
         }
     };
 
@@ -128,6 +129,6 @@ export const handleCopyToMyNotes = async (
             }
         } catch (err: any) {
             console.error("Failed to copy note to my notes:", err);
-            alert("Kopieren fehlgeschlagen: " + (err?.message || "Unbekannter Fehler"));
+            notifyError("Kopieren fehlgeschlagen: " + (err?.message || "Unbekannter Fehler"));
         }
     };

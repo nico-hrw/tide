@@ -1,13 +1,13 @@
 "use client";
 
 import React, { useMemo } from "react";
+import { askConfirm, notify, notifyError } from '@/lib/feedback';
 import type { JSONContent } from "@tiptap/react";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
-import { MoodPopup } from "@/components/Surveys/MoodPopup";
 import { useDataStore } from "@/store/useDataStore";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { apiFetch } from "@/lib/api";
@@ -25,7 +25,6 @@ import type {
     DeleteErrorState,
     NoteSecurityModalItem,
     ShareModalFile,
-    SummaryStats,
     Tab,
     UserProfile,
 } from "./types";
@@ -83,12 +82,6 @@ export interface DashboardModalsProps {
         options?: { color?: string; effect?: string }
     ) => Promise<void>;
 
-    // Daily Summary Modal
-    isSummaryOpen: boolean;
-    setIsSummaryOpen: React.Dispatch<React.SetStateAction<boolean>>;
-    streak: number;
-    summaryStats: SummaryStats;
-
     // Backup History Modal
     showBackups: boolean;
     setShowBackups: React.Dispatch<React.SetStateAction<boolean>>;
@@ -145,10 +138,6 @@ export function DashboardModals({
     scheduleModalOpen,
     setScheduleModalOpen,
     onApplySchedule,
-    isSummaryOpen,
-    setIsSummaryOpen,
-    streak,
-    summaryStats,
     showBackups,
     setShowBackups,
     activeNoteId,
@@ -181,13 +170,13 @@ export function DashboardModals({
         [files]
     );
 
-    const handleDeleteGroup = (e: React.MouseEvent, id: string) => {
+    const handleDeleteGroup = async (e: React.MouseEvent, id: string) => {
         const group = files.find((f) => f.id === id);
         const isPlannerActive = enabledExtensions.includes("job_planner");
         const plannerGroupId = useJobPlannerStore.getState().pluginGroupId;
         const isProtected = isPlannerActive && Boolean(plannerGroupId && id === plannerGroupId);
         if (isProtected) {
-            alert("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
+            notify("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
             return;
         }
         if (!group) return;
@@ -201,13 +190,14 @@ export function DashboardModals({
             : { eventPatches: [], taskPatches: [] };
         const text = (key: string, vars?: Record<string, string | number>) =>
             formatMessage(getTranslation(store.language || "de", "settings", key), vars);
-        const question = `${text("cal.deleteConfirm")}
-
-${text("cal.deleteConfirmCount", {
-            events: patches.eventPatches.length,
-            todos: patches.taskPatches.length,
-        })}`;
-        if (!confirm(question)) return;
+        // Removing a tag changes events, todos and notes: a real question, not just an undo toast
+        const ok = await askConfirm({
+            title: text("cal.deleteConfirm"),
+            message: text("cal.deleteConfirmCount", { events: patches.eventPatches.length, todos: patches.taskPatches.length }),
+            confirmLabel: "Tag löschen",
+            tone: "danger",
+        });
+        if (!ok) return;
         void deleteTagEverywhere(id, {
             events,
             tasks: store.tasks,
@@ -231,7 +221,7 @@ ${text("cal.deleteConfirmCount", {
                 onTabClose(null, tagId);
             },
         }).then((result) => {
-            if (!result.ok) alert(text("cal.deleteFailed"));
+            if (!result.ok) notifyError(text("cal.deleteFailed"));
         });
     };
 
@@ -242,18 +232,38 @@ ${text("cal.deleteConfirmCount", {
         const events = store.events as unknown as CalendarEvent[];
         const count = eventIdsWithTag(id, events, myId).length;
         if (count === 0) {
-            alert(text("cal.deleteEventsNone"));
+            notify(text("cal.deleteEventsNone"));
             return;
         }
-        if (!confirm(text("cal.deleteEventsConfirm", { count }))) return;
         void deleteEventsWithTag(id, events, async (eventId) => {
             const res = await apiFetch(`/api/v1/files/${eventId}`, { method: "DELETE" });
             return res.ok || res.status === 404;
         }, myId).then(({ deleted, failed }) => {
             const latest = useDataStore.getState();
             const gone = new Set(deleted);
+            const removed = events.filter((e) => gone.has(e.id));
             latest.setEvents(latest.events.filter((e) => !gone.has(e.id)));
-            if (failed.length > 0) alert(text("cal.deleteEventsFailed", { count: failed.length }));
+            if (failed.length > 0) notifyError(text("cal.deleteEventsFailed", { count: failed.length }));
+            if (deleted.length > 0) {
+                notify(`${deleted.length} Termine gelöscht`, {
+                    tone: "success",
+                    duration: 12000,
+                    action: {
+                        label: "Rückgängig",
+                        onClick: async () => {
+                            const restored = new Set<string>();
+                            for (const eventId of deleted) {
+                                const res = await apiFetch(`/api/v1/files/${eventId}/restore`, { method: "POST" });
+                                if (res.ok) restored.add(eventId);
+                            }
+                            const now = useDataStore.getState();
+                            const have = new Set(now.events.map((e) => e.id));
+                            now.setEvents([...now.events, ...(removed.filter((e) => restored.has(e.id) && !have.has(e.id)) as unknown as typeof now.events)]);
+                            if (restored.size < deleted.length) notifyError("Nicht alle Termine konnten wiederhergestellt werden");
+                        },
+                    },
+                });
+            }
         });
     };
 
@@ -320,11 +330,6 @@ ${text("cal.deleteConfirmCount", {
                 onCloseScheduleModal={() => setScheduleModalOpen(false)}
                 onApplySchedule={onApplySchedule}
                 existingThemes={groups}
-                isSummaryOpen={isSummaryOpen}
-                setIsSummaryOpen={setIsSummaryOpen}
-                onCloseSummary={() => setIsSummaryOpen(false)}
-                streak={streak}
-                summaryStats={summaryStats}
                 showBackups={showBackups}
                 setShowBackups={setShowBackups}
                 activeNoteId={activeNoteId}
@@ -351,7 +356,6 @@ ${text("cal.deleteConfirmCount", {
                 myId={myId}
             />
 
-            <MoodPopup />
         </>
     );
 }

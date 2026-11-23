@@ -1,6 +1,7 @@
 "use client";
 
 import type React from "react";
+import { notifyError } from '@/lib/feedback';
 import { apiFetch } from "@/lib/api";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
 import type { Tab } from "@/components/Layout/TabList";
@@ -211,7 +212,7 @@ export function useFileActions({
     const handleToggleVisibility = async (e: React.MouseEvent, fileId: string, newVisibility: string) => {
         if (e) e.stopPropagation();
         if (!privateKey || !publicKey) {
-            alert("Keys not available");
+            notifyError("Keys not available");
             return;
         }
 
@@ -257,7 +258,7 @@ export function useFileActions({
             (fetchDirectory ?? useDataStore.getState().fetchDirectory)(null);
         } catch (err) {
             console.error("Visibility toggle failed:", err);
-            alert("Failed to change visibility");
+            notifyError("Failed to change visibility");
             useDataStore
                 .getState()
                 .setNotes(
@@ -280,7 +281,7 @@ export function useFileActions({
 
         if (!file) {
             console.error("File/Event not found for sharing:", fileId, "(base:", baseId, ")");
-            alert("Termin konnte nicht zum Teilen gefunden werden.");
+            notifyError("Termin konnte nicht zum Teilen gefunden werden.");
             return;
         }
 
@@ -289,7 +290,7 @@ export function useFileActions({
         const canReshare = Boolean(file.can_reshare);
 
         if (!isOwner && !canReshare) {
-            alert("Du hast keine Berechtigung, diese Notiz weiterzuleiten.");
+            notifyError("Du hast keine Berechtigung, diese Notiz weiterzuleiten.");
             return;
         }
 

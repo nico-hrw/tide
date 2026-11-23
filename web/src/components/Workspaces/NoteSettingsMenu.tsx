@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { notifyError } from '@/lib/feedback';
 import {
     Type,
     Tag,
@@ -425,7 +426,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
         if (typeof noteContent === 'string' && isCiphertextPattern(noteContent)) {
             console.warn('[NoteSettingsMenu] Cannot share note: content is encrypted');
             if (typeof window !== 'undefined') {
-                alert('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
+                notifyError('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
             }
             setShowUnencryptedWarning(false);
             return;
@@ -454,7 +455,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             if (typeof md === 'string' && isCiphertextPattern(md)) {
                 console.warn('[NoteSettingsMenu] Cannot share note: converted content is encrypted');
                 if (typeof window !== 'undefined') {
-                    alert('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
+                    notifyError('Warnung: Die Notiz ist verschlüsselt und kann nicht unverschlüsselt freigegeben werden.');
                 }
                 setShowUnencryptedWarning(false);
                 setIsProcessing(false);
@@ -530,7 +531,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
             if (typeof contentStr === 'string' && isCiphertextPattern(contentStr)) {
                 console.error('[NoteSettingsMenu] Note content appears already encrypted, aborting re-encryption');
                 if (typeof window !== 'undefined') {
-                    alert('Fehler: Der Notizinhalt ist bereits verschlüsselt.');
+                    notifyError('Fehler: Der Notizinhalt ist bereits verschlüsselt.');
                 }
                 setIsProcessing(false);
                 return;

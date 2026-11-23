@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
+import { askConfirm } from '@/lib/feedback';
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { getTaskPriority, PRIORITY_OPTIONS, type Priority } from './types';
@@ -50,7 +51,7 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
   };
 
   const remove = async () => {
-    if (!window.confirm(`„${task.title}“ löschen?`)) return;
+    if (!(await askConfirm({ title: `„${task.title}“ löschen?`, confirmLabel: 'Löschen', tone: 'danger' }))) return;
     await deleteTask(task.id);
     onBack();
   };

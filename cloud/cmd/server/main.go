@@ -238,7 +238,6 @@ func main() {
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
 	externalHandler := api.NewExternalHandler(sqliteStore, blobStore)
 	todosHandler := api.NewTodosHandler(sqliteStore)
-	surveysHandler := api.NewSurveysHandler(sqliteStore)
 
 	// 3. Setup Router
 	trustedProxies := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
@@ -391,10 +390,6 @@ func main() {
 		r.Route("/todos", func(r chi.Router) {
 			r.Use(api.RateLimitMiddleware(apiLimiter))
 			todosHandler.RegisterRoutes(r)
-		})
-		r.Route("/surveys", func(r chi.Router) {
-			r.Use(api.RateLimitMiddleware(apiLimiter))
-			surveysHandler.RegisterRoutes(r)
 		})
 		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)
 		r.Route("/external", func(r chi.Router) {

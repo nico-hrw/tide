@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { askConfirm } from '@/lib/feedback';
 import { Plus, X, Check, Trash2 } from 'lucide-react';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
@@ -173,8 +174,13 @@ export default function PlannerSemesterBoard() {
                                     {semester.exams.length}
                                 </span>
                                 <button
-                                    onClick={() => {
-                                        if (semester.exams.length === 0 || confirm(`"${semester.title}" löschen?`)) {
+                                    onClick={async () => {
+                                        if (semester.exams.length === 0 || await askConfirm({
+                                            title: `„${semester.title}“ löschen?`,
+                                            message: `${semester.exams.length} Prüfungen werden mit gelöscht.`,
+                                            confirmLabel: 'Löschen',
+                                            tone: 'danger',
+                                        })) {
                                             deleteSemester(semester.id);
                                         }
                                     }}

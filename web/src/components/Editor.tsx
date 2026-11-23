@@ -14,6 +14,7 @@ import { getCleanDocContent } from './Editor/editorUtils';
 import { MentionNodeView } from './Editor/MentionNodeView';
 import { TableContextMenu } from './Editor/TableContextMenu';
 import { EditorBubbleMenu } from './Editor/EditorBubbleMenu';
+import ReferenceEditPopover from './Editor/ReferenceEditPopover';
 import { TableCellBar } from './Editor/TableCellBar';
 import { FormatSearch } from './Editor/FormatSearch';
 import { EditorInlineSearch } from './Editor/EditorInlineSearch';
@@ -588,6 +589,7 @@ function CollaborativeEditor(props: EditorProps) {
                 onConnectImage={onConnectImage}
                 currentBlockIdRef={currentBlockIdRef}
             />
+            <ReferenceEditPopover editor={editor} />
 
             <div
                 className="min-h-[500px] w-full max-w-full overflow-x-hidden relative"

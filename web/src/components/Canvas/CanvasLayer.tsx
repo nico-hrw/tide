@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useCallback, useState, useEffect, useMemo, type ReactNode } from 'react';
+import { notifyError } from '@/lib/feedback';
 import * as Y from 'yjs';
 import { useMediaQuery } from '@/hooks/useMediaQuery';
 import CanvasElementComponent from './CanvasElement';
@@ -324,7 +325,7 @@ export default function CanvasLayer({
         if (pendingBindBlockId === '__pending_rebind__' && rebindTarget.current) {
             if (rebindTarget.current.id === clickedId) return;
             if (isCircular(rebindTarget.current.id, clickedId, elements)) {
-                alert("Circular dependency detected! An element cannot be anchored to its own descendants.");
+                notifyError("Circular dependency detected! An element cannot be anchored to its own descendants.");
                 rebindTarget.current = null;
                 onBindingComplete?.();
                 return;

@@ -97,11 +97,6 @@ export interface ShareModalFile {
     callerPermission?: "owner" | "view" | "edit" | "share";
 }
 
-export interface SummaryStats {
-    events: number;
-    tasks: number;
-}
-
 export interface SessionKeyPair {
     privateKey: CryptoKey | null;
     publicKey: CryptoKey | null;

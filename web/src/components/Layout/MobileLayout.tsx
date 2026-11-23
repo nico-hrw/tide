@@ -4,7 +4,6 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { isSameDay, format, startOfWeek, addDays } from 'date-fns';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
-import { MoodPopup } from '@/components/Surveys/MoodPopup';
 import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
 import { T } from './mobile/mobileTheme';
@@ -61,7 +60,7 @@ export default function MobileLayout({
   const setSettingsOpen = useDataStore((s) => s.setSettingsModalOpen);
   const theme = useDataStore((s) => s.theme);
 
-  const [ui, setUi] = useState({ sidebar: false, search: false, editingNote: false, exams: false, surveys: false, newEventSheet: false });
+  const [ui, setUi] = useState({ sidebar: false, search: false, editingNote: false, exams: false, newEventSheet: false });
   const [isSharedFolderOpen, setIsSharedFolderOpen] = useState(true);
   const [isPlusMenuOpen, setIsPlusMenuOpen] = useState(false);
   const [activeDate, setActiveDate] = useState(() => new Date());
@@ -296,7 +295,7 @@ export default function MobileLayout({
         isOpen={ui.sidebar} onClose={() => setUi((p) => ({ ...p, sidebar: false }))} files={files} folders={folders}
         activeNoteId={activeNoteId} onNoteSelect={openNote} onNewNote={() => { onNewNote(); setUi((p) => ({ ...p, editingNote: true })); }}
         onNewFolder={onNewFolder} onOpenExams={() => setUi((p) => ({ ...p, exams: true }))}
-        onOpenSurveys={() => setUi((p) => ({ ...p, surveys: true }))} onOpenSettings={() => setSettingsOpen(true)}
+        onOpenSettings={() => setSettingsOpen(true)}
         draggingNote={draggingNote} dragGhostPos={dragGhostPos} dragOverFolderId={dragOverFolderId}
         onDragOverFolder={setDragOverFolderId} onNoteDragStart={handleNoteDragStart}
         onContextMenu={setContextMenu} onPromptPin={setPinPromptItem} enabledExtensions={enabledExtensions}
@@ -351,8 +350,8 @@ export default function MobileLayout({
       <MobileOverlaysAndModals
         isEditingNote={ui.editingNote} activeNoteId={activeNoteId} activeNoteTitle={activeNoteTitle} editorElement={editorElement}
         onCloseEditor={() => { setUi((p) => ({ ...p, editingNote: false })); onNoteSelect?.('', ''); }} onNoteRename={onNoteRename}
-        isExamsOpen={ui.exams} onCloseExams={() => setUi((p) => ({ ...p, exams: false }))} isSurveysOpen={ui.surveys}
-        onCloseSurveys={() => setUi((p) => ({ ...p, surveys: false }))} isSearchOpen={ui.search}
+        isExamsOpen={ui.exams} onCloseExams={() => setUi((p) => ({ ...p, exams: false }))}
+        isSearchOpen={ui.search}
         onCloseSearch={() => setUi((p) => ({ ...p, search: false }))} searchQuery={searchQuery} onSearchQueryChange={setSearchQuery}
         searchEvents={searchEvents} searchTodos={searchTodos} searchNotes={searchNotes} expandedEvents={expandedEvents}
         onSwitchToTodos={() => setActiveTab('todos')} onOpenNote={openNote} isFilterOpen={filterState.open}
@@ -373,7 +372,6 @@ export default function MobileLayout({
         onCloseNewEventSheet={() => setUi((p) => ({ ...p, newEventSheet: false }))} onNewEvent={onNewEvent}
         pinPromptItem={pinPromptItem} userEmail={userProfile?.email} onClosePinPrompt={() => setPinPromptItem(null)}
       />
-      <MoodPopup />
     </div>
   );
 }

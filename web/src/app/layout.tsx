@@ -4,6 +4,7 @@ import AuthGuard from "@/components/AuthGuard";
 import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
 import UpdateBanner from "@/components/Update/UpdateBanner";
+import FeedbackHost from "@/components/Feedback/FeedbackHost";
 import { PALETTE_BOOT_SCRIPT } from "@/lib/palette";
 import "./globals.css";
 import "./palettes.css";
@@ -77,6 +78,7 @@ export default function RootLayout({
           <IslandProvider>
             <AuthGuard>{children}</AuthGuard>
             <UpdateBanner />
+            <FeedbackHost />
           </IslandProvider>
         </HighlightProvider>
       </body>

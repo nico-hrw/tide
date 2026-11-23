@@ -11,7 +11,7 @@ const noop = () => {};
 function baseProps(overrides: Partial<MobileOverlaysAndModalsProps>): MobileOverlaysAndModalsProps {
   return {
     isEditingNote: false, activeNoteId: null, activeNoteTitle: '', onCloseEditor: noop,
-    isExamsOpen: false, onCloseExams: noop, isSurveysOpen: false, onCloseSurveys: noop,
+    isExamsOpen: false, onCloseExams: noop,
     isSearchOpen: false, onCloseSearch: noop, searchQuery: '', onSearchQueryChange: noop,
     searchEvents: [], searchTodos: [], searchNotes: [], expandedEvents: [], onSwitchToTodos: noop, onOpenNote: noop,
     isFilterOpen: false, onCloseFilter: noop, selectedPriority: null, onPriorityChange: noop,

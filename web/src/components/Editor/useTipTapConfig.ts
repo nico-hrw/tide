@@ -50,7 +50,6 @@ import { notionists } from '@dicebear/collection';
 import * as Y from 'yjs';
 import type { WebsocketProvider } from 'y-websocket';
 import { useDataStore } from '@/store/useDataStore';
-import { useReferenceStore } from '@/store/useReferenceStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
 import { encryptAssetWithNewBEK } from '@/lib/assetCrypto';
 import { apiFetch } from '@/lib/api';
@@ -253,7 +252,6 @@ export function useTipTapConfig({
     const onBlocksDeletedRef = useRef(onBlocksDeleted); onBlocksDeletedRef.current = onBlocksDeleted;
     const isSharedRef = useRef(isShared); isSharedRef.current = isShared;
     const canEditRef = useRef(editable);
-    const referencePreviewTimerRef = useRef<NodeJS.Timeout | null>(null);
 
     // BUG-13: Reactive userProfile awareness sync
     useEffect(() => {
@@ -383,44 +381,6 @@ export function useTipTapConfig({
         return base;
     }, [enabledExtensions, provider, ydoc, isSynced]);
 
-    const updateReferencePreviews = (editorInstance: any, activeId: string) => {
-        if (!editorInstance || editorInstance.isDestroyed) return;
-        const store = useReferenceStore.getState();
-        const myRefs = store.references.filter(r => r.sourceNoteId === activeId);
-        if (myRefs.length === 0) return;
-        let changed = false;
-        const newRefs = [...store.references], blocks: string[] = [];
-        editorInstance.state.doc.forEach((n: any) => { if (n.textContent.trim()) blocks.push(n.textContent.trim()); });
-        newRefs.forEach((r, idx) => {
-            if (r.sourceNoteId !== activeId) return;
-            for (let i = 0; i < blocks.length; i++) {
-                if (blocks[i].includes(r.term)) {
-                    let nextBlock = blocks[i];
-                    for (let j = i + 1; j < blocks.length; j++) { if (blocks[j]) { nextBlock = blocks[j]; break; } }
-                    if (newRefs[idx].previewText !== nextBlock && nextBlock) { newRefs[idx] = { ...r, previewText: nextBlock }; changed = true; }
-                    break;
-                }
-            }
-        });
-        editorInstance.state.doc.nodesBetween(0, editorInstance.state.doc.content.size, (node: any) => {
-            if (node.isText && node.marks) {
-                for (const m of node.marks) {
-                    if (m.type.name === 'reference' && m.attrs.referenceId) {
-                        const refIdx = newRefs.findIndex(item => item.id === m.attrs.referenceId);
-                        if (refIdx !== -1) {
-                            const cur = newRefs[refIdx], c = m.attrs.color || undefined, em = m.attrs.emoji || undefined;
-                            if ((c && c !== cur.color) || (em && em !== cur.emoji)) {
-                                newRefs[refIdx] = { ...cur, ...(c ? { color: c } : {}), ...(em ? { emoji: em } : {}) };
-                                changed = true;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-        if (changed) store.setReferences(newRefs);
-    };
-
     const livePermission = useActiveNoteStore((s) => s.permission);
     const canEdit = editable && livePermission !== 'view';
     canEditRef.current = canEdit;
@@ -438,13 +398,6 @@ export function useTipTapConfig({
 
             if (onChangeRef.current) {
                 onChangeRef.current(content);
-            }
-
-            if (enabledExtensions.includes('references')) {
-                if (referencePreviewTimerRef.current) clearTimeout(referencePreviewTimerRef.current);
-                referencePreviewTimerRef.current = setTimeout(() => {
-                    if (activeTabIdRef.current) updateReferencePreviews(editor, activeTabIdRef.current);
-                }, 2000);
             }
 
             // Zero-Knowledge / Datenschutz: Unverschlüsseltes Caching im LocalStorage ist untersagt.
@@ -493,17 +446,8 @@ export function useTipTapConfig({
             },
             handleClick: (view, pos, event) => {
                 const target = event.target as HTMLElement;
-                const refMark = target.closest('[data-reference-id]');
-                const refId = refMark?.getAttribute('data-reference-id');
-                const ref = refId ? useReferenceStore.getState().references.find(r => r.id === refId) : null;
-                if (ref?.sourceNoteId) {
-                    event.preventDefault();
-                    onLinkClickRef.current?.({ id: ref.sourceNoteId, type: 'file', title: ref.term });
-                    useDataStore.getState().setActiveNoteId(ref.sourceNoteId);
-                    window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { noteId: ref.sourceNoteId } }));
-                    window.dispatchEvent(new CustomEvent('tide:navigate-note', { detail: { noteId: ref.sourceNoteId } }));
-                    return true;
-                }
+                // Clicks on reference marks open the edit popup (handled by the ReferenceMark plugin)
+                if (target.closest('[data-reference-id]')) return false;
                 const mentionNode = target.closest('.mention') || target.closest('[data-type="mention"]');
                 if (mentionNode) {
                     event.preventDefault();

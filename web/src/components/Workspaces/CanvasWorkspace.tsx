@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { notifyError } from '@/lib/feedback';
 import dynamic from 'next/dynamic';
 import { GraduationCap, Copy, Download, MoreHorizontal, UploadCloud, Share2, Sigma } from 'lucide-react';
 import { apiFetch } from '@/lib/api';
@@ -796,7 +797,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                             if (!uploadRes.ok) {
                                                                 const errData = await uploadRes.json().catch(() => null);
                                                                 if (uploadRes.status === 403 && errData?.error === 'storage_limit_exceeded') {
-                                                                    alert(errData.message || 'Speicherlimit von 250MB pro Notiz überschritten.');
+                                                                    notifyError(errData.message || 'Speicherlimit von 250MB pro Notiz überschritten.');
                                                                 }
                                                             }
                                                         } catch (err) {

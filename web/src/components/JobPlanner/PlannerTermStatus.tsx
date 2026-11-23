@@ -4,6 +4,9 @@ import React, { useMemo, useState, useEffect } from 'react';
 import { Clock, Calendar, CheckCircle2 } from 'lucide-react';
 import { DataItem } from '@/store/useDataStore';
 import { useJobEventMatcher } from '@/hooks/useJobEventMatcher';
+import { useEventsByDay } from '@/components/Calendar/useEventsByDay';
+import type { CalendarEvent } from '@/components/Calendar/types';
+import { format } from 'date-fns';
 
 interface PlannerTermStatusProps {
     events: DataItem[];
@@ -24,14 +27,24 @@ export default function PlannerTermStatus({
         return () => clearInterval(interval);
     }, []);
 
-    // Filter today's events belonging to planner categories
+    // Today's occurrences of planner events (repetitions expanded; cancelled / moved ones left out)
+    const dayKey = format(now, 'yyyy-MM-dd');
+    const plannerEvents = useMemo(
+        () => events.filter((e) => e.start && e.end && matchesPlanner(e, categoryGroupIds)),
+        [events, categoryGroupIds, matchesPlanner],
+    );
+    const range = useMemo(() => {
+        const start = new Date(`${dayKey}T00:00:00`);
+        const end = new Date(start);
+        end.setDate(end.getDate() + 1);
+        return { start, end };
+    }, [dayKey]);
+    const { timedMap } = useEventsByDay(plannerEvents as unknown as CalendarEvent[], range, undefined);
+
     const { currentEvent, nextEvent } = useMemo(() => {
         const todayStr = now.toDateString();
-        const todayEvents = events.filter(e => {
-            if (!e.start || !e.end) return false;
-            const matchesCategory = matchesPlanner(e, categoryGroupIds);
-            if (!matchesCategory) return false;
-
+        const todayEvents = ((timedMap.get(dayKey) ?? []) as unknown as DataItem[]).filter(e => {
+            if ((e as { is_cancelled?: boolean }).is_cancelled) return false;
             const s = new Date(e.start);
             return s.toDateString() === todayStr;
         }).sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
@@ -48,7 +61,7 @@ export default function PlannerTermStatus({
         });
 
         return { currentEvent: current, nextEvent: next };
-    }, [events, categoryGroupIds, now, matchesPlanner]);
+    }, [timedMap, dayKey, now]);
 
     // Format remaining time for current event
     const currentEventBadge = useMemo(() => {

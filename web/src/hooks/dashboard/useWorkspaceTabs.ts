@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef } from "react";
+import { notifyError } from '@/lib/feedback';
 import type { Editor, JSONContent } from "@tiptap/react";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import type { Tab } from "@/components/Layout/TabList";
@@ -240,7 +241,7 @@ export function useWorkspaceTabs({
             switchTab(newFileId, "file", "Untitled");
         } catch (e) {
             console.error(e);
-            alert("Error creating note");
+            notifyError("Error creating note");
         }
     };
 

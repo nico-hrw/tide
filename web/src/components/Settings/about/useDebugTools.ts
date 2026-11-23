@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { askConfirm } from '@/lib/feedback';
 import { useDataStore } from '@/store/useDataStore';
 import { apiFetch } from '@/lib/api';
 import { useT } from '../useT';
@@ -171,7 +172,7 @@ export function useDebugTools() {
     };
 
     const deleteFile = async (id: string, title?: string) => {
-        if (!window.confirm(t('debug.confirmDeleteOne', { name: title || id }))) return;
+        if (!(await askConfirm({ title: t('debug.confirmDeleteOne', { name: title || id }), confirmLabel: 'Löschen', tone: 'danger' }))) return;
         try {
             const res = await apiFetch(`/api/v1/files/${id}?permanent=true`, { method: 'DELETE' });
             if (res.ok || res.status === 404) {

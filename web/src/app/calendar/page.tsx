@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { askConfirm, notifyError } from '@/lib/feedback';
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch, clearAllSessionData } from "@/lib/api";
@@ -200,7 +201,7 @@ export default function CalendarPage() {
         const title = "New Event";
         try {
             const publicKeyStr = sessionStorage.getItem("tide_user_public_key");
-            if (!publicKeyStr) { alert("Public Key missing."); return null; }
+            if (!publicKeyStr) { notifyError("Public Key missing."); return null; }
             const publicKey = await window.crypto.subtle.importKey(
                 "spki", cryptoLib.base64ToArrayBuffer(publicKeyStr),
                 { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
@@ -410,7 +411,7 @@ export default function CalendarPage() {
             const event = events.find(e => e.id === baseId);
             if (!event || (event as any).recurrence_rule === 'none') {
                 // Not a recurring event, proceed with normal delete
-                if (!confirm("Delete this event?")) return;
+                if (!(await askConfirm({ title: 'Termin löschen?', confirmLabel: 'Löschen', tone: 'danger' }))) return;
                 try {
                     const res = await apiFetch(`/api/v1/files/${baseId}`, { method: "DELETE" });
                     if (!res.ok) throw new Error("Failed to delete");
@@ -426,7 +427,7 @@ export default function CalendarPage() {
         }
 
         // Deleting the whole series
-        if (!confirm("Delete this event and all its future occurrences?")) return;
+        if (!(await askConfirm({ title: 'Alle Wiederholungen löschen?', message: 'Der Termin und alle künftigen Wiederholungen werden gelöscht.', confirmLabel: 'Löschen', tone: 'danger' }))) return;
         try {
             const res = await apiFetch(`/api/v1/files/${baseId}`, { method: "DELETE" });
             if (!res.ok) throw new Error("Failed to delete");

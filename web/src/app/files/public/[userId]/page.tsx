@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { notify, notifyError } from '@/lib/feedback';
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { apiFetch } from "@/lib/api";
 
@@ -82,7 +83,7 @@ export default function PublicProfilePage() {
     const handleCopy = async (fileId: string) => {
         const email = sessionStorage.getItem("tide_user_email");
         if (!email) {
-            alert("You must be logged in to copy files.");
+            notifyError("You must be logged in to copy files.");
             return;
         }
 
@@ -104,10 +105,10 @@ export default function PublicProfilePage() {
 
             if (!res.ok) throw new Error("Failed to copy");
             const data = await res.json();
-            alert("File copied to your Personal Vault! ID: " + data.id);
+            notify("Datei in deinen Tresor kopiert", { tone: "success" });
         } catch (err: any) {
             console.error("Copy failed:", err);
-            alert("Copy failed: " + err.message);
+            notifyError("Copy failed: " + err.message);
         }
     };
 

@@ -108,7 +108,7 @@ export function useIslandModel(layout: IslandLayout): IslandModel {
     const expandOnNotification = useIslandSettingsStore((s) => s.expandOnNotification);
     const smartIslandState = useDataStore((s) => s.smartIslandState);
     const setSmartIsland = useDataStore((s) => s.setSmartIsland);
-    const { state: queue, dismiss, setDailySummaryMode } = useIslandStore();
+    const { state: queue, dismiss } = useIslandStore();
 
     const [now, setNow] = useState<Date>(() => new Date());
     const [view, setView] = useState<IslandState | null>(null);
@@ -185,14 +185,6 @@ export function useIslandModel(layout: IslandLayout): IslandModel {
         captureStart(pl.parseResult.titleHint || '', sug);
         setOpen(true);
     }, [queue.current, captureStart, dismiss]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    // Tageszusammenfassung (Erweiterungs-Einstellung) öffnet die Tagesübersicht
-    useEffect(() => {
-        if (!queue.dailySummaryMode) return;
-        setView('day');
-        setOpen(true);
-        setDailySummaryMode(null);
-    }, [queue.dailySummaryMode, setDailySummaryMode]);
 
     // ── Zustand ────────────────────────────────────────────────────────
     const state = pickIslandState({

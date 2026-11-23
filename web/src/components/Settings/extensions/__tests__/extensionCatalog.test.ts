@@ -5,7 +5,6 @@ const TEXT: Record<string, string> = {
     todos: 'Todos & Tasks Aufgaben mit Fälligkeiten',
     job_planner: 'Job & Study Planner Stundenplan',
     summary: 'Daily Summary Tagesrückblick',
-    surveys: 'Umfragen & Mood-Tracker',
     varsheet: 'VarSheet Rechnen mit Variablen',
     smart_island: 'Smart Island Seitenleiste',
     smart_date_detection: 'Smart Date Detection Datum',
@@ -55,13 +54,13 @@ describe('Katalog', () => {
     it('enthält jede bisherige Erweiterung genau einmal', () => {
         const ids = EXTENSION_CATALOG.map((e) => e.id).sort();
         expect(ids).toEqual(
-            ['file_support', 'job_planner', 'mcp', 'messenger', 'mobile_connection', 'references', 'smart_date_detection', 'smart_island', 'summary', 'surveys', 'todos', 'varsheet'].sort(),
+            ['file_support', 'job_planner', 'mcp', 'messenger', 'mobile_connection', 'references', 'smart_date_detection', 'smart_island', 'todos', 'varsheet'].sort(),
         );
     });
 
     it('Erweiterungen mit Optionen haben eine Unterseite', () => {
         const withPage = EXTENSION_CATALOG.filter((e) => e.hasPage).map((e) => e.id).sort();
-        expect(withPage).toEqual(['job_planner', 'mcp', 'mobile_connection', 'references', 'smart_island', 'surveys']);
+        expect(withPage).toEqual(['job_planner', 'mcp', 'mobile_connection', 'references', 'smart_island']);
     });
 
     it('findExtension findet per Id', () => {

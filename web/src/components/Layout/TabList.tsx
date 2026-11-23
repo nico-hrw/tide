@@ -20,7 +20,6 @@ import {
     Folder,
     Puzzle,
     ChevronDown,
-    Smile,
     Variable
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
@@ -38,7 +37,7 @@ const PREVIEW_DELAY_MS = 450;
 export interface Tab {
     id: string;
     title: string;
-    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash' | 'folders' | 'surveys';
+    type: 'file' | 'calendar' | 'todos' | 'messages' | 'chat' | 'ext_finance' | 'profile' | 'social' | 'exams' | 'job_planner' | 'trash' | 'folders';
     content?: any;
     _fileKey?: CryptoKey | null;
     _saveStatus?: "saved" | "unsaved" | "saving";
@@ -136,8 +135,6 @@ export default function TabList({
             case 'job_planner':
             case 'exams':
                 return <GraduationCap size={13} />;
-            case 'surveys':
-                return <Smile size={13} />;
             case 'trash':
                 return <Trash2 size={13} />;
             case 'folders':
@@ -160,7 +157,6 @@ export default function TabList({
             case 'exams': return 'Job & Uni';
             case 'chat': return 'Chat';
             case 'profile': return 'Profil';
-            case 'surveys': return 'Umfragen';
             case 'trash': return 'Papierkorb';
             case 'folders': return 'Notizen';
             case 'file':

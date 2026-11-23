@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, type MutableRefObject } from "react";
+import { notifyUndo, notifyError } from '@/lib/feedback';
 import { addDays, differenceInCalendarDays, format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
@@ -490,10 +491,12 @@ export function useCalendarActions({
                     const ts = occurrenceTimestamp(id);
                     const key = occurrenceKey(ts !== null ? ts : (seriesEvt.start || Date.now()));
                     await handleEventSave(id, { removed_dates: toggleDateInList(seriesEvt.removed_dates, key, true) });
+                    notifyUndo("Wiederholung gelöscht", () =>
+                        handleEventSave(id, { removed_dates: (seriesEvt.removed_dates ?? []).filter((d) => d !== key) }));
                     return;
                 }
-                targetId = baseId; // the whole series; the dialog already was the confirmation
-            } else if (!confirm("Are you sure you want to delete this event?")) return;
+                targetId = baseId; // the whole series; the dialog already was the question
+            }
             try {
                 const storeState = useDataStore.getState();
                 const currentEvents = storeState.events;
@@ -510,6 +513,15 @@ export function useCalendarActions({
                 if (res.ok) {
                     const latestState = useDataStore.getState();
                     (setEvents ?? latestState.setEvents)(latestState.events.filter((e) => e.id !== targetId));
+                    if (targetEvt) {
+                        // Deleted events sit in the trash, so "undo" simply restores them
+                        notifyUndo(isRecurringEvent(targetEvt) ? "Serie gelöscht" : "Termin gelöscht", async () => {
+                            const back = await apiFetch(`/api/v1/files/${targetId}/restore`, { method: "POST" });
+                            if (!back.ok) { notifyError("Wiederherstellen fehlgeschlagen"); return; }
+                            const now = useDataStore.getState();
+                            if (!now.events.some((e) => e.id === targetId)) (setEvents ?? now.setEvents)([...now.events, targetEvt]);
+                        });
+                    }
                 }
             } catch (e) {
                 console.error(e);

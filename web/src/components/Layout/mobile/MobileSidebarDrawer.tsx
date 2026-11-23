@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FileText, FolderPlus, GraduationCap, Plus, Settings, Smile } from 'lucide-react';
+import { FileText, FolderPlus, GraduationCap, Plus, Settings } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { setAnimatedEmojiEnabled, useAnimatedEmojiEnabled } from '@/lib/animatedEmoji';
 import SidebarQuickNotes from '../sidebar/SidebarQuickNotes';
@@ -32,7 +32,6 @@ export interface MobileSidebarDrawerProps {
   onNewNote: () => void;
   onNewFolder?: () => void;
   onOpenExams: () => void;
-  onOpenSurveys: () => void;
   onOpenSettings: () => void;
   draggingNote: { id: string; title: string } | null;
   dragGhostPos: DragGhostPosition | { current: DragGhostPosition };
@@ -54,7 +53,6 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
   onNewNote,
   onNewFolder,
   onOpenExams,
-  onOpenSurveys,
   onOpenSettings,
   draggingNote,
   dragGhostPos,
@@ -87,7 +85,6 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
 
   const featureTabs: Array<{ id: string; icon: React.ReactNode; label: string; ext: string; action: () => void }> = [
     { id: 'job_planner', icon: <GraduationCap size={18} />, label: 'Job & Uni', ext: 'job_planner', action: () => { onClose(); onOpenExams(); } },
-    { id: 'surveys', icon: <Smile size={18} />, label: 'Umfragen', ext: 'surveys', action: () => { onClose(); onOpenSurveys(); } },
     { id: 'settings', icon: <Settings size={18} />, label: 'Optionen', ext: '', action: () => { onClose(); onOpenSettings(); } },
   ];
 

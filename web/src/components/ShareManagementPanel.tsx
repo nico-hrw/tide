@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { askConfirm, notifyError } from '@/lib/feedback';
 import { Users, X, ShieldAlert, UserMinus, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
@@ -54,7 +55,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
     };
 
     const handleRevoke = async (userId: string) => {
-        if (!confirm("Zugriff für diesen Nutzer wirklich entfernen?")) return;
+        if (!(await askConfirm({ title: 'Zugriff entfernen?', message: 'Der Nutzer kann die Notiz danach nicht mehr öffnen.', confirmLabel: 'Entfernen', tone: 'danger' }))) return;
         setRevokingId(userId);
         try {
             const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
@@ -63,11 +64,11 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             if (res.ok) {
                 setShares(prev => prev.filter(s => s.user_id !== userId));
             } else {
-                alert("Fehler beim Entfernen des Zugriffs");
+                notifyError("Fehler beim Entfernen des Zugriffs");
             }
         } catch (e) {
             console.error(e);
-            alert("Fehler beim Entfernen des Zugriffs");
+            notifyError("Fehler beim Entfernen des Zugriffs");
         } finally {
             setRevokingId(null);
         }
@@ -83,7 +84,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             if (!res.ok) throw new Error();
         } catch (e) {
             console.error(e);
-            alert("Fehler beim Aktualisieren der Berechtigung");
+            notifyError("Fehler beim Aktualisieren der Berechtigung");
             loadShares(); // Revert
         }
     };

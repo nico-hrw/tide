@@ -31,10 +31,6 @@ var SupportedScopes = map[string]string{
 	"todos:create":   "Aufgaben erstellen",
 	"todos:edit":     "Aufgaben bearbeiten & Status ändern",
 	"todos:delete":   "Aufgaben löschen",
-	"surveys:read":   "Umfragen-Antworten abfragen (Leserechte)",
-	"surveys:write":  "Umfragen-Antworten verwalten (Lesen, Erstellen, Löschen)",
-	"surveys:create": "Umfragen-Antworten erstellen",
-	"surveys:delete": "Umfragen-Antworten löschen",
 }
 
 type APITokenHandler struct {
@@ -87,10 +83,6 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 		{Key: "todos:create", Description: SupportedScopes["todos:create"], Implemented: true},
 		{Key: "todos:edit", Description: SupportedScopes["todos:edit"], Implemented: true},
 		{Key: "todos:delete", Description: SupportedScopes["todos:delete"], Implemented: true},
-		{Key: "surveys:read", Description: SupportedScopes["surveys:read"], Implemented: true},
-		{Key: "surveys:write", Description: SupportedScopes["surveys:write"], Implemented: true},
-		{Key: "surveys:create", Description: SupportedScopes["surveys:create"], Implemented: true},
-		{Key: "surveys:delete", Description: SupportedScopes["surveys:delete"], Implemented: true},
 	}
 
 	w.Header().Set("Content-Type", "application/json")

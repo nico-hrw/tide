@@ -5,7 +5,6 @@ import ShareModal from "@/components/ShareModal";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
 import SettingsModal from "@/components/Settings/SettingsModal";
 import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
-import DailySummary from "@/components/Calendar/DailySummary";
 import ConfirmModal from "@/components/Modals/ConfirmModal";
 import VariablesModal from "@/components/Variables/VariablesModal";
 import { useDataStore } from "@/store/useDataStore";
@@ -80,12 +79,6 @@ export interface DashboardModalsProps {
     ) => Promise<void>;
     existingThemes?: { id: string; title: string; effect?: string; color?: string }[];
 
-    // Daily Summary Modal
-    isSummaryOpen: boolean;
-    onCloseSummary: () => void;
-    streak: number;
-    summaryStats: { events: number; tasks: number };
-
     // Backup History Modal (optional - versions managed directly in-note)
     showBackups?: boolean;
     activeNoteId?: string | null;
@@ -142,12 +135,6 @@ export function DashboardModals({
     onCloseScheduleModal,
     onApplySchedule,
     existingThemes,
-
-    // Daily Summary
-    isSummaryOpen,
-    onCloseSummary,
-    streak,
-    summaryStats,
 
     // Delete Confirm
     deleteConfirm,
@@ -213,15 +200,6 @@ export function DashboardModals({
                 onClose={onCloseScheduleModal}
                 onApply={onApplySchedule}
                 existingThemes={existingThemes || groups}
-            />
-
-            {/* Daily Summary */}
-            <DailySummary
-                isOpen={isSummaryOpen}
-                onClose={onCloseSummary}
-                streak={streak}
-                eventsToday={summaryStats.events}
-                completedTasksToday={summaryStats.tasks}
             />
 
             {/* Delete Confirm Modal */}

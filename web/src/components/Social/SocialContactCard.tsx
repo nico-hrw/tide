@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from 'react';
+import { askConfirm } from '@/lib/feedback';
 import { MoreHorizontal, ExternalLink, MessageSquare, UserMinus } from 'lucide-react';
 import Avatar from '@/components/Profile/Avatar';
 import { useSocialStore, SocialContact } from '@/store/useSocialStore';
@@ -47,7 +48,7 @@ export default function SocialContactCard({
     const handleRemove = async (e: React.MouseEvent) => {
         e.stopPropagation();
         setIsMenuOpen(false);
-        if (window.confirm(`Möchtest du ${partner.username} wirklich aus deinen Kontakten entfernen?`)) {
+        if (await askConfirm({ title: `${partner.username} entfernen?`, message: 'Der Kontakt wird aus deiner Liste entfernt.', confirmLabel: 'Entfernen', tone: 'danger' })) {
             await onRemoveContact(partner.id);
         }
     };

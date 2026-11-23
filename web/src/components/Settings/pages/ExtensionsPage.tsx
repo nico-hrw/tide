@@ -8,7 +8,6 @@ import { useExtensionSwitch } from '../extensions/useExtensionSwitch';
 import { SmartIslandConfig } from '../extensions/configs/SmartIslandConfig';
 import { McpConfig } from '../extensions/configs/McpConfig';
 import { JobPlannerConfig } from '../extensions/configs/JobPlannerConfig';
-import { SurveysConfig } from '../extensions/configs/SurveysConfig';
 import { ReferencesConfig } from '../extensions/configs/ReferencesConfig';
 import { MobileConnectionConfig } from '../extensions/configs/MobileConnectionConfig';
 
@@ -44,7 +43,6 @@ export function ExtensionsPage({ enabledExtensions, onToggleExtension, groups = 
                 {subpage === 'smart_island' && <SmartIslandConfig isSocialEnabled={enabledExtensions.includes('social')} />}
                 {subpage === 'mcp' && <McpConfig />}
                 {subpage === 'job_planner' && <JobPlannerConfig groups={groups} />}
-                {subpage === 'surveys' && <SurveysConfig />}
                 {subpage === 'references' && <ReferencesConfig />}
                 {subpage === 'mobile_connection' && <MobileConnectionConfig />}
             </ExtensionSubpage>

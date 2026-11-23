@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { askConfirm, notifyError } from '@/lib/feedback';
 import { MessageSquare, Search, UserPlus, X, Send, FileText, Share2, CheckCircle, XCircle, FolderOpen, ChevronRight, ChevronDown, Folder, Calendar, Trash, ShieldCheck, CalendarPlus, Download, Clock } from "lucide-react";
 import { useIslandStore } from "@/components/extensions/smart_island/useIslandStore";
 import { useDataStore } from "@/store/useDataStore";
@@ -314,17 +315,17 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 const title = newFile.public_meta?.title || file.title || "Untitled";
                 onOpenFile(newFile.id, title, newFile);
             } else {
-                alert("Failed to copy file");
+                notifyError("Failed to copy file");
             }
         } catch (e) {
             console.error(e);
-            alert("Error copying file");
+            notifyError("Error copying file");
         }
     };
 
     const handleDeleteConversation = async () => {
         if (!partner) return;
-        if (!confirm(`Are you sure you want to delete the conversation with ${partner.username}? This cannot be undone.`)) return;
+        if (!(await askConfirm({ title: `Unterhaltung mit ${partner.username} löschen?`, message: 'Das kann nicht rückgängig gemacht werden.', confirmLabel: 'Löschen', tone: 'danger' }))) return;
 
         try {
             const query = partner.email === "Hidden" 
@@ -340,7 +341,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 setPartner(null);
                 fetchContacts(); // Refresh contact list to update the conversation previews
             } else {
-                alert("Failed to delete conversation");
+                notifyError("Failed to delete conversation");
             }
         } catch (e) {
             console.error(e);
@@ -353,7 +354,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 method: "POST"
             });
             if (!res.ok) {
-                alert('Annehmen fehlgeschlagen.');
+                notifyError('Annehmen fehlgeschlagen.');
                 return;
             }
 
@@ -396,7 +397,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                     onOpenFile(fileId, fileName || 'Untitled');
                 }
             }
-        } catch (e) { alert("Error"); }
+        } catch (e) { notifyError("Error"); }
     };
 
     const handleClone = async (fileId: string, messageId?: string, fileName?: string) => {
@@ -410,11 +411,11 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
             if (!res.ok) {
                 const errText = await res.text().catch(() => '');
                 console.error('Clone failed', res.status, errText);
-                alert(`Klonen fehlgeschlagen (${res.status}).${errText ? ' ' + errText : ''}`);
+                notifyError(`Klonen fehlgeschlagen (${res.status}).${errText ? ' ' + errText : ''}`);
                 return;
             }
             const newFile = await res.json().catch(() => null);
-            if (!newFile?.id) { alert('Klonen fehlgeschlagen.'); return; }
+            if (!newFile?.id) { notifyError('Klonen fehlgeschlagen.'); return; }
 
             // Step 2: Re-encrypt the copy for the new owner (recipient)
             // publicKey is not in component props; retrieve from the data store
@@ -512,7 +513,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     };
 
     const handleDecline = async (fileId: string, messageId?: string) => {
-        if (!confirm("Decline and remove this share?")) return;
+        if (!(await askConfirm({ title: 'Freigabe ablehnen?', message: 'Die geteilte Notiz wird aus deiner Liste entfernt.', confirmLabel: 'Ablehnen', tone: 'danger' }))) return;
         try {
             const res = await apiFetch(`/api/v1/files/${fileId}`, {
                 method: "DELETE"
@@ -535,9 +536,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                 fetchAllSharedFiles();
                 if (partner) fetchPartnerFiles(partner.id);
             } else {
-                alert("Failed to decline share");
+                notifyError("Failed to decline share");
             }
-        } catch (e) { alert("Error declining share"); }
+        } catch (e) { notifyError("Error declining share"); }
     };
 
     const startChat = async (user: UserBasic) => {

@@ -2,7 +2,7 @@ import { Mark, mergeAttributes } from '@tiptap/core';
 import tippy, { Instance as TippyInstance } from 'tippy.js';
 import 'tippy.js/dist/tippy.css';
 import 'tippy.js/themes/light.css';
-import { useReferenceStore } from '../../store/useReferenceStore';
+import { useReferenceStore, getReferenceById } from '../../store/useReferenceStore';
 import { Plugin, PluginKey } from 'prosemirror-state';
 
 export interface ReferenceOptions {
@@ -122,6 +122,9 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                         content.style.fontFamily = 'sans-serif';
                         content.style.fontSize = '13px';
                         content.style.fontWeight = '500';
+                        content.style.maxWidth = '320px';
+                        content.style.whiteSpace = 'pre-wrap';
+                        content.style.overflowWrap = 'anywhere';
                         content.style.color = '#374151';
                         content.style.background = '#ffffff';
                         content.style.borderRadius = '6px';
@@ -155,14 +158,14 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                             const refId = mark.getAttribute('data-reference-id');
                             if (!refId) return false;
 
-                            const state = useReferenceStore.getState();
-                            const reference = state.references.find((r: any) => r.id === refId);
+                            const reference = getReferenceById(refId);
                             if (!reference) return false;
 
                             // Update the shared virtual anchor and content
                             currentTarget = mark;
                             const tip = getOrCreateSingleton();
 
+                            // Exactly the definition the user typed
                             const previewText = reference.previewText || reference.term || '';
                             tip.setContent(previewText);
                             tip.show();
@@ -191,22 +194,16 @@ export const ReferenceMark = Mark.create<ReferenceOptions>({
                             const refId = mark.getAttribute('data-reference-id');
                             if (!refId) return false;
 
-                            const state = useReferenceStore.getState();
-                            const reference = state.references.find((r: any) => r.id === refId);
+                            if (!getReferenceById(refId)) return false;
 
-                            if (reference?.sourceNoteId) {
-                                event.preventDefault();
-                                singleton?.hide();
-                                window.dispatchEvent(new CustomEvent('tide:navigate', {
-                                    detail: { noteId: reference.sourceNoteId }
-                                }));
-                                window.dispatchEvent(new CustomEvent('tide:navigate-note', {
-                                    detail: { noteId: reference.sourceNoteId }
-                                }));
-                                return true;
-                            }
-
-                            return false;
+                            // Click opens the edit popup (definition, look, remove, jump to source)
+                            event.preventDefault();
+                            singleton?.hide();
+                            const r = mark.getBoundingClientRect();
+                            window.dispatchEvent(new CustomEvent('tide:reference-edit', {
+                                detail: { id: refId, rect: { left: r.left, top: r.top, bottom: r.bottom } },
+                            }));
+                            return true;
                         },
                     },
                 },

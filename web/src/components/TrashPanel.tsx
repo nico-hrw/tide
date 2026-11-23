@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { askConfirm, notifyError } from '@/lib/feedback';
 import { apiFetch } from '../lib/api';
 import { useDataStore } from '../store/useDataStore';
 import { Trash2, RotateCcw, FileText, Folder, AlertCircle, Calendar } from 'lucide-react';
@@ -60,7 +61,7 @@ export default function TrashPanel() {
                 setTrashedItems(prev => prev.filter(item => item.id !== id));
                 await fetchDirectory(null, true); // Refresh main sidebar
             } else {
-                alert('Wiederherstellung fehlgeschlagen');
+                notifyError('Wiederherstellung fehlgeschlagen');
             }
         } catch (err) {
             console.error('Error restoring file:', err);
@@ -70,14 +71,14 @@ export default function TrashPanel() {
     };
 
     const handlePermanentDelete = async (id: string, title: string) => {
-        if (!confirm(`Möchtest du "${title}" wirklich endgültig unwiderruflich löschen?`)) return;
+        if (!(await askConfirm({ title: 'Endgültig löschen?', message: `„${title}“ kann danach nicht wiederhergestellt werden.`, confirmLabel: 'Endgültig löschen', tone: 'danger' }))) return;
         setActionId(id);
         try {
             const res = await apiFetch(`/api/v1/files/${id}?permanent=true`, { method: 'DELETE' });
             if (res.ok) {
                 setTrashedItems(prev => prev.filter(item => item.id !== id));
             } else {
-                alert('Löschen fehlgeschlagen');
+                notifyError('Löschen fehlgeschlagen');
             }
         } catch (err) {
             console.error('Error deleting file:', err);
@@ -88,7 +89,7 @@ export default function TrashPanel() {
 
     const handleEmptyTrash = async () => {
         if (trashedItems.length === 0) return;
-        if (!confirm('Möchtest du den Papierkorb wirklich leeren? Alle Inhalte werden endgültig gelöscht.')) return;
+        if (!(await askConfirm({ title: 'Papierkorb leeren?', message: `Alle ${trashedItems.length} Inhalte werden endgültig gelöscht.`, confirmLabel: 'Leeren', tone: 'danger' }))) return;
         
         setLoading(true);
         try {

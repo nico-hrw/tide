@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, GraduationCap, ListTodo, Puzzle, Settings, Smile, Users, Variable } from 'lucide-react';
+import { Calendar, ChevronDown, GraduationCap, ListTodo, Puzzle, Settings, Users, Variable } from 'lucide-react';
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
@@ -43,9 +43,6 @@ export default function PluginsMenu({ activeTabId, enabledExtensions = [], onTab
         { key: 'planner', title: 'Job & Uni', hint: 'Vorlesungen, Prüfungen, Jobs', tone: 'praktikum', icon: <GraduationCap size={17} />, tabId: 'job_planner', onSelect: go(() => onTabSelect('job_planner', 'job_planner')) },
         { key: 'calendar', title: 'Kalender', hint: 'Termine und Wochenansicht', tone: 'studium', icon: <Calendar size={17} />, tabId: 'calendar', onSelect: go(() => onTabSelect('calendar', 'calendar')) },
         { key: 'todos', title: 'Todos', hint: 'Aufgaben im Blick', tone: 'social', icon: <ListTodo size={17} />, tabId: 'todos', onSelect: go(() => onTabSelect('todos', 'todos')) },
-        ...(enabledExtensions.includes('surveys')
-            ? [{ key: 'surveys', title: 'Umfragen', hint: 'Stimmungsbild und Mood', tone: 'uni' as const, icon: <Smile size={17} />, tabId: 'surveys', onSelect: go(() => onTabSelect('surveys', 'surveys')) }]
-            : []),
         ...(onOpenSocial
             ? [{ key: 'social', title: 'Social', hint: 'Chat und Kontakte', tone: 'geb' as const, icon: <Users size={17} />, onSelect: go(onOpenSocial) }]
             : []),

@@ -36,7 +36,6 @@ export interface MobileTopHeaderProps {
   onOpenSidebar?: () => void;
   onOpenSearch?: () => void;
   onOpenExams?: () => void;
-  onOpenSurveys?: () => void;
   onOpenSettings?: () => void;
 }
 

@@ -66,7 +66,6 @@ const LoadingOverlay = () => (
 );
 
 const JobPlanner = dynamic(() => import('../../JobPlanner/JobPlanner'), { loading: LoadingOverlay });
-const SurveyAnalytics = dynamic(() => import('@/components/Surveys/SurveyAnalytics'), { loading: LoadingOverlay });
 
 export interface MobileOverlaysAndModalsProps {
   isEditingNote: boolean;
@@ -77,8 +76,6 @@ export interface MobileOverlaysAndModalsProps {
   onNoteRename?: (id: string, title: string) => void;
   isExamsOpen: boolean;
   onCloseExams: () => void;
-  isSurveysOpen: boolean;
-  onCloseSurveys: () => void;
   isSearchOpen: boolean;
   onCloseSearch: () => void;
   searchQuery: string;
@@ -137,7 +134,7 @@ export interface MobileOverlaysAndModalsProps {
 export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (props) => {
   const {
     isEditingNote, activeNoteId, activeNoteTitle, editorElement, onCloseEditor, onNoteRename,
-    isExamsOpen, onCloseExams, isSurveysOpen, onCloseSurveys,
+    isExamsOpen, onCloseExams,
     isSearchOpen, onCloseSearch, searchQuery, onSearchQueryChange,
     searchEvents, searchTodos, searchNotes, expandedEvents, onSwitchToTodos, onOpenNote,
     isFilterOpen, onCloseFilter, selectedPriority, onPriorityChange,
@@ -247,12 +244,6 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
         {isExamsOpen && (
           <OverlayShell key="job_planner" title="Job & Uni" onBack={onCloseExams}>
             <div className="flex-1 overflow-y-auto"><JobPlanner /></div>
-          </OverlayShell>
-        )}
-
-        {isSurveysOpen && (
-          <OverlayShell key="surveys" title="Umfragen & Mood" onBack={onCloseSurveys}>
-            <div className="flex-1 overflow-y-auto"><SurveyAnalytics /></div>
           </OverlayShell>
         )}
 

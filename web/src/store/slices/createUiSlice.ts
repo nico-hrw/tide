@@ -15,7 +15,6 @@ import type {
 
 const DEFAULT_ENABLED_EXTENSIONS: string[] = [
     'smart_island',
-    'summary',
     'smart_date_detection',
     'job_planner',
     'todos',

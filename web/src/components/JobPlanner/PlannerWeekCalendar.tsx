@@ -6,6 +6,9 @@ import { useDataStore, DataItem } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 import { useJobEventMatcher } from '@/hooks/useJobEventMatcher';
 import { getEventTheme, getEffectStyle } from '@/components/Calendar/CalendarEventItem';
+import { useEventsByDay } from '@/components/Calendar/useEventsByDay';
+import type { CalendarEvent } from '@/components/Calendar/types';
+import { format } from 'date-fns';
 
 interface PlannerWeekCalendarProps {
     events: DataItem[];
@@ -65,27 +68,31 @@ export default function PlannerWeekCalendar({
 
     const weekNumber = useMemo(() => getISOWeekNumber(monday), [monday]);
 
-    // End of week
-    const weekEnd = useMemo(() => {
-        const lastDay = weekDays[weekDays.length - 1];
-        const end = new Date(lastDay);
-        end.setHours(23, 59, 59, 999);
-        return end;
-    }, [weekDays]);
+    // The planner's events, with repetitions expanded exactly like the main calendar
+    // (cancelled / moved / deleted single occurrences included)
+    const plannerEvents = useMemo(
+        () => events.filter((e) => e.start && e.end && matchesPlanner(e, categoryGroupIds)),
+        [events, categoryGroupIds, matchesPlanner],
+    );
+    const range = useMemo(() => {
+        const end = new Date(monday);
+        end.setDate(end.getDate() + 7);
+        return { start: monday, end };
+    }, [monday]);
+    const { timedMap, allDayMap } = useEventsByDay(plannerEvents as unknown as CalendarEvent[], range, undefined);
 
-    // Filter events for this week belonging to the category
-    const weekEvents = useMemo(() => {
-        return events.filter(e => {
-            if (!e.start || !e.end) return false;
-            // Parent matching
-            const matchesCategory = matchesPlanner(e, categoryGroupIds);
-            if (!matchesCategory) return false;
+    const eventsOfDay = (day: Date): DataItem[] => {
+        const key = format(day, 'yyyy-MM-dd');
+        return [...(timedMap.get(key) ?? []), ...(allDayMap.get(key) ?? [])] as unknown as DataItem[];
+    };
 
-            const evStart = new Date(e.start);
-            const evEnd = new Date(e.end);
-            return evEnd >= monday && evStart <= weekEnd;
-        });
-    }, [events, categoryGroupIds, monday, weekEnd, matchesPlanner]);
+    const weekEvents = useMemo(
+        () => weekDays.flatMap((d) => {
+            const key = format(d, 'yyyy-MM-dd');
+            return [...(timedMap.get(key) ?? []), ...(allDayMap.get(key) ?? [])] as unknown as DataItem[];
+        }),
+        [weekDays, timedMap, allDayMap],
+    );
 
     // Dynamic hour bounds: default 7 to 20, expand +- 1h if events fall outside
     const { minHour, maxHour, hoursList } = useMemo(() => {
@@ -252,17 +259,7 @@ export default function PlannerWeekCalendar({
                             {/* Columns */}
                             {weekDays.map((dayDate, dayIdx) => {
                                 const isToday = dayDate.toDateString() === currentTime.toDateString();
-                                const dayStart = new Date(dayDate);
-                                dayStart.setHours(0, 0, 0, 0);
-                                const dayEnd = new Date(dayDate);
-                                dayEnd.setHours(23, 59, 59, 999);
-
-                                // Filter events for this specific day
-                                const dayEvents = weekEvents.filter(e => {
-                                    const s = new Date(e.start);
-                                    const en = new Date(e.end);
-                                    return en >= dayStart && s <= dayEnd;
-                                });
+                                const dayEvents = eventsOfDay(dayDate);
 
                                 return (
                                     <div
@@ -332,7 +329,7 @@ export default function PlannerWeekCalendar({
                                                         borderColor: theme.border,
                                                         ...effectStyle,
                                                     }}
-                                                    className="absolute left-1 right-1 z-10 p-2 rounded-lg border flex flex-col justify-between overflow-hidden shadow-xs cursor-pointer hover:brightness-105 hover:shadow-md transition-all"
+                                                    className={`absolute left-1 right-1 z-10 p-2 rounded-lg border flex flex-col justify-between overflow-hidden shadow-xs cursor-pointer hover:brightness-105 hover:shadow-md transition-all ${(ev as { is_cancelled?: boolean }).is_cancelled ? 'opacity-55 line-through' : ''}`}
                                                     title={`${ev.title || 'Termin'} (${sTimeStr}–${eTimeStr})`}
                                                 >
                                                     <div className="min-w-0">

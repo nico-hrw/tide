@@ -27,10 +27,6 @@ import type {
     UserProfile,
 } from "./types";
 
-const SurveysWorkspace = dynamic(() => import("@/components/Surveys/SurveysWorkspace"), {
-    ssr: false,
-});
-
 export interface DashboardCollaborator {
     id?: string;
     user_id?: string;
@@ -199,7 +195,6 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
             activeTabId !== "todos" &&
             activeTabId !== "social" &&
             activeTabId !== "job_planner" &&
-            activeTabId !== "surveys" &&
             activeTabId !== "trash" &&
             !activeTabId.startsWith("profile:") &&
             !activeTabId.startsWith("chat-"));
@@ -327,8 +322,6 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                     onOpenCalendar={() => handleTabSelect("calendar", "calendar")}
                     onOpenSettings={(tab?: SettingsModalTab) => setSettingsModalOpen(true, tab || "extensions")}
                 />
-
-                <SurveysWorkspace isActive={activeTabId === "surveys"} />
 
                 <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === "todos" ? "block" : "hidden"}`}>
                     {activeTabId === "todos" && (!enabledExtensions || enabledExtensions.includes("todos")) && (

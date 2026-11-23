@@ -31,7 +31,7 @@ import { DashboardModals } from "@/components/Dashboard/DashboardModals";
 import { RecurrenceScopeDialog } from "@/components/Calendar/RecurrenceScopeDialog";
 import type {
     CalendarEvent, CalendarViewMode, DecryptedFile, DeleteConfirmState, DeleteErrorState,
-    NoteSecurityModalItem, SaveStatus, ShareModalFile, SummaryStats, Tab,
+    NoteSecurityModalItem, SaveStatus, ShareModalFile, Tab,
 } from "@/components/Dashboard/types";
 import { useSessionRestore } from "@/hooks/dashboard/useSessionRestore";
 import { useFolderAndGroupActions } from "@/hooks/dashboard/useFolderAndGroupActions";
@@ -47,7 +47,6 @@ const Editor = dynamic(() => import("@/components/Editor"), {
     ssr: false, loading: () => <div className="min-h-[500px] w-full animate-pulse bg-t2-sub rounded-lg" />,
 });
 const CanvasNoteEditor = dynamic(() => import("@/components/Canvas/CanvasNoteEditor"), { ssr: false });
-const SUMMARY_STATS: SummaryStats = { events: 0, tasks: 0 };
 
 interface ExtendedDecryptedFile extends DecryptedFile {
     isShared?: boolean;
@@ -84,7 +83,6 @@ export default function Dashboard() {
         useSplitViewDrag({ defaultWidth: 256, minWidth: 200, maxWidth: 400, storageKey: "tide_sidebar_width", breakpoint: 1024 });
     const isSidebarOpen = !isSidebarCollapsed;
 
-    const [isSummaryOpen, setIsSummaryOpen] = useState(false);
     const [showBackups, setShowBackups] = useState(false);
     const [deleteConfirm, setDeleteConfirm] = useState<DeleteConfirmState | null>(null);
     const [deleteError, setDeleteError] = useState<DeleteErrorState | null>(null);
@@ -247,7 +245,7 @@ export default function Dashboard() {
         onOpenCalendar: () => handleTabSelect("calendar", "calendar"),
         onCloseModals: () => {
             setIsSearching(false); setSettingsModalOpen(false); setScheduleModalOpen(false);
-            setIsSummaryOpen(false); setShowBackups(false); setDeleteConfirm(null);
+            setShowBackups(false); setDeleteConfirm(null);
             setShareModalFile(null); setNoteSecurityModalItem(null);
         },
     });
@@ -507,8 +505,8 @@ export default function Dashboard() {
                 onToggleThemeVisibility={handleToggleThemeVisibility} onUpdateEventGroup={handleUpdateEventGroup}
                 onShareGroup={handleShare} onCreateEventGroup={handleCreateEventGroup} onDeleteNote={handleDeleteNote} onEventSave={handleEventSave}
                 scheduleModalOpen={scheduleModalOpen} setScheduleModalOpen={setScheduleModalOpen}
-                onApplySchedule={handleScheduleApply} isSummaryOpen={isSummaryOpen} setIsSummaryOpen={setIsSummaryOpen}
-                streak={0} summaryStats={SUMMARY_STATS} showBackups={showBackups} setShowBackups={setShowBackups}
+                onApplySchedule={handleScheduleApply}
+                showBackups={showBackups} setShowBackups={setShowBackups}
                 activeNoteId={activeNoteId} editorContent={editorContent as JSONContent | Record<string, unknown> | null}
                 onRestoreBackup={handleRestoreBackup} deleteConfirm={deleteConfirm} setDeleteConfirm={setDeleteConfirm}
                 onConfirmDelete={executeDeleteNote} deleteError={deleteError} setDeleteError={setDeleteError}

@@ -672,6 +672,14 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"DROP TABLE IF EXISTS tokens;",
 			},
 		},
+		{
+			// The Surveys / Mood plugin was removed: its table and all stored responses are deleted for good.
+			version: 14,
+			name:    "drop_survey_responses",
+			stmts: []string{
+				"DROP TABLE IF EXISTS survey_responses;",
+			},
+		},
 	}
 
 	for _, m := range migrations {

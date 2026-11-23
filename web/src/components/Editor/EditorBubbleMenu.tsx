@@ -11,7 +11,7 @@ import {
     Type,
     Highlighter,
     Sigma,
-    Bookmark,
+    HelpCircle,
     Clock,
     PinIcon,
     Link2,
@@ -23,6 +23,7 @@ import { extractTimeFromText } from '@/lib/timeParser';
 
 import { COLORS, REFERENCE_COLORS, REFERENCE_QUICK_EMOJIS } from './editorConstants';
 import TextStyleButtons from './TextStyleButtons';
+import ReferenceForm from './ReferenceForm';
 
 export { COLORS, REFERENCE_COLORS, REFERENCE_QUICK_EMOJIS };
 
@@ -44,8 +45,6 @@ export function EditorBubbleMenu({
     const enabledExtensions = useDataStore((s) => s.enabledExtensions);
     const [showColorPicker, setShowColorPicker] = useState<'text' | 'highlight' | null>(null);
     const [showReferencePicker, setShowReferencePicker] = useState(false);
-    const [selectedRefColor, setSelectedRefColor] = useState<string>('#3b82f6');
-    const [selectedRefEmoji, setSelectedRefEmoji] = useState<string>('🔖');
     const [pendingRefRange, setPendingRefRange] = useState<{ from: number; to: number } | null>(null);
     const [fontSizeInput, setFontSizeInput] = useState<string>("");
 
@@ -65,7 +64,7 @@ export function EditorBubbleMenu({
 
     if (!editor) return null;
 
-    const handleCreateReference = (color?: string | null, emoji?: string | null) => {
+    const handleCreateReference = (definition: string, color?: string | null, emoji?: string | null) => {
         let from = editor.state.selection.from;
         let to = editor.state.selection.to;
         if (editor.state.selection.empty && pendingRefRange) {
@@ -80,24 +79,6 @@ export function EditorBubbleMenu({
         const activeNoteId = activeTabId || useDataStore.getState().activeNoteId;
         const refId = crypto.randomUUID();
 
-        let previewText = term;
-        const blocks: string[] = [];
-        editor.state.doc.forEach((node) => {
-            if (node.textContent.trim()) blocks.push(node.textContent.trim());
-        });
-        for (let i = 0; i < blocks.length; i++) {
-            if (blocks[i].includes(term)) {
-                for (let j = i + 1; j < blocks.length; j++) {
-                    if (blocks[j]) {
-                        previewText = blocks[j];
-                        break;
-                    }
-                }
-                break;
-            }
-        }
-
-        console.log("[References] Creating reference mark:", term, { color, emoji });
         editor.chain().focus().setTextSelection({ from, to }).setMark('reference', {
             referenceId: refId,
             isSource: true,
@@ -108,7 +89,7 @@ export function EditorBubbleMenu({
         useReferenceStore.getState().addReference({
             id: refId,
             term,
-            previewText: previewText,
+            previewText: definition,
             sourceNoteId: activeNoteId || 'unknown',
             color: color || undefined,
             emoji: emoji || undefined,
@@ -284,13 +265,13 @@ export function EditorBubbleMenu({
                 <Sigma size={16} />
             </button>
 
-            {/* Reference Creation Popover */}
+            {/* Definition ("?") popup: type what the selected word or sentence means */}
             {enabledExtensions.includes('references') && (
                 <>
                     <div className="w-px h-5 bg-t2-line  mx-1" />
                     <div className="relative">
                         <button
-                            title="Als Referenz speichern" onMouseDown={(e) => e.preventDefault()}
+                            title="Definition hinzufügen" aria-label="Definition hinzufügen" onMouseDown={(e) => e.preventDefault()}
                             onClick={() => {
                                 const { from, to, empty } = editor.state.selection;
                                 if (!empty) setPendingRefRange({ from, to });
@@ -299,59 +280,17 @@ export function EditorBubbleMenu({
                             }}
                             className={`${btnBase} flex items-center justify-center ${showReferencePicker ? 'bg-t2-sub text-t2-accent  ' : 'hover:bg-t2-sub  text-t2-ink  hover:text-t2-accent '}`}
                         >
-                            <Bookmark size={15} style={selectedRefColor ? { color: selectedRefColor } : undefined} />
+                            <HelpCircle size={15} />
                         </button>
 
                         {showReferencePicker && (
-                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 bg-t2-surface  shadow-xl border border-t2-line  rounded-xl p-3 z-50 flex flex-col gap-2.5 min-w-[210px]" onMouseDown={(e) => e.stopPropagation()}>
-                                <div className="flex items-center justify-between">
-                                    <span className="text-[11px] font-semibold text-t2-ink-2  uppercase tracking-wider">Referenz erstellen</span>
-                                    <div className="flex items-center gap-1 text-xs">
-                                        <span>{selectedRefEmoji || '🔖'}</span>
-                                        <span className="w-2.5 h-2.5 rounded-full inline-block border border-t2-line " style={{ backgroundColor: selectedRefColor }} />
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <span className="text-[11px] text-t2-ink-3  block mb-1">Farbe</span>
-                                    <div className="flex items-center gap-1.5">
-                                        {REFERENCE_COLORS.map(c => (
-                                            <button key={c.value} type="button" title={c.label} onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectedRefColor(c.value)}
-                                                className={`w-5 h-5 rounded-full border transition-all ${selectedRefColor === c.value ? 'scale-125 ring-2 ring-offset-1 ring-t2-accent border-t2-line dark:ring-offset-gray-800' : 'border-t2-line  hover:scale-110'}`}
-                                                style={{ backgroundColor: c.value }} />
-                                        ))}
-                                    </div>
-                                </div>
-
-                                <div>
-                                    <span className="text-[11px] text-t2-ink-3 block mb-1">Icon / Emoji</span>
-                                    <div className="flex items-center gap-1">
-                                        {REFERENCE_QUICK_EMOJIS.map(emoji => (
-                                            <button key={emoji} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => setSelectedRefEmoji(emoji)}
-                                                className={`w-6 h-6 text-sm flex items-center justify-center rounded-md transition-colors ${selectedRefEmoji === emoji ? 'bg-t2-sub  ring-1 ring-t2-accent' : 'hover:bg-t2-hover '}`}>
-                                                {emoji}
-                                            </button>
-                                        ))}
-                                        <input
-                                            type="text" value={selectedRefEmoji} onChange={(e) => setSelectedRefEmoji(e.target.value)}
-                                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleCreateReference(selectedRefColor, selectedRefEmoji); } }}
-                                            placeholder="✨" maxLength={4}
-                                            className="w-7 h-6 text-xs text-center border border-t2-line  rounded bg-transparent text-t2-ink  focus:outline-none focus:border-t2-accent"
-                                            title="Eigenes Emoji eingeben"
-                                        />
-                                    </div>
-                                </div>
-
-                                <div className="flex items-center justify-end gap-1.5 pt-1 border-t border-t2-line-soft ">
-                                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => { setShowReferencePicker(false); setPendingRefRange(null); }}
-                                        className="px-2 py-1 text-xs text-t2-ink-2 hover:text-t2-ink   transition-colors">
-                                        Abbrechen
-                                    </button>
-                                    <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => handleCreateReference(selectedRefColor, selectedRefEmoji)}
-                                        className="px-2.5 py-1 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-lg shadow-sm transition-colors flex items-center gap-1">
-                                        <Bookmark size={12} /><span>Erstellen</span>
-                                    </button>
-                                </div>
+                            <div className="absolute top-full mt-2 left-1/2 -translate-x-1/2 z-50">
+                                <ReferenceForm
+                                    mode="create"
+                                    term={pendingRefRange ? editor.state.doc.textBetween(pendingRefRange.from, pendingRefRange.to, ' ').trim() : ''}
+                                    onSave={(v) => handleCreateReference(v.definition, v.color, v.emoji)}
+                                    onCancel={() => { setShowReferencePicker(false); setPendingRefRange(null); }}
+                                />
                             </div>
                         )}
                     </div>

@@ -158,6 +158,19 @@ export const useReferenceStore = create<ReferenceState>((set) => ({
     }),
 }));
 
+// O(1) lookup by id; the map is rebuilt only when the references array itself changes
+let indexSource: ReferenceItem[] | null = null;
+let indexById = new Map<string, ReferenceItem>();
+
+export const getReferenceById = (id: string): ReferenceItem | undefined => {
+    const refs = useReferenceStore.getState().references;
+    if (refs !== indexSource) {
+        indexSource = refs;
+        indexById = new Map(refs.map((r) => [r.id, r]));
+    }
+    return indexById.get(id);
+};
+
 const hydratePersistedReferences = async (): Promise<void> => {
     if (typeof window === 'undefined') return;
     try {

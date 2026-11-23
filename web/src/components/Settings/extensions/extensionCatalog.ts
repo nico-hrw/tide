@@ -17,8 +17,6 @@ export interface ExtensionDef {
 export const EXTENSION_CATALOG: readonly ExtensionDef[] = [
     { id: 'todos', group: 'productivity', hasPage: false },
     { id: 'job_planner', group: 'productivity', hasPage: true },
-    { id: 'summary', group: 'productivity', hasPage: false },
-    { id: 'surveys', group: 'productivity', hasPage: true },
     { id: 'varsheet', group: 'productivity', hasPage: false },
     { id: 'smart_island', group: 'smart', hasPage: true },
     { id: 'smart_date_detection', group: 'smart', hasPage: false },

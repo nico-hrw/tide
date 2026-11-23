@@ -49,13 +49,6 @@ export interface GlobalModalsHostProps {
     onApplySchedule: DashboardModalsProps['onApplySchedule'];
     existingThemes?: { id: string; title: string; effect?: string; color?: string }[];
 
-    // Daily Summary Modal
-    isSummaryOpen?: boolean;
-    setIsSummaryOpen?: React.Dispatch<React.SetStateAction<boolean>>;
-    onCloseSummary?: () => void;
-    streak: number;
-    summaryStats: { events: number; tasks: number };
-
     // Backup History Modal
     showBackups?: boolean;
     setShowBackups?: React.Dispatch<React.SetStateAction<boolean>>;
@@ -83,7 +76,6 @@ export function GlobalModalsHost(props: GlobalModalsHostProps) {
     const [internalSecurityItem, setInternalSecurityItem] = useState<DashboardModalsProps['noteSecurityModalItem']>(null);
     const [internalSettingsOpen, setInternalSettingsOpen] = useState(false);
     const [internalScheduleOpen, setInternalScheduleOpen] = useState(false);
-    const [internalSummaryOpen, setInternalSummaryOpen] = useState(false);
     const [internalShowBackups, setInternalShowBackups] = useState(false);
     const [internalDeleteConfirm, setInternalDeleteConfirm] = useState<DashboardModalsProps['deleteConfirm']>(null);
     const [internalDeleteError, setInternalDeleteError] = useState<DashboardModalsProps['deleteError']>(null);
@@ -114,13 +106,6 @@ export function GlobalModalsHost(props: GlobalModalsHostProps) {
         props.onCloseScheduleModal?.();
         props.setScheduleModalOpen?.(false);
         setInternalScheduleOpen(false);
-    };
-
-    const isSummaryOpen = props.isSummaryOpen !== undefined ? props.isSummaryOpen : internalSummaryOpen;
-    const handleCloseSummary = () => {
-        props.onCloseSummary?.();
-        props.setIsSummaryOpen?.(false);
-        setInternalSummaryOpen(false);
     };
 
     const showBackups = props.showBackups !== undefined ? props.showBackups : internalShowBackups;
@@ -176,10 +161,6 @@ export function GlobalModalsHost(props: GlobalModalsHostProps) {
             onCloseScheduleModal={handleCloseScheduleModal}
             onApplySchedule={props.onApplySchedule}
             existingThemes={props.existingThemes}
-            isSummaryOpen={isSummaryOpen}
-            onCloseSummary={handleCloseSummary}
-            streak={props.streak}
-            summaryStats={props.summaryStats}
             showBackups={showBackups}
             activeNoteId={props.activeNoteId}
             editorContent={props.editorContent}

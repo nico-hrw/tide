@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from 'react';
+import { askConfirm } from '@/lib/feedback';
 import { 
     Shield, 
     Lock, 
@@ -184,7 +185,7 @@ export default function SecuritySettingsModal({
     };
 
     const handleRemoveProtection = async () => {
-        if (!confirm('Möchtest du den PIN-Schutz wirklich entfernen?')) {
+        if (!(await askConfirm({ title: 'PIN-Schutz entfernen?', message: 'Die Notiz ist danach ohne PIN zugänglich.', confirmLabel: 'Entfernen', tone: 'danger' }))) {
             return;
         }
 

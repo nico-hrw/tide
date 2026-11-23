@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback } from 'react';
+import { notifyError } from '@/lib/feedback';
 import type { Dispatch, SetStateAction } from 'react';
 import * as cryptoLib from '@/lib/crypto';
 import { apiFetch } from '@/lib/api';
@@ -153,7 +154,7 @@ export function useFolderAndGroupActions({
             setEditingFileId(created.id);
         } catch (e) {
             console.error(e);
-            alert('Failed to create folder');
+            notifyError('Failed to create folder');
         }
     }, [privateKey, publicKey, files, setEditingFileId]);
 
@@ -196,7 +197,7 @@ export function useFolderAndGroupActions({
             return newFolder.id;
         } catch (e) {
             console.error(e);
-            alert('Failed to create event group');
+            notifyError('Failed to create event group');
             return undefined;
         }
     }, [privateKey, publicKey]);
@@ -374,7 +375,7 @@ export function useFolderAndGroupActions({
             }
         } catch (e) {
             console.error('Move failed', e);
-            alert('Failed to move item');
+            notifyError('Failed to move item');
         }
     }, []);
 

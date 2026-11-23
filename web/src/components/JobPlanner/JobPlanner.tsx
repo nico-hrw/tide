@@ -4,7 +4,8 @@ import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { 
     Settings, 
     X,
-    Clock
+    Clock,
+    ListTodo
 } from 'lucide-react';
 import { useDataStore, DataItem } from '@/store/useDataStore';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
@@ -151,6 +152,15 @@ export default function JobPlanner({
         setCreateModal(prev => ({ ...prev, isOpen: false }));
     };
 
+    // Jump to the todos, filtered by this plugin's tag
+    const openTodosForPluginTag = () => {
+        if (pluginGroupId) {
+            const s = useDataStore.getState();
+            s.setTodoTagFilter({ tagIds: [pluginGroupId], untagged: false });
+        }
+        window.dispatchEvent(new CustomEvent('tide:navigate', { detail: { tab: 'todos' } }));
+    };
+
     const headerTitle = mode === 'job' 
         ? 'Jobplaner' 
         : (mode === 'study' ? 'Studienplaner' : 'Job & Studienplaner');
@@ -163,6 +173,14 @@ export default function JobPlanner({
                     {headerTitle}
                 </h1>
 
+                <div className="flex items-center gap-1">
+                <button
+                    onClick={openTodosForPluginTag}
+                    className="flex items-center gap-1.5 rounded-xl px-3 py-2 text-[13px] font-semibold text-t2-ink-2 transition-colors hover:bg-t2-hover hover:text-t2-ink cursor-pointer"
+                    title="Zu den Todos mit dem Tag dieses Plugins"
+                >
+                    <ListTodo size={17} /> Todos
+                </button>
                 {/* Direct Settings shortcut */}
                 {onOpenSettings && (
                     <button
@@ -173,6 +191,7 @@ export default function JobPlanner({
                         <Settings size={20} />
                     </button>
                 )}
+                </div>
             </div>
 
             {/* Board Content */}
