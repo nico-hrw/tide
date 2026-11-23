@@ -21,7 +21,8 @@ import NoteOutline from '@/components/Editor/NoteOutline';
 import NoteHistoryLabel from '@/components/Editor/NoteHistoryLabel';
 import NoteTagsRow from '@/components/Editor/NoteTagsRow';
 import NoteHeaderActions from '@/components/Workspaces/NoteHeaderActions';
-import NoteHistoryTimeline, { timelineGutterClasses } from '@/components/Editor/NoteHistoryTimeline';
+import { usePresence } from '@/hooks/usePresence';
+import NoteHistoryTimeline, { timelineShiftClasses } from '@/components/Editor/NoteHistoryTimeline';
 import NoteBreadcrumb from '@/components/Editor/NoteBreadcrumb';
 import NoteVersionDiffView from '@/components/Editor/NoteVersionDiffView';
 import NoteSettingsMenuComponent from './NoteSettingsMenu';
@@ -127,6 +128,10 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     // VarSheet dock belongs to one note, and is only active when the varsheet extension is enabled.
     const [varSheetNoteId, setVarSheetNoteId] = useState<string | null>(null);
     const isVarSheetOpen = isVarSheetEnabled && !!activeNoteId && varSheetNoteId === activeNoteId;
+    // The dock stays mounted during its exit so it can slide out instead of vanishing.
+    const varSheet = usePresence(isVarSheetOpen, 280);
+    const lastVarSheetNote = useRef<string | null>(null);
+    if (isVarSheetOpen && activeNoteId) lastVarSheetNote.current = activeNoteId;
     // The note's formulas read the VarSheet's variables, whether or not the panel is open.
     useVarSheetBindings(activeNoteId, isVarSheetEnabled);
     // Timeline open = isHistoryMode; the old-version preview (replaces the editor) = isViewingVersion
@@ -316,13 +321,17 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
     const [internalActiveLinkBlockId, setInternalActiveLinkBlockId] = useState<string | null>(null);
     const [internalHoveredBlockId, setInternalHoveredBlockId] = useState<string | null>(null);
     const [showSaveStatusMenu, setShowSaveStatusMenu] = useState(false);
+    const saveMenu = usePresence(showSaveStatusMenu, 160);
     const [showSharePanel, setShowSharePanel] = useState(false);
     const [showNoteSettingsMenu, setShowNoteSettingsMenu] = useState(false);
+    const settingsMenu = usePresence(showNoteSettingsMenu, 160);
     const paperPattern = useDataStore((s) => s.paperPattern);
     const showPageBreaks = useDataStore((s) => s.showPageBreaks);
     const headingNumbering = useDataStore((s) => s.headingNumbering);
     const a4SideBorders = useDataStore((s) => s.a4SideBorders);
     const noteMargin = useDataStore((s) => s.noteMargin);
+    const showNoteTitle = useDataStore((s) => s.showNoteTitle);
+    const showNoteTags = useDataStore((s) => s.showNoteTags);
     const activeNoteTitle = fileName;
 
     const hoveredElementId = props.hoveredElementId !== undefined ? props.hoveredElementId : internalHoveredElementId;
@@ -361,13 +370,13 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
         <div className={`flex-1 min-h-0 relative ${isHidden ? 'hidden' : 'flex flex-col'}`}>
             {/* Note and VarSheet sit side by side: the sheet takes its own column, so it can never cover the page. */}
             <div className="flex-1 min-h-0 relative flex">
-            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto transition-[padding] duration-300 ${timelineGutterClasses({ open: isHistoryMode })}`}>
+            <div className={`flex-1 min-w-0 min-h-0 relative overflow-y-auto`}>
                 {!isHidden && !isLoadingContent && <NoteOutline editor={editorInstance} />}
             {!isHidden && !isLoadingContent && timeline}
             {isLoadingContent ? (
                 <div className="flex items-center justify-center h-full text-t2-ink-3">Loading content...</div>
             ) : (
-                <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-all duration-300 ${
+                <div className={`mx-auto min-h-[500px] py-12 px-8 lg:px-24 transition-[max-width,transform] duration-300 ease-out ${noteLayout === 'extra-wide' || noteLayout === 'a4' ? '' : timelineShiftClasses({ open: isHistoryMode })} ${
                     noteLayout === 'thin' ? 'max-w-2xl' : noteLayout === 'normal' ? 'max-w-4xl' : noteLayout === 'wide' ? 'max-w-6xl' : 'max-w-full'
                 } margin-${noteMargin || 'normal'}`}>
                     <CanvasLayer
@@ -506,6 +515,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                             <input
                                                 id="note-title-input"
                                                 type="text"
+                                                hidden={!showNoteTitle}
                                                 autoFocus
                                                 value={fileName}
                                                 readOnly={(files.find(f => f.id === (titleInputNoteIdRef.current || activeNoteId)) as any)?.permission === 'view'}
@@ -564,6 +574,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                 placeholder={getTranslation(useDataStore.getState().language || 'de', 'common', 'newNote')}
                                                 className="text-4xl font-bold bg-transparent border-none outline-none text-t2-ink  placeholder-t2-ink-3  pb-1 leading-normal overflow-visible flex-1"
                                             />
+                                            {!showNoteTitle && <div className="flex-1" />}
                                             {/* On the A4 sheet the icons hang beside its right edge, so the title keeps the full width. */}
                                             <NoteHeaderActions
                                                 isOwner={headerIsOwner}
@@ -622,8 +633,9 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                     isLiveShared={isShared && activeCollaborators.length > 0}
                                                                     onClick={() => setShowSaveStatusMenu(prev => !prev)}
                                                                 />
-                                                                {showSaveStatusMenu && af && (
-                                                                    <SaveStatusMenu
+                                                                {saveMenu.mounted && af && (
+                                                                    <div className={`absolute inset-0 z-50 pointer-events-none [&>*]:pointer-events-auto origin-top-right transition-[opacity,transform] duration-150 ${saveMenu.visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}>
+<SaveStatusMenu
                                                                         fileId={activeNoteId}
                                                                         saveStatus={saveStatus}
                                                                         visibility={af.visibility}
@@ -642,6 +654,7 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                                             setNoteSecurityModalItem({ id: af.id, title: af.title, type: (af.type as any) || 'note', metadata: af.metadata });
                                                                         }}
                                                                     />
+</div>
                                                                 )}
                                                                 {showSharePanel && af && (
                                                                     <ShareManagementPanel
@@ -668,23 +681,25 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                                                     >
                                                         <MoreHorizontal size={16} />
                                                     </button>
-                                                    {showNoteSettingsMenu && (
-                                                        <NoteSettingsMenu
+                                                    {settingsMenu.mounted && (
+                                                        <div className={`absolute inset-0 z-50 pointer-events-none [&>*]:pointer-events-auto origin-top-right transition-[opacity,transform] duration-150 ${settingsMenu.visible ? "opacity-100 scale-100" : "opacity-0 scale-95"}`}>
+<NoteSettingsMenu
                                                             onClose={() => setShowNoteSettingsMenu(false)}
                                                             activeNoteId={activeNoteId}
                                                             activeNoteTitle={activeNoteTitle}
                                                             editorContent={editorContent}
-                                                            isOpen={showNoteSettingsMenu}
+                                                            isOpen={settingsMenu.mounted}
                                                             noteId={activeNoteId || undefined}
                                                             noteTitle={activeNoteTitle}
                                                             noteContent={editorContent}
                                                         />
+</div>
                                                     )}
                                                 </div>
                                                 </>}
                                             />
                                         </div>
-                                        {activeNoteId && <NoteTagsRow noteId={activeNoteId} isOwner={headerIsOwner} />}
+                                        {activeNoteId && showNoteTags && <NoteTagsRow noteId={activeNoteId} isOwner={headerIsOwner} />}
                                     </>
                                 )}
 
@@ -858,10 +873,14 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                 </div>
             )}
             </div>
-            {isVarSheetEnabled && isVarSheetOpen && activeNoteId && (
-                <div className="absolute inset-y-0 right-0 z-30 p-3.5 pointer-events-none flex items-start lg:static lg:z-auto lg:shrink-0 lg:py-3.5 lg:pl-3 lg:pr-3.5">
+            {isVarSheetEnabled && varSheet.mounted && lastVarSheetNote.current && (
+                <div
+                    className={`absolute inset-y-0 right-0 z-30 p-3.5 pointer-events-none flex items-start lg:static lg:z-auto lg:shrink-0 lg:py-3.5 lg:pl-3 lg:pr-3.5 overflow-hidden transition-[opacity,transform,max-width] duration-[280ms] ease-[cubic-bezier(0.2,0.8,0.2,1)] ${
+                        varSheet.visible ? 'opacity-100 translate-x-0 lg:max-w-[400px]' : 'opacity-0 translate-x-6 lg:max-w-0 lg:px-0'
+                    }`}
+                >
                     <div className="pointer-events-auto flex w-[360px] max-w-[calc(100vw-1.75rem)] max-h-full">
-                        <VarSheetDock noteId={activeNoteId} onClose={handleCloseVarSheet} />
+                        <VarSheetDock noteId={lastVarSheetNote.current} onClose={handleCloseVarSheet} />
                     </div>
                 </div>
             )}

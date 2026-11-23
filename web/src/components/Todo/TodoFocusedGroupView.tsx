@@ -17,7 +17,6 @@ import {
   Calendar,
   AlertCircle,
   Layers,
-  Folder,
   Tag,
 } from 'lucide-react';
 import { TaskItem } from '@/store/useDataStore';
@@ -245,15 +244,9 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
           </div>
         </div>
 
-        {/* Tags and Folder */}
-        {((liveParent.tags && liveParent.tags.length > 0) || liveParent.folder) && (
+        {/* Tags */}
+        {(liveParent.tags && liveParent.tags.length > 0) && (
           <div className="flex flex-wrap items-center gap-1.5 pl-9">
-            {liveParent.folder && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-t2-hover  text-t2-ink-2  border border-t2-line ">
-                <Folder size={11} className="text-t2-ink-2" />
-                <span>{liveParent.folder}</span>
-              </span>
-            )}
             {resolveTags(liveParent.tags).map((tag) => (
               <span
                 key={tag.id}

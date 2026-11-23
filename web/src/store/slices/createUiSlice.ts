@@ -9,6 +9,7 @@ import type {
     SettingsModalTab,
     SmartIslandState,
     ThemePreference,
+    TodoHideDone,
     UiSlice,
 } from './types';
 
@@ -114,12 +115,35 @@ function getInitialA4SideBorders(): boolean {
     return stored !== null ? stored === 'true' : true;
 }
 
+const HIDE_DONE_MODES: readonly TodoHideDone[] = ['instant', 'leave', 'delay', 'nextDay', 'never'];
+
+function loadTodoHideDone(): TodoHideDone {
+    if (typeof window === 'undefined') return 'instant';
+    try {
+        const raw = localStorage.getItem('tide_todo_hide_done') as TodoHideDone | null;
+        return raw && HIDE_DONE_MODES.includes(raw) ? raw : 'instant';
+    } catch {
+        return 'instant';
+    }
+}
+
+/** Boolean setting kept in localStorage; on unless explicitly turned off. */
+function readFlag(key: string): boolean {
+    if (typeof window === 'undefined') return true;
+    try { return localStorage.getItem(key) !== 'false'; } catch { return true; }
+}
+
 export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
     isVariablesModalOpen: false,
     smartIslandState: null,
     todoTagFilter: { tagIds: [], untagged: false },
+    todoHideDone: loadTodoHideDone(),
+    setTodoHideDone: (mode) => {
+        try { localStorage.setItem('tide_todo_hide_done', mode); } catch { /* private mode */ }
+        set({ todoHideDone: mode });
+    },
     setTodoTagFilter: (filter) => set({ todoTagFilter: filter }),
     calendarTagFilter: { tagIds: [], untagged: false },
     setCalendarTagFilter: (filter) => set({ calendarTagFilter: filter }),
@@ -132,6 +156,16 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     paperPattern: getInitialPaperPattern(),
     showPageBreaks: getInitialShowPageBreaks(),
     headingNumbering: getInitialHeadingNumbering(),
+    showNoteTitle: readFlag('tide_note_show_title'),
+    setShowNoteTitle: (on: boolean) => {
+        try { localStorage.setItem('tide_note_show_title', String(on)); } catch { /* ignore */ }
+        set({ showNoteTitle: on });
+    },
+    showNoteTags: readFlag('tide_note_show_tags'),
+    setShowNoteTags: (on: boolean) => {
+        try { localStorage.setItem('tide_note_show_tags', String(on)); } catch { /* ignore */ }
+        set({ showNoteTags: on });
+    },
     setHeadingNumbering: (on: boolean) =>
         set(() => {
             if (typeof window !== 'undefined') localStorage.setItem('tide_heading_numbering', String(on));

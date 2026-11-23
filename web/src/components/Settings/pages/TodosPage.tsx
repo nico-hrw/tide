@@ -2,6 +2,8 @@ import React from 'react';
 import { SettingsCard, SettingsPage, SettingsPageHeader, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { SelectField, StatusPill, Toggle } from '../ui/Controls';
 import { useT } from '../useT';
+import { useDataStore } from '@/store/useDataStore';
+import type { TodoHideDone } from '@/store/slices/types';
 import { ExtensionDisableConfirm } from '../extensions/ExtensionsList';
 import { useExtensionSwitch } from '../extensions/useExtensionSwitch';
 
@@ -18,6 +20,8 @@ export function TodosPage({ enabledExtensions, onToggleExtension }: TodosPagePro
     const t = useT();
     const sw = useExtensionSwitch(onToggleExtension);
     const enabled = enabledExtensions.includes('todos');
+    const hideDone = useDataStore((st) => st.todoHideDone);
+    const setHideDone = useDataStore((st) => st.setTodoHideDone);
 
     return (
         <div>
@@ -38,8 +42,19 @@ export function TodosPage({ enabledExtensions, onToggleExtension }: TodosPagePro
                         <SettingsRow title={t('todos.overdue')} description={t('todos.overdueDesc')} soon>
                             <Toggle checked label={t('todos.overdue')} onChange={() => undefined} disabled />
                         </SettingsRow>
-                        <SettingsRow title={t('todos.hideDone')} description={t('todos.hideDoneDesc')} soon>
-                            <SelectField label={t('todos.hideDone')} value="1d" onChange={() => undefined} disabled options={[{ value: '1d', label: t('todos.hideDoneDay') }]} />
+                        <SettingsRow title={t('todos.hideDone')} description={t('todos.hideDoneDesc')}>
+                            <SelectField<TodoHideDone>
+                                label={t('todos.hideDone')}
+                                value={hideDone}
+                                onChange={setHideDone}
+                                options={[
+                                    { value: 'instant', label: t('todos.hideDoneInstant') },
+                                    { value: 'leave', label: t('todos.hideDoneLeave') },
+                                    { value: 'delay', label: t('todos.hideDoneDelay') },
+                                    { value: 'nextDay', label: t('todos.hideDoneDay') },
+                                    { value: 'never', label: t('todos.hideDoneNever') },
+                                ]}
+                            />
                         </SettingsRow>
                     </SettingsCard>
                 </SettingsSection>

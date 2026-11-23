@@ -122,6 +122,8 @@ export default function CalendarView({
         creationEndYMV,
         cursorX,
         cursorY,
+        dragOverlayX,
+        dragOverlayY,
         isPreciseMode,
         isPreciseModeRef,
         dropBounds,
@@ -286,8 +288,8 @@ export default function CalendarView({
                             resizeHeightMV={resizeHeightMV}
                             resizeTopMV={resizeTopMV}
                             creationEndYMV={creationEndYMV}
-                            cursorX={cursorX}
-                            cursorY={cursorY}
+                            cursorX={dragOverlayX}
+                            cursorY={dragOverlayY}
                         />
                     </div>
                 )}
@@ -323,8 +325,8 @@ export default function CalendarView({
                             resizeHeightMV={resizeHeightMV}
                             resizeTopMV={resizeTopMV}
                             creationEndYMV={creationEndYMV}
-                            cursorX={cursorX}
-                            cursorY={cursorY}
+                            cursorX={dragOverlayX}
+                            cursorY={dragOverlayY}
                             themes={themes}
                         />
                     </div>
@@ -357,6 +359,7 @@ export default function CalendarView({
                         }}
                         onEventCreate={onEventCreate}
                         onEventDelete={onEventDelete}
+                        onEventSave={onEventSave}
                         onTaskToggle={(id, currentIsCompleted) => {
                             if (onEventSave) onEventSave(id, { is_completed: !currentIsCompleted });
                         }}
@@ -392,6 +395,7 @@ export default function CalendarView({
                     themes={themes}
                     onEventSave={onEventSave}
                     onEventDelete={onEventDelete}
+                    onEventShare={onEventShare}
                     onClose={() => setActivePopover(null)}
                     enabledExtensions={enabledExtensions}
                     showNoTagConfirm={noTagPrompt.promptId === activePopover.id}

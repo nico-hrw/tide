@@ -105,6 +105,7 @@ export default function Dashboard() {
     const [activeEventId, setActiveEventId] = useState<string | null>(null);
     const [, setMinimizedEventIds] = useState<string[]>([]);
     const syncingTaskIdsRef = useRef<Set<string>>(new Set());
+    const mobileRenameTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     const [deletedBlockIds, setDeletedBlockIds] = useState<string[]>([]);
     const [pendingBindBlockId, setPendingBindBlockId] = useState<string | null>(null);
     const [isLinkingMode, setIsLinkingMode] = useState(false);
@@ -396,6 +397,25 @@ export default function Dashboard() {
             activeTabId={activeTabId} onReturnToTab={(tabId) => setActiveTabId(tabId)} />
     );
 
+    const handleAvatarLogout = () => {
+        setIsAvatarMenuOpen(false);
+        sessionStorage.clear();
+        localStorage.removeItem("tide_user_email");
+        localStorage.removeItem("tide_user_id");
+        localStorage.removeItem("tide_session_token");
+        window.location.reload();
+    };
+
+    // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
+    const handleMobileNoteRename = (id: string, title: string) => {
+        if (mobileRenameTimerRef.current) clearTimeout(mobileRenameTimerRef.current);
+        if (id !== activeNoteId) { void submitRename(id, title, true); return; }
+        setFileName(title);
+        setSaveStatus("unsaved");
+        setOpenTabs((prev) => prev.map((t) => (t.id === id ? { ...t, title } : t)));
+        mobileRenameTimerRef.current = setTimeout(() => { void submitRename(id, title, true); }, 600);
+    };
+
     const desktopContentProps: DashboardDesktopContentProps = {
         isSidebarOpen, toggleSidebarCollapse, openTabs, setOpenTabs, activeTabId, setActiveTabId,
         handleTabSelect, handleTabClose, handleNewNote, switchTab, userProfile, myId, privateKey, publicKey,
@@ -439,7 +459,7 @@ export default function Dashboard() {
                     socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
-                    userProfile={userProfile} editorElement={mobileEditorElement}
+                    userProfile={userProfile} editorElement={mobileEditorElement} onNoteRename={handleMobileNoteRename}
                     themes={mobileThemes} />
             ) : (
                 <>
@@ -462,7 +482,10 @@ export default function Dashboard() {
                                 onOpenCalendar={() => handleTabSelect("calendar", "calendar")} onOpenSocial={() => setActiveTabId("social")}
                                 onOpenExams={() => handleTabSelect("job_planner", "job_planner")}
                                 onOpenStudium={() => handleTabSelect("job_planner", "job_planner")}
-                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos} />
+                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos}
+                                isAvatarMenuOpen={isAvatarMenuOpen} setIsAvatarMenuOpen={shouldShowSidebar ? setIsAvatarMenuOpen : undefined} avatarMenuRef={avatarMenuRef}
+                                onOpenSettings={() => setSettingsModalOpen(true)} onOpenTrash={() => setActiveTabId("trash")}
+                                onLogout={handleAvatarLogout} />
                         </div>
                         {shouldShowSidebar && (
                             <div onMouseDown={startSidebarDrag} title="Drag to resize sidebar"

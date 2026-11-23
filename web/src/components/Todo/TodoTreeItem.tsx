@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2, Plus,
-  X, Folder, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown, Minus,
+  X, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown, Minus,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
@@ -23,9 +23,6 @@ export interface TodoTreeItemProps {
   isCompleting?: boolean; completingTaskIds?: Set<string>;
   editDraft?: TaskEditDraft; setEditDraft?: React.Dispatch<React.SetStateAction<TaskEditDraft>>;
   editNewTagInput?: string; setEditNewTagInput?: React.Dispatch<React.SetStateAction<string>>;
-  allFolders?: string[];
-  selectedFolder?: string | null; setSelectedFolder?: (folder: string | null) => void;
-  setViewMode?: (mode: 'tasks' | 'folders') => void;
   /** Returns the id of the existing or newly created tag with this name. */
   handleCreateTag?: (name: string) => Promise<string | undefined>;
   handleToggleTask: (task: TaskItem) => void; handleToggleInProgress: (task: TaskItem) => void;
@@ -47,8 +44,6 @@ function cn(...classes: (string | boolean | undefined | null)[]) {
 export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function TodoTreeItem({
   task, depth = 0, isExpanded, editingTaskId, isCompleting = false, completingTaskIds,
   editDraft, setEditDraft, editNewTagInput, setEditNewTagInput,
-  allFolders = [],
-  selectedFolder = null, setSelectedFolder, setViewMode,
   handleCreateTag, handleToggleTask, handleToggleInProgress,
   saveEditing, cancelEditing, deleteTask, onRowClick, onSelectTask, disableClickDebounce = false,
   onFocusGroup, parentDueDate,
@@ -104,7 +99,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
     title: task.title, description: task.description || '', priority: getTaskPriority(task),
     status: task.isCompleted ? 'completed' : (task.status || 'todo'),
     dueDate: task.dueDate || task.scheduledDate || '', recurrence: task.recurrence || 'none',
-    recurrenceEnd: task.recurrence_end || '', folder: task.folder || '', tags: task.tags ? [...task.tags] : [],
+    recurrenceEnd: task.recurrence_end || '', tags: task.tags ? [...task.tags] : [],
     showInCalendar: task.showInCalendar !== false,
   }));
   const draft = editDraft || localDraft;
@@ -120,7 +115,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
         dueDate: task.dueDate || task.scheduledDate || '',
         recurrence: task.recurrence || 'none',
         recurrenceEnd: task.recurrence_end || '',
-        folder: task.folder || '',
         tags: task.tags ? [...task.tags] : [],
         showInCalendar: task.showInCalendar !== false,
       });
@@ -237,7 +231,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
     await addTask({
       title: trimmed,
       parentId: task.id,
-      folder: task.folder,
       tags: task.tags ? [...task.tags] : [],
       priority: (draft.priority || task.priority || 'low') as any,
       dueDate: inheritedDate,
@@ -399,7 +392,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 </div>
 
                 {/* Sub-details Line */}
-                {Boolean((task.tags && task.tags.length > 0) || (task.folder && (!depth || depth < 1)) || (depth && depth > 0)) && (
+                {Boolean((task.tags && task.tags.length > 0) || (depth && depth > 0)) && (
                   <div className={`flex flex-wrap items-center gap-2 mt-0.5 ${isTaskCompleted ? 'opacity-60' : ''}`}>
                     {Boolean(depth && depth > 0) && (
                       <span className={`text-[11px] font-bold px-2 py-0.5 rounded-md ${
@@ -410,33 +403,12 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         Teilaufgabe
                       </span>
                     )}
-                    {Boolean(task.folder && (!depth || depth < 1)) && (
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedFolder?.(selectedFolder === task.folder ? null : (task.folder || null));
-                          setViewMode?.('tasks');
-                        }}
-                        className={`text-[12px] font-medium cursor-pointer hover:underline ${
-                          isTaskCompleted
-                            ? 'text-t2-ink-3 '
-                            : isTodayActive
-                              ? 'text-t2-ink-3 '
-                              : 'text-t2-ink-2 '
-                        }`}
-                        title={`Nach Ordner "${task.folder}" filtern`}
-                      >
-                        {task.folder}
-                      </span>
-                    )}
-
                     {resolveTags(task.tags).map((tag) => (
                       <span
                         key={tag.id}
                         onClick={(e) => {
                           e.stopPropagation();
                           setTodoTagFilter(toggleTagInFilter(tagFilter, tag.id));
-                          setViewMode?.('tasks');
                         }}
                         className={`inline-flex items-center gap-1 text-[11px] px-1.5 py-0.5 rounded font-medium cursor-pointer transition-opacity hover:opacity-80 ${
                           isTaskCompleted
@@ -554,7 +526,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 dueDate: draft.dueDate || undefined,
                                 recurrence: draft.recurrence,
                                 recurrence_end: draft.recurrenceEnd || undefined,
-                                folder: draft.folder || undefined,
                                 tags: draft.tags,
                                 showInCalendar: draft.showInCalendar,
                               });
@@ -767,31 +738,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         </div>
                       </div>
 
-                      {/* Ordner & Wiederholung (2-column grid) */}
+                      {/* Wiederholung */}
                       {(!depth || depth < 1) && (
-                        <div className="grid grid-cols-2 gap-2">
-                          <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
-                            isTodayActive ? 'bg-white/15 ' : 'bg-t2-hover '
-                          }`}>
-                            <Folder size={14} className={isTodayActive ? 'text-white/60  shrink-0' : 'text-t2-ink-3 shrink-0'} />
-                            <select
-                              value={draft.folder}
-                              onChange={(e) => {
-                                const nextFolder = e.target.value;
-                                setDraft((p) => ({ ...p, folder: nextFolder }));
-                                updateTask(task.id, { folder: nextFolder || undefined });
-                              }}
-                              className={`bg-transparent text-xs font-medium border-none focus:outline-none cursor-pointer w-full truncate pr-1 ${
-                                isTodayActive ? 'text-t2-bg' : 'text-t2-ink '
-                              }`}
-                            >
-                              <option value="" className="bg-t2-surface  text-t2-ink ">Kein Ordner</option>
-                              {allFolders.map((f) => (
-                                <option key={f} value={f} className="bg-t2-surface  text-t2-ink ">{f}</option>
-                              ))}
-                            </select>
-                          </div>
-
+                        <div className="grid grid-cols-1 gap-2">
                           <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
                             isTodayActive ? 'bg-white/15 ' : 'bg-t2-hover '
                           }`}>
@@ -917,7 +866,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             scheduledDate: draft.dueDate || undefined,
                             dueDate: draft.dueDate || undefined,
                             priority: draft.priority,
-                            folder: draft.folder || undefined,
                             tags: draft.tags,
                             recurrence: draft.recurrence,
                             recurrence_end: draft.recurrenceEnd || undefined,
@@ -1014,10 +962,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         task={child as TaskWithChildren}
                         depth={(depth || 0) + 1}
                         parentDueDate={draft.dueDate || task.dueDate || task.scheduledDate || undefined}
-                        allFolders={allFolders}
-                        selectedFolder={selectedFolder}
-                        setSelectedFolder={setSelectedFolder}
-                        setViewMode={setViewMode}
                         handleCreateTag={handleCreateTag}
                         handleToggleTask={handleToggleTask}
                         handleToggleInProgress={handleToggleInProgress}
@@ -1032,7 +976,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               scheduledDate: d.dueDate || undefined,
                               recurrence: d.recurrence,
                               recurrence_end: d.recurrenceEnd || undefined,
-                              folder: d.folder || undefined,
                               tags: d.tags,
                               showInCalendar: d.showInCalendar,
                             });
@@ -1100,7 +1043,6 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           scheduledDate: draft.dueDate || undefined,
                           dueDate: draft.dueDate || undefined,
                           priority: draft.priority,
-                          folder: draft.folder || undefined,
                           tags: draft.tags,
                           recurrence: draft.recurrence,
                           recurrence_end: draft.recurrenceEnd || undefined,

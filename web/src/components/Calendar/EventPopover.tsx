@@ -3,12 +3,12 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { Star, Ban, Trash2, X, ChevronDown, Check, Clock } from "lucide-react";
+import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
 import { TagPicker } from "@/components/Tags/TagPicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
 import { useTagCreate } from "@/components/Tags/useTagCreate";
-import { CALENDAR_CATEGORIES, categoryVar } from "@/lib/calendarColors";
+import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
 
 interface CustomDropdownOption {
     value: string;
@@ -49,7 +49,7 @@ function ModernDropdown({
             <button
                 type="button"
                 onClick={() => setOpen(!open)}
-                className="w-full flex items-center justify-between bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  hover:bg-t2-hover  transition-all text-left"
+                className="w-full flex items-center justify-between bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  hover:bg-t2-hover  transition-all text-left"
             >
                 <div className="flex items-center gap-1.5 truncate">
                     {selectedOption?.color && (
@@ -123,6 +123,8 @@ export interface EventPopoverProps {
     themes: Array<{ id: string; title: string; effect?: string; color?: string }>;
     onEventSave: (id: string, updates: Partial<EventPopoverEvent>) => void;
     onEventDelete?: (id: string) => void;
+    /** Opens the share dialog for this event. */
+    onEventShare?: (e: React.MouseEvent, id: string) => void;
     onClose: () => void;
     enabledExtensions: string[];
     /** Ask "Ohne Tag speichern?" in place of closing (set by the host for untagged new events). */
@@ -137,6 +139,7 @@ export default function EventPopover({
     themes,
     onEventSave,
     onEventDelete,
+    onEventShare,
     onClose,
     showNoTagConfirm,
     onNoTagConfirm,
@@ -279,6 +282,12 @@ export default function EventPopover({
         setPos({ top, left });
     }, [rect, isExpanded, showColorPicker, selectedGroupIds]);
 
+    // Tell the event block it is the open one (black outline) while this popover exists
+    useEffect(() => {
+        window.dispatchEvent(new CustomEvent('tide:event-popover', { detail: { id: event.id } }));
+        return () => { window.dispatchEvent(new CustomEvent('tide:event-popover', { detail: { id: null } })); };
+    }, [event.id]);
+
     // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
     useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
@@ -299,21 +308,24 @@ export default function EventPopover({
     const pickerValue = selectedGroupIds.filter(id => themes.some(t => t.id === id));
 
     if (typeof document === 'undefined') return null;
+    const accent = categoryVar(resolveCategory(color).key);
 
     return createPortal(
         <div
             id="active-event-popover"
             ref={popoverRef}
-            className="fixed z-[1000] w-[320px] bg-t2-surface rounded-[16px] shadow-[0_0_0_1px_var(--t2-line),0_14px_36px_rgba(0,0,0,0.12)] p-4 flex flex-col gap-3 animate-in fade-in zoom-in-95 duration-150"
-            style={{ top: `${pos.top}px`, left: `${pos.left}px` }}
+            className="fixed z-[1000] w-[344px] max-w-[calc(100vw-24px)] bg-t2-surface rounded-[20px] shadow-[0_0_0_1px_var(--t2-line),0_18px_44px_rgba(0,0,0,0.16)] p-4 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150"
+            style={{ top: `${pos.top}px`, left: `${pos.left}px`, '--ev': accent } as React.CSSProperties}
         >
             {/* ── Header ── */}
-            <div className="flex items-center gap-2">
-                <div
-                    className="w-3.5 h-3.5 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform shadow-sm"
-                    style={{ backgroundColor: color }}
+            <div className="flex items-center gap-2.5">
+                <button
+                    type="button"
+                    className="w-5 h-5 rounded-full shrink-0 cursor-pointer hover:scale-110 transition-transform ring-2 ring-offset-2 ring-offset-t2-surface ring-t2-line-soft"
+                    style={{ backgroundColor: accent }}
                     onClick={() => setShowColorPicker(!showColorPicker)}
                     title="Farbe wählen"
+                    aria-label="Farbe wählen"
                 />
                 {/* Wraps instead of scrolling, so the whole title is readable here (cards show one line only). */}
                 <textarea
@@ -323,58 +335,67 @@ export default function EventPopover({
                     onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
                     onBlur={() => handleSave()}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-                    className={`flex-1 min-w-0 max-h-24 resize-none [field-sizing:content] break-words text-sm font-bold leading-snug bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-t2-ink-3 transition-all ${isCancelled ? 'line-through text-t2-ink-3 ' : 'text-t2-ink '}`}
+                    className={`flex-1 min-w-0 max-h-24 resize-none [field-sizing:content] break-words text-[15px] leading-snug font-bold bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-t2-ink-3 transition-all ${isCancelled ? 'line-through text-t2-ink-3 ' : 'text-t2-ink '}`}
                     placeholder="Was passiert?"
                 />
-                {/* Wichtig Toggle (Icon only) */}
-                <button
-                    type="button"
-                    onClick={() => setIsImportant(!isImportant)}
-                    className={`shrink-0 p-1.5 rounded-full transition-all ${
-                        isImportant
-                            ? 'text-t2-accent bg-t2-sub'
-                            : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
-                    }`}
-                    title={isImportant ? 'Wichtig entfernen' : 'Als wichtig markieren'}
-                >
-                    <Star size={14} className={isImportant ? 'fill-current' : ''} />
-                </button>
-                {/* Cancel icon - clearly visually highlighted when active */}
-                <button
-                    type="button"
-                    onClick={handleToggleCancel}
-                    className={`shrink-0 p-1.5 rounded-full transition-all ${
-                        isCancelled
-                            ? 'text-t2-now bg-t2-sub font-bold'
-                            : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
-                    }`}
-                    title={isCancelled ? (isOccurrence ? 'Absage für diesen Tag aufheben' : 'Absage rückgängig') : (isOccurrence ? 'Diesen Termin absagen' : 'Termin absagen')}
-                >
-                    <Ban size={14} className={isCancelled ? 'stroke-[2.5]' : ''} />
-                </button>
-                {/* Delete icon */}
-                <button
-                    type="button"
-                    onClick={() => { onEventDelete?.(event.id); }}
-                    className="shrink-0 p-1.5 rounded-full text-t2-ink-3 hover:text-t2-now hover:bg-t2-hover transition-all"
-                    title="Löschen"
-                >
-                    <Trash2 size={14} />
-                </button>
-                {/* Close icon */}
-                <button 
-                    type="button"
-                    onClick={handleClose} 
-                    className="shrink-0 p-1.5 rounded-full text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-all"
-                    title="Schließen"
-                >
-                    <X size={14} />
-                </button>
+                {/* Actions stay inside the card: fixed-size icon buttons that never shrink or wrap */}
+                <div className="flex items-center shrink-0 -mr-1.5">
+                    <button
+                        type="button"
+                        onClick={() => setIsImportant(!isImportant)}
+                        className={`w-8 h-8 grid place-items-center rounded-full transition-all ${
+                            isImportant
+                                ? 'text-t2-accent bg-t2-sub'
+                                : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
+                        }`}
+                        title={isImportant ? 'Wichtig entfernen' : 'Als wichtig markieren'}
+                    >
+                        <Star size={15} className={isImportant ? 'fill-current' : ''} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleToggleCancel}
+                        className={`w-8 h-8 grid place-items-center rounded-full transition-all ${
+                            isCancelled
+                                ? 'text-t2-now bg-t2-sub font-bold'
+                                : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
+                        }`}
+                        title={isCancelled ? (isOccurrence ? 'Absage für diesen Tag aufheben' : 'Absage rückgängig') : (isOccurrence ? 'Diesen Termin absagen' : 'Termin absagen')}
+                    >
+                        <Ban size={15} className={isCancelled ? 'stroke-[2.5]' : ''} />
+                    </button>
+                    {onEventShare && (
+                        <button
+                            type="button"
+                            onClick={(e) => onEventShare(e, event.id)}
+                            className="w-8 h-8 grid place-items-center rounded-full text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover transition-all"
+                            title="Teilen"
+                        >
+                            <Share2 size={15} />
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        onClick={() => { onEventDelete?.(event.id); }}
+                        className="w-8 h-8 grid place-items-center rounded-full text-t2-ink-3 hover:text-t2-now hover:bg-t2-hover transition-all"
+                        title="Löschen"
+                    >
+                        <Trash2 size={15} />
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleClose}
+                        className="w-8 h-8 grid place-items-center rounded-full text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover transition-all"
+                        title="Schließen"
+                    >
+                        <X size={15} />
+                    </button>
+                </div>
             </div>
 
             {/* Color picker */}
             {showColorPicker && (
-                <div className="bg-t2-sub  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
+                <div className="bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  p-3 rounded-2xl flex flex-wrap gap-2 animate-in slide-in-from-top-2 duration-150">
                     {CALENDAR_CATEGORIES.map(cat => cat.key).map(c => (
                         <button
                             key={c}
@@ -398,9 +419,10 @@ export default function EventPopover({
             )}
 
             {/* Time & Date */}
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-t2-sub  rounded-xl px-3 py-2 border border-t2-line-soft ">
-                <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-semibold text-t2-ink ">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] rounded-2xl px-3.5 py-2.5 border border-[color-mix(in_srgb,var(--ev)_32%,transparent)] ">
+                <div className="flex items-center gap-2 min-w-0">
+                    <CalendarDays size={14} className="text-t2-ink-3 shrink-0" />
+                    <span className="text-[13px] font-semibold text-t2-ink whitespace-nowrap">
                         {(() => {
                             try {
                                 return event.start ? format(new Date(event.start), "d. MMM yyyy") : "";
@@ -415,7 +437,7 @@ export default function EventPopover({
                         </span>
                     )}
                 </div>
-                <div className="flex items-center gap-1.5 text-xs text-t2-ink-2 ">
+                <div className="flex items-center gap-1.5 text-xs text-t2-ink-2 shrink-0">
                     {event.allDay ? (
                         <span className="font-bold uppercase tracking-wider text-[11px] bg-t2-stage  px-2 py-0.5 rounded-full">Ganztägig</span>
                     ) : (
@@ -437,7 +459,7 @@ export default function EventPopover({
                 {/* Tags: first selected tag sets the style/color */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
-                        <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest">Tags</span>
+                        <span className="flex items-center gap-1.5 text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest"><TagIcon size={11} />Tags</span>
                         {pickerValue.length > 0 && (
                             <span className="text-[11px] text-t2-ink-3 font-medium">Der erste Tag bestimmt die Farbe</span>
                         )}
@@ -450,7 +472,7 @@ export default function EventPopover({
 
                 {/* Wiederholen */}
                 <div className="flex flex-col gap-1">
-                    <span className="text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest px-1">Wiederholen</span>
+                    <span className="flex items-center gap-1.5 text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest px-1"><Repeat size={11} />Wiederholen</span>
                     <ModernDropdown
                         value={freq}
                         options={[
@@ -480,7 +502,7 @@ export default function EventPopover({
                                 if (isNaN(v) || v < 1) v = 1; 
                                 updateRecurrence(freq, v); 
                             }}
-                            className="w-8 text-center bg-t2-sub  border border-t2-line  rounded-md py-0.5 text-xs font-bold text-t2-accent font-mono outline-none focus:ring-1 focus:ring-t2-accent" 
+                            className="w-8 text-center bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-md py-0.5 text-xs font-bold text-t2-accent font-mono outline-none focus:ring-1 focus:ring-t2-accent" 
                         />
                         <span>{freq === 'daily' ? 'Tag(e)' : freq === 'weekly' ? 'Woche(n)' : freq === 'monthly' ? 'Monat(e)' : 'Jahr(e)'}</span>
                     </div>
@@ -503,7 +525,7 @@ export default function EventPopover({
                                 }
                             }}
                             onBlur={() => handleSave()}
-                            className="bg-t2-sub  border border-t2-line-soft  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-t2-hover  transition-colors"
+                            className="bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))]  border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-xl px-2.5 py-1.5 text-xs font-bold text-t2-ink  outline-none w-full [color-scheme:light_dark] cursor-pointer hover:bg-t2-hover  transition-colors"
                         />
                         {recurrenceEnd && (
                             <button
@@ -526,7 +548,7 @@ export default function EventPopover({
                 onBlur={() => handleSave()}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
-                className="w-full bg-transparent border border-t2-line-soft  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
+                className="w-full bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 
             {/* ── Expand toggle ── */}

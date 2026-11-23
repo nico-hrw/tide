@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import SidebarIsland from "./sidebar/SidebarIsland";
+import AvatarMenu from "./AvatarMenu";
 import { GraduationCap, ListTodo } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
@@ -73,6 +74,11 @@ export default function Sidebar({
     onOpenCalendar,
     onOpenStudium,
     onOpenSocial,
+    isAvatarMenuOpen,
+    setIsAvatarMenuOpen,
+    avatarMenuRef,
+    onOpenTrash,
+    onLogout,
     onOpenExams,
     onNewCanvasNote,
     onOpenTodos,
@@ -308,7 +314,26 @@ export default function Sidebar({
                 setSidebarContextMenu({ x: e.clientX, y: e.clientY });
             }}
         >
-            <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-2 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
+            {setIsAvatarMenuOpen && avatarMenuRef && (
+                <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
+                    <AvatarMenu
+                        userProfile={userProfile}
+                        myId={myId}
+                        isOpen={isAvatarMenuOpen}
+                        setOpen={setIsAvatarMenuOpen}
+                        menuRef={avatarMenuRef}
+                        onOpenSocial={onOpenSocial}
+                        onOpenSettings={onOpenSettings}
+                        onOpenTrash={onOpenTrash}
+                        onLogout={onLogout}
+                        size={36}
+                        placement="left"
+                    />
+                    <span className="min-w-0 truncate text-[14px] font-semibold text-t2-ink">{validUsername || emailPrefix || 'Profil'}</span>
+                </div>
+            )}
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
+            <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-0.5 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <button
                     type="button"
                     onClick={() => (onOpenStudium ? onOpenStudium() : onOpenCalendar?.())}
@@ -328,6 +353,7 @@ export default function Sidebar({
                     Todos
                 </button>
             </nav>
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <SidebarQuickNotes
                     activeTabId={activeTabId}
@@ -339,6 +365,7 @@ export default function Sidebar({
                     onImport={() => handleImport(null)}
                 />
             </div>
+            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             {/* Scrollable notes section — flex-based height so RECENT expansion doesn't push content under Smart Island */}
             <div
                 ref={scrollContainerRef}
@@ -423,7 +450,7 @@ export default function Sidebar({
 
             {/* Smart Island: Quadrat in der Seitenleiste, die Karte wächst per Portal darüber hinaus */}
             {navigationMode !== 'folders' && (
-                <SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} />
+                <><div className="mx-3 h-px shrink-0 bg-t2-line-soft" role="separator" /><SidebarIsland selectedDate={selectedDate} onSelect={onDateSelect} /></>
             )}
 
             <SidebarContextMenu

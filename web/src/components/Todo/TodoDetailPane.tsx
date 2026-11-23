@@ -1,12 +1,15 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Flag, Folder, Link2, Plus, Trash2 } from 'lucide-react';
+import { Calendar, Flag, Link2, Plus, Tag, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { TaskItem, useDataStore } from '@/store/useDataStore';
 import { Priority, getTaskPriority, getPriorityColor, parseDateSafe } from './types';
 import { TodoPriorityIcon, T2_PRIORITY_LABEL } from './TodoCardParts';
 import { SubtaskRow } from './SubtaskRow';
+import TagPicker from '@/components/Tags/TagPicker';
+import { useTagCreate } from '@/components/Tags/useTagCreate';
+import { useTagRegistry } from './useTodoTags';
 import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
 
 export interface TodoDetailPaneProps {
@@ -14,7 +17,6 @@ export interface TodoDetailPaneProps {
   /** Parent todo when `task` is a subtask. */
   parent?: TaskItem;
   subtasks: TaskItem[];
-  folders: string[];
   onUpdate: (id: string, patch: Partial<TaskItem>) => void;
   onToggleSubtask: (id: string) => void;
   onAddSubtask: (title: string, parent: TaskItem) => void | Promise<void>;
@@ -34,7 +36,7 @@ const Row: React.FC<{ label: string; icon: React.ReactNode; children: React.Reac
 );
 
 export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
-  task, parent, subtasks, folders, onUpdate, onToggleSubtask, onAddSubtask, onDelete, onOpenTask,
+  task, parent, subtasks, onUpdate, onToggleSubtask, onAddSubtask, onDelete, onOpenTask,
 }) => {
   const notes = useDataStore((s) => s.notes);
   const [title, setTitle] = useState(task.title);
@@ -46,7 +48,8 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
   const due = parseDateSafe(task.dueDate || task.scheduledDate);
   const doneCount = subtasks.filter((s) => s.isCompleted).length;
   const linkedNote = task.linkedNoteId ? notes.find((n) => n.id === task.linkedNoteId) : undefined;
-  const folderOptions = task.folder && !folders.includes(task.folder) ? [task.folder, ...folders] : folders;
+  const { tags: allTags } = useTagRegistry();
+  const createTag = useTagCreate();
 
   const maxDate = subtaskDateMax(task, parent);
 
@@ -79,7 +82,7 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
               </button>
             </div>
           ) : (
-            <div className="text-[13px] text-t2-ink-3">{task.folder || 'Ohne Ordner'}</div>
+            <div />
           )}
           <button
             type="button"
@@ -131,16 +134,14 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
             ))}
           </div>
         </Row>
-        <Row label="Ordner" icon={<Folder size={15} />}>
-          <select
-            value={task.folder || ''}
-            onChange={(e) => onUpdate(task.id, { folder: e.target.value || undefined })}
-            aria-label="Ordner"
-            className="bg-transparent outline-none text-sm text-t2-ink cursor-pointer"
-          >
-            <option value="">Kein Ordner</option>
-            {folderOptions.map((f) => <option key={f} value={f}>{f}</option>)}
-          </select>
+        <Row label="Tags" icon={<Tag size={15} />}>
+          <TagPicker
+            tags={allTags}
+            value={task.tags ?? []}
+            onChange={(tags) => onUpdate(task.id, { tags })}
+            onCreate={createTag}
+            compact
+          />
         </Row>
         <Row label="Notiz" icon={<Link2 size={15} />}>
           <span className={linkedNote ? 'text-t2-ink' : 'text-t2-ink-3'}>

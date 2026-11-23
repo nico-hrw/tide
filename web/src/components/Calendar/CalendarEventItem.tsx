@@ -361,7 +361,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     // This hook is now at the top level of the component.
     const liveTimeTransform = useTransform(resizeHeightMV || fallbackMV, (h) => {
         const maxDuration = 1440 - startMinutes;
-        const clampedDuration = Math.min(Math.max(15, h), maxDuration);
+        const clampedDuration = Math.min(Math.max(10, h), maxDuration);
         const newEndMinutes = startMinutes + clampedDuration;
         const hEnd = Math.floor(newEndMinutes / 60);
         const mEnd = Math.floor(newEndMinutes % 60);
@@ -372,7 +372,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const effectStyle = !isCancelled ? getEffectStyle(event.effect) : undefined;
 
     const isTimePoint = durationMinutes === 0;
-    const isShortEvent = !isTimePoint && durationMinutes < 40;
+    const isShortEvent = !isTimePoint && durationMinutes < 50;
     const minRenderedMinutes = isTimePoint ? 0 : Math.max(durationMinutes, 5);
 
     // resizeHeightMV holds MINUTES; the card needs a CSS length (a bare number would be read as px).
@@ -493,6 +493,13 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     }
 
     const isHighlightedEvent = isHighlighted(event.id, 'event');
+    // Clicked event: its popover is open, so it gets a black outline (the popover announces itself)
+    const [popoverOpen, setPopoverOpen] = React.useState(false);
+    React.useEffect(() => {
+        const onPopover = (e: Event) => setPopoverOpen((e as CustomEvent<{ id: string | null }>).detail?.id === event.id);
+        window.addEventListener('tide:event-popover', onPopover);
+        return () => window.removeEventListener('tide:event-popover', onPopover);
+    }, [event.id]);
 
     // Detect currently-running event (today, started, not yet ended)
     const now = new Date();
@@ -552,7 +559,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 45 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform] duration-150 ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 75 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${popoverOpen && !isDragging && !isResizing ? 'ring-2 ring-black dark:ring-white z-[85]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform,filter] duration-150 hover:brightness-[0.93] ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -617,63 +624,12 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             <button
                 onClick={(e) => {
                     e.stopPropagation();
-                    if (onEventShare) onEventShare(e, event.id);
-                }}
-                title="Share Event"
-                className={`absolute ${isShortEvent ? 'top-0.5 right-5' : 'top-1 right-5'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-t2-accent transition-colors`}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width={isShortEvent ? 11 : 13} height={isShortEvent ? 11 : 13} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="18" cy="5" r="3"></circle><circle cx="6" cy="12" r="3"></circle><circle cx="18" cy="19" r="3"></circle><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line></svg>
-            </button>
-            <button
-                onClick={(e) => {
-                    e.stopPropagation();
                     onEventDelete?.(event.id);
                 }}
                 className={`absolute ${isShortEvent ? 'top-0.5 right-1' : 'top-1 right-1'} opacity-0 group-hover:opacity-100 z-50 p-0.5 text-t2-ink-3 hover:text-red-500 transition-colors`}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" width={isShortEvent ? 12 : 14} height={isShortEvent ? 12 : 14} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
             </button>
-            {/* Drag-to-note handle — appears on hover, initiates native HTML5 drag */}
-            {!isDragging && !isResizing && (
-                <div
-                    title="Drag to note to create a link"
-                    draggable
-                    onDragStart={(e) => {
-                        e.stopPropagation();
-                        e.dataTransfer.effectAllowed = 'copy';
-                        e.dataTransfer.setData('tide/calendar-event', JSON.stringify({
-                            id: event.id,
-                            title: event.title,
-                            start: event.start,
-                            end: event.end,
-                            color: theme.bg,
-                            description: event.description || '',
-                        }));
-                        // Drag image: a small pill preview
-                        const ghost = document.createElement('div');
-                        ghost.style.cssText = `
-                            position: fixed; top: -200px; left: 0;
-                            padding: 4px 10px; border-radius: 6px;
-                            background: ${theme.bg};
-                            color: white; font-size: 12px; font-weight: 600;
-                            max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-                            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
-                        `;
-                        ghost.textContent = event.title || 'Event';
-                        document.body.appendChild(ghost);
-                        e.dataTransfer.setDragImage(ghost, 0, 14);
-                        setTimeout(() => document.body.removeChild(ghost), 0);
-                    }}
-                    className="absolute top-1 left-1 opacity-0 group-hover:opacity-60 hover:!opacity-100 z-[75] p-0.5 cursor-grab active:cursor-grabbing text-white transition-opacity"
-                    onMouseDown={e => e.stopPropagation()} // don't trigger internal DnD
-                >
-                    <svg width="10" height="12" viewBox="0 0 10 12" fill="currentColor" opacity="0.85">
-                        <circle cx="3" cy="2" r="1.2"/><circle cx="7" cy="2" r="1.2"/>
-                        <circle cx="3" cy="6" r="1.2"/><circle cx="7" cy="6" r="1.2"/>
-                        <circle cx="3" cy="10" r="1.2"/><circle cx="7" cy="10" r="1.2"/>
-                    </svg>
-                </div>
-            )}
             {/* Time-point (0-min) display: thick bar with title floating centered on it */}
             {isTimePoint ? (
                 <div className="absolute inset-0 flex items-center overflow-visible pointer-events-none" style={{ zIndex: 10 }}>
@@ -685,7 +641,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     </span>
                 </div>
             ) : isShortEvent ? (
-                /* Short event (< 40 min): Single-row compact layout with clear title & inline time */
+                /* Short event (< 50 min): Single-row compact layout with clear title & inline time */
                 <div className="relative z-10 flex items-center h-full w-full overflow-hidden gap-1.5 min-w-0 pr-5">
                     {event.is_task && (
                         <button

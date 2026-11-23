@@ -14,8 +14,6 @@ import { FilterStatus, ArchiveTier, ARCHIVE_TIER_CONFIG, TaskWithChildren, parse
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListSectionsProps {
-  selectedFolder: string | null;
-  setSelectedFolder: (folder: string | null) => void;
   filterStatus: FilterStatus;
   searchQuery: string;
   tasks: TaskItem[];
@@ -45,7 +43,7 @@ export interface TodoListSectionsProps {
 }
 
 export const TodoListSections: React.FC<TodoListSectionsProps> = ({
-  selectedFolder, setSelectedFolder, filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, selectedTag, selectedTagIds, clearTagFilter, renderTask, editingTaskId = null,
+  filterStatus, searchQuery, tasks, sortedTasks, tasksToRender, activeTasks, recentlyCompletedTasks, archivedTasks, archivedByTier, openTiers, showCompleted, showArchive, setShowCompleted, setShowArchive, setOpenTiers, setDraft, setIsCreateOpen, selectedTag, selectedTagIds, clearTagFilter, renderTask, editingTaskId = null,
   selectedDateFilter = null, setSelectedDateFilter,
 }) => {
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
@@ -199,8 +197,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
     ? 'Suchergebnisse'
     : selectedTag
     ? tagFilterTexts(selectedTag, selectedTagIds).sectionTitle
-    : selectedFolder
-    ? selectedFolder
     : filterStatus === 'completed'
     ? 'Kürzlich erledigt'
     : filterStatus === 'archived'
@@ -603,8 +599,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     ? 'Keine Aufgaben gefunden'
                     : selectedTag !== null
                     ? tagFilterTexts(selectedTag, selectedTagIds).emptyTitle
-                    : selectedFolder !== null
-                    ? `Keine Aufgaben in "${selectedFolder || 'Ohne Ordner'}"`
                     : 'Noch keine Aufgaben'}
                 </h3>
                 <p className="text-xs text-t2-ink-2  max-w-sm mb-4">
@@ -616,8 +610,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     ? 'Aktuell ist keine Aufgabe in Bearbeitung. Klicke auf das Stoppuhr-Symbol einer Aufgabe, um sie zu starten.'
                     : selectedTag !== null
                     ? tagFilterTexts(selectedTag, selectedTagIds).emptyHint
-                    : selectedFolder !== null
-                    ? `In diesem Ordner befinden sich aktuell keine passenden Aufgaben.`
                     : tasks.length === 0
                     ? 'Erstelle oben deine erste Aufgabe, um Termine, Prioritäten und Wiederholungen zu planen.'
                     : 'Keine Aufgaben für die aktuellen Filterkriterien vorhanden.'}
@@ -627,7 +619,7 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     <button
                       type="button"
                       onClick={() => {
-                        setDraft((p) => ({ ...p, folder: selectedFolder || '', tags: selectedTagIds }));
+                        setDraft((p) => ({ ...p, tags: selectedTagIds }));
                         setIsCreateOpen(true);
                       }}
                       className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
@@ -640,26 +632,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                       className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
                     >
                       Tag-Filter aufheben
-                    </button>
-                  </div>
-                ) : selectedFolder !== null ? (
-                  <div className="flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setDraft((p) => ({ ...p, folder: selectedFolder || '' }));
-                        setIsCreateOpen(true);
-                      }}
-                      className="flex items-center gap-1.5 px-4 py-2 text-xs font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 rounded-xl transition-all shadow-xs cursor-pointer"
-                    >
-                      <Plus size={14} /><span>Aufgabe in diesem Ordner erstellen</span>
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSelectedFolder(null)}
-                      className="px-4 py-2 text-xs font-medium text-t2-ink-2  hover:bg-t2-hover  rounded-xl transition-all cursor-pointer"
-                    >
-                      Filter aufheben
                     </button>
                   </div>
                 ) : tasks.length === 0 && !searchQuery ? (

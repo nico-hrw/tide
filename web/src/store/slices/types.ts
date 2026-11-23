@@ -50,6 +50,8 @@ export interface SmartIslandState {
     anchorElement?: HTMLElement | null;
 }
 
+export type TodoHideDone = 'instant' | 'leave' | 'delay' | 'nextDay' | 'never';
+
 export type SettingsModalTab =
     | 'account'
     | 'calendar'
@@ -191,12 +193,20 @@ export interface UiSlice {
     setShowPageBreaks: (show: boolean) => void;
     /** Numbers headings and sub-headings (1, 1.1, 1.1.1) by CSS counters; the text is not changed. */
     headingNumbering: boolean;
+    /** Show the title field and the "+ Tag" row at the top of a note (this device only). */
+    showNoteTitle: boolean;
+    setShowNoteTitle: (on: boolean) => void;
+    showNoteTags: boolean;
+    setShowNoteTags: (on: boolean) => void;
     setHeadingNumbering: (on: boolean) => void;
     /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
     a4SideBorders: boolean;
     setA4SideBorders: (on: boolean) => void;
     /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
     todoTagFilter: TagFilter;
+    /** When a checked-off todo leaves the main list. Stored on this device only. */
+    todoHideDone: TodoHideDone;
+    setTodoHideDone: (mode: TodoHideDone) => void;
     setTodoTagFilter: (filter: TagFilter) => void;
     /** Calendar tag filter (multi-select, OR). Not persisted. */
     calendarTagFilter: TagFilter;

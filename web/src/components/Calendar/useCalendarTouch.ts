@@ -211,8 +211,15 @@ export function useCalendarTouch(
                 dragCurrentTopRef.current = snappedTop;
                 setDragState(prev => prev ? { ...prev, currentTop: snappedTop } : prev);
 
-                dragOverlayY.set(newTop);
-                dragOverlayX.set(dState.initialX + deltaX);
+                // The ghost is positioned in screen px: on the snapped minute, in the day column under the finger.
+                const dayCols = Array.from(document.querySelectorAll('[data-day-col]'));
+                const gridTop = dayCols[0] ? dayCols[0].getBoundingClientRect().top + 50 : null;
+                const colUnderFinger = dayCols.find((c) => {
+                    const r = c.getBoundingClientRect();
+                    return touch.clientX >= r.left && touch.clientX <= r.right;
+                });
+                if (gridTop !== null) dragOverlayY.set(gridTop + snappedTop * (48 / 60) + 2);
+                dragOverlayX.set(colUnderFinger ? colUnderFinger.getBoundingClientRect().left + 3 : touch.clientX - (dState.grabOffsetX ?? 0));
 
                 window.dispatchEvent(new CustomEvent('tide:event-drag-move', {
                     detail: { x: touch.clientX, y: touch.clientY, eventId: dId },

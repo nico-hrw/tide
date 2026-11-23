@@ -6,9 +6,6 @@ import { TaskItem } from '@/store/useDataStore';
 import { TaskCreateDraft } from './TodoCreateCard';
 
 export interface TodoListHeaderProps {
-  viewMode: 'tasks' | 'folders';
-  setViewMode: (mode: 'tasks' | 'folders') => void;
-  selectedFolder: string | null;
   activeCycleTotal: number;
   activeCycleCompletedCount: number;
   activeCycleInProgressCount: number;
@@ -16,10 +13,8 @@ export interface TodoListHeaderProps {
   activeCycleOpenNonOverdueCount: number;
   archivedCount: number;
   tasks: TaskItem[];
-  allFolders: string[];
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   setIsCreateOpen: React.Dispatch<React.SetStateAction<boolean>>;
-  setIsFolderModalOpen: React.Dispatch<React.SetStateAction<boolean>>;
   hideProgress?: boolean;
   onBack?: () => void;
 }
@@ -43,9 +38,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
         window.dispatchEvent(new CustomEvent('tide:todo-cancel-edit'));
       }
       return;
-    }
-    if (props.viewMode === 'folders') {
-      props.setViewMode('tasks');
     }
   };
 
@@ -100,11 +92,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             )}
           </div>
 
-          {props.selectedFolder && (
-            <span className="text-xs px-2.5 py-0.5 rounded-full bg-t2-sub  text-t2-accent  font-semibold">
-              {props.selectedFolder}
-            </span>
-          )}
         </div>
 
         {hideProgress ? (
@@ -116,32 +103,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             <ArrowLeft size={14} />
             <span>Zurück</span>
           </button>
-        ) : (
-          <div className="inline-flex items-center p-1 bg-t2-stage  rounded-xl">
-            <button
-              type="button"
-              onClick={() => props.setViewMode('tasks')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'tasks'
-                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                  : 'text-t2-ink-2  hover:text-t2-ink '
-              }`}
-            >
-              Liste
-            </button>
-            <button
-              type="button"
-              onClick={() => props.setViewMode('folders')}
-              className={`px-3 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'folders'
-                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                  : 'text-t2-ink-2  hover:text-t2-ink '
-              }`}
-            >
-              Ordner
-            </button>
-          </div>
-        )}
+        ) : null}
       </div>
 
       {/* Mobile Segmented Pill Row */}
@@ -162,30 +124,6 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
             <h1 className="text-xl font-black tracking-tight text-t2-ink ">
               Todos
             </h1>
-          </div>
-          <div className="inline-flex items-center p-0.5 bg-t2-stage  rounded-xl">
-            <button
-              type="button"
-              onClick={() => props.setViewMode('tasks')}
-              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'tasks'
-                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                  : 'text-t2-ink-2 '
-              }`}
-            >
-              Liste
-            </button>
-            <button
-              type="button"
-              onClick={() => props.setViewMode('folders')}
-              className={`px-2.5 py-1 text-[11px] font-semibold rounded-lg transition-all cursor-pointer ${
-                props.viewMode === 'folders'
-                  ? 'bg-t2-surface  text-t2-accent  shadow-xs'
-                  : 'text-t2-ink-2 '
-              }`}
-            >
-              Ordner
-            </button>
           </div>
         </div>
       )}

@@ -36,7 +36,6 @@ describe('TodoDetailPane', () => {
           task={task}
           parent={parent}
           subtasks={[]}
-          folders={[]}
           onUpdate={onUpdate}
           onToggleSubtask={() => {}}
           onAddSubtask={() => {}}

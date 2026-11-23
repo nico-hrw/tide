@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Plus, X, Folder, Tag, Repeat, Calendar } from 'lucide-react';
+import { Plus, X, Tag, Repeat, Calendar } from 'lucide-react';
 import type { Tag as TagItem } from '@/lib/tags';
 import TagPicker from '@/components/Tags/TagPicker';
 import NoTagConfirm from '@/components/Tags/NoTagConfirm';
@@ -14,7 +14,6 @@ export interface TaskCreateDraft {
   dueDate: string;
   recurrence: RecurrenceType;
   recurrenceEnd: string;
-  folder: string;
   tags: string[];
   showInCalendar: boolean;
   parentId?: string | null;
@@ -26,7 +25,6 @@ export interface TodoCreateCardProps {
   setDraft: React.Dispatch<React.SetStateAction<TaskCreateDraft>>;
   titleInputRef: React.RefObject<HTMLInputElement | null>;
   allTags: TagItem[];
-  allFolders: string[];
   isSubmitting: boolean;
   handleAddTask: (e: React.FormEvent) => void | Promise<void>;
   /** Returns the id of the existing or newly created tag with this name. */
@@ -38,7 +36,7 @@ export interface TodoCreateCardProps {
 }
 
 export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
-  draft, setDraft, titleInputRef, allTags, allFolders,
+  draft, setDraft, titleInputRef, allTags,
   isSubmitting, handleAddTask, handleCreateTag, onClose, noTagPrompt, onNoTagConfirm, onNoTagChoose,
 }) => {
   return (
@@ -91,33 +89,6 @@ export const TodoCreateCard: React.FC<TodoCreateCardProps> = ({
                     >
                       {PRIORITY_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
                     </select>
-
-                    <div className="flex items-center gap-1.5 flex-1 sm:flex-none min-w-[130px]">
-                      <Folder size={14} className="text-t2-accent shrink-0" />
-                      <input
-                        list="todo-folder-options"
-                        type="text"
-                        value={draft.folder}
-                        onChange={(e) => setDraft((p) => ({ ...p, folder: e.target.value }))}
-                        placeholder="Ordner (optional)"
-                        className="px-3 py-1.5 text-xs font-medium bg-t2-sub  border border-t2-line  rounded-xl text-t2-ink  placeholder-t2-ink-3  focus:outline-none focus:ring-2 focus:ring-t2-accent w-full sm:w-44 min-h-[36px]"
-                      />
-                      <datalist id="todo-folder-options">
-                        {allFolders.map((f) => (
-                          <option key={f} value={f} />
-                        ))}
-                      </datalist>
-                      {draft.folder && (
-                        <button
-                          type="button"
-                          onClick={() => setDraft((p) => ({ ...p, folder: '' }))}
-                          className="text-t2-ink-3 hover:text-t2-ink-2  p-1 min-w-[28px] min-h-[28px] flex items-center justify-center"
-                          title="Ordner entfernen"
-                        >
-                          <X size={12} />
-                        </button>
-                      )}
-                    </div>
 
                     <input
                       type="date" value={draft.dueDate} onChange={(e) => setDraft((p) => ({ ...p, dueDate: e.target.value }))}

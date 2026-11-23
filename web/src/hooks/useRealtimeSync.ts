@@ -1,5 +1,6 @@
 "use client";
 
+import { getSearchIndexFileId } from "@/lib/searchIndex";
 import { useEffect, useRef } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
@@ -199,6 +200,10 @@ export function useRealtimeSync({
                         const targetFileId = data.file_id || data.fileId || data.id;
                         const currentActiveId = useActiveNoteStore.getState().activeNoteId || useDataStore.getState().activeNoteId || activeNoteId || null;
 
+                        // The encrypted search index is rewritten after every file-list refresh; reacting to its own
+                        // update would refresh the list again and loop forever.
+                        if (targetFileId && targetFileId === getSearchIndexFileId()) return;
+
                         // BUG-12: When receiving SSE events for the currently active note:
                         // NEVER trigger reload_note, reloadFromRemote, or window reload!
                         // Drop or ignore reload because CRDT Y.Doc over WebSocket handles live sync.
@@ -330,6 +335,26 @@ export function useRealtimeSync({
 
         return () => {
             clearInterval(heartbeatInterval);
+        };
+    }, [myId]);
+
+    // Safety net for missed live updates (sleeping tab, dropped connection): refresh when the tab comes back and once a minute.
+    useEffect(() => {
+        if (!myId) return;
+        let last = Date.now();
+        const refresh = () => {
+            if (document.visibilityState !== 'visible' || Date.now() - last < 10_000) return;
+            last = Date.now();
+            useDataStore.setState({ loadedDirectories: new Set() });
+            void useDataStore.getState().fetchDirectory(null);
+        };
+        const interval = setInterval(refresh, 60_000);
+        document.addEventListener('visibilitychange', refresh);
+        window.addEventListener('focus', refresh);
+        return () => {
+            clearInterval(interval);
+            document.removeEventListener('visibilitychange', refresh);
+            window.removeEventListener('focus', refresh);
         };
     }, [myId]);
 

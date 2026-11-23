@@ -2,6 +2,8 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
+    Type,
+    Tag,
     FileText,
     AlignCenter,
     StretchHorizontal,
@@ -201,6 +203,10 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const storeShowPageBreaks = useDataStore((s) => s.showPageBreaks);
     const headingNumbering = useDataStore((s) => s.headingNumbering);
     const setHeadingNumbering = useDataStore((s) => s.setHeadingNumbering);
+    const showNoteTitle = useDataStore((s) => s.showNoteTitle);
+    const setShowNoteTitle = useDataStore((s) => s.setShowNoteTitle);
+    const showNoteTags = useDataStore((s) => s.showNoteTags);
+    const setShowNoteTags = useDataStore((s) => s.setShowNoteTags);
     const a4SideBorders = useDataStore((s) => s.a4SideBorders);
     const setA4SideBorders = useDataStore((s) => s.setA4SideBorders);
     const setStoreShowPageBreaks = useDataStore((s) => s.setShowPageBreaks);
@@ -604,6 +610,8 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                     { on: activeShowBreaks, label: "Hilfslinien", Icon: Ruler, onClick: handleToggleGuidelines },
                     { on: a4SideBorders, label: "Seitenränder", Icon: Square, onClick: () => setA4SideBorders(!a4SideBorders) },
                     { on: headingNumbering, label: "Nummerierung", Icon: ListOrdered, onClick: () => setHeadingNumbering(!headingNumbering) },
+                    { on: showNoteTitle, label: "Titel", Icon: Type, onClick: () => setShowNoteTitle(!showNoteTitle) },
+                    { on: showNoteTags, label: "Tags", Icon: Tag, onClick: () => setShowNoteTags(!showNoteTags) },
                 ].map((t) => (
                     <button
                         key={t.label}

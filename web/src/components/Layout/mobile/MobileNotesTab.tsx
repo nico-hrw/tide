@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
+import { useDataStore } from '@/store/useDataStore';
 import { getNotePreview, preloadNotePreviews, subscribeNotePreviews } from '@/lib/notePreview';
 import SidebarQuickNotes from '../sidebar/SidebarQuickNotes';
 import { MobileNoteCard } from './MobileNoteCard';
@@ -88,6 +89,7 @@ export function MobileNotesTab({
   onPromptPin,
 }: MobileNotesTabProps) {
   // Vorschau der zuletzt bearbeiteten Notizen: vorab entschlüsseln und bei Fertigstellung neu zeichnen.
+  const privateKey = useDataStore((s) => s.privateKey);
   const [, setPreviewTick] = useState(0);
   useEffect(() => subscribeNotePreviews(() => setPreviewTick((t) => t + 1)), []);
   useEffect(() => {
@@ -97,7 +99,8 @@ export function MobileNotesTab({
       .sort((a, b) => getItemTimestamp(b) - getItemTimestamp(a))
       .slice(0, 12);
     void preloadNotePreviews(latest.map((f) => ({ ...f })));
-  }, [files]);
+  // The key arrives after the first render on a cold start, so it has to trigger a new run too.
+  }, [files, privateKey]);
 
   const handleOpen = onOpenNote ?? onNoteSelect;
   const triggerContext = (type: 'note' | 'folder', item: { id: string; title?: string | null; parent_id?: string | null }) => {

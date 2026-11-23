@@ -59,18 +59,6 @@ function groupOpenTodos(roots: TaskWithChildren[]): Section[] {
   return sections;
 }
 
-/** Richtet die Liste nach Ordnern aus, für die Ansicht „Ordner“. */
-function groupByFolder(roots: TaskWithChildren[]): Section[] {
-  const map = new Map<string, TaskWithChildren[]>();
-  roots.forEach((t) => {
-    if (t.isCompleted || isTaskArchived(t)) return;
-    const key = t.folder || 'Ohne Ordner';
-    if (!map.has(key)) map.set(key, []);
-    map.get(key)!.push(t);
-  });
-  return Array.from(map.entries()).map(([title, items]) => ({ key: title, title, items }));
-}
-
 function dateBlock(t: TaskWithChildren, isToday: boolean): React.ReactNode {
   const due = parseDateSafe(t.dueDate || t.scheduledDate);
   if (isToday) return <div className="w-[44px] shrink-0 text-center text-[13px] font-bold">Heute</div>;
@@ -91,7 +79,6 @@ export const MobileTodoView: React.FC = () => {
   const deleteTask = useDataStore((s) => s.deleteTask);
   const updateTask = useDataStore((s) => s.updateTask);
   const [overdueMenuId, setOverdueMenuId] = useState<string | null>(null);
-  const [mode, setMode] = useState<'list' | 'folders'>('list');
   /** Ids, deren Untertodo-Liste umgeschaltet wurde (heute: zugeklappt, sonst: aufgeklappt). */
   const [toggled, setToggled] = useState<Set<string>>(new Set());
   const [showCompleted, setShowCompleted] = useState(false);
@@ -112,10 +99,7 @@ export const MobileTodoView: React.FC = () => {
       .map((t) => ({ ...t, children: kids(t) ?? [] })),
     [tasks, tagFilter, knownTagIds],
   );
-  const sections = useMemo(
-    () => (mode === 'list' ? groupOpenTodos(roots) : groupByFolder(roots)),
-    [roots, mode],
-  );
+  const sections = useMemo(() => groupOpenTodos(roots), [roots]);
   const todayAll = useMemo(() => roots.filter(isDueToday), [roots]);
   const completedRoots = useMemo(
     () => roots
@@ -127,13 +111,13 @@ export const MobileTodoView: React.FC = () => {
 
   // Beim Öffnen auf „Heute“ scrollen, damit überfällige Todos darüber nur kurz stören.
   useEffect(() => {
-    if (scrolledRef.current || mode !== 'list') return;
+    if (scrolledRef.current) return;
     const box = scrollRef.current;
     const el = todayRef.current;
     if (!box || !el) return;
     scrolledRef.current = true;
     box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
-  }, [mode, sections]);
+  }, [sections]);
 
   const toggleOne = (id: string) => { void toggleTask(id); };
 
@@ -202,8 +186,7 @@ export const MobileTodoView: React.FC = () => {
               </span>
             </div>
             <div className={`mt-0.5 flex items-center gap-2 text-[12.5px] ${isToday ? 'opacity-80' : 'text-t2-ink-3'}`}>
-              {t.priority && <MobilePriorityIcon priority={t.priority} />}
-              {t.folder && <span className="truncate">{t.folder}</span>}
+              {t.priority && <MobilePriorityIcon priority={t.priority} onToday={isToday} />}
               {hasKids && (
                 <span className="inline-flex shrink-0 items-center gap-1">
                   {doneKids === kidList.length ? <CheckCheck size={14} strokeWidth={2.2} /> : <ListTodo size={14} strokeWidth={2.2} />}
@@ -266,24 +249,8 @@ export const MobileTodoView: React.FC = () => {
       <div className="flex items-center gap-3 px-5 pt-3 pb-1">
         <div className="flex-1 min-w-0">
           <div className="text-[28px] font-bold leading-tight tracking-[-0.025em] text-t2-ink">Todos</div>
-          <div className="mt-3 flex gap-1" role="tablist" aria-label="Ansicht">
-            {([['list', 'Liste'], ['folders', 'Ordner']] as const).map(([key, label]) => (
-              <button
-                key={key}
-                type="button"
-                role="tab"
-                aria-selected={mode === key}
-                onClick={() => setMode(key)}
-                className={`rounded-full px-3 py-1.5 text-[13.5px] transition-colors ${
-                  mode === key ? 'bg-t2-sub font-semibold text-t2-ink' : 'font-medium text-t2-ink-3'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
         </div>
-        {mode === 'list' && todayAll.length > 0 && (
+        {todayAll.length > 0 && (
           <div className="relative grid shrink-0 place-items-center" aria-label={`Heute: ${todayAll.filter((t) => t.isCompleted).length} von ${todayAll.length} erledigt`}>
             <TodoProgressRing segments={todayAll.map((t) => t.isCompleted)} size={60} />
             <span className="absolute text-[13px] font-bold text-t2-ink">
@@ -320,8 +287,7 @@ export const MobileTodoView: React.FC = () => {
           </React.Fragment>
         ))}
 
-        {mode === 'list' && (
-          <>
+        <>
             <button
               type="button"
               onClick={() => setShowCompleted((p) => !p)}
@@ -351,7 +317,6 @@ export const MobileTodoView: React.FC = () => {
               <span className="h-px flex-1 bg-t2-line-soft" />
             </div>
           </>
-        )}
       </div>
     </div>
   );

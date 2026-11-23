@@ -49,7 +49,6 @@ export interface TaskEditDraft {
   dueDate: string;
   recurrence: RecurrenceType;
   recurrenceEnd: string;
-  folder: string;
   tags: string[];
   showInCalendar: boolean;
   color?: string;

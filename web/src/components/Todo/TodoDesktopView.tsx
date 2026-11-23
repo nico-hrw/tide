@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
 import { addDays, isBefore, isSameDay, startOfDay } from 'date-fns';
 import { TaskItem } from '@/store/useDataStore';
@@ -22,7 +22,6 @@ export interface TodoDesktopViewProps {
   showArchive: boolean;
   setShowCompleted: React.Dispatch<React.SetStateAction<boolean>>;
   setShowArchive: React.Dispatch<React.SetStateAction<boolean>>;
-  folders: string[];
   completingTaskIds: Set<string>;
   initialTaskId?: string | null;
   onSelectTask?: (task: TaskItem) => void;
@@ -31,7 +30,7 @@ export interface TodoDesktopViewProps {
   onUpdateTask: (id: string, patch: Partial<TaskItem>) => void;
   onAddSubtask: (title: string, parent: TaskItem) => void | Promise<void>;
   onDeleteTask: (id: string) => void;
-  /** Inhalt über der Liste (Ordner-Banner, Erstellformular). */
+  /** Inhalt über der Liste (Erstellformular). */
   topSlot?: React.ReactNode;
 }
 
@@ -56,7 +55,7 @@ const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void
 
 export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   tasks, tasksToRender, recentlyCompletedTasks, archivedTasks, archivedByTier, filterStatus,
-  showCompleted, showArchive, setShowCompleted, setShowArchive, folders, completingTaskIds,
+  showCompleted, showArchive, setShowCompleted, setShowArchive, completingTaskIds,
   initialTaskId, onSelectTask, onToggleTask, onToggleSubtask, onUpdateTask, onAddSubtask, onDeleteTask, topSlot,
 }) => {
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
@@ -89,6 +88,21 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
       { key: 'none', title: 'Ohne Datum', items: g.none },
     ].filter((s) => s.items.length > 0);
   }, [tasksToRender]);
+
+  // Opening the list scrolls to today's todos once, so overdue ones above do not push them out of sight.
+  const listRef = useRef<HTMLDivElement>(null);
+  const scrolledToToday = useRef(false);
+  useEffect(() => {
+    if (scrolledToToday.current) return;
+    const box = listRef.current;
+    const todayEl = box?.querySelector<HTMLElement>('#todo-section-today');
+    if (!box || !todayEl) return;
+    const timer = setTimeout(() => {
+      scrolledToToday.current = true;
+      box.scrollTo({ top: todayEl.getBoundingClientRect().top - box.getBoundingClientRect().top + box.scrollTop - 4, behavior: 'smooth' });
+    }, 120);
+    return () => clearTimeout(timer);
+  }, [groups]);
 
   const selected = selectedId ? tasks.find((t) => t.id === selectedId) : undefined;
   const parentTask = selected?.parentId ? tasks.find((t) => t.id === selected.parentId) : undefined;
@@ -127,7 +141,7 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   return (
     <div className="flex-1 min-h-0 grid grid-cols-[520px_minmax(0,1fr)] gap-10 px-10 pb-6">
       <div className="flex flex-col min-h-0">
-        <div className="overflow-y-auto flex-1 flex flex-col gap-2 p-0.5">
+        <div ref={listRef} className="overflow-y-auto flex-1 flex flex-col gap-2 p-0.5">
           {topSlot}
           {groups.map((s) => {
             const isCollapsed = Boolean(collapsed[s.key]);
@@ -178,7 +192,6 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
           task={selected}
           parent={parentTask}
           subtasks={subtasks}
-          folders={folders}
           onUpdate={onUpdateTask}
           onToggleSubtask={onToggleSubtask}
           onAddSubtask={onAddSubtask}

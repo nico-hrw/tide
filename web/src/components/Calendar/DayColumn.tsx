@@ -94,6 +94,13 @@ const resolveTaskColor = (task: { color?: string; priority?: string }): string |
 // Layout helper for overlapping events within a single day
 // "Background" events (group parents with children, or multi-day midpoints) are excluded
 // from collision detection so they render full-width behind all other events.
+/** Rendered events are at least ~22px tall, which is about this many minutes at the default hour height; they must not be placed on top of each other below it. */
+const MIN_VISUAL_MS = 30 * 60 * 1000;
+const visualEnd = (evt: CalendarEvent): number => {
+    const start = new Date(evt.start).getTime();
+    return Math.max(new Date(evt.end).getTime(), start + MIN_VISUAL_MS);
+};
+
 const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: CalendarEvent[], overlapMode: 'overlap' | 'stack' = 'stack') => {
     const allEvts = allEvents || timedEvents;
 
@@ -121,7 +128,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
     const sorted = [...normalEvents].sort((a, b) => {
         if (a.start === b.start) {
-            return new Date(b.end).getTime() - new Date(a.end).getTime();
+            return visualEnd(b) - visualEnd(a);
         }
         return new Date(a.start).getTime() - new Date(b.start).getTime();
     });
@@ -132,7 +139,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
     sorted.forEach(evt => {
         const start = new Date(evt.start).getTime();
-        const end = new Date(evt.end).getTime();
+        const end = visualEnd(evt);
 
         if (currentCluster.length === 0) {
             currentCluster.push(evt);
@@ -163,7 +170,7 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
 
         cluster.forEach(evt => {
             const start = new Date(evt.start).getTime();
-            const end = new Date(evt.end).getTime();
+            const end = visualEnd(evt);
 
             let placed = false;
             for (let i = 0; i < lanes.length; i++) {
@@ -196,12 +203,12 @@ const arrangeEvents = (timedEvents: CalendarEvent[], day: Date, allEvents: Calen
             cluster.forEach(evt => {
                 const lane = eventLanes.get(evt.id) || 0;
                 const start = new Date(evt.start).getTime();
-                const end = new Date(evt.end).getTime();
+                const end = visualEnd(evt);
                 let span = 1;
                 for (let next = lane + 1; next < laneCount; next++) {
                     const blocked = cluster.some(other => {
                         if (other.id === evt.id || eventLanes.get(other.id) !== next) return false;
-                        return new Date(other.start).getTime() < end && new Date(other.end).getTime() > start;
+                        return new Date(other.start).getTime() < end && visualEnd(other) > start;
                     });
                     if (blocked) break;
                     span++;
@@ -417,45 +424,34 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
     const minuteHeight = hourHeight / 60;
 
+    // The drag value is a screen Y (px); the preview is computed in minutes and snapped exactly like the drop.
+    const creationDeltaMins = (deltaY: number, startMins: number) => {
+        const snapped = Math.round(deltaY / minuteHeight / snapInterval) * snapInterval;
+        return Math.max(-startMins, Math.min(snapped, 1440 - startMins));
+    };
+
     const creationPreviewTop = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
-        const deltaY = currentY - creationDrag.startY;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        const topMinutes = deltaY < 0 ? Math.max(0, startMins + snappoints) : startMins;
-        return (topMinutes * minuteHeight) + 'px';
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        return ((delta < 0 ? startMins + delta : startMins) * minuteHeight) + 'px';
     });
 
     const creationPreviewHeight = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return "0px";
-        const deltaY = currentY - creationDrag.startY;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        let snappoints = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snappoints = Math.ceil(deltaY / snapInterval) * snapInterval;
-        // Clamp: if dragging forward, end can never exceed 1440 min (midnight)
-        const rawHeight = Math.max(10, Math.abs(snappoints));
-        const durationMinutes = deltaY >= 0
-            ? Math.min(rawHeight, 1440 - startMins) // forward drag: cap at midnight
-            : Math.min(rawHeight, startMins);         // backward drag: cap at start-of-day
-        return (durationMinutes * minuteHeight) + 'px';
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        return (Math.max(snapInterval, Math.abs(delta)) * minuteHeight) + 'px';
     });
 
-    // Live end-time label for the creation preview — driven by the same MotionValue as the ghost block
+    // Live end-time label for the creation preview, driven by the same value as the preview block
     const creationEndTimeLabel = useTransform(creationEndYMV || fallbackMV, (currentY: number) => {
         if (!creationDrag) return '';
-        const deltaY = currentY - creationDrag.startY;
-        let snapped = Math.floor(deltaY / snapInterval) * snapInterval;
-        if (deltaY < 0) snapped = Math.ceil(deltaY / snapInterval) * snapInterval;
         const startMins = creationDrag.startDay.getHours() * 60 + creationDrag.startDay.getMinutes();
-        const rawEnd = deltaY >= 0
-            ? startMins + Math.max(snapInterval, snapped)
-            : startMins + snapped - snapInterval;
-        // Hard clamp: never show past 23:59 (1440) or before 00:00
-        const clamped = Math.max(0, Math.min(1440, rawEnd));
-        const h = Math.floor(clamped / 60);
-        const m = clamped % 60;
-        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+        const delta = creationDeltaMins(currentY - creationDrag.startY, startMins);
+        const end = delta < 0 ? startMins : startMins + Math.max(snapInterval, delta);
+        const clamped = Math.max(0, Math.min(1440, end));
+        return `${String(Math.floor(clamped / 60)).padStart(2, '0')}:${String(clamped % 60).padStart(2, '0')}`;
     });
 
     const creationStartTimeStr = useMemo(() => {
@@ -468,7 +464,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     return (
         <div
             data-day-col={format(day, "yyyy-MM-dd")}
-            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-t2-line-soft  relative z-[10] bg-transparent`}
+            className={`${fluid ? 'flex-1 min-w-0' : `${FIXED_COLUMN_WIDTH} flex-shrink-0`} border-r border-t2-line-soft  relative z-[10] bg-transparent hover:bg-black/[0.03] dark:hover:bg-white/[0.04] transition-colors`}
             style={{ '--hour-height': `${hourHeight}px` } as React.CSSProperties}
             onMouseMove={(e) => {
                 physicalMouseRef.current = { x: e.clientX, y: e.clientY };
@@ -964,7 +960,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {Array.from({ length: 24 }).map((_, i) => (
                     <div
                         key={i}
-                        className={`border-b border-dashed ${isToday ? 'border-t2-line ' : 'border-t2-line '} ${hoveredHour === i ? 'bg-t2-hover ' : 'bg-transparent'}`}
+                        className={`border-b border-dashed ${isToday ? 'border-t2-line ' : 'border-t2-line '} ${hoveredHour === i ? 'bg-black/[0.045] dark:bg-white/[0.06]' : 'bg-transparent'}`}
                         style={{ height: 'var(--hour-height, 48px)' }}
                         onMouseEnter={() => onHourHover && onHourHover(i)}
                         onMouseLeave={() => onHourHover && onHourHover(null)}
@@ -1036,7 +1032,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         
                         {/* Minimal Label */}
                         {currentEventInfo && (
-                            <div className="absolute left-3 -top-[14px] text-[11px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
+                            <div className="absolute right-1 -top-[14px] text-[11px] font-semibold text-red-500 dark:text-red-400 bg-t2-bg px-1 rounded shadow-sm">
                                 {currentEventInfo} left
                             </div>
                         )}

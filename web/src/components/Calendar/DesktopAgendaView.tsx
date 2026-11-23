@@ -24,6 +24,7 @@ interface DesktopAgendaViewProps {
     onEventClick: (event: CalendarEvent, rect: DOMRect) => void;
     onEventCreate?: (start: Date, end: Date, isAllDay?: boolean, extraMeta?: Record<string, unknown>) => Promise<string | null>;
     onEventDelete?: (id: string) => Promise<void>;
+    onEventSave?: (id: string, updates: Record<string, unknown>) => void | Promise<void>;
     onTaskToggle?: (id: string, currentIsCompleted: boolean) => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
 }
@@ -79,6 +80,7 @@ export default function DesktopAgendaView({
     onEventClick,
     onEventCreate,
     onEventDelete,
+    onEventSave,
     onTaskToggle,
     themes = [],
 }: DesktopAgendaViewProps) {
@@ -332,6 +334,7 @@ export default function DesktopAgendaView({
                     themeTitle={selectedTheme?.title}
                     themes={themes}
                     onClose={() => setSelectedId(null)}
+                    onUpdate={selectedEvent && onEventSave ? (updates) => { void onEventSave(selectedEvent.id, updates); } : undefined}
                     onEdit={
                         selectedEvent
                             ? () =>

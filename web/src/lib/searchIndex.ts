@@ -10,6 +10,13 @@ export interface SearchIndexEntry {
 
 let cachedIndex: SearchIndexEntry[] | null = null;
 let indexFileId: string | null = null;
+/** Serialized form of the last index we stored, so an unchanged index is never uploaded again. */
+let lastPersistedSnapshot: string | null = null;
+
+/** Id of the encrypted search-index file (its updates must not trigger a reload of the file list). */
+export function getSearchIndexFileId(): string | null {
+    return indexFileId;
+}
 
 // ── Same-tab write serialization ────────────────────────────────────────────
 // Prevents rapid successive saves within one tab from interleaving.
@@ -163,7 +170,12 @@ export async function rebuildIndex(
     }
 
     cachedIndex = deduped;
+    const snapshot = JSON.stringify(deduped);
+    if (snapshot === lastPersistedSnapshot) return;
+    // Stamp as our own save so the server's file_updated echo is not treated as a foreign change
+    (window as unknown as { __tideSaveTimestamp?: () => void }).__tideSaveTimestamp?.();
     await persistIndex(deduped, publicKey, userID);
+    lastPersistedSnapshot = snapshot;
 }
 
 export async function updateSearchIndex(

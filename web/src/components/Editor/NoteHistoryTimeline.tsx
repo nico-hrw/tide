@@ -19,32 +19,37 @@ interface NoteHistoryTimelineProps {
     onClose?: () => void;
 }
 
-/** Width reserved at the right of the scroll container while the history is open (the literal classes below must use the same number). */
+/** Space the open timeline needs at the right of the page (px). The page slides left by half of it, so it stays centred in what is left. */
 export const HISTORY_GUTTER_PX = 300;
 
-/** Padding of the scroll container: the sheet shifts left to leave the gutter free. */
-export function timelineGutterClasses({ open }: { open: boolean }): string {
-    return open ? "lg:pr-[300px]" : "";
+/** Shift of the note sheet while the history is open: a transform (no reflow per frame), only on wide screens. */
+export function timelineShiftClasses({ open }: { open: boolean }): string {
+    return open ? "lg:-translate-x-[150px]" : "";
 }
 
-/** The wrapper is an in-flow child of the padded container; the negative margin lets it reach the container's real right edge so `right-4` is measured from there. */
-export function timelineWrapperClasses({ open }: { open: boolean }): string {
-    return `sticky top-0 h-0 z-30 pointer-events-none ${open ? "lg:-mr-[300px]" : ""}`.trim();
+/** The wrapper is an in-flow zero-height anchor, so the panel is positioned from the scroll container's right edge. */
+export function timelineWrapperClasses(): string {
+    return "sticky top-0 h-0 z-30 pointer-events-none";
 }
 
-/** Placement of the panel: anchored inside the scroll container's right edge (never past it), on top of the sheet margin if need be. */
+/** Placement of the panel. It is always styled as a card and shown or hidden by opacity/transform, so closing animates too. */
 export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper: string; panel: string } {
     return {
-        wrapper: timelineWrapperClasses({ open }),
-        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-y-auto overflow-x-hidden [scrollbar-width:none] ${
-            open ? "open pointer-events-auto z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3" : ""
+        wrapper: timelineWrapperClasses(),
+        panel: `t2-vtl absolute right-4 top-20 w-56 overflow-hidden z-30 bg-t2-surface border border-t2-line shadow-md rounded-xl px-3 pt-3 ${
+            open ? "open pointer-events-auto" : ""
         }`,
     };
 }
 
-const MIN_GAP = 88;
+const MAX_GAP = 88;
+const MIN_GAP = 36;
 const TOP_PAD = 12;
-const BOTTOM_PAD = 96;
+/** Room below the last point for the active entry's restore button. */
+const BOTTOM_PAD = 72;
+/** Panel chrome: `top-20` offset, bottom margin, and the header row with its padding. */
+const PANEL_OFFSET = 96;
+const HEADER_H = 48;
 
 function formatWhen(iso: string): string {
     const d = new Date(iso);
@@ -92,23 +97,36 @@ export default function NoteHistoryTimeline({
         return () => ro.disconnect();
     }, []);
 
+    // The panel never scrolls: it is as tall as the visible area, and the points are squeezed (or the oldest ones left out) to fit.
+    const panelHeight = Math.max(height - PANEL_OFFSET, 220);
+    const usable = Math.max(panelHeight - HEADER_H - TOP_PAD - BOTTOM_PAD, MIN_GAP);
+    const maxPoints = Math.max(2, Math.floor(usable / MIN_GAP) + 1);
+    const shown = useMemo(() => points.slice(0, maxPoints), [points, maxPoints]);
+
     const tops = useMemo(() => {
-        const times = points.map((p) => new Date(p.updatedAt || p.timestamp || "").getTime());
-        const newest = Math.max(...times.filter((t) => !isNaN(t)), 0);
-        const oldest = Math.min(...times.filter((t) => !isNaN(t)), newest);
+        const times = shown.map((p) => new Date(p.updatedAt || p.timestamp || "").getTime());
+        const valid = times.filter((t) => !isNaN(t));
+        const newest = Math.max(...valid, 0);
+        const oldest = Math.min(...valid, newest);
         const span = Math.max(newest - oldest, 1);
-        const usable = Math.max(height - TOP_PAD - BOTTOM_PAD, MIN_GAP);
+        const gap = Math.min(MAX_GAP, usable / Math.max(shown.length - 1, 1));
         const out: number[] = [];
-        points.forEach((_, i) => {
+        shown.forEach((_, i) => {
             const t = isNaN(times[i]) ? oldest : times[i];
             let top = TOP_PAD + ((newest - t) / span) * usable;
-            if (i > 0) top = Math.max(top, out[i - 1] + MIN_GAP);
+            if (i > 0) top = Math.max(top, out[i - 1] + gap);
             out.push(top);
         });
+        const last = out[out.length - 1] ?? 0;
+        const limit = TOP_PAD + usable;
+        if (last > limit) {
+            const k = (limit - TOP_PAD) / Math.max(last - TOP_PAD, 1);
+            return out.map((v) => TOP_PAD + (v - TOP_PAD) * k);
+        }
         return out;
-    }, [points, height]);
+    }, [shown, usable]);
 
-    const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
+    const trackHeight = panelHeight - HEADER_H;
 
     const cls = timelinePlacementClasses({ open });
     return (
@@ -116,12 +134,12 @@ export default function NoteHistoryTimeline({
             <div
                 ref={wrapRef}
                 className={cls.panel}
-                style={{ height }}
+                style={{ height: panelHeight }}
                 role="region"
                 aria-label="Versionsverlauf"
                 aria-hidden={!open}
             >
-                <div className={`flex items-center justify-between pb-2 pr-1 ${open ? "" : "hidden"}`}>
+                <div className="flex items-center justify-between pb-2 pr-1">
                     <span className="text-[12px] font-semibold uppercase tracking-wide text-t2-ink-3">Versionsverlauf</span>
                     {onClose && (
                         <button type="button" onClick={onClose} aria-label="Versionsverlauf schließen" title="Schließen (Esc)" className="flex h-7 w-7 items-center justify-center rounded-[8px] border border-t2-line bg-t2-surface text-t2-ink-2 shadow-xs hover:bg-t2-hover hover:text-t2-ink">
@@ -130,8 +148,8 @@ export default function NoteHistoryTimeline({
                     )}
                 </div>
                 <div className="relative" style={{ height: trackHeight }}>
-                    <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" style={open ? { height: "100%" } : undefined} />
-                    {points.map((p, i) => {
+                    <div className="t2-vline absolute right-[5px] top-0 w-0.5 rounded-sm bg-t2-line" />
+                    {shown.map((p, i) => {
                         const on = i === activeIndex;
                         return (
                             <div

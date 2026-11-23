@@ -68,6 +68,10 @@ export function useCalendarDragResize({
     hourHeight = 48,
 }: UseCalendarDragResizeParams) {
     const s = useCalendarDragState({ events, onEventUpdate, onEventCreate, scrollContainerRef });
+    const pxPerMin = hourHeight / 60;
+    // Last snapped values the user saw: the drop uses exactly these, so it lands where the preview showed it.
+    const ghostBaseRef = React.useRef({ top: 0, left: 0 });
+    const creationDeltaMinsRef = React.useRef(0);
     useCalendarTouch(scrollContainerRef, s);
 
     const {
@@ -121,20 +125,9 @@ export function useCalendarDragResize({
 
             const { x: gX, y: gY } = gearedMouseRef.current;
 
-            // X uses gX (= axis-locked in Precise Mode → no lateral drift).
-            // Y is derived from the event's ACTUAL screen-space edge, not the mouse position,
-            // so the Loupe stays visually glued to the event boundary regardless of friction.
+            // The loupe follows the real mouse; in precise mode the branches below pin it to the edge being edited.
             cursorX.set(gX);
-            if (isPreciseModeRef.current && gridDaysRef.current) {
-                // getBoundingClientRect().top already incorporates scroll offset —
-                // do NOT subtract scrollTop again or the Loupe will be placed far off screen.
-                // The +50 accounts for the sticky 50px day-column header inside the grid.
-                const gridRect = gridDaysRef.current.getBoundingClientRect();
-                const eventEdgeScreenY = gridRect.top + 50 + activeEventEdgeRef.current;
-                cursorY.set(eventEdgeScreenY);
-            } else {
-                cursorY.set(e.clientY);
-            }
+            if (!isPreciseModeRef.current) cursorY.set(e.clientY);
 
             // 1. Handle Pending Drag -> Real Drag Transition
             if (pendingDragRef.current) {
@@ -157,6 +150,11 @@ export function useCalendarDragResize({
                         grabOffsetY: pendingDragRef.current.grabOffsetY,
                         grabOffsetX: pendingDragRef.current.grabOffsetX
                     });
+                    const p = pendingDragRef.current;
+                    ghostBaseRef.current = { top: p.startY - (p.grabOffsetY ?? 0), left: p.startX - (p.grabOffsetX ?? 0) };
+                    dragOverlayY.set(ghostBaseRef.current.top);
+                    dragOverlayX.set(ghostBaseRef.current.left);
+                    dragCurrentTopRef.current = p.startMinutes;
                     pendingDragRef.current = null;
                     isDraggingRef.current = true;
                 }
@@ -170,39 +168,37 @@ export function useCalendarDragResize({
 
                 if (!isDraggingRef.current && (Math.abs(deltaY) > 5 || Math.abs(deltaX) > 5)) {
                     isDraggingRef.current = true;
-                    // Initialize motion values at drag start
-                    dragOverlayY.set(dragState.originalTop);
-                    dragOverlayX.set(dragState.initialX);
                 }
 
                 if (isDraggingRef.current) {
-                    const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - dragState.initialScrollTop;
+                    const scrollPx = (scrollContainerRef.current?.scrollTop || 0) - dragState.initialScrollTop;
 
                     const draggingEvent = events.find(e => e.id === draggingId || draggingId?.startsWith(e.id + "_"));
                     const durationMins = draggingEvent ? (new Date(draggingEvent.end).getTime() - new Date(draggingEvent.start).getTime()) / 60000 : 15;
 
-                    // originalTop is in minutes, the mouse delta in pixels: convert before adding.
-                    let newTop = dragState.originalTop + (deltaY + scrollDelta) / (hourHeight / 60);
-                    if (newTop < 0) newTop = 0;
-                    if (newTop > 1440 - durationMins) newTop = 1440 - durationMins;
-
-                    // Snap to interval so MagnifiedEventView sees the correct snapped minute
+                    // Mouse movement (px) -> minutes, then snap: the ghost and the drop both use this value
+                    let rawMins = dragState.originalTop + (deltaY + scrollPx) / pxPerMin;
+                    rawMins = Math.max(0, Math.min(rawMins, 1440 - durationMins));
                     const snapInterval = isPreciseModeRef.current ? 1 : 10;
-                    const snappedTop = Math.round(newTop / snapInterval) * snapInterval;
+                    const snappedTop = Math.round(rawMins / snapInterval) * snapInterval;
 
-                    // Keep Loupe anchored to event's top (start) edge
                     activeEventEdgeRef.current = snappedTop;
+                    // React state only changes when the snapped minute does (not on every pixel of mouse movement)
+                    if (snappedTop !== dragCurrentTopRef.current) {
+                        dragCurrentTopRef.current = snappedTop;
+                        setDragState(prev => prev ? { ...prev, currentTop: snappedTop } : prev);
+                    }
 
-                    // Persist the snapped position to both a ref AND React state:
-                    // - ref: instantly available for the current render pass
-                    // - setDragState: mirrors setResizeDragState pattern so MagnifiedEventView
-                    //   re-renders with the correct activeMinute for the Loupe ruler
-                    dragCurrentTopRef.current = snappedTop;
-                    setDragState(prev => prev ? { ...prev, currentTop: snappedTop } : prev);
-
-                    // ✅ Drive overlay via MotionValue — bypasses React render
-                    dragOverlayY.set(newTop);
-                    dragOverlayX.set(dragState.initialX + deltaX);
+                    // The ghost sits on the snapped minute and on the day column under the pointer
+                    const ghostTop = ghostBaseRef.current.top + (snappedTop - dragState.originalTop) * pxPerMin - scrollPx;
+                    let ghostLeft = gX - (dragState.grabOffsetX ?? 0);
+                    document.querySelectorAll('[data-day-col]').forEach((col) => {
+                        const r = col.getBoundingClientRect();
+                        if (gX >= r.left && gX <= r.right) ghostLeft = r.left + 3;
+                    });
+                    dragOverlayY.set(ghostTop);
+                    dragOverlayX.set(ghostLeft);
+                    if (isPreciseModeRef.current) cursorY.set(ghostTop);
 
                     // Notify the sidebar so it can highlight & open a note tile
                     // when the cursor is over it (the calendar's mouse-based drag
@@ -222,39 +218,45 @@ export function useCalendarDragResize({
                 const maxForwardPx = (1440 - startMinsCreation) * minuteHeight;
                 const maxBackwardPx = -startMinsCreation * minuteHeight;
                 const clampedDeltaY = Math.max(maxBackwardPx, Math.min(rawDeltaY, maxForwardPx));
-                const clampedY = creationDrag.startY + clampedDeltaY;
 
                 if (!isDraggingRef.current && Math.abs(clampedDeltaY) > 10) {
                     isDraggingRef.current = true;
                 }
-                // Keep Loupe anchored to the dragged edge of the new event
-                const deltaMins = clampedDeltaY / minuteHeight;
-                const creationEndMin = startMinsCreation + Math.max(10, Math.abs(deltaMins));
-                activeEventEdgeRef.current = clampedDeltaY < 0 ? startMinsCreation + deltaMins : Math.min(1440, creationEndMin);
+                // Snapped like the drop; preview and result use this same value
+                const snapInterval = isPreciseModeRef.current ? 1 : 10;
+                const maxFwdMins = 1440 - startMinsCreation;
+                const snappedDelta = Math.max(-startMinsCreation, Math.min(Math.round(clampedDeltaY / minuteHeight / snapInterval) * snapInterval, maxFwdMins));
+                creationDeltaMinsRef.current = snappedDelta;
+                const snappedY = creationDrag.startY + snappedDelta * minuteHeight;
+                activeEventEdgeRef.current = snappedDelta < 0 ? startMinsCreation + snappedDelta : startMinsCreation + Math.max(snapInterval, snappedDelta);
 
-                // Update creationDrag so the MagnifiedEventView reads live delta
-                setCreationDrag(prev => prev ? { ...prev, currentY: clampedY, currentX: gX } : prev);
-
-                // ✅ Drive creation preview via MotionValue (clamped at midnight)
-                creationEndYMV.set(clampedY);
+                if (snappedY !== creationDrag.currentY) {
+                    setCreationDrag(prev => prev ? { ...prev, currentY: snappedY, currentX: gX } : prev);
+                }
+                creationEndYMV.set(snappedY);
+                if (isPreciseModeRef.current) cursorY.set(snappedY);
             } else if (resizingId && resizeDragState) {
                 const deltaY = gY - resizeDragState.startY;
                 if (!isDraggingRef.current && Math.abs(deltaY) > 3) {
                     isDraggingRef.current = true;
                 }
                 if (isDraggingRef.current) {
-                    // Same snapped value the commit uses, so the card never jumps on release.
+                    const snapInterval = isPreciseModeRef.current ? 1 : 10;
+                    const originY = gridOriginY();
                     const { startMin, duration } = computeResize(resizeDragState, gY, scrollContainerRef.current?.scrollTop || 0,
-                        isPreciseModeRef.current ? 1 : 10, hourHeight, gridOriginY());
-                    // Keep the Loupe anchored to the edge that is being dragged
-                    activeEventEdgeRef.current = resizeDragState.edge === 'start' ? startMin : startMin + duration;
+                        snapInterval, hourHeight, originY);
+                    // The loupe is anchored to the edge that is being dragged (top edge: start, bottom edge: end)
+                    const edgeMin = resizeDragState.edge === 'start' ? startMin : startMin + duration;
+                    activeEventEdgeRef.current = edgeMin;
 
-                    // Also update the state for the ruler
-                    setResizeDragState(prev => prev ? { ...prev, currentHeight: duration, currentTop: startMin } : prev);
-
-                    // ✅ Drive resize via MotionValues
+                    // React state only changes when the snapped value does
+                    if (duration !== resizeDragState.currentHeight || startMin !== resizeDragState.currentTop) {
+                        setResizeDragState(prev => prev ? { ...prev, currentHeight: duration, currentTop: startMin } : prev);
+                    }
                     resizeHeightMV.set(duration);
                     resizeTopMV.set(startMin);
+                    // Edge on screen, so the loupe sits on the real edge
+                    if (isPreciseModeRef.current && originY !== null) cursorY.set(originY + edgeMin * pxPerMin);
                 }
             }
         };
@@ -366,14 +368,8 @@ export function useCalendarDragResize({
 
             const snapInterval = isPreciseModeRef.current ? 1 : 10;
             const startMins = cDrag.startDay.getHours() * 60 + cDrag.startDay.getMinutes();
-            const rawDeltaMins = Math.floor(((gY - cDrag.startY) / (hourHeight / 60)) / snapInterval) * snapInterval;
-
-            // Clamp delta strictly within the start day.
-            // maxForwardMins: how many minutes from startMins until midnight.
-            // maxBackwardMins: how many minutes back to start-of-day (negative).
-            const maxForwardMins = 1440 - startMins;
-            const maxBackwardMins = -startMins;
-            const clampedDeltaMins = Math.max(maxBackwardMins, Math.min(rawDeltaMins, maxForwardMins));
+            // The snapped value from the last mouse move: exactly what the preview showed
+            const clampedDeltaMins = creationDeltaMinsRef.current;
 
             // Compute start/end purely as minute counts from the START DAY's midnight.
             // This completely avoids the setFullYear re-anchoring bug where
@@ -412,7 +408,7 @@ export function useCalendarDragResize({
             const { x: gX, y: gY } = gearedMouseRef.current;
 
             try {
-                await commitEventDrop(dId, dState, gX, gY);
+                await commitEventDrop(dId, dState, gX, gY, isDraggingRef.current ? dragCurrentTopRef.current : undefined);
             } finally {
                 setDraggingId(null);
                 setDragState(null);

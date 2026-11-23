@@ -7,7 +7,7 @@ import type { Tab } from "@/components/Layout/TabList";
 import { getTranslation } from "@/lib/i18n";
 import { canReuseTabCache } from "@/lib/tabStorage";
 import { clearNotePreviews } from "@/lib/notePreview";
-import { clearAllSessionData } from "@/lib/api";
+import { apiFetch, clearAllSessionData } from "@/lib/api";
 import { useDataStore, type NavigationMode } from "@/store/useDataStore";
 
 export interface WorkspaceFileItem {
@@ -76,6 +76,10 @@ function htmlToBasicMarkdown(html: string): string {
     return MD_REPLACEMENTS.reduce((acc, [pattern, repl]) => acc.replace(pattern, repl), html).trim();
 }
 
+/** Notes created via "new note" in this session: only these may vanish again when they are left blank. */
+const blankDraftIds = new Set<string>();
+const UNSET_TITLE = /^(untitled|neue notiz|new note)?$/i;
+
 export function useWorkspaceTabs({
     openTabs, setOpenTabs, activeTabId, setActiveTabId, activeNoteId, files,
     navigationMode, router, setCalendarDate, setActiveEventId, setShowBackups,
@@ -102,6 +106,26 @@ export function useWorkspaceTabs({
         }
     }, [activeTabId, openTabs]);
 
+    const isBlankDraft = (id: string): boolean => {
+        if (!blankDraftIds.has(id) || id !== activeNoteId) return false;
+        const note = useDataStore.getState().notes.find((n) => n.id === id);
+        if (!note || note.type === "folder" || note.type === "canvas") return false;
+        if (note.share_status && note.share_status !== "owner") return false;
+        if (!UNSET_TITLE.test((fileName || "").trim())) return false;
+        if (!editorInstance || editorInstance.isDestroyed || !editorInstance.isEmpty) return false;
+        const strokes = (editorInstance.state.doc.attrs as { inkStrokes?: unknown[] } | undefined)?.inkStrokes;
+        return !(Array.isArray(strokes) && strokes.length > 0);
+    };
+
+    const discardBlankDraft = (id: string) => {
+        blankDraftIds.delete(id);
+        const store = useDataStore.getState();
+        store.setNotes(store.notes.filter((n) => n.id !== id));
+        apiFetch(`/api/v1/files/${id}`, { method: "DELETE" }).catch((err) => {
+            console.warn("[Tabs] Could not remove blank draft", err);
+        });
+    };
+
     const switchTab: SwitchTabFn = async (
         newId, type, forcedTitle, fallbackData, currentOverride
     ) => {
@@ -120,14 +144,18 @@ export function useWorkspaceTabs({
             currentTabId !== "messages" &&
             !currentTabId.startsWith("chat-");
 
-        if (isOldAFile && (saveStatus === "unsaved" || currentOverride) && currentContentToUse) {
+        // A new note that is left without a title and without content disappears again instead of piling up as "Untitled".
+        const discardedId = isOldAFile && currentTabId !== newId && isBlankDraft(currentTabId) ? currentTabId : null;
+        if (discardedId) discardBlankDraft(discardedId);
+
+        if (isOldAFile && !discardedId && (saveStatus === "unsaved" || currentOverride) && currentContentToUse) {
             console.log(`[Lifecycle] Tab switch: Forcing final save of ${currentTabId}`);
             triggerSave(currentTabId, activeFileKey, currentContentToUse);
         }
 
         setOpenTabs((prev) => {
-            let nextTabs = [...prev];
-            if (isOldAFile) {
+            let nextTabs = discardedId ? prev.filter((t) => t.id !== discardedId) : [...prev];
+            if (isOldAFile && !discardedId) {
                 nextTabs = nextTabs.map((t) =>
                     t.id === activeTabId
                         ? { ...t, content: currentContentToUse, _fileKey: activeFileKey, _saveStatus: "saved" }
@@ -207,6 +235,7 @@ export function useWorkspaceTabs({
             const { createNote, activeParentId, toggleFolder } = useDataStore.getState();
             const parentId = parentIdOverride !== undefined ? parentIdOverride : activeParentId;
             const newFileId = await createNote("Untitled", undefined, parentId);
+            blankDraftIds.add(newFileId);
             if (parentId) toggleFolder(parentId, true);
             switchTab(newFileId, "file", "Untitled");
         } catch (e) {
