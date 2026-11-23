@@ -66,34 +66,39 @@ interface TideEditorWindow {
 }
 
 /**
- * Safely extracts plain text from JSON doc, string, or active editor fallback.
+ * Strictly extracts plain text from a TipTap JSON doc, JSON string, or plain string.
+ * Never falls back to the live editor; an empty doc returns "".
  */
-function getPlainTextFromJSON(content: unknown): string {
-    let result = "";
-    if (content) {
-        if (typeof content === "string") {
-            try {
-                const parsed = JSON.parse(content);
-                if (parsed && typeof parsed === "object") {
-                    result = baseGetPlainTextFromJSON(parsed);
-                } else {
-                    result = content;
-                }
-            } catch {
-                result = content;
+function extractPlainTextStrict(content: unknown): string {
+    if (content === null || content === undefined) return "";
+    if (typeof content === "string") {
+        try {
+            const parsed = JSON.parse(content);
+            if (parsed && typeof parsed === "object") {
+                return baseGetPlainTextFromJSON(parsed);
             }
-        } else if (typeof content === "object") {
-            result = baseGetPlainTextFromJSON(content);
+            return content;
+        } catch {
+            return content;
         }
     }
+    if (typeof content === "object") {
+        return baseGetPlainTextFromJSON(content);
+    }
+    return "";
+}
 
-    if (!result && typeof window !== "undefined") {
+/**
+ * Extracts plain text for the live/current note content.
+ * Only falls back to the active TipTap editor JSON when content is null/undefined.
+ */
+function extractCurrentPlainText(content: unknown): string {
+    if (content !== null && content !== undefined) {
+        return extractPlainTextStrict(content);
+    }
+    if (typeof window !== "undefined") {
         try {
             const editor = (window as unknown as TideEditorWindow).__tideEditor;
-            const editorText = editor?.getText?.();
-            if (typeof editorText === "string" && editorText) {
-                return editorText;
-            }
             const editorJson = editor?.getJSON?.();
             if (editorJson) {
                 return baseGetPlainTextFromJSON(editorJson);
@@ -102,8 +107,7 @@ function getPlainTextFromJSON(content: unknown): string {
             // ignore editor fallback error
         }
     }
-
-    return result || "";
+    return "";
 }
 
 /** Decrypts an encrypted backup blob (V1 or V2) into a plaintext string. */
@@ -169,6 +173,8 @@ export function useNoteBackups(
     const cacheRef = useRef<Map<string, CacheEntry>>(new Map());
     const currentContentRef = useRef(currentContent);
     currentContentRef.current = currentContent;
+    const serverSlotsRef = useRef(serverSlots);
+    serverSlotsRef.current = serverSlots;
 
     useEffect(() => {
         cacheRef.current.clear(); setActiveIndex(0); setServerSlots([]);
@@ -177,6 +183,12 @@ export function useNoteBackups(
 
     useEffect(() => {
         if (!enabled || !fileId) {
+            if (!enabled) {
+                cacheRef.current.clear();
+                setBackupContent(null);
+                setBackupPlainText(null);
+                setContentError(null);
+            }
             setServerSlots([]);
             setIsLoadingSlots(false);
             setSlotError(null);
@@ -224,13 +236,15 @@ export function useNoteBackups(
             return !isNaN(tA) && !isNaN(tB) && tA !== tB ? tB - tA : FIXED_SLOTS.indexOf(a.slot_name!.trim()) - FIXED_SLOTS.indexOf(b.slot_name!.trim());
         });
 
-        // Several slots hold the same save (rotated copies, written within the same minute). Show each
-        // save once, under the newest slot in that minute, so the timeline does not repeat one version.
-        const bySavedAt = new Map<string, typeof valid[number]>();
+        // Several slots hold the same save (rotated copies written within 5 seconds). Show each
+        // save once, under the newest slot in that window, while keeping distinct saves 10s+ apart.
+        const bySavedAt = new Map<number, typeof valid[number]>();
         for (const s of valid) {
-            const key = (s.updated_at || "").slice(0, 16); // YYYY-MM-DDTHH:MM
-            if (!key || isNaN(new Date(key).getTime()) || bySavedAt.has(key)) continue;
-            bySavedAt.set(key, s);
+            const ts = new Date(s.updated_at || "").getTime();
+            if (isNaN(ts)) continue;
+            const bucket = Math.floor(ts / 5000);
+            if (bySavedAt.has(bucket)) continue;
+            bySavedAt.set(bucket, s);
         }
         const unique = Array.from(bySavedAt.values());
 
@@ -263,7 +277,8 @@ export function useNoteBackups(
         if (!fileId || !enabled) return;
 
         const slotName = selectedPoint.slotName;
-        const cached = cacheRef.current.get(slotName);
+        const cacheKey = `${slotName}::${selectedPoint.updatedAt}`;
+        const cached = cacheRef.current.get(cacheKey);
         if (cached) {
             setBackupContent(cached.json); setBackupPlainText(cached.plainText); setContentError(null); setIsLoadingContent(false);
             return;
@@ -289,7 +304,9 @@ export function useNoteBackups(
                 try {
                     const parsed = JSON.parse(decryptedText);
                     if (Array.isArray(parsed)) {
-                        let baseText = cacheRef.current.get("1 week")?.rawText || "";
+                        const baseSlotUpdatedAt = serverSlotsRef.current.find(s => s.slot_name?.trim() === "1 week")?.updated_at || "";
+                        const baseCacheKey = `1 week::${baseSlotUpdatedAt}`;
+                        let baseText = cacheRef.current.get(baseCacheKey)?.rawText || "";
                         if (!baseText) {
                             try {
                                 const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`);
@@ -299,7 +316,7 @@ export function useNoteBackups(
                                         baseText = await decryptBackupBlob(baseData, privateKey, myId, fileId);
                                         try {
                                             const baseJson = JSON.parse(baseText) as JSONContent | Record<string, unknown>;
-                                            cacheRef.current.set("1 week", { json: baseJson, plainText: getPlainTextFromJSON(baseJson), rawText: baseText });
+                                            cacheRef.current.set(baseCacheKey, { json: baseJson, plainText: extractPlainTextStrict(baseJson), rawText: baseText });
                                         } catch { /* ignore */ }
                                     }
                                 }
@@ -357,8 +374,8 @@ export function useNoteBackups(
                     backupJsonObj = { type: "doc", content: [] };
                 }
 
-                const plainText = getPlainTextFromJSON(backupJsonObj) || (typeof backupJsonStr === "string" ? backupJsonStr : "");
-                cacheRef.current.set(slotName, { json: backupJsonObj, plainText, rawText: decryptedText });
+                const plainText = extractPlainTextStrict(backupJsonObj);
+                cacheRef.current.set(cacheKey, { json: backupJsonObj, plainText, rawText: decryptedText });
 
                 if (isMounted) {
                     setBackupContent(backupJsonObj);
@@ -376,7 +393,7 @@ export function useNoteBackups(
         return () => { isMounted = false; };
     }, [activeIndex, selectedPoint, fileId, enabled, privateKey, myId]);
 
-    const currentPlainText = useMemo(() => getPlainTextFromJSON(currentContent), [currentContent]);
+    const currentPlainText = useMemo(() => extractCurrentPlainText(currentContent), [currentContent]);
     const selectedContent: JSONContent | Record<string, unknown> | null = activeIndex === 0 ? (currentContent ?? null) : backupContent;
 
     const diffChanges: DiffChange[] = useMemo(() => {

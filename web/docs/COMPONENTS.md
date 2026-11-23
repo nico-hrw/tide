@@ -144,7 +144,8 @@
 | NoteHistoryLabel | `web/src/components/Editor/NoteHistoryLabel.tsx` | "Zuletzt bearbeitet vor …" in the note header; toggles the on-page version timeline (replaces the clock button). |
 | NoteTagsRow | `web/src/components/Editor/NoteTagsRow.tsx` | Tag picker under the note title (owner only; renders nothing for recipients). Reads `tagIds` of the note, drops unknown ids, saves via `useNoteTags().setNoteTags`. |
 | NoteHeaderActions | `web/src/components/Workspaces/NoteHeaderActions.tsx` | Note header cluster in two right-aligned rows: "Zuletzt bearbeitet" label (owner only, `note-history-row`) above the icon buttons (Share, VarSheet, save state, options; `note-actions-row`). On the A4 sheet it hangs in the top margin (`lg:absolute lg:bottom-full lg:right-0`). |
-| NoteHistoryTimeline | `web/src/components/Editor/NoteHistoryTimeline.tsx` | On-page vertical timeline beside the right edge (line on the left of left-aligned entries, grows, points at heights proportional to age). Selecting a point shows **Ansehen** (opens `NoteVersionDiffView`, state `isViewingVersion`) and **Wiederherstellen** (`handleApplyHistory`). Content column shifts left via `lg:pr-[300px]` on the scroll container. Replaces the removed `NoteVersionTimeline`. |
+| NoteHistoryTimeline | `web/src/components/Editor/NoteHistoryTimeline.tsx` | On-page vertical timeline beside the right edge (line on the left of left-aligned entries, grows, points at heights proportional to age, viewport-clamped `panelHeight` via `height - 96`). Selecting a point shows **Ansehen** (opens `NoteVersionDiffView`, state `isViewingVersion`) and **Wiederherstellen** (`handleApplyHistory` with immediate restore persistence). Content column shifts left via `lg:pr-[300px]` on the scroll container. Replaces the removed `NoteVersionTimeline`. |
+| NoteVersionDiffView | `web/src/components/Editor/NoteVersionDiffView.tsx` | Renders smart multi-stage diffs (word/sub-word/whitespace/linebreak highlights with `↵` markers, change summary stats, and Vergleich/Version toggle). |
 | NoteBreadcrumb | `web/src/components/Editor/NoteBreadcrumb.tsx` | Small pale folder path above the note title (`text-t2-ink-3`). |
 | TextStyleButtons | `web/src/components/Editor/TextStyleButtons.tsx` | Text / H1 / H2 / H3 buttons at the start of the bubble menu; act on the whole block around the selection. Heading sizes come from `.ProseMirror h1-h3` in `globals.css` (Tailwind preflight resets headings to body size). |
 | noteChrome.css | `web/src/components/Editor/noteChrome.css` | Keyframes/styles for the three components above, using `--t2-*` tokens. |
@@ -324,6 +325,8 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 | dateParser | `web/src/lib/dateParser.ts` | Natural language date parsing |
 | timeParser | `web/src/lib/timeParser.ts` | Time string parsing |
 | i18n | `web/src/lib/i18n.ts` | Localisation |
+| diff | `web/src/lib/diff.ts` | 4-stage Myers diff + semantic cleanup + rich TipTap plain-text extraction |
+| noteBackupCascade | `web/src/lib/noteBackupCascade.ts` | GFS rolling 6-tier snapshot cascade with deduplication |
 
 ## Google Calendar Sync
 

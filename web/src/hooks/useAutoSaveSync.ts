@@ -88,6 +88,8 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     const lastLoadIdRef = useRef<string | null>(null);
     const prevNoteIdRef = useRef<string | null>(null);
     const lastSavedMetaRef = useRef<Record<string, { title?: string; icon?: string; tags?: string[] }>>({});
+    const lastCommittedSnapshotRef = useRef<Map<string, { contentString: string; timestampMs: number }>>(new Map());
+    const lastKnownContentByNoteRef = useRef<Map<string, unknown>>(new Map());
 
     useEffect(() => {
         const handleSynced = () => setIsOfflinePending(false);
@@ -301,10 +303,13 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 const activeEditor = typeof window !== 'undefined' ? (window as any).__tideEditor : null;
                 const rawContent = (noteId === activeNoteIdRef.current && activeEditor && !activeEditor.isDestroyed)
                     ? activeEditor.getJSON()
-                    : (editorContentRef.current ?? canvasNoteDataRef.current);
+                    : (lastKnownContentByNoteRef.current.get(noteId) ?? editorContentRef.current ?? canvasNoteDataRef.current);
 
                 if (rawContent && !isDocEmpty(rawContent)) {
                     const contentString = typeof rawContent === "string" ? rawContent : JSON.stringify(rawContent);
+                    const prevSnapshot = lastCommittedSnapshotRef.current.get(noteId) ?? null;
+                    lastCommittedSnapshotRef.current.set(noteId, { contentString, timestampMs: Date.now() });
+                    lastKnownContentByNoteRef.current.set(noteId, rawContent);
 
                     (async () => {
                         let accessKeysMap: Record<string, { wrapped_key: string }> = {};
@@ -325,11 +330,14 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                         await runClientBackupCascade({
                             fileId: noteId,
                             contentString,
+                            previousContentString: prevSnapshot?.contentString ?? null,
+                            previousTimestampMs: prevSnapshot?.timestampMs ?? null,
                             dek: activeDEK,
                             accessKeysMap,
                             currentFile: { ...curFile, version: curFile?.version ?? 2 },
                             myId: myUserId,
                             privateKey: freshPrivKey,
+                            publicKey: freshPubKey ?? null,
                         });
                     })().catch((e) => console.warn("Backup cascade skipped:", e));
                 }
@@ -440,6 +448,9 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
         const id = activeNoteIdRef.current;
         if (id) {
+            if (fullContent) {
+                lastKnownContentByNoteRef.current.set(id, fullContent);
+            }
             unsavedNotesRef.current.add(id);
             recordNoteStats(id, json, lastNoteWordCountsRef.current);
 
@@ -656,6 +667,17 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             if (!isContentEmpty && parsedContent) {
                 try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}
+                const loadedStr = typeof parsedContent === "string" ? parsedContent : JSON.stringify(parsedContent);
+                const rawUpdatedAt = target?.updated_at || target?.updatedAt;
+                const parsedUpdatedAt =
+                    typeof rawUpdatedAt === "number"
+                        ? rawUpdatedAt
+                        : typeof rawUpdatedAt === "string" && rawUpdatedAt.trim().length > 0
+                            ? Date.parse(rawUpdatedAt)
+                            : NaN;
+                const loadedTs = Number.isFinite(parsedUpdatedAt) ? parsedUpdatedAt : Date.now();
+                lastCommittedSnapshotRef.current.set(fileId, { contentString: loadedStr, timestampMs: loadedTs });
+                lastKnownContentByNoteRef.current.set(fileId, parsedContent);
                 if (parsedContent?.version === 1 && Array.isArray(parsedContent?.items) && typeof parsedContent?.canvasWidth === "number") {
                     setCanvasNoteData(parsedContent);
                     initialContentRef.current = parsedContent;
@@ -666,6 +688,10 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                 }
                 userHasTypedRef.current = false;
             } else {
+                lastKnownContentByNoteRef.current.delete(fileId);
+                if (!lastCommittedSnapshotRef.current.has(fileId)) {
+                    lastCommittedSnapshotRef.current.delete(fileId);
+                }
                 const emptyDoc = { type: "doc", content: [{ type: "paragraph", attrs: { blockId: crypto.randomUUID() } }] };
                 setEditorContent(emptyDoc);
                 initialContentRef.current = emptyDoc;

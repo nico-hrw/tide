@@ -86,6 +86,9 @@ func (h *FileHandler) GetFileBackups(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to get backups", http.StatusInternalServerError)
 		return
 	}
+	if backups == nil {
+		backups = []db.FileBackup{}
+	}
 	for i := range backups {
 		backups[i].EncryptedBlob = nil
 	}
@@ -119,7 +122,11 @@ func (h *FileHandler) GetFileBackup(w http.ResponseWriter, r *http.Request) {
 
 	b, err := h.Store.GetFileBackup(r.Context(), id, slotName)
 	if err != nil {
-		http.Error(w, "Backup not found", http.StatusNotFound)
+		if err == store.ErrNotFound {
+			http.Error(w, "Backup not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get backup", http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")
@@ -230,6 +237,7 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 		SecuredMeta   []byte                 `json:"secured_meta"`
 		AccessKeys    map[string]interface{} `json:"access_keys"`
 		Version       int                    `json:"version"`
+		UpdatedAt     string                 `json:"updated_at,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Bad Request", http.StatusBadRequest)
@@ -237,9 +245,33 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 	}
 
 	blobBytes := decodeBase64OrRaw(req.EncryptedBlob)
+	if len(blobBytes) == 0 {
+		http.Error(w, "Missing encrypted_blob", http.StatusBadRequest)
+		return
+	}
+
 	var accessKeysBytes []byte
 	if req.AccessKeys != nil {
 		accessKeysBytes, _ = json.Marshal(req.AccessKeys)
+	}
+
+	version := req.Version
+	if version <= 0 {
+		version = file.Version
+		if version <= 0 {
+			version = 1
+		}
+	}
+
+	now := time.Now().UTC()
+	updatedAt := now
+	if strings.TrimSpace(req.UpdatedAt) != "" {
+		if parsed, err := time.Parse(time.RFC3339Nano, strings.TrimSpace(req.UpdatedAt)); err == nil {
+			parsedUTC := parsed.UTC()
+			if !parsedUTC.After(now) {
+				updatedAt = parsedUTC
+			}
+		}
 	}
 
 	newB := &db.FileBackup{
@@ -249,8 +281,8 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 		EncryptedBlob: blobBytes,
 		SecuredMeta:   req.SecuredMeta,
 		AccessKeys:    json.RawMessage(accessKeysBytes),
-		Version:       req.Version,
-		UpdatedAt:     time.Now(),
+		Version:       version,
+		UpdatedAt:     updatedAt,
 	}
 
 	if len(newB.SecuredMeta) == 0 {
