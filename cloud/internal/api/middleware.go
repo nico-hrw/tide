@@ -2,23 +2,39 @@ package api
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"log"
 	"net/http"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/golang-jwt/jwt/v5"
 )
 
 // ValidateJWTSecret must be called once at server startup.
-// It terminates the process if JWT_SECRET is empty, preventing an insecure
-// fallback key from ever being used in a real deployment.
-func ValidateJWTSecret() {
-	if os.Getenv("JWT_SECRET") == "" {
+// In production, it returns an error if JWT_SECRET is shorter than 32 characters.
+// In non-production environments, it terminates if JWT_SECRET is empty and logs
+// a warning if it is shorter than 32 characters.
+func ValidateJWTSecret() error {
+	secret := os.Getenv("JWT_SECRET")
+	if strings.EqualFold(os.Getenv("ENV"), "production") {
+		if len(secret) < 32 {
+			return errors.New("JWT_SECRET must be at least 32 characters in production")
+		}
+		return nil
+	}
+	if secret == "" {
 		log.Fatal("[SECURITY FATAL] JWT_SECRET environment variable is not set. " +
 			"Refusing to start without a secure JWT signing key. " +
 			"Set JWT_SECRET to a cryptographically random 32-byte value.")
 	}
+	if len(secret) < 32 {
+		log.Printf("[SECURITY WARNING] JWT_SECRET is shorter than 32 characters (%d bytes); "+
+			"use a cryptographically random value of at least 32 characters.", len(secret))
+	}
+	return nil
 }
 
 // AuthMiddleware extracts the user ID from a JWT and injects it into context.
@@ -58,12 +74,17 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		}
 		jwtKey := []byte(jwtKeyStr)
 
-		token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-			if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-				return nil, http.ErrAbortHandler
-			}
-			return jwtKey, nil
-		})
+		token, err := jwt.Parse(
+			tokenString,
+			func(t *jwt.Token) (interface{}, error) {
+				if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+					return nil, http.ErrAbortHandler
+				}
+				return jwtKey, nil
+			},
+			jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+			jwt.WithExpirationRequired(),
+		)
 
 		if err != nil || !token.Valid {
 			http.Error(w, "Unauthorized: Invalid or expired token", http.StatusUnauthorized)
@@ -86,4 +107,26 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		ctx := context.WithValue(r.Context(), "user_id", userID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// Logout clears the HttpOnly tide_session cookie and returns a 200 OK JSON response.
+func Logout(w http.ResponseWriter, r *http.Request) {
+	isSecure := r.TLS != nil ||
+		strings.EqualFold(os.Getenv("ENV"), "production") ||
+		strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https")
+
+	http.SetCookie(w, &http.Cookie{
+		Name:     "tide_session",
+		Value:    "",
+		Path:     "/",
+		MaxAge:   -1,
+		Expires:  time.Unix(0, 0),
+		HttpOnly: true,
+		SameSite: http.SameSiteLaxMode,
+		Secure:   isSecure,
+	})
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

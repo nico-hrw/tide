@@ -7,7 +7,7 @@ import type { Tab } from "@/components/Layout/TabList";
 import { getTranslation } from "@/lib/i18n";
 import { canReuseTabCache } from "@/lib/tabStorage";
 import { clearNotePreviews } from "@/lib/notePreview";
-import { clearMasterKey } from "@/lib/keyStorage";
+import { clearAllSessionData } from "@/lib/api";
 import { useDataStore, type NavigationMode } from "@/store/useDataStore";
 
 export interface WorkspaceFileItem {
@@ -246,13 +246,8 @@ export function useWorkspaceTabs({
     };
 
     const handleLogout = async () => {
-        sessionStorage.clear();
         clearNotePreviews();
-        await clearMasterKey();
-        localStorage.removeItem("tide_session_key");
-        localStorage.removeItem("tide_session_token");
-        localStorage.removeItem("tide_user_id");
-        localStorage.removeItem("tide_user_email");
+        await clearAllSessionData({ callServerLogout: true });
         router.push("/auth");
     };
 

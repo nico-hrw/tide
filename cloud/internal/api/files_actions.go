@@ -2,7 +2,7 @@ package api
 
 import (
 	"encoding/json"
-	"fmt"
+	"log"
 	"net/http"
 	"time"
 
@@ -11,6 +11,20 @@ import (
 	"github.com/nicoh/tide/internal/db"
 	"github.com/nicoh/tide/internal/store"
 )
+
+func marshalFileDeletedEvent(fileID string) (string, error) {
+	payload, err := json.Marshal(struct {
+		Type   string `json:"type"`
+		FileID string `json:"file_id"`
+	}{
+		Type:   "file_deleted",
+		FileID: fileID,
+	})
+	if err != nil {
+		return "", err
+	}
+	return string(payload), nil
+}
 
 func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
@@ -30,6 +44,7 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		// But GetFile usually returns shares too if we look up by ID?
 		// Actually Store.GetFile gets by ID from 'files' table.
 		// If I am a sharee, the file exists in 'files' table.
+		log.Printf("DeleteFile: failed to get file %s: %v", id, err)
 		http.Error(w, "Failed to get file", http.StatusInternalServerError)
 		return
 	}
@@ -47,6 +62,7 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 			// Owner: Permanent Delete File
 			blobPaths, _ := h.Store.GetFileBlobPaths(r.Context(), id)
 			if err := h.Store.DeleteFile(r.Context(), id); err != nil {
+				log.Printf("DeleteFile: failed to permanently delete file %s: %v", id, err)
 				http.Error(w, "Failed to delete file permanently", http.StatusInternalServerError)
 				return
 			}
@@ -62,17 +78,21 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 					_ = h.BlobStore.Delete(r.Context(), *file.BlobPath)
 				}
 			}
-			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 		} else {
 			// Owner: Soft Delete File
 			if err := h.Store.SoftDeleteFile(r.Context(), id); err != nil {
+				log.Printf("DeleteFile: failed to soft delete file %s: %v", id, err)
 				http.Error(w, "Failed to soft delete file", http.StatusInternalServerError)
 				return
 			}
-			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
+		}
+		if eventPayload, err := marshalFileDeletedEvent(id); err == nil {
+			h.broadcastToFileUsers(id, file.OwnerID, eventPayload)
+		} else {
+			log.Printf("DeleteFile: failed to marshal SSE payload for %s: %v", id, err)
 		}
 	} else {
-		// Check if user is an editor on parent note deleting a child asset
+		// Check if user is an editor on parent note/folder deleting a child file/asset
 		canDeleteChild := false
 		if file.ParentID != nil && *file.ParentID != "" {
 			if parentFile, err := h.Store.GetAccessibleFile(r.Context(), *file.ParentID, userID); err == nil && store.CanWrite(parentFile.Permission) {
@@ -81,31 +101,29 @@ func (h *FileHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 		}
 
 		if canDeleteChild {
-			blobPaths, _ := h.Store.GetFileBlobPaths(r.Context(), id)
-			if err := h.Store.DeleteFile(r.Context(), id); err != nil {
-				http.Error(w, "Failed to delete asset permanently", http.StatusInternalServerError)
+			if permanent {
+				// Permanent deletion is strictly restricted to the file owner.
+				http.Error(w, "Forbidden: only the owner can permanently delete a file", http.StatusForbidden)
 				return
 			}
-			for _, blobPath := range blobPaths {
-				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, []string{id})
-				if err == nil && refs == 0 && h.BlobStore != nil {
-					_ = h.BlobStore.Delete(r.Context(), blobPath)
-				}
+			if err := h.Store.SoftDeleteFile(r.Context(), id); err != nil {
+				log.Printf("DeleteFile: failed to soft delete child file %s: %v", id, err)
+				http.Error(w, "Failed to soft delete file", http.StatusInternalServerError)
+				return
 			}
-			if file.BlobPath != nil && *file.BlobPath != "" {
-				refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), *file.BlobPath, []string{id})
-				if err == nil && refs == 0 && h.BlobStore != nil {
-					_ = h.BlobStore.Delete(r.Context(), *file.BlobPath)
-				}
+			if eventPayload, err := marshalFileDeletedEvent(id); err == nil {
+				h.broadcastToFileUsers(id, file.OwnerID, eventPayload)
+			} else {
+				log.Printf("DeleteFile: failed to marshal SSE payload for %s: %v", id, err)
 			}
-			h.broadcastToFileUsers(id, file.OwnerID, fmt.Sprintf(`{"type":"file_deleted","file_id":"%s"}`, id))
 		} else {
-			// Not Owner (Collaborator): Remove Share (permanent leave)
+			// Not Owner (Collaborator): Remove Share (leave shared file)
 			if err := h.Store.RemoveShare(r.Context(), id, userID); err != nil {
 				if err == store.ErrNotFound {
 					http.Error(w, "Share not found", http.StatusNotFound)
 					return
 				}
+				log.Printf("DeleteFile: failed to remove share for file %s user %s: %v", id, userID, err)
 				http.Error(w, "Failed to remove share", http.StatusInternalServerError)
 				return
 			}
@@ -144,8 +162,26 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "File not found or access denied", http.StatusForbidden)
 			return
 		}
+		log.Printf("CopyFile: failed to retrieve file %s: %v", fileID, err)
 		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
 		return
+	}
+
+	if req.TargetParentID != nil && *req.TargetParentID != "" {
+		parent, err := h.Store.GetAccessibleFile(r.Context(), *req.TargetParentID, viewerID)
+		if err != nil {
+			if err == store.ErrNotFound {
+				http.Error(w, "Forbidden: no write access to target folder", http.StatusForbidden)
+				return
+			}
+			log.Printf("CopyFile: failed to check target folder %s: %v", *req.TargetParentID, err)
+			http.Error(w, "Failed to verify target folder", http.StatusInternalServerError)
+			return
+		}
+		if !store.CanWrite(parent.Permission) {
+			http.Error(w, "Forbidden: no write access to target folder", http.StatusForbidden)
+			return
+		}
 	}
 
 	// OwnerID is ALWAYS the requesting user (viewerID from JWT) — never from request body.
@@ -167,10 +203,13 @@ func (h *FileHandler) CopyFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Store.CreateFile(r.Context(), newFile); err != nil {
+		log.Printf("CopyFile: failed to create copied file for user %s: %v", viewerID, err)
 		http.Error(w, "Failed to copy file", http.StatusInternalServerError)
 		return
 	}
 
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(newFile)
+	if err := json.NewEncoder(w).Encode(newFile); err != nil {
+		log.Printf("CopyFile: failed to encode response for file %s: %v", newFile.ID, err)
+	}
 }

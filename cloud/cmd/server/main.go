@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"log"
+	"net"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,6 +27,100 @@ func getAppVersion() string {
 		return envVer
 	}
 	return AppVersion
+}
+
+// parseTrustedProxies builds the trusted proxy CIDR allowlist, always
+// including IPv4/IPv6 loopback so local reverse proxies work out of the box.
+func parseTrustedProxies(envVal string) []*net.IPNet {
+	defaults := []string{"127.0.0.1/32", "::1/128"}
+	var nets []*net.IPNet
+	for _, cidr := range defaults {
+		if _, ipNet, err := net.ParseCIDR(cidr); err == nil {
+			nets = append(nets, ipNet)
+		}
+	}
+	for _, raw := range strings.Split(envVal, ",") {
+		entry := strings.TrimSpace(raw)
+		if entry == "" {
+			continue
+		}
+		if strings.Contains(entry, "/") {
+			if _, ipNet, err := net.ParseCIDR(entry); err == nil {
+				nets = append(nets, ipNet)
+			} else {
+				log.Printf("WARNING: ignoring invalid TRUSTED_PROXIES CIDR %q: %v", entry, err)
+			}
+			continue
+		}
+		if ip := net.ParseIP(entry); ip != nil {
+			if ip4 := ip.To4(); ip4 != nil {
+				nets = append(nets, &net.IPNet{IP: ip4, Mask: net.CIDRMask(32, 32)})
+			} else {
+				nets = append(nets, &net.IPNet{IP: ip, Mask: net.CIDRMask(128, 128)})
+			}
+		} else {
+			log.Printf("WARNING: ignoring invalid TRUSTED_PROXIES IP %q", entry)
+		}
+	}
+	return nets
+}
+
+func parseIPFromAddr(addr string) net.IP {
+	host := strings.TrimSpace(addr)
+	if h, _, err := net.SplitHostPort(host); err == nil {
+		host = h
+	}
+	if idx := strings.IndexByte(host, '%'); idx != -1 {
+		host = host[:idx]
+	}
+	return net.ParseIP(host)
+}
+
+func isTrustedIP(ip net.IP, nets []*net.IPNet) bool {
+	if ip == nil {
+		return false
+	}
+	for _, n := range nets {
+		if n.Contains(ip) {
+			return true
+		}
+	}
+	return false
+}
+
+// trustedProxyRealIP resolves the client IP from X-Forwarded-For (rightmost
+// untrusted hop) or X-Real-IP only when the direct peer is in trustedNets.
+func trustedProxyRealIP(trustedNets []*net.IPNet) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			peerIP := parseIPFromAddr(r.RemoteAddr)
+			if isTrustedIP(peerIP, trustedNets) {
+				var realIP net.IP
+				if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
+					parts := strings.Split(xff, ",")
+					for i := len(parts) - 1; i >= 0; i-- {
+						hopIP := parseIPFromAddr(parts[i])
+						if hopIP == nil {
+							break
+						}
+						realIP = hopIP
+						if !isTrustedIP(hopIP, trustedNets) {
+							break
+						}
+					}
+				}
+				if realIP == nil {
+					if xri := r.Header.Get("X-Real-IP"); xri != "" {
+						realIP = parseIPFromAddr(xri)
+					}
+				}
+				if realIP != nil {
+					r.RemoteAddr = realIP.String()
+				}
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
 }
 
 func main() {
@@ -55,8 +152,10 @@ func main() {
 		port = envPort
 	}
 
+	isProduction := strings.EqualFold(os.Getenv("ENV"), "production")
+
 	masterKeyStr := os.Getenv("SERVER_MASTER_KEY")
-	if os.Getenv("ENV") == "production" {
+	if isProduction {
 		if len(masterKeyStr) < 32 {
 			log.Fatal("CRITICAL: SERVER_MASTER_KEY must be set and at least 32 characters long")
 		}
@@ -70,7 +169,9 @@ func main() {
 
 	// [FIX MITTEL-1] Abort startup immediately if JWT_SECRET is not set.
 	// This prevents any issued JWTs from being signed with an insecure fallback key.
-	api.ValidateJWTSecret()
+	if err := api.ValidateJWTSecret(); err != nil {
+		log.Fatal(err)
+	}
 
 	// 1. Initialize Stores
 	dataDir := os.Getenv("DATA_DIR")
@@ -108,22 +209,35 @@ func main() {
 	surveysHandler := api.NewSurveysHandler(sqliteStore)
 
 	// 3. Setup Router
+	trustedProxies := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
-	r.Use(middleware.RealIP)
+	r.Use(trustedProxyRealIP(trustedProxies))
 	r.Use(middleware.RedirectSlashes)
+
+	// Global Security Headers Middleware
+	r.Use(func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("X-Frame-Options", "DENY")
+			w.Header().Set("Referrer-Policy", "strict-origin-when-cross-origin")
+			if strings.HasPrefix(r.URL.Path, "/api/") &&
+				!strings.Contains(r.URL.Path, "/download") &&
+				!(r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, "/api/v1/quicknotes/") && strings.Contains(r.URL.Path, "/files/")) {
+				w.Header().Set("Cache-Control", "no-store")
+			}
+			next.ServeHTTP(w, r)
+		})
+	})
 
 	// CORS Middleware
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Add("Vary", "Origin")
 			origin := r.Header.Get("Origin")
 			trustedOrigins := map[string]bool{
-				"http://localhost:3000":   true,
-				"http://localhost:5173":   true,
-				"http://127.0.0.1:3000":   true,
-				"http://127.0.0.1:5173":   true,
 				"https://go-tide.app":     true,
 				"https://www.go-tide.app": true,
 				"https://hrw.rocks":       true,
@@ -148,8 +262,8 @@ func main() {
 				cleanOrigin := strings.TrimRight(origin, "/")
 				if trustedOrigins[cleanOrigin] {
 					isTrusted = true
-				} else if os.Getenv("ENV") != "production" {
-					if strings.HasPrefix(origin, "http://localhost") || strings.HasPrefix(origin, "http://127.0.0.1") {
+				} else if !isProduction {
+					if u, err := url.Parse(origin); err == nil && u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
 						isTrusted = true
 					}
 				}
@@ -158,17 +272,15 @@ func main() {
 				isTrusted = true
 			}
 
-			if isTrusted && origin != "" {
-				w.Header().Set("Access-Control-Allow-Origin", origin)
-			} else if origin == "" {
-				// If no origin but we trust the requester (e.g. server-to-server),
-				// we don't set the header or set it to a safe default if needed.
+			if isTrusted {
+				if origin != "" {
+					w.Header().Set("Access-Control-Allow-Origin", origin)
+				}
+				w.Header().Set("Access-Control-Allow-Credentials", "true")
+				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
+				w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-Access-Token, X-API-Key")
+				w.Header().Set("Access-Control-Max-Age", "3600")
 			}
-
-			w.Header().Set("Access-Control-Allow-Credentials", "true")
-			w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS, PATCH")
-			w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID, Authorization, X-Requested-With, Accept, Origin, Cache-Control, X-Access-Token, X-API-Key")
-			w.Header().Set("Access-Control-Max-Age", "3600")
 
 			if r.Method == "OPTIONS" {
 				w.WriteHeader(http.StatusOK)
@@ -222,7 +334,10 @@ func main() {
 		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/verify-otp", authHandler.VerifyOTP)
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
-		r.Post("/auth/dev-login", authHandler.DevLogin)
+		r.Post("/auth/logout", api.Logout)
+		if !isProduction && strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
+			r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/dev-login", authHandler.DevLogin)
+		}
 
 		r.Route("/files", fileHandler.RegisterRoutes)
 		r.Route("/links", linkHandler.RegisterRoutes)
@@ -247,7 +362,9 @@ func main() {
 	// CRDT & E2EE aliases for /api/ws/notes and /api/files
 	r.Get("/api/ws/notes/{fileID}", fileHandler.ServeWs)
 	r.Route("/api/files", fileHandler.RegisterRoutes)
-	r.Post("/api/auth/dev-login", authHandler.DevLogin)
+	if !isProduction && strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
+		r.With(api.RateLimitMiddleware(authLimiter)).Post("/api/auth/dev-login", authHandler.DevLogin)
+	}
 
 	// Quicknotes routes
 	r.Route("/api/v1/quicknotes", func(r chi.Router) {
@@ -271,7 +388,15 @@ func main() {
 	}()
 
 	log.Printf("Server starting on port %s...", port)
-	if err := http.ListenAndServe(":"+port, r); err != nil {
+	srv := &http.Server{
+		Addr:              ":" + port,
+		Handler:           r,
+		ReadHeaderTimeout: 10 * time.Second,
+		ReadTimeout:       30 * time.Second,
+		WriteTimeout:      60 * time.Second,
+		IdleTimeout:       120 * time.Second,
+	}
+	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("Server failed to start: %v", err)
 	}
 }

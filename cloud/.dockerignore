@@ -7,3 +7,9 @@ server
 .env*
 .git
 .gitignore
+tide-server
+tide-server-linux
+*.log
+*.tmp
+*.pem
+*.key

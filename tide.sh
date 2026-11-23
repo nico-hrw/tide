@@ -44,7 +44,8 @@ backup_data() {
     local backup_dir="$backup_root/$timestamp"
 
     echo "📦 Starte Datensicherung der Nutzerdaten..."
-    mkdir -p "$backup_dir"
+    (umask 077 && mkdir -p "$backup_dir")
+    chmod 700 "$backup_root" "$backup_dir"
 
     # Ermittle den aktuellen Datenordner
     local active_data_dir=""
@@ -62,12 +63,16 @@ backup_data() {
             sqlite3 "$active_data_dir/tide.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
         fi
 
-        # Archiv erzeugen
-        tar -czf "$backup_dir/data.tar.gz" -C "$(dirname "$active_data_dir")" "$(basename "$active_data_dir")" 2>/dev/null
-        cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
+        # Archiv erzeugen (mit restriktiven Dateirechten)
+        (
+            umask 077
+            tar -czf "$backup_dir/data.tar.gz" -C "$(dirname "$active_data_dir")" "$(basename "$active_data_dir")" 2>/dev/null
+            cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
+        )
+        chmod 600 "$backup_dir/data.tar.gz" "$backup_dir"/tide.db* 2>/dev/null || true
 
         ln -sfn "$backup_dir" "$backup_root/latest"
-        find "$backup_root" -maxdepth 1 -mindepth 1 -type d ! -name "latest" | sort -r | tail -n +31 | xargs -r rm -rf
+        find "$backup_root" -maxdepth 1 -mindepth 1 -type d ! -name "latest" -print0 | sort -rz | tail -z -n +31 | xargs -0 -r rm -rf --
 
         echo "✅ Sicherung erfolgreich: $backup_dir"
     else
@@ -95,10 +100,6 @@ build_backend() {
 build_frontend() {
     echo "🏗️ Baue Next.js Frontend..."
     cd "$WEB_DIR" || exit 1
-    
-    # Automatische Aktualisierung der Browser-Kompatibilitaetsdatenbank
-    echo "🌐 Aktualisiere Browserslist..."
-    npx update-browserslist-db@latest --yes 2>/dev/null || true
 
     npm install
     NEXT_DISABLE_TURBOPACK=1 NODE_ENV=production NODE_OPTIONS="--max-old-space-size=1536" npx next build --webpack
@@ -147,10 +148,18 @@ start_staging() {
     local staging_data_dir="$ROOT_DIR/data_staging"
     mkdir -p "$staging_data_dir"
 
-    # Falls keine Staging-DB existiert, kopiere die Produktions-DB als Startbasis
-    if [ ! -f "$staging_data_dir/tide.db" ] && [ -f "$ROOT_DIR/data/tide.db" ]; then
-        echo "📋 Initialisiere Staging-DB mit Kopie der aktuellen Daten..."
-        cp "$ROOT_DIR/data/tide.db"* "$staging_data_dir/" 2>/dev/null || true
+    # Staging-DB nur bei explizitem Opt-in aus der Produktions-DB initialisieren
+    if [ ! -f "$staging_data_dir/tide.db" ]; then
+        if [ "${SEED_STAGING_FROM_PROD:-false}" = "true" ]; then
+            if [ -f "$ROOT_DIR/data/tide.db" ]; then
+                echo "📋 Initialisiere Staging-DB mit Kopie der aktuellen Produktionsdaten (SEED_STAGING_FROM_PROD=true)..."
+                cp "$ROOT_DIR/data/tide.db"* "$staging_data_dir/" 2>/dev/null || true
+            else
+                echo "⚠️ SEED_STAGING_FROM_PROD=true gesetzt, aber keine Produktions-DB unter $ROOT_DIR/data/tide.db gefunden; es wird eine frische Staging-DB erstellt."
+            fi
+        else
+            echo "⚠️ Keine Staging-DB vorhanden; es wird eine frische Staging-DB erstellt (setze SEED_STAGING_FROM_PROD=true, um aus Produktion zu kopieren)."
+        fi
     fi
 
     cd "$ROOT_DIR" || exit 1
@@ -247,7 +256,7 @@ case "$1" in
         echo "🛑 Tide Produktion gestoppt."
         ;;
     -o|--otp)
-        echo "🔑 OTP: $(cat $OTP_FILE 2>/dev/null || cat "$ROOT_DIR/data/otp.txt" 2>/dev/null || echo 'Kein Code gefunden')"
+        echo "🔑 OTP: $(cat "$OTP_FILE" 2>/dev/null || cat "$ROOT_DIR/data/otp.txt" 2>/dev/null || echo 'Kein Code gefunden')"
         exit 0
         ;;
     status)

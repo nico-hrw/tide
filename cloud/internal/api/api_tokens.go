@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"strings"
 	"time"
@@ -30,6 +31,10 @@ var SupportedScopes = map[string]string{
 	"todos:create":   "Aufgaben erstellen",
 	"todos:edit":     "Aufgaben bearbeiten & Status ändern",
 	"todos:delete":   "Aufgaben löschen",
+	"surveys:read":   "Umfragen-Antworten abfragen (Leserechte)",
+	"surveys:write":  "Umfragen-Antworten verwalten (Lesen, Erstellen, Löschen)",
+	"surveys:create": "Umfragen-Antworten erstellen",
+	"surveys:delete": "Umfragen-Antworten löschen",
 }
 
 type APITokenHandler struct {
@@ -82,6 +87,10 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 		{Key: "todos:create", Description: SupportedScopes["todos:create"], Implemented: true},
 		{Key: "todos:edit", Description: SupportedScopes["todos:edit"], Implemented: true},
 		{Key: "todos:delete", Description: SupportedScopes["todos:delete"], Implemented: true},
+		{Key: "surveys:read", Description: SupportedScopes["surveys:read"], Implemented: true},
+		{Key: "surveys:write", Description: SupportedScopes["surveys:write"], Implemented: true},
+		{Key: "surveys:create", Description: SupportedScopes["surveys:create"], Implemented: true},
+		{Key: "surveys:delete", Description: SupportedScopes["surveys:delete"], Implemented: true},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -127,12 +136,33 @@ func (h *APITokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Token name cannot exceed 100 characters", http.StatusBadRequest)
 		return
 	}
+	if req.ExpiresInDays < 0 || req.ExpiresInDays > 3650 {
+		http.Error(w, "expires_in_days must be between 0 and 3650", http.StatusBadRequest)
+		return
+	}
 
 	// Validate scopes
 	var validScopes []string
 	for _, sc := range req.Scopes {
 		sc = strings.TrimSpace(sc)
-		if _, exists := SupportedScopes[sc]; exists || strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:") || sc == "*" {
+		if strings.HasPrefix(sc, "folder:") {
+			folderID := strings.TrimPrefix(sc, "folder:")
+			if _, err := uuid.Parse(folderID); err != nil {
+				http.Error(w, "Invalid folder scope ID", http.StatusBadRequest)
+				return
+			}
+			if _, err := h.Store.GetAccessibleFile(r.Context(), folderID, userID); err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					http.Error(w, "Forbidden: no access to scoped folder", http.StatusForbidden)
+					return
+				}
+				http.Error(w, "Failed to verify folder access", http.StatusInternalServerError)
+				return
+			}
+			validScopes = append(validScopes, sc)
+			continue
+		}
+		if _, exists := SupportedScopes[sc]; exists || strings.HasPrefix(sc, "safe:") || sc == "*" {
 			validScopes = append(validScopes, sc)
 		}
 	}

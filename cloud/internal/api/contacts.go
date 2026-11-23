@@ -92,6 +92,11 @@ func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if targetID == userID {
+		http.Error(w, "Cannot send contact request to yourself", http.StatusBadRequest)
+		return
+	}
+
 	// Check if already friends or pending
 	existing, _ := h.Store.GetContact(r.Context(), userID, targetID)
 	if existing != nil {

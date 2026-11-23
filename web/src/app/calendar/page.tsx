@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, clearAllSessionData } from "@/lib/api";
+import { getMasterKey, storeMasterKey, purgeLegacyKeys } from "@/lib/keyStorage";
 import { format } from "date-fns";
 import CalendarView from "@/components/Calendar/CalendarView";
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
@@ -49,38 +50,54 @@ export default function CalendarPage() {
 
     // 1. Restore Session
     useEffect(() => {
+        let cancelled = false;
         const restoreSession = async () => {
             try {
                 const email = sessionStorage.getItem("tide_user_email") || localStorage.getItem("tide_user_email");
-                const keyJwkStr = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+                let importedPrivateKey = await getMasterKey();
+                if (!importedPrivateKey) {
+                    const legacyKeyJwkStr =
+                        sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+                    if (legacyKeyJwkStr) {
+                        try {
+                            importedPrivateKey = await window.crypto.subtle.importKey(
+                                "jwk",
+                                JSON.parse(legacyKeyJwkStr) as JsonWebKey,
+                                { name: "RSA-OAEP", hash: "SHA-256" },
+                                true,
+                                ["decrypt"]
+                            );
+                            if (importedPrivateKey) {
+                                await storeMasterKey(importedPrivateKey);
+                            }
+                        } catch (e) {
+                            console.error("Failed to migrate legacy session key", e);
+                        }
+                    }
+                }
+                purgeLegacyKeys();
+                if (cancelled) return;
 
-                if (!email || !keyJwkStr) {
-                    sessionStorage.clear();
-                    localStorage.removeItem("tide_session_key");
-                    localStorage.removeItem("tide_session_token");
-                    router.push("/auth");
+                if (!email || !importedPrivateKey) {
+                    await clearAllSessionData({ callServerLogout: false });
+                    if (!cancelled) router.push("/auth");
                     return;
                 }
 
-                const keyJwk = JSON.parse(keyJwkStr);
-                const importedPrivateKey = await window.crypto.subtle.importKey(
-                    "jwk", keyJwk,
-                    { name: "RSA-OAEP", hash: "SHA-256" },
-                    true, ["decrypt"]
-                );
                 setPrivateKey(importedPrivateKey);
                 const storedId = sessionStorage.getItem("tide_user_id") || localStorage.getItem("tide_user_id");
                 if (storedId) setMyId(storedId);
                 setStatus("ready");
             } catch (err) {
                 console.error("Session restore failed:", err);
-                sessionStorage.clear();
-                localStorage.removeItem("tide_session_key");
-                localStorage.removeItem("tide_session_token");
-                router.push("/auth");
+                await clearAllSessionData({ callServerLogout: false });
+                if (!cancelled) router.push("/auth");
             }
         };
-        restoreSession();
+        void restoreSession();
+        return () => {
+            cancelled = true;
+        };
     }, [router]);
 
     const loadData = async () => {

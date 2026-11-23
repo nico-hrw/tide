@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/base64"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 
@@ -80,12 +79,24 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
+
+	permission := req.Permission
+	if permission == "" {
+		permission = "view"
+	}
+	if permission != "view" && permission != "edit" && permission != "share" {
+		http.Error(w, "Invalid permission", http.StatusBadRequest)
+		return
+	}
+
 	file, err := h.Store.GetFile(r.Context(), fileID)
 	if err != nil {
 		if err == store.ErrNotFound {
-			http.Error(w, fmt.Sprintf("File not found in GetFile: %s", fileID), http.StatusNotFound)
+			log.Printf("[ERROR] ShareFile: file not found: %s", fileID)
+			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
+		log.Printf("[ERROR] ShareFile: failed to retrieve file %s: %v", fileID, err)
 		http.Error(w, "Failed to retrieve file", http.StatusInternalServerError)
 		return
 	}
@@ -99,16 +110,11 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		reqPerm := req.Permission
-		if reqPerm != "view" && reqPerm != "edit" && reqPerm != "share" {
-			reqPerm = "view"
-		}
-
-		if callerShare.Permission == "view" && reqPerm != "view" {
+		if callerShare.Permission == "view" && permission != "view" {
 			http.Error(w, "Forbidden: cannot grant higher permission than view", http.StatusForbidden)
 			return
 		}
-		if callerShare.Permission == "edit" && reqPerm == "share" {
+		if callerShare.Permission == "edit" && permission == "share" {
 			http.Error(w, "Forbidden: cannot grant higher permission than edit", http.StatusForbidden)
 			return
 		}
@@ -129,15 +135,29 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil || recipient == nil {
-		http.Error(w, fmt.Sprintf("Recipient not found in DB (ID: %s, Email: %s)", req.RecipientID, req.RecipientEmail), http.StatusNotFound)
+		log.Printf("[ERROR] ShareFile: recipient not found (ID: %s): %v", req.RecipientID, err)
+		http.Error(w, "Recipient not found", http.StatusNotFound)
 		return
 	}
 
-	// 2. Insert into file_shares with the requested permission level (default: view).
-	permission := req.Permission
-	if permission != "view" && permission != "edit" && permission != "share" {
-		permission = "view"
+	if file.OwnerID != userID {
+		if recipient.ID == file.OwnerID {
+			http.Error(w, "Forbidden: cannot alter owner's access", http.StatusForbidden)
+			return
+		}
+		existingShare, err := h.Store.GetShare(r.Context(), fileID, recipient.ID)
+		if err != nil && err != store.ErrNotFound {
+			log.Printf("[ERROR] ShareFile: failed to check existing share for file %s recipient %s: %v", fileID, recipient.ID, err)
+			http.Error(w, "Failed to verify existing share", http.StatusInternalServerError)
+			return
+		}
+		if existingShare != nil {
+			http.Error(w, "Conflict: recipient already has a share on this file", http.StatusConflict)
+			return
+		}
 	}
+
+	// 2. Insert into file_shares with the requested permission level (default: view).
 	if err := h.Store.ShareFileWithPermission(r.Context(), fileID, recipient.ID, decodeBase64OrRaw(req.SecuredMeta), permission, canReshare); err != nil {
 		http.Error(w, "Failed to share file", http.StatusInternalServerError)
 		return
@@ -159,7 +179,9 @@ func (h *FileHandler) ShareFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast to the recipient so their UI fetches it instantly
-	go h.Broker.Broadcast(recipient.ID, fmt.Sprintf(`{"type":"file_shared","file_id":"%s"}`, fileID))
+	if eventData, err := json.Marshal(map[string]string{"type": "file_shared", "file_id": fileID}); err == nil {
+		go h.Broker.Broadcast(recipient.ID, string(eventData))
+	}
 
 	w.WriteHeader(http.StatusOK)
 	w.Write([]byte(`{"message": "Shared successfully"}`))
@@ -223,13 +245,15 @@ func (h *FileHandler) UpdateSharePermissionEndpoint(w http.ResponseWriter, r *ht
 			http.Error(w, "Share not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		log.Printf("[ERROR] UpdateSharePermission: failed for file %s user %s: %v", fileID, targetUserID, err)
+		http.Error(w, "Invalid permission or failed to update share", http.StatusBadRequest)
 		return
 	}
 
 	// [FIX] Notify the target user so their frontend immediately updates permissions
-	eventData := fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, fileID)
-	h.Broker.Broadcast(targetUserID, eventData)
+	if eventData, err := json.Marshal(map[string]string{"type": "file_updated", "file_id": fileID}); err == nil {
+		h.Broker.Broadcast(targetUserID, string(eventData))
+	}
 
 	if h.Hub != nil {
 		h.Hub.EnforcePermissionChange(fileID, targetUserID, req.Permission)
@@ -267,8 +291,9 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// [FIX] Notify the target user so their frontend immediately locks the editor
-	eventData := fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, fileID)
-	h.Broker.Broadcast(targetUserID, eventData)
+	if eventData, err := json.Marshal(map[string]string{"type": "file_updated", "file_id": fileID}); err == nil {
+		h.Broker.Broadcast(targetUserID, string(eventData))
+	}
 
 	// Also remove the recipient's wrapped DEK from access_keys.
 	_ = h.Store.RemoveFileAccessKey(r.Context(), fileID, targetUserID)
@@ -283,7 +308,7 @@ func (h *FileHandler) RevokeShare(w http.ResponseWriter, r *http.Request) {
 
 type VisibilityRequest struct {
 	FileID     string `json:"file_id"`
-	Visibility string `json:"visibility"` // 'public' or 'private'
+	Visibility string `json:"visibility"` // 'private', 'public', or 'contacts'
 }
 
 func (h *FileHandler) SetVisibility(w http.ResponseWriter, r *http.Request) {
@@ -301,6 +326,11 @@ func (h *FileHandler) SetVisibility(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	log.Printf("[DEBUG] SetVisibility: UserID=%s", userID)
+
+	if req.Visibility != "private" && req.Visibility != "public" && req.Visibility != "contacts" {
+		http.Error(w, "Invalid visibility", http.StatusBadRequest)
+		return
+	}
 
 	// Get file to verify ownership
 	file, err := h.Store.GetFile(r.Context(), req.FileID)
@@ -374,7 +404,8 @@ func (h *FileHandler) RevokeAndRotate(w http.ResponseWriter, r *http.Request) {
 
 	var req RevokeAndRotateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[ERROR] RevokeAndRotate: invalid request body for file %s: %v", fileID, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -396,7 +427,8 @@ func (h *FileHandler) RevokeAndRotate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Store.RevokeShareAndRotateKey(r.Context(), fileID, req.TargetUserID, req.NewKeyEpoch, string(req.NewAccessKeys), req.NewSecuredMeta, iv, ciphertext); err != nil {
-		http.Error(w, "Failed to revoke share and rotate key: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[ERROR] RevokeAndRotate: failed for file %s: %v", fileID, err)
+		http.Error(w, "Failed to revoke share and rotate key", http.StatusInternalServerError)
 		return
 	}
 

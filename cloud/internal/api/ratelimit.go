@@ -9,6 +9,11 @@ import (
 	"time"
 )
 
+const (
+	maxEntries = 10000
+	maxIdleAge = 15 * time.Minute
+)
+
 type ipEntry struct {
 	tokens   float64
 	lastSeen time.Time
@@ -54,6 +59,9 @@ func (l *IPRateLimiter) Allow(ip string) bool {
 	now := time.Now()
 	entry, exists := l.ips[ip]
 	if !exists {
+		if len(l.ips) >= maxEntries {
+			l.evictLocked(now)
+		}
 		entry = &ipEntry{
 			tokens:   float64(l.burst),
 			lastSeen: now,
@@ -76,6 +84,28 @@ func (l *IPRateLimiter) Allow(ip string) bool {
 	}
 
 	return false
+}
+
+// evictLocked purges entries idle longer than maxIdleAge and, if the map is
+// still at or above maxEntries, evicts the oldest entry. Caller must hold l.mu.
+func (l *IPRateLimiter) evictLocked(now time.Time) {
+	var oldestIP string
+	var oldestTime time.Time
+
+	for ip, entry := range l.ips {
+		if now.Sub(entry.lastSeen) > maxIdleAge {
+			delete(l.ips, ip)
+			continue
+		}
+		if oldestIP == "" || entry.lastSeen.Before(oldestTime) {
+			oldestIP = ip
+			oldestTime = entry.lastSeen
+		}
+	}
+
+	if len(l.ips) >= maxEntries && oldestIP != "" {
+		delete(l.ips, oldestIP)
+	}
 }
 
 // CleanupOlderThan purges entries inactive for longer than maxAge.

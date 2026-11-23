@@ -5,8 +5,8 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strings"
 	"time"
@@ -109,7 +109,7 @@ func (h *FileHandler) GetFileMetadata(w http.ResponseWriter, r *http.Request) {
 	file, err := h.Store.GetAccessibleFile(r.Context(), id, userID)
 	if err != nil {
 		if err == store.ErrNotFound {
-			http.Error(w, fmt.Sprintf("GetAccessibleFile not found: %s", id), http.StatusNotFound)
+			http.Error(w, "File not found", http.StatusNotFound)
 			return
 		}
 		http.Error(w, "Failed to retrieve file metadata", http.StatusInternalServerError)
@@ -193,6 +193,10 @@ type CreateFileRequest struct {
 	AccessKeys  json.RawMessage `json:"access_keys"`
 }
 
+func isValidVisibility(v string) bool {
+	return v == "private" || v == "public" || v == "contacts"
+}
+
 func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	var req CreateFileRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -209,11 +213,36 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	visibility := req.Visibility
 	if visibility == "" {
 		visibility = "private"
+	} else if !isValidVisibility(visibility) {
+		http.Error(w, "Invalid visibility value", http.StatusBadRequest)
+		return
 	}
 
 	fileID := uuid.New().String()
 	if req.ID != nil && *req.ID != "" {
-		fileID = *req.ID
+		parsedID, err := uuid.Parse(*req.ID)
+		if err != nil {
+			http.Error(w, "Invalid file ID format", http.StatusBadRequest)
+			return
+		}
+		fileID = parsedID.String()
+		if _, err := h.Store.GetFile(r.Context(), fileID); err == nil {
+			http.Error(w, "File ID already exists", http.StatusConflict)
+			return
+		} else if !errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "Failed to verify file ID availability", http.StatusInternalServerError)
+			return
+		}
+		existsInQuicknotes, qnErr := h.Store.QuicknoteFileExists(r.Context(), fileID)
+		if qnErr != nil {
+			log.Printf("CreateFile: QuicknoteFileExists error: %v", qnErr)
+			http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+			return
+		}
+		if existsInQuicknotes {
+			http.Error(w, "File ID conflict", http.StatusConflict)
+			return
+		}
 	}
 
 	file := &db.File{
@@ -264,7 +293,9 @@ func (h *FileHandler) CreateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast event
-	h.broadcastToFileUsers(file.ID, ownerID, fmt.Sprintf(`{"type":"file_created","file_id":"%s"}`, file.ID))
+	if msgBytes, err := json.Marshal(map[string]string{"type": "file_created", "file_id": file.ID}); err == nil {
+		h.broadcastToFileUsers(file.ID, ownerID, string(msgBytes))
+	}
 
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(file)
@@ -313,6 +344,47 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		if *req.ParentID == "__none__" || *req.ParentID == "" {
 			file.ParentID = nil
 		} else {
+			if *req.ParentID == id {
+				http.Error(w, "Cannot set file as its own parent", http.StatusBadRequest)
+				return
+			}
+			parent, err := h.Store.GetAccessibleFile(r.Context(), *req.ParentID, requesterID)
+			if err != nil {
+				if errors.Is(err, store.ErrNotFound) {
+					http.Error(w, "Forbidden: parent file not found or access denied", http.StatusForbidden)
+					return
+				}
+				http.Error(w, "Failed to verify parent file access", http.StatusInternalServerError)
+				return
+			}
+			if !store.CanWrite(parent.Permission) {
+				http.Error(w, "Forbidden: write permission required on parent file", http.StatusForbidden)
+				return
+			}
+			// Walk parent chain up to 100 steps to reject circular reparenting
+			curr := parent
+			for step := 0; step < 100; step++ {
+				if curr.ParentID == nil || *curr.ParentID == "" {
+					break
+				}
+				if *curr.ParentID == id {
+					http.Error(w, "Cannot move a folder into its own descendant", http.StatusBadRequest)
+					return
+				}
+				nextParent, err := h.Store.GetFile(r.Context(), *curr.ParentID)
+				if err != nil {
+					if errors.Is(err, store.ErrNotFound) {
+						break
+					}
+					http.Error(w, "Failed to verify parent hierarchy", http.StatusInternalServerError)
+					return
+				}
+				curr = nextParent
+				if step == 99 {
+					http.Error(w, "Parent hierarchy depth limit exceeded", http.StatusBadRequest)
+					return
+				}
+			}
 			file.ParentID = req.ParentID
 		}
 	}
@@ -332,7 +404,17 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if req.Visibility != nil {
-		file.Visibility = *req.Visibility
+		if !isValidVisibility(*req.Visibility) {
+			http.Error(w, "Invalid visibility value", http.StatusBadRequest)
+			return
+		}
+		if *req.Visibility != file.Visibility {
+			if file.OwnerID != requesterID {
+				http.Error(w, "Only the owner can change file visibility", http.StatusForbidden)
+				return
+			}
+			file.Visibility = *req.Visibility
+		}
 	}
 	if req.Metadata != nil {
 		file.Metadata = req.Metadata
@@ -341,11 +423,16 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
-		oldRc, blobErr := h.BlobStore.Get(r.Context(), id)
+		const maxBackupCascadeBytes = 10 * 1024 * 1024
 		var oldBlobBytes []byte
-		if blobErr == nil {
-			oldBlobBytes, _ = io.ReadAll(oldRc)
-			oldRc.Close()
+		if oldSize, sizeErr := h.BlobStore.GetSize(r.Context(), id); sizeErr == nil && oldSize > 0 && oldSize <= maxBackupCascadeBytes {
+			if oldRc, blobErr := h.BlobStore.Get(r.Context(), id); blobErr == nil {
+				readBytes, readErr := io.ReadAll(io.LimitReader(oldRc, maxBackupCascadeBytes+1))
+				oldRc.Close()
+				if readErr == nil && int64(len(readBytes)) <= maxBackupCascadeBytes {
+					oldBlobBytes = readBytes
+				}
+			}
 		}
 
 		if err := h.BlobStore.Put(r.Context(), id, strings.NewReader(*req.ContentCiphertext)); err != nil {
@@ -385,7 +472,9 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Broadcast event
-	h.broadcastToFileUsers(file.ID, file.OwnerID, fmt.Sprintf(`{"type":"file_updated","file_id":"%s"}`, file.ID))
+	if msgBytes, err := json.Marshal(map[string]string{"type": "file_updated", "file_id": file.ID}); err == nil {
+		h.broadcastToFileUsers(file.ID, file.OwnerID, string(msgBytes))
+	}
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(file)

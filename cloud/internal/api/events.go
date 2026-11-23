@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 )
@@ -178,11 +179,10 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// Create a channel for this client
-	messageChan := make(chan string)
+	// Create a buffered channel for this client so bursts/flushes don't drop messages
+	messageChan := make(chan string, 32)
 
 	// Register client
 	b.newClients <- clientReq{msgChan: messageChan, userID: userID}
@@ -209,7 +209,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", msg)
+			sanitized := strings.NewReplacer("\r", "", "\n", "").Replace(msg)
+			fmt.Fprintf(w, "data: %s\n\n", sanitized)
 			flusher.Flush()
 		case <-ticker.C:
 			// Send a comment ping to keep the connection alive

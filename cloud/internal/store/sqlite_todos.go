@@ -52,8 +52,9 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 
 	if filter.Date != "" {
 		dateStr := strings.TrimSpace(filter.Date)
-		queryBuilder.WriteString(" AND (due_date = ? OR scheduled_date = ? OR due_date LIKE ? OR scheduled_date LIKE ?)")
-		args = append(args, dateStr, dateStr, dateStr+"%", dateStr+"%")
+		dateLike := escapeLike(dateStr) + "%"
+		queryBuilder.WriteString(` AND (due_date = ? OR scheduled_date = ? OR due_date LIKE ? ESCAPE '\' OR scheduled_date LIKE ? ESCAPE '\')`)
+		args = append(args, dateStr, dateStr, dateLike, dateLike)
 	}
 
 	if filter.Priority != "" {
@@ -62,8 +63,8 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 	}
 
 	if filter.Tag != "" {
-		queryBuilder.WriteString(" AND tags LIKE ?")
-		args = append(args, "%\""+strings.TrimSpace(filter.Tag)+"\"%")
+		queryBuilder.WriteString(` AND tags LIKE ? ESCAPE '\'`)
+		args = append(args, `%"`+escapeLike(strings.TrimSpace(filter.Tag))+`"%`)
 	}
 
 	searchQuery := filter.Search
@@ -71,8 +72,8 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 		searchQuery = filter.Description
 	}
 	if strings.TrimSpace(searchQuery) != "" {
-		pattern := "%" + strings.ToLower(strings.TrimSpace(searchQuery)) + "%"
-		queryBuilder.WriteString(" AND (LOWER(title) LIKE ? OR LOWER(description) LIKE ?)")
+		pattern := "%" + escapeLike(strings.ToLower(strings.TrimSpace(searchQuery))) + "%"
+		queryBuilder.WriteString(` AND (LOWER(title) LIKE ? ESCAPE '\' OR LOWER(description) LIKE ? ESCAPE '\')`)
 		args = append(args, pattern, pattern)
 	}
 

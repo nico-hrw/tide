@@ -13,6 +13,13 @@ const withPWA = withPWAInit({
   workboxOptions: {
     runtimeCaching: [
       {
+        urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
+        handler: "NetworkOnly",
+        options: {
+          cacheName: "apis",
+        },
+      },
+      {
         urlPattern: ({ request, url }) => {
           return (
             (request.mode === "navigate" || url.pathname === "/") &&
@@ -69,8 +76,16 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             // The dev server's hot reload needs eval; the production policy stays strict.
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://media.githubusercontent.com https://objects.githubusercontent.com; font-src 'self' data:; connect-src 'self' https: http: wss: ws: *; object-src 'none'; base-uri 'self'; frame-ancestors 'none';`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://media.githubusercontent.com https://objects.githubusercontent.com; font-src 'self' data:; connect-src ${process.env.NODE_ENV === 'development' ? "'self' https: http: wss: ws:" : "'self' https: wss:"}; object-src 'none'; base-uri 'self'; frame-ancestors 'none';`,
           },
+          ...(process.env.NODE_ENV === 'production'
+            ? [
+                {
+                  key: 'Strict-Transport-Security',
+                  value: 'max-age=31536000; includeSubDomains',
+                },
+              ]
+            : []),
           {
             key: 'X-Content-Type-Options',
             value: 'nosniff',

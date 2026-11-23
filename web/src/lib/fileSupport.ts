@@ -50,6 +50,32 @@ function escapeHtml(str: string): string {
         .replace(/'/g, '&#039;');
 }
 
+export function sanitizeExportHref(raw: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    if (trimmed.startsWith('#')) return trimmed;
+    if (/^\/([^/\\]|$)/.test(trimmed)) return trimmed;
+    const normalized = trimmed.replace(/[\u0000-\u001f\u007f]/g, '');
+    if (/^(https?:|mailto:)/i.test(normalized)) {
+        return normalized;
+    }
+    return '';
+}
+
+export function sanitizeExportImageSrc(raw: string): string {
+    const trimmed = raw.trim();
+    if (!trimmed) return '';
+    if (/^\/([^/\\]|$)/.test(trimmed)) return trimmed;
+    const normalized = trimmed.replace(/[\u0000-\u001f\u007f]/g, '');
+    if (/^https?:/i.test(normalized)) {
+        return normalized;
+    }
+    if (/^data:image\/(png|jpeg|gif|webp);base64,/i.test(normalized)) {
+        return normalized;
+    }
+    return '';
+}
+
 export function exportNoteAsPdf(title: string): void {
     if (typeof window === 'undefined') return;
     const originalTitle = document.title;
@@ -101,7 +127,12 @@ export function tipTapToHtml(doc: TipTapDoc | Record<string, unknown> | unknown,
             else if (m.type === 'underline') res = `<u>${res}</u>`;
             else if (m.type === 'code') res = `<code>${res}</code>`;
             else if (m.type === 'highlight') res = `<mark style="background-color: #fef08a;">${res}</mark>`;
-            else if (m.type === 'link') res = `<a href="${escapeHtml(String(m.attrs?.href || ''))}" style="color: #2563eb; text-decoration: underline;">${res}</a>`;
+            else if (m.type === 'link') {
+                const safeHref = sanitizeExportHref(String(m.attrs?.href || ''));
+                if (safeHref) {
+                    res = `<a href="${escapeHtml(safeHref)}" style="color: #2563eb; text-decoration: underline;">${res}</a>`;
+                }
+            }
             else if (m.type === 'referenceMark') res = `<span style="color: #059669; font-weight: 500;">${res}</span>`;
         }
         return res;
@@ -116,7 +147,11 @@ export function tipTapToHtml(doc: TipTapDoc | Record<string, unknown> | unknown,
         if (node.type === 'mathBlock') return `<div style="text-align: center; margin: 12pt 0; font-family: monospace; background-color: #f8fafc; padding: 8pt; border-radius: 4px;">$$ ${escapeHtml(String(node.attrs?.latex || ''))} $$</div>`;
         if (node.type === 'inlineMath') return `<span style="font-family: monospace; background-color: #f8fafc; padding: 1px 4px; border-radius: 2px;">$${escapeHtml(String(node.attrs?.latex || ''))}$</span>`;
         if (node.type === 'horizontalRule') return `<hr style="border: none; border-top: 1px solid #e5e7eb; margin: 16pt 0;" />`;
-        if (node.type === 'image') return `<p><img src="${escapeHtml(String(node.attrs?.src || ''))}" alt="${escapeHtml(String(node.attrs?.alt || ''))}" style="max-width: 100%; height: auto; border-radius: 6px;" /></p>`;
+        if (node.type === 'image') {
+            const safeSrc = sanitizeExportImageSrc(String(node.attrs?.src || ''));
+            if (!safeSrc) return '';
+            return `<p><img src="${escapeHtml(safeSrc)}" alt="${escapeHtml(String(node.attrs?.alt || ''))}" style="max-width: 100%; height: auto; border-radius: 6px;" /></p>`;
+        }
 
         const inner = Array.isArray(node.content) ? node.content.map(renderNode).join('') : '';
         switch (node.type) {

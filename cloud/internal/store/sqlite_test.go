@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sort"
 	"strings"
 	"sync"
@@ -1012,6 +1013,303 @@ func TestQuicknoteTreeAndParentSlug(t *testing.T) {
 	_, err = store.GetQuicknoteTree(ctx, "non-existent")
 	if !errors.Is(err, ErrNotFound) {
 		t.Errorf("expected ErrNotFound for non-existent note, got %v", err)
+	}
+}
+
+func TestSecurity_DeleteFileWithLinksAndRestore(t *testing.T) {
+	store, err := NewSQLiteStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	user := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-sec-del",
+		EncryptedVault:  []byte("vault"),
+		EncryptedPepper: []byte("pepper"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	file1 := &db.File{
+		ID:         uuid.New().String(),
+		OwnerID:    user.ID,
+		Type:       db.FileTypeNote,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+	}
+	file2 := &db.File{
+		ID:         uuid.New().String(),
+		OwnerID:    user.ID,
+		Type:       db.FileTypeNote,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, file1); err != nil {
+		t.Fatalf("CreateFile file1 failed: %v", err)
+	}
+	if err := store.CreateFile(ctx, file2); err != nil {
+		t.Fatalf("CreateFile file2 failed: %v", err)
+	}
+
+	if err := store.CreateLink(ctx, db.Link{
+		SourceID:  file1.ID,
+		TargetID:  file2.ID,
+		Type:      db.LinkTypeManual,
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateLink failed: %v", err)
+	}
+
+	// Verify SoftDeleteFile sets deleted_at and RestoreFile clears it.
+	if err := store.SoftDeleteFile(ctx, file1.ID); err != nil {
+		t.Fatalf("SoftDeleteFile failed: %v", err)
+	}
+	trashed, err := store.GetFile(ctx, file1.ID)
+	if err != nil {
+		t.Fatalf("GetFile after SoftDeleteFile failed: %v", err)
+	}
+	if !strings.Contains(string(trashed.Metadata), "deleted_at") {
+		t.Fatalf("expected deleted_at in metadata after SoftDeleteFile, got %s", string(trashed.Metadata))
+	}
+
+	if err := store.RestoreFile(ctx, file1.ID); err != nil {
+		t.Fatalf("RestoreFile failed: %v", err)
+	}
+	restored, err := store.GetFile(ctx, file1.ID)
+	if err != nil {
+		t.Fatalf("GetFile after RestoreFile failed: %v", err)
+	}
+	if strings.Contains(string(restored.Metadata), "deleted_at") {
+		t.Fatalf("expected deleted_at cleared after RestoreFile, got %s", string(restored.Metadata))
+	}
+
+	// Verify DeleteFile cleans up links without FOREIGN KEY constraint failure.
+	if err := store.DeleteFile(ctx, file1.ID); err != nil {
+		t.Fatalf("DeleteFile with links failed: %v", err)
+	}
+	if _, err := store.GetFile(ctx, file1.ID); !errors.Is(err, ErrNotFound) {
+		t.Fatalf("expected ErrNotFound after DeleteFile, got %v", err)
+	}
+}
+
+func TestSecurity_ListAccessibleFilesAndGetSharePermission(t *testing.T) {
+	store, err := NewSQLiteStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	owner := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-sec-owner",
+		EncryptedVault:  []byte("vault-a"),
+		EncryptedPepper: []byte("pepper-a"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	other := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-sec-other",
+		EncryptedVault:  []byte("vault-b"),
+		EncryptedPepper: []byte("pepper-b"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, owner); err != nil {
+		t.Fatalf("CreateUser owner failed: %v", err)
+	}
+	if err := store.CreateUser(ctx, other); err != nil {
+		t.Fatalf("CreateUser other failed: %v", err)
+	}
+
+	now := time.Now().UTC()
+	publicFile := &db.File{
+		ID:         uuid.New().String(),
+		OwnerID:    owner.ID,
+		Type:       db.FileTypeNote,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "public",
+	}
+	sharedFile := &db.File{
+		ID:         uuid.New().String(),
+		OwnerID:    owner.ID,
+		Type:       db.FileTypeNote,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+	}
+	if err := store.CreateFile(ctx, publicFile); err != nil {
+		t.Fatalf("CreateFile publicFile failed: %v", err)
+	}
+	if err := store.CreateFile(ctx, sharedFile); err != nil {
+		t.Fatalf("CreateFile sharedFile failed: %v", err)
+	}
+
+	if err := store.ShareFileWithPermission(ctx, sharedFile.ID, other.ID, []byte("meta"), "edit", false); err != nil {
+		t.Fatalf("ShareFileWithPermission failed: %v", err)
+	}
+	if _, err := store.DB.ExecContext(ctx, `UPDATE file_shares SET status = 'pending' WHERE file_id = ? AND user_id = ?`, sharedFile.ID, other.ID); err != nil {
+		t.Fatalf("failed to set share pending: %v", err)
+	}
+
+	files, err := store.ListAccessibleFiles(ctx, other.ID, nil, nil, true)
+	if err != nil {
+		t.Fatalf("ListAccessibleFiles failed: %v", err)
+	}
+
+	perms := make(map[string]string, len(files))
+	for _, f := range files {
+		perms[f.ID] = f.Permission
+	}
+
+	if got, ok := perms[publicFile.ID]; !ok || got != "view" {
+		t.Errorf("expected public file permission 'view' for non-owner, got %q (present=%v)", got, ok)
+	}
+	if got, ok := perms[sharedFile.ID]; !ok || got != "view" {
+		t.Errorf("expected pending share permission 'view' in ListAccessibleFiles, got %q (present=%v)", got, ok)
+	}
+
+	sharePerm, err := store.GetSharePermission(ctx, sharedFile.ID, other.ID)
+	if err != nil {
+		t.Fatalf("GetSharePermission failed: %v", err)
+	}
+	if sharePerm != "" {
+		t.Errorf("expected empty GetSharePermission for pending share, got %q", sharePerm)
+	}
+}
+
+func TestSecurity_BlobStoreTraversalAndNamespace(t *testing.T) {
+	blobStore := NewLocalBlobStore(t.TempDir())
+	ctx := context.Background()
+
+	invalidKeys := []string{
+		"../escape",
+		"/etc/passwd",
+		"a/../b",
+		".hidden",
+		"",
+	}
+	for _, key := range invalidKeys {
+		if err := blobStore.Put(ctx, key, strings.NewReader("bad")); err == nil {
+			t.Errorf("expected Put(%q) to fail, got nil", key)
+		}
+		if _, err := blobStore.Get(ctx, key); err == nil {
+			t.Errorf("expected Get(%q) to fail, got nil", key)
+		}
+	}
+
+	validKeys := []string{
+		uuid.New().String(),
+		"quicknotes/" + uuid.New().String(),
+	}
+	for _, key := range validKeys {
+		payload := "payload-for-" + key
+		if err := blobStore.Put(ctx, key, strings.NewReader(payload)); err != nil {
+			t.Fatalf("Put(%q) failed: %v", key, err)
+		}
+		rc, err := blobStore.Get(ctx, key)
+		if err != nil {
+			t.Fatalf("Get(%q) failed: %v", key, err)
+		}
+		data, err := io.ReadAll(rc)
+		_ = rc.Close()
+		if err != nil {
+			t.Fatalf("ReadAll(%q) failed: %v", key, err)
+		}
+		if string(data) != payload {
+			t.Errorf("Get(%q) = %q, want %q", key, string(data), payload)
+		}
+	}
+}
+
+func TestSecurity_CountBlobReferencesIncludesQuicknotes(t *testing.T) {
+	store, err := NewSQLiteStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("failed to create store: %v", err)
+	}
+	defer store.Close()
+
+	ctx := context.Background()
+	user := &db.User{
+		ID:              uuid.New().String(),
+		PublicKey:       "pubkey-sec-qn",
+		EncryptedVault:  []byte("vault"),
+		EncryptedPepper: []byte("pepper"),
+		CreatedAt:       time.Now().UTC(),
+	}
+	if err := store.CreateUser(ctx, user); err != nil {
+		t.Fatalf("CreateUser failed: %v", err)
+	}
+
+	sharedBlob := "quicknotes/" + uuid.New().String()
+	fileID := uuid.New().String()
+	now := time.Now().UTC()
+	if err := store.CreateFile(ctx, &db.File{
+		ID:         fileID,
+		OwnerID:    user.ID,
+		Type:       db.FileTypeFile,
+		BlobPath:   &sharedBlob,
+		CreatedAt:  now,
+		UpdatedAt:  now,
+		Visibility: "private",
+	}); err != nil {
+		t.Fatalf("CreateFile failed: %v", err)
+	}
+
+	if _, err := store.GetOrCreateQuicknote(ctx, "sec-qn-slug", "Security QN"); err != nil {
+		t.Fatalf("GetOrCreateQuicknote failed: %v", err)
+	}
+	qfID := uuid.New().String()
+	if err := store.CreateQuicknoteFile(ctx, &QuicknoteFile{
+		ID:        qfID,
+		Slug:      "sec-qn-slug",
+		Name:      "attachment.bin",
+		MIMEType:  "application/octet-stream",
+		Size:      128,
+		BlobPath:  sharedBlob,
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("CreateQuicknoteFile failed: %v", err)
+	}
+
+	countAll, err := store.CountBlobReferencesExcluding(ctx, sharedBlob, nil)
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding(nil) failed: %v", err)
+	}
+	if countAll != 2 {
+		t.Errorf("expected 2 blob references (files + quicknote_files), got %d", countAll)
+	}
+
+	countExcl, err := store.CountBlobReferencesExcluding(ctx, sharedBlob, []string{fileID})
+	if err != nil {
+		t.Fatalf("CountBlobReferencesExcluding([fileID]) failed: %v", err)
+	}
+	if countExcl != 1 {
+		t.Errorf("expected 1 blob reference remaining in quicknote_files, got %d", countExcl)
+	}
+
+	exists, err := store.QuicknoteFileExists(ctx, qfID)
+	if err != nil {
+		t.Fatalf("QuicknoteFileExists(existing) failed: %v", err)
+	}
+	if !exists {
+		t.Errorf("expected QuicknoteFileExists(%q) to return true", qfID)
+	}
+
+	missing, err := store.QuicknoteFileExists(ctx, uuid.New().String())
+	if err != nil {
+		t.Fatalf("QuicknoteFileExists(missing) failed: %v", err)
+	}
+	if missing {
+		t.Errorf("expected QuicknoteFileExists(missing) to return false")
 	}
 }
 

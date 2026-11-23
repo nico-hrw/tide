@@ -165,4 +165,8 @@ type Store interface {
 	UpsertProfile(ctx context.Context, profile *db.Profile) error
 	SearchPublicData(ctx context.Context, query string, skipUserID string) ([]*db.SearchResult, error)
 	GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error)
+
+	// Quicknotes
+	GetTotalQuicknotesStorage(ctx context.Context) (int64, error)
+	QuicknoteFileExists(ctx context.Context, id string) (bool, error)
 }

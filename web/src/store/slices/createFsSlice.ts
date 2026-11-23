@@ -1,5 +1,5 @@
 import type { DataStoreSlice, FsSlice, DataItem, TaskItem } from './types';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, clearAllSessionData } from '@/lib/api';
 import {
     deletedTaskIds,
     loadOpenFoldersFromCache,
@@ -147,6 +147,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     rootFiles.push(...(await parseSafeJson<RawFileItem[]>(results[0].value)));
                 } else if (results[0].status === 'fulfilled' && results[0].value.status === 401) {
                     console.warn('[STATE-AUDIT] fetchDirectory | Root Files Unauthorized.');
+                    await clearAllSessionData({ callServerLogout: false });
                     if (typeof window !== 'undefined') window.location.href = '/auth';
                     return;
                 } else {
@@ -157,6 +158,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     eventsFiles.push(...(await parseSafeJson<RawFileItem[]>(results[1].value)));
                 } else if (results[1].status === 'fulfilled' && results[1].value.status === 401) {
                     console.warn('[STATE-AUDIT] fetchDirectory | Events Unauthorized.');
+                    await clearAllSessionData({ callServerLogout: false });
                     if (typeof window !== 'undefined') window.location.href = '/auth';
                     return;
                 } else {
@@ -177,10 +179,11 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     }
                 }
             } else {
-                const res = await apiFetch(`/api/v1/files?parent_id=${parentId}`);
+                const res = await apiFetch(`/api/v1/files?parent_id=${encodeURIComponent(parentId)}`);
                 if (!res.ok) {
                     if (res.status === 401) {
                         console.warn('[STATE-AUDIT] fetchDirectory | Unauthorized. Redirecting.');
+                        await clearAllSessionData({ callServerLogout: false });
                         if (typeof window !== 'undefined') window.location.href = '/auth';
                         return;
                     }

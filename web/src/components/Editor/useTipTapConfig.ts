@@ -190,6 +190,41 @@ async function handleEncryptedImagePaste(
     }
 }
 
+function isSafeExternalUrl(raw: string): boolean {
+    const trimmed = raw.trim();
+    if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) return false;
+    if ((trimmed.startsWith('/') && !trimmed.startsWith('//')) || trimmed.startsWith('#')) {
+        return true;
+    }
+    try {
+        const u = new URL(trimmed);
+        return u.protocol === 'https:' || u.protocol === 'http:' || u.protocol === 'mailto:';
+    } catch {
+        return false;
+    }
+}
+
+function sanitizeCssColor(color: unknown, fallback: string): string {
+    if (typeof color !== 'string') return fallback;
+    const trimmed = color.trim();
+    return /^(#[0-9a-fA-F]{3,8}|(rgb|rgba|hsl|hsla)\([0-9.,%\s/]+\)|[a-zA-Z]{3,20})$/.test(trimmed)
+        ? trimmed
+        : fallback;
+}
+
+function isSafeAvatarUrl(src: unknown): src is string {
+    if (typeof src !== 'string') return false;
+    const trimmed = src.trim();
+    if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) return false;
+    if (/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/.test(trimmed)) {
+        return true;
+    }
+    if (trimmed.startsWith('blob:')) {
+        return true;
+    }
+    return trimmed.startsWith('/') && !trimmed.startsWith('//') && !trimmed.startsWith('/api/');
+}
+
 export interface UseTipTapConfigProps extends UseTipTapConfigOptions {
     isSynced?: boolean;
     setInkStrokes?: (strokes: InkStroke[]) => void;
@@ -297,17 +332,22 @@ export function useTipTapConfig({
                 provider,
                 user: provider.awareness?.getLocalState()?.user || { id: 'guest', name: 'Guest', color: '#ffcc00', seed: 'guest' },
                 render: (user: Record<string, any>) => {
+                    const safeColor = sanitizeCssColor(user.color, '#a855f7');
+                    const displayName = typeof user.name === 'string' && user.name ? user.name : 'User';
+
                     const cursor = document.createElement('span');
                     cursor.classList.add('collaboration-carets__caret');
-                    cursor.setAttribute('style', `border-color: ${user.color || '#a855f7'}; pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;`);
+                    cursor.style.cssText = 'pointer-events: none !important; user-select: none !important; -webkit-user-select: none !important;';
+                    cursor.style.borderColor = safeColor;
 
                     const label = document.createElement('div');
                     label.classList.add('collaboration-carets__label');
-                    label.setAttribute('style', `background-color: ${user.color || '#a855f7'}; display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; color: white; white-space: nowrap; line-height: 1; pointer-events: none; user-select: none;`);
+                    label.style.cssText = 'display: inline-flex; align-items: center; gap: 4px; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: 500; color: white; white-space: nowrap; line-height: 1; pointer-events: none; user-select: none;';
+                    label.style.backgroundColor = safeColor;
 
-                    const seed = user.seed || user.id || 'guest';
-                    let avatarSrc = user.avatar;
-                    if (!avatarSrc || (!avatarSrc.startsWith('data:') && !avatarSrc.startsWith('blob:') && !avatarSrc.startsWith('/'))) {
+                    const seed = typeof user.seed === 'string' && user.seed ? user.seed : (typeof user.id === 'string' && user.id ? user.id : 'guest');
+                    let avatarSrc = isSafeAvatarUrl(user.avatar) ? user.avatar.trim() : '';
+                    if (!avatarSrc) {
                         try {
                             avatarSrc = createAvatar(notionists, {
                                 seed: seed || 'guest',
@@ -323,14 +363,14 @@ export function useTipTapConfig({
                     if (avatarSrc) {
                         const img = document.createElement('img');
                         img.src = avatarSrc;
-                        img.alt = user.name || 'User';
+                        img.alt = displayName;
                         img.style.cssText = 'width: 13px; height: 13px; border-radius: 50%; object-fit: cover; flex-shrink: 0;';
                         img.onerror = () => { img.style.display = 'none'; };
                         label.appendChild(img);
                     }
 
                     const nameSpan = document.createElement('span');
-                    nameSpan.textContent = user.name || 'User';
+                    nameSpan.textContent = displayName;
                     label.appendChild(nameSpan);
 
                     cursor.appendChild(label);
@@ -488,7 +528,9 @@ export function useTipTapConfig({
                 const linkHref = target.closest('a')?.getAttribute('href');
                 if (linkHref) {
                     event.preventDefault();
-                    window.open(linkHref, '_blank', 'noopener,noreferrer');
+                    if (isSafeExternalUrl(linkHref)) {
+                        window.open(linkHref, '_blank', 'noopener,noreferrer');
+                    }
                     return true;
                 }
                 return false;

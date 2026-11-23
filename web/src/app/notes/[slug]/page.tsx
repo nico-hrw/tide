@@ -550,7 +550,7 @@ export default function QuicknotePage() {
                                 >
                                     <button
                                         type="button"
-                                        onClick={() => window.open(getQuicknoteFileDownloadUrl(slug, att.id), '_blank')}
+                                        onClick={() => window.open(getQuicknoteFileDownloadUrl(slug, att.id), '_blank', 'noopener,noreferrer')}
                                         className="flex-1 flex items-center justify-between gap-1.5 min-w-0 text-left hover:text-t2-accent  transition-colors cursor-pointer"
                                         title={`Herunterladen: ${att.name}`}
                                     >
@@ -637,7 +637,7 @@ export default function QuicknotePage() {
                             initialContent={initialContent}
                             onLinkClick={({ id, type }) => {
                                 if (type === 'file') {
-                                    window.open(getQuicknoteFileDownloadUrl(slug, id), '_blank');
+                                    window.open(getQuicknoteFileDownloadUrl(slug, id), '_blank', 'noopener,noreferrer');
                                 } else {
                                     router.push('/notes/' + encodeURIComponent(id) + (rootSlug ? '?root=' + encodeURIComponent(rootSlug) : ''));
                                 }

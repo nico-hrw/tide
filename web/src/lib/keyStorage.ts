@@ -84,7 +84,12 @@ export async function storeMasterKey(key: CryptoKey): Promise<void> {
     let keyToStore = key;
 
     // If key is extractable, re-import it as non-extractable before persisting
-    if (key.extractable && typeof window !== "undefined" && window.crypto?.subtle) {
+    if (key.extractable) {
+        if (typeof window === "undefined" || !window.crypto?.subtle) {
+            const err = new Error("Cannot re-import extractable master key without WebCrypto subtle API");
+            console.error("[keyStorage]", err);
+            throw err;
+        }
         try {
             const jwk = await window.crypto.subtle.exportKey("jwk", key);
             const hashName =
@@ -99,9 +104,9 @@ export async function storeMasterKey(key: CryptoKey): Promise<void> {
                 false, // Non-extractable
                 key.usages
             );
-        } catch {
-            // If re-import fails, fallback to provided key
-            keyToStore = key;
+        } catch (err) {
+            console.error("[keyStorage] Failed to re-import master key as non-extractable:", err);
+            throw err;
         }
     }
 

@@ -9,3 +9,12 @@ yarn-debug.log*
 yarn-error.log*
 .git
 .gitignore
+*.pem
+*.key
+*.tar.gz
+coverage
+public/tide.apk
+public/downloads/
+public/sw.js*
+public/workbox-*.js
+public/swe-worker-*.js

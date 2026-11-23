@@ -16,6 +16,7 @@ import TrashPanel from "@/components/TrashPanel";
 import { CentralFolderView } from "@/components/Workspaces/CentralFolderView";
 import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
 import type { UseStyleFileReturn } from "@/components/Canvas/useStyleFile";
+import { clearAllSessionData } from "@/lib/api";
 import type { NavigationMode, NoteLayout, SettingsModalTab } from "@/store/slices/types";
 import type {
     CalendarEvent,
@@ -225,12 +226,9 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                 onOpenSocial={() => setActiveTabId("social")}
                 onOpenSettings={() => setSettingsModalOpen(true)}
                 onOpenTrash={() => setActiveTabId("trash")}
-                onLogout={() => {
+                onLogout={async () => {
                     setIsAvatarMenuOpen(false);
-                    sessionStorage.clear();
-                    localStorage.removeItem("tide_user_email");
-                    localStorage.removeItem("tide_user_id");
-                    localStorage.removeItem("tide_session_token");
+                    await clearAllSessionData({ callServerLogout: true });
                     window.location.reload();
                 }}
             />

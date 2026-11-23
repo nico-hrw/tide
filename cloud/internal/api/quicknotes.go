@@ -146,7 +146,8 @@ func (h *QuicknoteHandler) GetQuicknote(w http.ResponseWriter, r *http.Request) 
 
 	qn, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug, parentSlug)
 	if err != nil {
-		http.Error(w, "Failed to get quicknote: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to get quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to get quicknote", http.StatusInternalServerError)
 		return
 	}
 
@@ -173,7 +174,13 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 
 	var body SaveQuicknoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Invalid request body for %s: %v", slug, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if body.ParentSlug != nil && strings.TrimSpace(*body.ParentSlug) == slug {
+		http.Error(w, "parent_slug cannot equal slug", http.StatusBadRequest)
 		return
 	}
 
@@ -182,7 +189,8 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to save quicknote: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to save quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to save quicknote", http.StatusInternalServerError)
 		return
 	}
 
@@ -200,9 +208,10 @@ func (h *QuicknoteHandler) GetTree(w http.ResponseWriter, r *http.Request) {
 
 	nodes, err := h.store.GetQuicknoteTree(r.Context(), slug)
 	if err != nil {
+		log.Printf("[Quicknote] Failed to get quicknote tree for %s: %v", slug, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get quicknote tree: " + err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get quicknote tree"})
 		return
 	}
 
@@ -250,7 +259,8 @@ func (h *QuicknoteHandler) GetCRDTState(w http.ResponseWriter, r *http.Request) 
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to get CRDT state: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to get CRDT state for %s: %v", slug, err)
+		http.Error(w, "Failed to get CRDT state", http.StatusInternalServerError)
 		return
 	}
 
@@ -300,7 +310,8 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 		UpToSeqIDCamel   int64  `json:"upToSeqId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Invalid compact request body for %s: %v", slug, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -329,12 +340,28 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	qn, _, err := h.store.GetQuicknoteCRDTState(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to verify CRDT state for %s: %v", slug, err)
+		http.Error(w, "Failed to verify quicknote state", http.StatusInternalServerError)
+		return
+	}
+	if upToSeqID < qn.SnapshotSeqID {
+		http.Error(w, "up_to_seq_id cannot be less than current snapshot_seq_id", http.StatusConflict)
+		return
+	}
+
 	if err := h.store.CompactQuicknoteSnapshot(r.Context(), slug, iv, ciphertext, upToSeqID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to compact snapshot: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to compact snapshot for %s: %v", slug, err)
+		http.Error(w, "Failed to compact snapshot", http.StatusInternalServerError)
 		return
 	}
 
@@ -352,7 +379,8 @@ func (h *QuicknoteHandler) GetQuicknoteFiles(w http.ResponseWriter, r *http.Requ
 
 	files, err := h.store.GetQuicknoteFiles(r.Context(), slug)
 	if err != nil {
-		http.Error(w, "Failed to get quicknote files: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to get quicknote files for %s: %v", slug, err)
+		http.Error(w, "Failed to get quicknote files", http.StatusInternalServerError)
 		return
 	}
 
@@ -364,16 +392,32 @@ func (h *QuicknoteHandler) GetQuicknoteFiles(w http.ResponseWriter, r *http.Requ
 	_ = json.NewEncoder(w).Encode(files)
 }
 
-// UploadQuicknoteFile handles file attachment uploads with a 250MB per-note quota check.
+type quicknoteCountingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *quicknoteCountingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
+func getMaxQuicknotesTotalStorage() int64 {
+	const defaultMaxTotal = int64(2) << 30 // 2 GB
+	if envVal := strings.TrimSpace(os.Getenv("MAX_QUICKNOTES_TOTAL_STORAGE_MB")); envVal != "" {
+		if mb, err := strconv.ParseInt(envVal, 10, 64); err == nil && mb > 0 && mb <= (1<<42) {
+			return mb << 20
+		}
+	}
+	return defaultMaxTotal
+}
+
+// UploadQuicknoteFile handles file attachment uploads with per-note and global storage quota checks.
 func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
 	if slug == "" {
 		http.Error(w, "slug is required", http.StatusBadRequest)
-		return
-	}
-
-	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
-		http.Error(w, "Failed to initialize quicknote: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -382,56 +426,104 @@ func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Invalid multipart form: "+err.Error(), http.StatusBadRequest)
+	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
+		log.Printf("[Quicknote] Failed to initialize quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to initialize quicknote", http.StatusInternalServerError)
 		return
+	}
+
+	const maxPerNote = int64(250 << 20) // 250 MB
+	maxTotal := getMaxQuicknotesTotalStorage()
+
+	token := r.Header.Get("X-Access-Token")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
+	if token == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+	hasExpandToken := token != "" && ValidateStorageExpandToken(r.Context(), h.store, token)
+
+	currentNoteStorage, err := h.store.GetQuicknoteTotalStorage(r.Context(), slug)
+	if err != nil {
+		log.Printf("[Quicknote] Failed to check current storage usage for %s: %v", slug, err)
+		http.Error(w, "Failed to check current storage usage", http.StatusInternalServerError)
+		return
+	}
+
+	currentTotalStorage, err := h.store.GetTotalQuicknotesStorage(r.Context())
+	if err != nil {
+		log.Printf("[Quicknote] Failed to check global quicknotes storage usage: %v", err)
+		http.Error(w, "Failed to check global storage usage", http.StatusInternalServerError)
+		return
+	}
+
+	remaining := maxTotal - currentTotalStorage
+	if !hasExpandToken {
+		perNoteRemaining := maxPerNote - currentNoteStorage
+		if perNoteRemaining < remaining {
+			remaining = perNoteRemaining
+		}
+	}
+
+	if remaining <= 0 {
+		http.Error(w, "Storage quota exceeded", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	const multipartOverhead = int64(1 << 20)
+	maxBodyBytes := remaining + multipartOverhead
+	if r.ContentLength > maxBodyBytes {
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	respCtrl := http.NewResponseController(w)
+	_ = respCtrl.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	_ = respCtrl.SetWriteDeadline(time.Now().Add(30 * time.Minute))
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
+			return
+		}
+		log.Printf("[Quicknote] Invalid multipart form for %s: %v", slug, err)
+		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }()
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "Failed to read file from form: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Failed to read file from form for %s: %v", slug, err)
+		http.Error(w, "Failed to read file from form", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	const maxStorage = 250 * 1024 * 1024 // 250MB
-	currentStorage, err := h.store.GetQuicknoteTotalStorage(r.Context(), slug)
-	if err != nil {
-		http.Error(w, "Failed to check current storage usage: "+err.Error(), http.StatusInternalServerError)
+	if header.Size > remaining {
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
 		return
 	}
 
-	if currentStorage+header.Size > maxStorage {
-		token := r.Header.Get("X-Access-Token")
-		if token == "" {
-			token = r.FormValue("token")
-		}
-		if token == "" {
-			token = r.URL.Query().Get("token")
-		}
-		if token == "" {
-			authHeader := r.Header.Get("Authorization")
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				token = strings.TrimPrefix(authHeader, "Bearer ")
-			}
-		}
-
-		if !ValidateStorageExpandToken(r.Context(), h.store, token) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":   "storage_limit_exceeded",
-				"limit":   maxStorage,
-				"current": currentStorage,
-				"message": "Speicherlimit von 250MB pro Notiz überschritten. Bitte melde dich an oder gib ein Zugriffs-Token ein.",
-			})
-			return
-		}
-	}
-
 	fileID := uuid.New().String()
-	if err := h.blobStore.Put(r.Context(), fileID, file); err != nil {
-		http.Error(w, "Failed to store file: "+err.Error(), http.StatusInternalServerError)
+	blobPath := "quicknotes/" + fileID
+	cr := &quicknoteCountingReader{r: io.LimitReader(file, remaining+1)}
+	if err := h.blobStore.Put(r.Context(), blobPath, cr); err != nil {
+		log.Printf("[Quicknote] Failed to store file %s for %s: %v", blobPath, slug, err)
+		http.Error(w, "Failed to store file", http.StatusInternalServerError)
+		return
+	}
+	if cr.n > remaining {
+		_ = h.blobStore.Delete(r.Context(), blobPath)
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -445,14 +537,15 @@ func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Re
 		Slug:      slug,
 		Name:      filepath.Base(header.Filename),
 		MIMEType:  mimeType,
-		Size:      header.Size,
-		BlobPath:  fileID,
+		Size:      cr.n,
+		BlobPath:  blobPath,
 		CreatedAt: time.Now(),
 	}
 
 	if err := h.store.CreateQuicknoteFile(r.Context(), qf); err != nil {
-		_ = h.blobStore.Delete(r.Context(), fileID)
-		http.Error(w, "Failed to save file metadata: "+err.Error(), http.StatusInternalServerError)
+		_ = h.blobStore.Delete(r.Context(), blobPath)
+		log.Printf("[Quicknote] Failed to save file metadata for %s: %v", slug, err)
+		http.Error(w, "Failed to save file metadata", http.StatusInternalServerError)
 		return
 	}
 
@@ -487,6 +580,10 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 		return
 	}
 	defer rc.Close()
+
+	respCtrl := http.NewResponseController(w)
+	_ = respCtrl.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	_ = respCtrl.SetWriteDeadline(time.Now().Add(30 * time.Minute))
 
 	mediaType, params, err := mime.ParseMediaType(qf.MIMEType)
 	contentType := "application/octet-stream"
@@ -558,7 +655,7 @@ func (h *QuicknoteHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	// Ensure quicknote exists so foreign key references in quicknote_wal succeed
 	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
 		log.Printf("[Quicknote WS] Failed to get or create quicknote for slug %s: %v", slug, err)
-		http.Error(w, "Failed to initialize quicknote: "+err.Error(), http.StatusInternalServerError)
+		http.Error(w, "Failed to initialize quicknote", http.StatusInternalServerError)
 		return
 	}
 

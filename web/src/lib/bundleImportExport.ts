@@ -48,6 +48,100 @@ export interface ImportResult {
     error?: string;
 }
 
+const MAX_IMPORT_JSON_DEPTH = 50;
+const DANGEROUS_PROTO_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const RASTER_DATA_IMAGE_RE = /^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/=]+$/i;
+const SAFE_CSS_COLOR_RE = /^(?:#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})|(?:rgb|hsl)a?\(\s*[0-9.%\s,/+-]+\)|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]{1,32})$/;
+const SAFE_FONT_SIZE_RE = /^(?:[0-9]+(?:\.[0-9]+)?(?:px|rem|em|pt|%)|(?:xx?-)?(?:small|large)|medium|smaller|larger|inherit)$/;
+
+function isPlainRecord(val: unknown): val is Record<string, unknown> {
+    return typeof val === 'object' && val !== null && !Array.isArray(val);
+}
+
+function isSafeLinkHref(raw: unknown): raw is string {
+    if (typeof raw !== 'string') return false;
+    const trimmed = raw.trim();
+    if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) return false;
+    if (trimmed.startsWith('#')) return true;
+    if (/^\/(?![/\\])/.test(trimmed)) return true;
+    try {
+        const parsed = new URL(trimmed);
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:' || parsed.protocol === 'mailto:';
+    } catch {
+        return false;
+    }
+}
+
+function isSafeImageSrc(raw: unknown): raw is string {
+    if (typeof raw !== 'string') return false;
+    const trimmed = raw.trim();
+    if (!trimmed || /[\u0000-\u001F\u007F]/.test(trimmed)) return false;
+    if (/^\/(?![/\\])/.test(trimmed)) return true;
+    if (RASTER_DATA_IMAGE_RE.test(trimmed)) return true;
+    try {
+        const parsed = new URL(trimmed);
+        return parsed.protocol === 'https:' || parsed.protocol === 'http:' || parsed.protocol === 'blob:';
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * Recursively sanitizes imported JSON (e.g. TipTap document ASTs) by stripping
+ * prototype-pollution keys and unsafe link/image URLs or style attributes.
+ */
+export function sanitizeImportedJson(value: unknown, depth = 0): unknown {
+    if (value === null || typeof value !== 'object') {
+        return value;
+    }
+    if (depth > MAX_IMPORT_JSON_DEPTH) {
+        return null;
+    }
+    if (Array.isArray(value)) {
+        return value.map((item) => sanitizeImportedJson(item, depth + 1));
+    }
+
+    const source = value as Record<string, unknown>;
+    const clean: Record<string, unknown> = {};
+    for (const key of Object.keys(source)) {
+        if (DANGEROUS_PROTO_KEYS.has(key)) continue;
+        clean[key] = sanitizeImportedJson(source[key], depth + 1);
+    }
+
+    if (clean.type === 'link' && isPlainRecord(clean.attrs)) {
+        if ('href' in clean.attrs && !isSafeLinkHref(clean.attrs.href)) {
+            delete clean.attrs.href;
+        }
+    }
+
+    if (clean.type === 'image' && isPlainRecord(clean.attrs)) {
+        if ('src' in clean.attrs && !isSafeImageSrc(clean.attrs.src)) {
+            delete clean.attrs.src;
+        }
+    }
+
+    if ((clean.type === 'highlight' || clean.type === 'textStyle') && isPlainRecord(clean.attrs)) {
+        if ('color' in clean.attrs) {
+            const color = clean.attrs.color;
+            if (typeof color !== 'string' || !SAFE_CSS_COLOR_RE.test(color.trim())) {
+                delete clean.attrs.color;
+            } else {
+                clean.attrs.color = color.trim();
+            }
+        }
+        if ('fontSize' in clean.attrs) {
+            const fontSize = clean.attrs.fontSize;
+            if (typeof fontSize !== 'string' || !SAFE_FONT_SIZE_RE.test(fontSize.trim())) {
+                delete clean.attrs.fontSize;
+            } else {
+                clean.attrs.fontSize = fontSize.trim();
+            }
+        }
+    }
+
+    return clean;
+}
+
 /**
  * Traverses a TipTap document AST and updates all internal references (event mentions,
  * task mentions, note backlink marks, and links) according to the provided idMap.
@@ -282,10 +376,10 @@ export async function importTideBundle(
                 ? idMap.get(n.parent_id)! 
                 : targetParentFolderId;
 
-            // Rewrite content AST
-            let docContent = n.content;
+            // Rewrite and sanitize content AST
+            let docContent: unknown = n.content;
             if (docContent && typeof docContent === 'object') {
-                docContent = rewriteTipTapReferences(docContent, idMap);
+                docContent = rewriteTipTapReferences(sanitizeImportedJson(docContent), idMap);
             } else if (typeof docContent === 'string') {
                 docContent = markdownToTipTap(docContent);
                 docContent = rewriteTipTapReferences(docContent, idMap);
@@ -295,6 +389,7 @@ export async function importTideBundle(
                     content: [{ type: 'paragraph', attrs: { blockId: crypto.randomUUID() }, content: [] }]
                 };
             }
+            docContent = sanitizeImportedJson(docContent);
 
             const newNoteId = await store.createNote(n.title, docContent, parentId);
             idMap.set(n.id, newNoteId);
@@ -384,7 +479,7 @@ export async function exportTideBundle(
             let content = null;
             try {
                 // If content is cached or we can fetch the blob
-                const res = await apiFetch(`/api/v1/files/${item.id}/download`);
+                const res = await apiFetch(`/api/v1/files/${encodeURIComponent(item.id)}/download`);
                 if (res.ok) {
                     const ciphertext = await res.text();
                     const { decryptFileV2 } = await import('@/lib/cryptoV2');

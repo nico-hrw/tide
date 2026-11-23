@@ -56,7 +56,7 @@ export function createEncryptedSingletonStorage<T>(
     };
 
     async function findFile(keys: SingletonKeys): Promise<SingletonFileRecord | null> {
-        const res = await apiFetch(`/api/v1/files?type=${type}&recursive=true`);
+        const res = await apiFetch(`/api/v1/files?type=${encodeURIComponent(type)}&recursive=true`);
         if (!res.ok) throw new Error(`[${label}] could not list files`);
         const files: SingletonFileRecord[] = await res.json().catch(() => []);
         return files.find((f) => f.type === type && (f.owner_id === undefined || f.owner_id === keys.userId)) ?? null;
@@ -79,7 +79,7 @@ export function createEncryptedSingletonStorage<T>(
         });
         if (!res.ok) return null;
         const created: { id: string } = await res.json();
-        const upRes = await apiFetch(`/api/v1/files/${created.id}/upload`, { method: 'POST', body: ciphertext });
+        const upRes = await apiFetch(`/api/v1/files/${encodeURIComponent(created.id)}/upload`, { method: 'POST', body: ciphertext });
         if (!upRes.ok) return null;
         return created.id;
     }
@@ -103,7 +103,7 @@ export function createEncryptedSingletonStorage<T>(
                 return; // the new file already holds this content
             }
         }
-        const res = await apiFetch(`/api/v1/files/${fileId}`, {
+        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content_ciphertext: enc.content_ciphertext, metadata: enc.metadata, access_keys: accessKeys }),
@@ -124,7 +124,7 @@ export function createEncryptedSingletonStorage<T>(
             fileOwnerId = file.owner_id ?? keys.userId;
             let ciphertext = file.content_ciphertext;
             if (!ciphertext) {
-                const dlRes = await apiFetch(`/api/v1/files/${file.id}/download`);
+                const dlRes = await apiFetch(`/api/v1/files/${encodeURIComponent(file.id)}/download`);
                 if (!dlRes.ok) {
                     if (dlRes.status === 404 && !file.blob_path) return opts.empty();
                     throw new Error(`Failed to download ${opts.downloadName ?? opts.blobName} blob: ${dlRes.status}`);

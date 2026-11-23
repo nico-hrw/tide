@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strings"
@@ -42,8 +43,8 @@ type DevLoginResponse struct {
 
 // DevLogin provides quick development login endpoints that bypass OTP and manual PIN entry.
 func (h *AuthHandler) DevLogin(w http.ResponseWriter, r *http.Request) {
-	if os.Getenv("ENV") == "production" && os.Getenv("DEV_MODE") != "true" {
-		http.Error(w, "Dev login is disabled in production", http.StatusForbidden)
+	if strings.EqualFold(os.Getenv("ENV"), "production") || !strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
+		http.Error(w, "Dev login is disabled", http.StatusForbidden)
 		return
 	}
 
@@ -202,14 +203,16 @@ func (h *AuthHandler) DevLogin(w http.ResponseWriter, r *http.Request) {
 		if getErr == nil && existingUser != nil {
 			newUser = existingUser
 		} else {
-			http.Error(w, fmt.Sprintf("Failed to create dev user: %v", err), http.StatusInternalServerError)
+			log.Printf("DevLogin: Failed to create dev user: %v (getErr: %v)", err, getErr)
+			http.Error(w, "Failed to create dev user", http.StatusInternalServerError)
 			return
 		}
 	}
 
 	tokenString, err := h.issueDevTokenAndCookie(w, r, newUser.ID)
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Failed to issue token: %v", err), http.StatusInternalServerError)
+		log.Printf("DevLogin: Failed to issue token: %v", err)
+		http.Error(w, "Failed to issue token", http.StatusInternalServerError)
 		return
 	}
 
@@ -276,7 +279,7 @@ func (h *AuthHandler) issueDevTokenAndCookie(w http.ResponseWriter, r *http.Requ
 		return "", err
 	}
 
-	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" || os.Getenv("ENV") == "production"
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" || strings.EqualFold(os.Getenv("ENV"), "production")
 	http.SetCookie(w, &http.Cookie{
 		Name:     "tide_session",
 		Value:    tokenString,

@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -42,10 +43,8 @@ func checkOrigin(r *http.Request) bool {
 		return true
 	}
 
-	// 2. Default local development origins & production domains
+	// 2. Default production domains
 	trustedOrigins := []string{
-		"http://localhost:3000", "http://localhost:5173", "http://localhost:8080",
-		"http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:8080",
 		"https://go-tide.app", "https://www.go-tide.app",
 		"https://hrw.rocks", "https://www.hrw.rocks", "https://track.hrw.rocks",
 	}
@@ -55,9 +54,11 @@ func checkOrigin(r *http.Request) bool {
 		}
 	}
 
-	// Also allow arbitrary localhost and 127.0.0.1 dev ports
-	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
-		return true
+	// Also allow arbitrary localhost and 127.0.0.1 dev ports (non-production only)
+	if !strings.EqualFold(os.Getenv("ENV"), "production") {
+		if u, err := url.Parse(origin); err == nil && u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
+			return true
+		}
 	}
 
 	// 3. Configured APP_URL
@@ -496,7 +497,7 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 						return nil, http.ErrAbortHandler
 					}
 					return []byte(jwtKeyStr), nil
-				})
+				}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
 				if err == nil && token.Valid {
 					if claims, ok := token.Claims.(jwt.MapClaims); ok {
 						if sub, okSub := claims["sub"].(string); okSub && sub != "" {

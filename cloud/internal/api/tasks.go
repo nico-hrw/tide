@@ -71,6 +71,9 @@ func (h *TaskHandler) CreateTask(w http.ResponseWriter, r *http.Request) {
 	taskID := req.ID
 	if taskID == "" {
 		taskID = uuid.New().String()
+	} else if _, err := uuid.Parse(taskID); err != nil {
+		http.Error(w, "Invalid task ID: must be a valid UUID", http.StatusBadRequest)
+		return
 	}
 
 	task := &db.Task{

@@ -24,7 +24,7 @@ export async function performMessengerShare(
 
     try {
         // 1. Fetch file to get current access_keys
-        const res = await apiFetch(`/api/v1/files/${fileId}`);
+        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`);
         if (!res.ok) throw new Error("Failed to fetch file");
         const file = await res.json().catch(() => null);
         if (!file) throw new Error("Failed to parse file metadata");
@@ -94,7 +94,7 @@ export async function performMessengerShare(
         );
         
         // Push the sharing update to the backend.
-        const shareRes = await apiFetch(`/api/v1/files/${fileId}/share`, {
+        const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/share`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -116,7 +116,7 @@ export async function performMessengerShare(
         if (dependencyFileIds && dependencyFileIds.length > 0) {
             for (const depId of dependencyFileIds) {
                 try {
-                    const depRes = await apiFetch(`/api/v1/files/${depId}`);
+                    const depRes = await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}`);
                     if (!depRes.ok) continue;
                     const depFile = await depRes.json().catch(() => null);
                     if (!depFile) continue;
@@ -135,7 +135,7 @@ export async function performMessengerShare(
                         recipientPubKey
                     );
 
-                    await apiFetch(`/api/v1/files/${depId}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -232,7 +232,7 @@ export async function performFolderShare(
         recipientPubKey
     );
 
-    const shareRes = await apiFetch(`/api/v1/files/${folderId}/share`, {
+    const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(folderId)}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -289,7 +289,7 @@ export async function performFolderShare(
                         { title: childTitle },
                         recipientPubKey
                     );
-                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -320,7 +320,7 @@ export async function performFolderShare(
 
                     const childSecuredMeta = await cryptoLib.encryptMetadata(childMetaObj, recipientPubKey);
 
-                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({

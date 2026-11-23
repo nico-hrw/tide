@@ -54,6 +54,32 @@ export async function encryptAssetWithNewBEK(blob: Blob): Promise<EncryptedAsset
     };
 }
 
+const SAFE_BLOB_MIME_TYPES = new Set<string>([
+    "image/png",
+    "image/jpeg",
+    "image/gif",
+    "image/webp",
+    "image/avif",
+    "image/bmp",
+    "image/x-icon",
+    "application/pdf",
+    "text/plain",
+    "audio/mpeg",
+    "audio/wav",
+    "audio/ogg",
+    "audio/webm",
+    "audio/mp4",
+    "video/mp4",
+    "video/webm",
+    "video/ogg",
+]);
+
+export function sanitizeBlobMimeType(mimeType?: string): string {
+    if (!mimeType) return "application/octet-stream";
+    const normalized = mimeType.trim().toLowerCase().split(";")[0].trim();
+    return SAFE_BLOB_MIME_TYPES.has(normalized) ? normalized : "application/octet-stream";
+}
+
 /**
  * Decrypts an encrypted asset buffer using its BEK and IV, returning a Blob with the original MIME type.
  */
@@ -83,5 +109,5 @@ export async function decryptAssetWithBEK(
         encryptedBuffer
     );
 
-    return new Blob([decryptedBuffer], { type: mimeType || "application/octet-stream" });
+    return new Blob([decryptedBuffer], { type: sanitizeBlobMimeType(mimeType) });
 }

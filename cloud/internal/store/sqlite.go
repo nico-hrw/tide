@@ -29,7 +29,7 @@ type SQLiteStore struct {
 
 // NewSQLiteStore initializes the SQLite database and runs migrations.
 func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
-	if err := os.MkdirAll(dataDir, 0755); err != nil {
+	if err := os.MkdirAll(dataDir, 0700); err != nil {
 		return nil, fmt.Errorf("failed to create data dir: %w", err)
 	}
 
@@ -419,7 +419,8 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 		pin_hash TEXT,
 		login_code TEXT,
 		username TEXT,
-		created_at DATETIME NOT NULL
+		created_at DATETIME NOT NULL,
+		is_verified INTEGER NOT NULL DEFAULT 0
 	);`
 	if _, err := tx.Exec(newTable); err != nil {
 		return err
@@ -1180,10 +1181,11 @@ func (s *SQLiteStore) UpdateFileWithOCC(ctx context.Context, file *db.File, expe
 func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 	// Find all descendant IDs including the file itself using a recursive CTE query
 	queryDescendants := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		SELECT id FROM descendants
 	`
@@ -1206,7 +1208,7 @@ func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 		return ErrNotFound
 	}
 
-	// Delete all descendants from files, file_shares, and file_backups tables in a transaction
+	// Delete all descendants from dependent tables and files table in a transaction
 	tx, err := s.DB.BeginTx(ctx, nil)
 	if err != nil {
 		return err
@@ -1222,6 +1224,14 @@ func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 		if err != nil {
 			return err
 		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM links WHERE source_id = ? OR target_id = ?`, dID, dID)
+		if err != nil {
+			return err
+		}
+		_, err = tx.ExecContext(ctx, `DELETE FROM yjs_wal WHERE file_id = ?`, dID)
+		if err != nil {
+			return err
+		}
 		_, err = tx.ExecContext(ctx, `DELETE FROM files WHERE id = ?`, dID)
 		if err != nil {
 			return err
@@ -1234,14 +1244,15 @@ func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
 // GetFileBlobPaths returns all non-empty blob paths in the file hierarchy starting from rootFileID.
 func (s *SQLiteStore) GetFileBlobPaths(ctx context.Context, rootFileID string) ([]string, error) {
 	query := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		SELECT DISTINCT blob_path 
 		FROM files 
-		WHERE id IN descendants AND blob_path IS NOT NULL AND blob_path != ''
+		WHERE id IN (SELECT id FROM descendants) AND blob_path IS NOT NULL AND blob_path != ''
 	`
 	rows, err := s.readDB().QueryContext(ctx, query, rootFileID)
 	if err != nil {
@@ -1266,24 +1277,28 @@ func (s *SQLiteStore) GetFileBlobPaths(ctx context.Context, rootFileID string) (
 	return blobPaths, nil
 }
 
-// CountBlobReferencesExcluding counts how many files in files table still reference blobPath outside excludedFileIDs.
+// CountBlobReferencesExcluding counts how many files in files and quicknote_files tables still reference blobPath outside excludedFileIDs.
 func (s *SQLiteStore) CountBlobReferencesExcluding(ctx context.Context, blobPath string, excludedFileIDs []string) (int, error) {
 	if len(excludedFileIDs) == 0 {
 		var count int
-		query := `SELECT COUNT(1) FROM files WHERE blob_path = ?`
-		err := s.readDB().QueryRowContext(ctx, query, blobPath).Scan(&count)
+		query := `SELECT (SELECT COUNT(1) FROM files WHERE blob_path = ?) + (SELECT COUNT(1) FROM quicknote_files WHERE blob_path = ?)`
+		err := s.readDB().QueryRowContext(ctx, query, blobPath, blobPath).Scan(&count)
 		return count, err
 	}
 
 	placeholders := make([]string, len(excludedFileIDs))
-	args := make([]interface{}, 0, 1+len(excludedFileIDs))
+	args := make([]interface{}, 0, 2+len(excludedFileIDs))
 	args = append(args, blobPath)
 	for i, id := range excludedFileIDs {
 		placeholders[i] = "?"
 		args = append(args, id)
 	}
+	args = append(args, blobPath)
 
-	query := fmt.Sprintf(`SELECT COUNT(1) FROM files WHERE blob_path = ? AND id NOT IN (%s)`, strings.Join(placeholders, ","))
+	query := fmt.Sprintf(
+		`SELECT (SELECT COUNT(1) FROM files WHERE blob_path = ? AND id NOT IN (%s)) + (SELECT COUNT(1) FROM quicknote_files WHERE blob_path = ?)`,
+		strings.Join(placeholders, ","),
+	)
 	var count int
 	err := s.readDB().QueryRowContext(ctx, query, args...).Scan(&count)
 	return count, err
@@ -1300,10 +1315,11 @@ func (s *SQLiteStore) SetVisibilityRecursive(ctx context.Context, folderID strin
 	// 2. Update their visibility
 	// We can do this in a single query if SQLite version is recent (3.8.3+)
 	query := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		UPDATE files 
 		SET visibility = ?, updated_at = ?
@@ -1329,10 +1345,11 @@ func (s *SQLiteStore) RemoveShare(ctx context.Context, fileID, userID string) er
 
 	// Clean up access_keys recursively so they lose V2 access
 	cleanQuery := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		UPDATE files
 		SET access_keys = json_remove(COALESCE(NULLIF(access_keys, ''), '{}'), '$."' || ? || '"')
@@ -1383,10 +1400,10 @@ func (s *SQLiteStore) UpdateSharePermission(ctx context.Context, fileID string, 
 	return nil
 }
 
-// GetSharePermission returns the permission level for a given (file, user) share, or empty if no share.
+// GetSharePermission returns the permission level for a given (file, user) share, or empty if no accepted share.
 func (s *SQLiteStore) GetSharePermission(ctx context.Context, fileID string, userID string) (string, error) {
 	var permission string
-	err := s.readDB().QueryRowContext(ctx, `SELECT permission FROM file_shares WHERE file_id = ? AND user_id = ?`, fileID, userID).Scan(&permission)
+	err := s.readDB().QueryRowContext(ctx, `SELECT permission FROM file_shares WHERE file_id = ? AND user_id = ? AND status = 'accepted'`, fileID, userID).Scan(&permission)
 	if err == sql.ErrNoRows {
 		return "", nil
 	}
@@ -1452,10 +1469,11 @@ func (s *SQLiteStore) AcceptShare(ctx context.Context, fileID string, userID str
 
 	// Auto-accept children shares recursively if this is a folder
 	queryChildren := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE parent_id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE parent_id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		UPDATE file_shares 
 		SET status = 'accepted' 
@@ -1472,7 +1490,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 
 	typeFilter := ""
 	args := []interface{}{}
-	args = append(args, viewerID) // for COALESCE join
+	args = append(args, viewerID) // for permission CASE owner check
 
 	if filterType != nil {
 		typeFilter = " AND f.type = ? "
@@ -1484,7 +1502,11 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(fs.permission, 'edit') as permission,
+			       CASE
+			           WHEN f.owner_id = ? THEN 'owner'
+			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
+			           ELSE 'view'
+			       END as permission,
 			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
@@ -1500,7 +1522,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 		`
 
-		args = append(args, viewerID, viewerID, viewerID)
+		args = append(args, viewerID, viewerID, viewerID, viewerID)
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
@@ -1510,7 +1532,11 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(fs.permission, 'edit') as permission,
+			       CASE
+			           WHEN f.owner_id = ? THEN 'owner'
+			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
+			           ELSE 'view'
+			       END as permission,
 			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
@@ -1525,7 +1551,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 		`
-		args = append(args, *parentID)
+		args = append(args, viewerID, *parentID)
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
@@ -1539,7 +1565,11 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(fs.permission, 'edit') as permission,
+			       CASE
+			           WHEN f.owner_id = ? THEN 'owner'
+			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
+			           ELSE 'view'
+			       END as permission,
 			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
@@ -1549,14 +1579,18 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
-			rows, err = s.readDB().QueryContext(ctx, query, viewerID, *filterType, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
 			// Normal folder listing
 			query := `
 			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
 			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
 			       COALESCE(fs.status, 'owner') as share_status,
-			       COALESCE(fs.permission, 'edit') as permission,
+			       CASE
+			           WHEN f.owner_id = ? THEN 'owner'
+			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
+			           ELSE 'view'
+			       END as permission,
 			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
@@ -1569,7 +1603,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
-			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID, viewerID)
 		}
 	}
 
@@ -2370,6 +2404,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 			OR (? = 1 AND COALESCE(f.visibility, 'private') = 'contacts')
 			OR f.owner_id = ?
 		)
+		AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 	`
 	isContactVal := 0
 	if isContact {
@@ -2412,8 +2447,15 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 	return results, nil
 }
 
+func escapeLike(s string) string {
+	s = strings.ReplaceAll(s, `\`, `\\`)
+	s = strings.ReplaceAll(s, `%`, `\%`)
+	s = strings.ReplaceAll(s, `_`, `\_`)
+	return s
+}
+
 func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, skipUserID string) ([]*db.SearchResult, error) {
-	likeQuery := "%" + searchQuery + "%"
+	likeQuery := "%" + escapeLike(searchQuery) + "%"
 
 	// Create blind index hash for exact email search
 	h := sha256.Sum256([]byte(searchQuery))
@@ -2424,7 +2466,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 		SELECT 'profile' as type, u.id, COALESCE(u.username, '') as username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style, COALESCE(p.avatar_salt, '') as avatar_salt
 		FROM users u
 		LEFT JOIN profiles p ON p.user_id = u.id
-		WHERE (COALESCE(u.username, '') LIKE ? OR u.email_blind_index = ? OR COALESCE(p.title, '') LIKE ?) AND u.id != ?
+		WHERE (COALESCE(u.username, '') LIKE ? ESCAPE '\' OR u.email_blind_index = ? OR COALESCE(p.title, '') LIKE ? ESCAPE '\') AND u.id != ?
 		
 		UNION ALL
 		
@@ -2432,7 +2474,7 @@ func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, 
 		FROM files f
 		JOIN users u ON f.owner_id = u.id
 		WHERE (json_extract(f.metadata, '$.is_public') = 1 OR json_extract(f.metadata, '$.is_public') = 'true' OR json_extract(f.metadata, '$.is_public') = true)
-		AND json_extract(f.metadata, '$.title') LIKE ?
+		AND json_extract(f.metadata, '$.title') LIKE ? ESCAPE '\'
 		AND u.id != ?
 	`
 
@@ -2512,10 +2554,11 @@ func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) er
 func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
 	nowStr := time.Now().Format(time.RFC3339)
 	query := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		UPDATE files 
 		SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at', ?), updated_at = ?
@@ -2527,16 +2570,17 @@ func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
 
 func (s *SQLiteStore) RestoreFile(ctx context.Context, id string) error {
 	query := `
-		WITH RECURSIVE descendants(id) AS (
-			SELECT id FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, lvl) AS (
+			SELECT id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id FROM files f JOIN descendants d ON f.parent_id = d.id
+			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100
 		)
 		UPDATE files 
 		SET metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at'), updated_at = ?
 		WHERE id IN (SELECT id FROM descendants)
 	`
-	_, err := s.DB.ExecContext(ctx, query, time.Now(), id)
+	_, err := s.DB.ExecContext(ctx, query, id, time.Now())
 	return err
 }
 
@@ -3199,6 +3243,28 @@ func (s *SQLiteStore) GetQuicknoteTotalStorage(ctx context.Context, slug string)
 		return 0, err
 	}
 	return total, nil
+}
+
+// GetTotalQuicknotesStorage returns the total storage in bytes used across all quicknote files.
+func (s *SQLiteStore) GetTotalQuicknotesStorage(ctx context.Context) (int64, error) {
+	query := `SELECT COALESCE(SUM(size), 0) FROM quicknote_files`
+	var total int64
+	err := s.readDB().QueryRowContext(ctx, query).Scan(&total)
+	if err != nil {
+		return 0, err
+	}
+	return total, nil
+}
+
+// QuicknoteFileExists returns true if a quicknote file with the given ID exists.
+func (s *SQLiteStore) QuicknoteFileExists(ctx context.Context, id string) (bool, error) {
+	query := `SELECT COUNT(1) FROM quicknote_files WHERE id = ?`
+	var count int
+	err := s.readDB().QueryRowContext(ctx, query, id).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 // GetFileTotalStorage returns the total storage in bytes used by child files of a parent file.

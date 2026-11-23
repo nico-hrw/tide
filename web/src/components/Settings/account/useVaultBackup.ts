@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { getMasterKey, storeMasterKey, clearMasterKey, purgeLegacyKeys, getEncryptedVault, storeEncryptedVault } from '@/lib/keyStorage';
+import { clearAllSessionData } from '@/lib/api';
+import { getMasterKey, storeMasterKey, purgeLegacyKeys, getEncryptedVault, storeEncryptedVault } from '@/lib/keyStorage';
 import { useT } from '../useT';
 
 export interface VaultUserProfile {
@@ -167,10 +168,9 @@ export function useVaultBackup(userProfile?: VaultUserProfile, onLogout?: () => 
 
     const logout = async () => {
         try {
-            await clearMasterKey();
-            purgeLegacyKeys();
+            await clearAllSessionData({ callServerLogout: true });
         } catch (err) {
-            console.error('Error clearing master key:', err);
+            console.error('Error clearing session data:', err);
         }
         onLogout?.();
     };

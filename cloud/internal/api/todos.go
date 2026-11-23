@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -192,22 +193,36 @@ func (h *TodosHandler) RequireScopes(allowedScopes ...string) func(http.HandlerF
 
 				// Otherwise, validate as JWT
 				jwtKeyStr := os.Getenv("JWT_SECRET")
-				if jwtKeyStr != "" {
-					jwtKey := []byte(jwtKeyStr)
-					token, err := jwt.Parse(jwtTokenString, func(t *jwt.Token) (interface{}, error) {
+				if jwtKeyStr == "" {
+					log.Println("[SECURITY ERROR] JWT_SECRET environment variable is not set")
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusInternalServerError)
+					json.NewEncoder(w).Encode(map[string]string{
+						"error":   "Server Error",
+						"message": "JWT secret is not configured",
+					})
+					return
+				}
+
+				jwtKey := []byte(jwtKeyStr)
+				token, err := jwt.Parse(
+					jwtTokenString,
+					func(t *jwt.Token) (interface{}, error) {
 						if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 							return nil, http.ErrAbortHandler
 						}
 						return jwtKey, nil
-					})
+					},
+					jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+					jwt.WithExpirationRequired(),
+				)
 
-					if err == nil && token != nil && token.Valid {
-						if claims, ok := token.Claims.(jwt.MapClaims); ok {
-							if userID, ok := claims["sub"].(string); ok && userID != "" {
-								ctx := context.WithValue(r.Context(), "user_id", userID)
-								next(w, r.WithContext(ctx))
-								return
-							}
+				if err == nil && token != nil && token.Valid {
+					if claims, ok := token.Claims.(jwt.MapClaims); ok {
+						if userID, ok := claims["sub"].(string); ok && userID != "" {
+							ctx := context.WithValue(r.Context(), "user_id", userID)
+							next(w, r.WithContext(ctx))
+							return
 						}
 					}
 				}
@@ -268,6 +283,9 @@ func (h *TodosHandler) List(w http.ResponseWriter, r *http.Request) {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			limit = l
 		}
+	}
+	if limit > 500 {
+		limit = 500
 	}
 
 	offset := 0
