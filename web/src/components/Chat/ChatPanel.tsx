@@ -115,6 +115,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     const [partner, setPartner] = useState<UserBasic | null>(null);
     const [messages, setMessages] = useState<Message[]>([]);
     const [newMessage, setNewMessage] = useState("");
+    const [sendError, setSendError] = useState<string | null>(null);
 
     // Search State
     const [searchEmail, setSearchEmail] = useState("");
@@ -690,6 +691,8 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     const { push: islandPush } = useIslandStore();
     const contactsRef = useRef<Contact[]>([]);
     useEffect(() => { contactsRef.current = contacts; }, [contacts]);
+    const privateKeyRef = useRef<CryptoKey | null>(privateKey);
+    useEffect(() => { privateKeyRef.current = privateKey; }, [privateKey]);
 
     // Prevent double-pushing same incoming message from multiple SSE events connecting/disconnecting
     const pushedMessageIdsRef = useRef<Set<string>>(new Set());
@@ -700,7 +703,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         // Bypass Next.js proxy rewrite by calling the backend URL directly to prevent Next.js proxy timeout (ECONNRESET)
         const eventSource = new EventSource(`${getApiBase()}/api/v1/events?user_id=${myId}&token=${token}`);
 
-        eventSource.onmessage = (event) => {
+        eventSource.onmessage = async (event) => {
             try {
                 const data = JSON.parse(event.data);
                 if (data.type === 'new_message' && data.message) {
@@ -726,31 +729,48 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                         const senderContact = contactsRef.current.find(c => c.partner.id === msg.sender_id);
                         const senderName = senderContact?.partner?.username || senderContact?.partner?.email || 'New message';
 
-                        let shareData = null;
+                        let resolvedContent: string = msg.content;
+                        if (isE2EEMessage(msg.content)) {
+                            const activePrivateKey = privateKeyRef.current ?? useDataStore.getState().privateKey;
+                            const effectiveMyId = myId || useDataStore.getState().myId || "";
+                            resolvedContent = await decryptChatMessage(msg.content, effectiveMyId, activePrivateKey);
+                            if (msg.id && resolvedContent !== msg.content && !resolvedContent.startsWith("[Verschlüsselte Nachricht")) {
+                                setDecryptedTexts(prev => ({ ...prev, [msg.id]: resolvedContent }));
+                            }
+                        }
+
+                        interface ShareNotificationPayload {
+                            type: string;
+                            file_id: string;
+                            file_name?: string;
+                            file_type?: string;
+                        }
+                        let shareData: ShareNotificationPayload | null = null;
                         let previewText: string | undefined;
                         try {
-                            const parsed = JSON.parse(msg.content);
+                            const parsed = JSON.parse(resolvedContent);
                             if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
-                                shareData = parsed;
+                                shareData = parsed as ShareNotificationPayload;
                             } else if (parsed?.type) {
                                 previewText = undefined; // System message, no preview
                             }
                         } catch {
-                            previewText = msg.content?.slice(0, 100);
+                            previewText = resolvedContent?.slice(0, 100);
                         }
 
                         if (shareData) {
+                            const targetShare = shareData;
                             islandPush({
                                 type: 'interactive_card',
                                 payload: {
-                                    fileName: shareData.file_name || 'New Share',
-                                    fileType: shareData.file_type || 'file',
+                                    fileName: targetShare.file_name || 'New Share',
+                                    fileType: targetShare.file_type || 'file',
                                     senderName: senderName,
                                     onAction: () => {
-                                        if (shareData.file_type === 'event') {
+                                        if (targetShare.file_type === 'event') {
                                             if (onOpenCalendar) onOpenCalendar();
                                         } else {
-                                            if (onOpenFile) onOpenFile(shareData.file_id, shareData.file_name);
+                                            if (onOpenFile) onOpenFile(targetShare.file_id, targetShare.file_name || 'Shared file');
                                         }
                                     }
                                 }
@@ -787,13 +807,25 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
         };
     }, [myId]);
 
+    const importPublicKey = async (spkiBase64: string): Promise<CryptoKey> => {
+        return window.crypto.subtle.importKey(
+            "spki",
+            cryptoLib.base64ToArrayBuffer(spkiBase64),
+            { name: "RSA-OAEP", hash: "SHA-256" },
+            true,
+            ["encrypt"]
+        );
+    };
+
     const handleSend = async () => {
         if (!newMessage.trim() || !partner) return;
         const textToSend = newMessage.trim();
-        try {
-            let finalContent = textToSend;
+        setSendError(null);
 
-            // Encrypt message with E2EE if keys are available
+        try {
+            const effectiveMyId = myId || useDataStore.getState().myId || "";
+            let finalContent: string;
+
             try {
                 let recipientPubKeySpki = partner.public_key;
                 if (!recipientPubKeySpki) {
@@ -807,28 +839,36 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                     }
                 }
 
-                const myPubKeyStr = sessionStorage.getItem("tide_user_public_key");
-                if (recipientPubKeySpki && myPubKeyStr) {
-                    const myPubKey = await window.crypto.subtle.importKey(
-                        "spki",
-                        cryptoLib.base64ToArrayBuffer(myPubKeyStr),
-                        { name: "RSA-OAEP", hash: "SHA-256" },
-                        true,
-                        ["encrypt"]
-                    );
-                    finalContent = await encryptChatMessage(
-                        textToSend,
-                        myId,
-                        myPubKey,
-                        partner.id,
-                        recipientPubKeySpki
-                    );
+                let myPubKey: CryptoKey | null = useDataStore.getState().publicKey;
+                if (!myPubKey && typeof window !== "undefined") {
+                    const myPubKeyStr =
+                        localStorage.getItem("tide_user_public_key") ||
+                        sessionStorage.getItem("tide_user_public_key");
+                    if (myPubKeyStr) {
+                        myPubKey = await importPublicKey(myPubKeyStr);
+                    }
                 }
+
+                if (!effectiveMyId || !myPubKey || !recipientPubKeySpki) {
+                    console.error("[ChatPanel] E2EE keys missing, aborting unencrypted message send.");
+                    setSendError("Verschlüsselung fehlgeschlagen – Nachricht wurde nicht unverschlüsselt gesendet.");
+                    return;
+                }
+
+                finalContent = await encryptChatMessage(
+                    textToSend,
+                    effectiveMyId,
+                    myPubKey,
+                    partner.id,
+                    recipientPubKeySpki
+                );
             } catch (encErr) {
-                console.warn("[ChatPanel] E2EE encryption failed, falling back to secure transport:", encErr);
+                console.error("[ChatPanel] E2EE encryption failed, aborting send:", encErr);
+                setSendError("Verschlüsselung fehlgeschlagen – Nachricht wurde nicht unverschlüsselt gesendet.");
+                return;
             }
 
-            const body: any = { content: finalContent };
+            const body: { content: string; recipient_id?: string; recipient_email?: string } = { content: finalContent };
             if (partner.email === "Hidden") {
                 body.recipient_id = partner.id;
             } else {
@@ -850,8 +890,14 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                     return [...prev, msg];
                 });
                 setNewMessage("");
+                setSendError(null);
+            } else {
+                setSendError("Nachricht konnte nicht gesendet werden.");
             }
-        } catch (e) { alert("Error sending"); }
+        } catch (e) {
+            console.error("[ChatPanel] Send failed:", e);
+            setSendError("Nachricht konnte nicht gesendet werden.");
+        }
     };
 
     const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1185,14 +1231,17 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                             event_meta?: { start: string; end: string } | null;
                                         }
                                         let shareData: ShareRequestData | null = null;
+                                        const resolvedContent = isE2EEMessage(m.content) ? (decryptedTexts[m.id] ?? "") : m.content;
                                         try {
-                                            const parsed = JSON.parse(m.content);
-                                            if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
-                                                isShareRequest = true;
-                                                shareData = parsed as ShareRequestData;
-                                                // Normalize: event_share carries event metadata in event_meta, not file_preview
-                                                if (parsed.type === 'event_share' && parsed.event_meta) {
-                                                    shareData = { ...shareData, file_type: 'event', file_preview: parsed.event_meta };
+                                            if (resolvedContent) {
+                                                const parsed = JSON.parse(resolvedContent);
+                                                if (parsed && (parsed.type === 'file_share_request' || parsed.type === 'event_share')) {
+                                                    isShareRequest = true;
+                                                    shareData = parsed as ShareRequestData;
+                                                    // Normalize: event_share carries event metadata in event_meta, not file_preview
+                                                    if (parsed.type === 'event_share' && parsed.event_meta) {
+                                                        shareData = { ...shareData, file_type: 'event', file_preview: parsed.event_meta };
+                                                    }
                                                 }
                                             }
                                         } catch (e) { }
@@ -1468,7 +1517,16 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                                                         <ShieldCheck size={11} className={isMe ? 'text-white' : 'text-emerald-500 dark:text-emerald-400'} /> E2EE
                                                                     </span>
                                                                 ) : (
-                                                                    <span />
+                                                                    <span
+                                                                        className={`inline-flex items-center gap-1 text-[11px] uppercase tracking-wider font-semibold px-1.5 py-0.5 rounded-md ${
+                                                                            isMe
+                                                                                ? 'bg-amber-500/25 text-white border border-amber-200/40'
+                                                                                : 'bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/60 dark:border-amber-800/40'
+                                                                        }`}
+                                                                        title="Diese Nachricht ist nicht Ende-zu-Ende verschlüsselt"
+                                                                    >
+                                                                        Unverschlüsselt
+                                                                    </span>
                                                                 )}
                                                                 <span className="font-mono text-[11px] ml-auto">
                                                                     {mDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
@@ -1487,12 +1545,28 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
 
                         {/* Input Area */}
                         <div className="p-4 bg-transparent pb-3 sm:pb-4">
+                            {sendError && (
+                                <div className="mb-2 flex items-center justify-between gap-2 px-3.5 py-2 rounded-2xl bg-red-50 dark:bg-red-950/40 border border-red-200/70 dark:border-red-800/40 text-red-700 dark:text-red-300 text-xs">
+                                    <span>{sendError}</span>
+                                    <button
+                                        type="button"
+                                        onClick={() => setSendError(null)}
+                                        className="p-0.5 hover:opacity-75 shrink-0"
+                                        aria-label="Fehlermeldung schließen"
+                                    >
+                                        <X size={14} />
+                                    </button>
+                                </div>
+                            )}
                             <div className="flex gap-2">
                                 <input
                                     className="flex-1 px-5 py-3 glass-input rounded-3xl text-sm outline-none"
                                     placeholder="Type a message..."
                                     value={newMessage}
-                                    onChange={e => setNewMessage(e.target.value)}
+                                    onChange={e => {
+                                        setNewMessage(e.target.value);
+                                        if (sendError) setSendError(null);
+                                    }}
                                     // Make sure hitting enter sends if not empty
                                     onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
                                 />

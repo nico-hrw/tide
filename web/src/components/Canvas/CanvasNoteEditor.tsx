@@ -10,7 +10,7 @@ import CanvasNoteItemComponent from './CanvasNoteItem';
 import { useCanvasImageUpload } from './useCanvasImageUpload';
 import { ZoomIn, ZoomOut } from 'lucide-react';
 import { useActiveNoteStore } from '@/store/activeNoteStore';
-import { apiFetch } from '@/lib/api';
+import { apiFetch, fetchWSTicket } from '@/lib/api';
 
 const CANVAS_W = 4000;
 const CANVAS_H = 3000;
@@ -72,30 +72,45 @@ export default function CanvasNoteEditor({
         if (propProvider) return;
         if (typeof window === 'undefined' || !noteId) return;
 
-        let ws: WebsocketProvider | null = null;
-        try {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
-            let wsHost = window.location.host;
-            if (apiUrl) {
-                try { wsHost = new URL(apiUrl).host; } catch {}
+        let cancelled = false;
+        let wsProvider: WebsocketProvider | null = null;
+
+        const initProvider = async () => {
+            try {
+                const ticket = await fetchWSTicket();
+                if (cancelled) return;
+
+                const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+                const apiUrl = process.env.NEXT_PUBLIC_API_URL || '';
+                let wsHost = window.location.host;
+                if (apiUrl) {
+                    try { wsHost = new URL(apiUrl).host; } catch {}
+                }
+                const wsUrl = `${protocol}//${wsHost}/api/v1/files/${encodeURIComponent(noteId)}`;
+                wsProvider = new WebsocketProvider(wsUrl, 'ws', effectiveDoc, {
+                    params: ticket ? { ticket } : {},
+                });
+                if (cancelled) {
+                    wsProvider.destroy();
+                    wsProvider = null;
+                    return;
+                }
+                setInternalProvider(wsProvider);
+            } catch (err) {
+                console.warn('[CanvasNoteEditor] WebSocket connection fallback to local awareness:', err);
             }
-            const token = sessionStorage.getItem('tide_session_token') || localStorage.getItem('tide_session_token') || '';
-            const wsUrl = `${protocol}//${wsHost}/api/v1/files/${encodeURIComponent(noteId)}`;
-            ws = new WebsocketProvider(wsUrl, 'ws', effectiveDoc, {
-                params: { user_id: userId, token },
-            });
-            const createdWs = ws;
-            queueMicrotask(() => {
-                setInternalProvider(createdWs);
-            });
-            return () => {
-                createdWs.destroy();
-            };
-        } catch (err) {
-            console.warn('[CanvasNoteEditor] WebSocket connection fallback to local awareness:', err);
-        }
-    }, [propProvider, noteId, userId, effectiveDoc]);
+        };
+
+        void initProvider();
+
+        return () => {
+            cancelled = true;
+            if (wsProvider) {
+                wsProvider.destroy();
+                wsProvider = null;
+            }
+        };
+    }, [propProvider, noteId, effectiveDoc]);
 
     // Local fallback awareness if no provider exists
     const [fallbackAwareness] = useState(() => new Awareness(effectiveDoc));

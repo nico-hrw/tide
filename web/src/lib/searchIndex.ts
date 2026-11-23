@@ -59,7 +59,12 @@ async function fetchIndexFromServer(
     const res = await apiFetch(`/api/v1/files?type=index&recursive=true`);
     const files = await res.json().catch(() => []);
 
-    const indexFile = files.find((f: any) => f.type === 'index');
+    const indexFile = Array.isArray(files)
+        ? files.find(
+              (f: { type?: string; owner_id?: string }) =>
+                  f.type === 'index' && (!f.owner_id || f.owner_id === userID)
+          )
+        : undefined;
     if (!indexFile) return { entries: [], fileId: null };
 
     // No ciphertext yet (newly created record) — return empty entries but keep the ID
@@ -114,14 +119,17 @@ async function persistIndex(
         });
         if (createRes.ok) {
             const newFile = await createRes.json();
-            indexFileId = newFile.id;
-            await apiFetch(`/api/v1/files/${indexFileId}/upload`, {
-                method: 'POST',
-                body: v2Result.content_ciphertext
-            });
+            const createdId = newFile?.id ? String(newFile.id) : null;
+            indexFileId = createdId;
+            if (createdId) {
+                await apiFetch(`/api/v1/files/${encodeURIComponent(createdId)}/upload`, {
+                    method: 'POST',
+                    body: v2Result.content_ciphertext
+                });
+            }
         }
     } else {
-        await apiFetch(`/api/v1/files/${indexFileId}`, {
+        await apiFetch(`/api/v1/files/${encodeURIComponent(indexFileId)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -210,4 +218,5 @@ export async function updateSearchIndex(
 
 export function clearSearchIndexCache() {
     cachedIndex = null;
+    indexFileId = null;
 }

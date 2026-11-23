@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -327,7 +328,15 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		}
 		parentID = resolved
 	} else if len(folders) > 0 {
-		parentID = &folders[0]
+		resolved, ok := h.validateNoteParent(
+			w, r.Context(), userID, folders[0], safes, folders,
+			"Parent folder does not match scoped token folder",
+			"Parent folder safe does not match scoped token workspace",
+		)
+		if !ok {
+			return
+		}
+		parentID = resolved
 	}
 
 	now := time.Now().UTC()
@@ -365,10 +374,13 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if h.BlobStore != nil {
-		if err := h.BlobStore.Put(r.Context(), fileID, bytes.NewReader(contentBytes)); err == nil {
-			path := fileID
-			file.BlobPath = &path
+		if err := h.BlobStore.Put(r.Context(), fileID, bytes.NewReader(contentBytes)); err != nil {
+			log.Printf("CreateNote: failed to store blob for note %s: %v", fileID, err)
+			writeExternalError(w, http.StatusInternalServerError, "Internal Server Error", "Failed to store note content")
+			return
 		}
+		path := fileID
+		file.BlobPath = &path
 	}
 
 	if err := h.Store.CreateFile(r.Context(), file); err != nil {
@@ -438,7 +450,11 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 			file.BlobPath = &blobKey
 		}
 		if h.BlobStore != nil {
-			_ = h.BlobStore.Put(r.Context(), blobKey, bytes.NewReader(contentBytes))
+			if err := h.BlobStore.Put(r.Context(), blobKey, bytes.NewReader(contentBytes)); err != nil {
+				log.Printf("UpdateNote: failed to store blob for note %s: %v", file.ID, err)
+				writeExternalError(w, http.StatusInternalServerError, "Internal Server Error", "Failed to store note content")
+				return
+			}
 		}
 	}
 
@@ -487,9 +503,36 @@ func (h *ExternalHandler) DeleteNote(w http.ResponseWriter, r *http.Request) {
 		writeExternalError(w, http.StatusForbidden, "Forbidden", "Only the note owner can delete this note")
 		return
 	}
+	blobPaths, err := h.Store.GetFileBlobPaths(r.Context(), file.ID)
+	if err != nil {
+		log.Printf("DeleteNote: failed to fetch blob paths for note %s: %v", file.ID, err)
+	}
 	if err := h.Store.DeleteFile(r.Context(), file.ID); err != nil {
 		writeExternalError(w, http.StatusInternalServerError, "Internal Server Error", "Failed to delete note")
 		return
+	}
+	if h.BlobStore != nil {
+		candidates := make(map[string]struct{}, len(blobPaths)+1)
+		for _, bp := range blobPaths {
+			if bp != "" {
+				candidates[bp] = struct{}{}
+			}
+		}
+		if file.BlobPath != nil && *file.BlobPath != "" {
+			candidates[*file.BlobPath] = struct{}{}
+		}
+		for blobPath := range candidates {
+			refs, err := h.Store.CountBlobReferencesExcluding(r.Context(), blobPath, []string{file.ID})
+			if err != nil {
+				log.Printf("DeleteNote: failed to count blob references for %s: %v", blobPath, err)
+				continue
+			}
+			if refs == 0 {
+				if err := h.BlobStore.Delete(r.Context(), blobPath); err != nil {
+					log.Printf("DeleteNote: failed to delete blob %s: %v", blobPath, err)
+				}
+			}
+		}
 	}
 	writeExternalJSON(w, http.StatusOK, map[string]interface{}{
 		"success": true,

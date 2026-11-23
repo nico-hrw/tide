@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"sync"
-	"time"
 
 	"github.com/nicoh/tide/internal/db"
 )
@@ -17,20 +16,14 @@ var (
 // MemoryStore implements a thread-safe in-memory database.
 type MemoryStore struct {
 	mu            sync.RWMutex
-	users         map[string]*db.User  // ID -> User
-	usersByEmail  map[string]string    // Email -> ID
-	files         map[string]*db.File  // ID -> File
-	filesByParent map[string][]string  // ParentID -> []ID
-	tokens        map[string]TokenData // Token -> TokenData
+	users         map[string]*db.User // ID -> User
+	usersByEmail  map[string]string   // Email -> ID
+	files         map[string]*db.File // ID -> File
+	filesByParent map[string][]string // ParentID -> []ID
 	// Links
 	links         map[string]db.Link  // SourceID:TargetID -> Link
 	linksBySource map[string][]string // SourceID -> []TargetID
 	linksByTarget map[string][]string // TargetID -> []SourceID
-}
-
-type TokenData struct {
-	UserID    string
-	ExpiresAt time.Time
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -39,7 +32,6 @@ func NewMemoryStore() *MemoryStore {
 		usersByEmail:  make(map[string]string),
 		files:         make(map[string]*db.File),
 		filesByParent: make(map[string][]string),
-		tokens:        make(map[string]TokenData),
 		links:         make(map[string]db.Link),
 		linksBySource: make(map[string][]string),
 		linksByTarget: make(map[string][]string),
@@ -88,40 +80,6 @@ func (s *MemoryStore) GetUserByEmail(ctx context.Context, email string) (*db.Use
 		return nil, ErrNotFound
 	}
 	return id2, nil
-}
-
-// --- Token Operations ---
-
-func (s *MemoryStore) SetToken(ctx context.Context, token string, userID string, ttl time.Duration) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.tokens[token] = TokenData{
-		UserID:    userID,
-		ExpiresAt: time.Now().Add(ttl),
-	}
-	return nil
-}
-
-func (s *MemoryStore) GetToken(ctx context.Context, token string) (string, error) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	data, ok := s.tokens[token]
-	if !ok {
-		return "", ErrNotFound
-	}
-	if time.Now().After(data.ExpiresAt) {
-		return "", ErrNotFound // Treat expired as not found
-	}
-	return data.UserID, nil
-}
-
-func (s *MemoryStore) DeleteToken(ctx context.Context, token string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	delete(s.tokens, token)
-	return nil
 }
 
 // --- File Operations ---

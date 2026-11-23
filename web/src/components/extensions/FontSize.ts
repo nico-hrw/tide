@@ -19,6 +19,16 @@ declare module '@tiptap/core' {
     }
 }
 
+const SAFE_FONT_SIZE_RE = /^\d+(\.\d+)?(px|em|rem|pt|%)$/;
+
+function sanitizeFontSize(fontSize: unknown): string | null {
+    if (typeof fontSize !== 'string') {
+        return null;
+    }
+    const trimmed = fontSize.trim();
+    return SAFE_FONT_SIZE_RE.test(trimmed) ? trimmed : null;
+}
+
 export const FontSize = Extension.create<FontSizeOptions>({
     name: 'fontSize',
 
@@ -35,14 +45,16 @@ export const FontSize = Extension.create<FontSizeOptions>({
                 attributes: {
                     fontSize: {
                         default: null,
-                        parseHTML: element => element.style.fontSize?.replace(/['"]+/g, ''),
+                        parseHTML: element =>
+                            sanitizeFontSize(element.style.fontSize?.replace(/['"]+/g, '')),
                         renderHTML: attributes => {
-                            if (!attributes.fontSize) {
+                            const fontSize = sanitizeFontSize(attributes.fontSize);
+                            if (!fontSize) {
                                 return {};
                             }
 
                             return {
-                                style: `font-size: ${attributes.fontSize}`,
+                                style: `font-size: ${fontSize}`,
                             };
                         },
                     },

@@ -10,11 +10,25 @@ export interface QueueItem {
     description?: string;
     fileId?: string;
     retryCount?: number;
+    userId?: string;
 }
 
 const SYNC_QUEUE_KEY = 'tide_offline_sync_queue';
 let isFlushing = false;
 let listenersInitialized = false;
+
+function generateSyncId(): string {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+        return crypto.randomUUID();
+    }
+    if (typeof crypto !== 'undefined' && typeof crypto.getRandomValues === 'function') {
+        const bytes = new Uint8Array(16);
+        crypto.getRandomValues(bytes);
+        const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+        return `sync_${Date.now()}_${hex}`;
+    }
+    return `sync_${Date.now()}`;
+}
 
 export async function getSyncQueue(): Promise<QueueItem[]> {
     try {
@@ -27,11 +41,14 @@ export async function getSyncQueue(): Promise<QueueItem[]> {
 }
 
 export async function addToSyncQueue(item: Omit<QueueItem, 'id' | 'timestamp'>): Promise<QueueItem> {
+    const currentUserId =
+        typeof window !== 'undefined' ? localStorage.getItem('tide_user_id') || undefined : undefined;
     const fullItem: QueueItem = {
         ...item,
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sync_${Date.now()}_${Math.random()}`,
+        id: generateSyncId(),
         timestamp: Date.now(),
-        retryCount: 0
+        retryCount: 0,
+        userId: item.userId ?? currentUserId
     };
 
     try {
@@ -111,10 +128,16 @@ export async function flushSyncQueue(): Promise<{ success: number; failed: numbe
 
         // Dynamically import apiFetch to prevent circular import issues
         const { apiFetch } = await import('./api');
+        const currentUserId =
+            typeof window !== 'undefined' ? localStorage.getItem('tide_user_id') || undefined : undefined;
 
         const remainingQueue: QueueItem[] = [];
 
         for (const item of queue) {
+            if (item.userId && item.userId !== currentUserId) {
+                console.warn(`[SyncQueue] Discarding item for mismatched user: ${item.url}`);
+                continue;
+            }
             try {
                 // Ensure auth token header is up to date
                 const token = typeof window !== 'undefined' ? localStorage.getItem("tide_session_token") : null;

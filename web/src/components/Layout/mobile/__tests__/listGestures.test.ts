@@ -2,14 +2,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createListGestures, emptyDayDraft } from '../listGestures';
 
 describe('createListGestures', () => {
-  let onHold: ReturnType<typeof vi.fn>;
-  let onDoubleTap: ReturnType<typeof vi.fn>;
+  type GestureCallback = (x: number, y: number, target: EventTarget | null) => void;
+  let onHold: ReturnType<typeof vi.fn<GestureCallback>>;
+  let onDoubleTap: ReturnType<typeof vi.fn<GestureCallback>>;
   let g: ReturnType<typeof createListGestures>;
 
   beforeEach(() => {
     vi.useFakeTimers();
-    onHold = vi.fn();
-    onDoubleTap = vi.fn();
+    onHold = vi.fn<GestureCallback>();
+    onDoubleTap = vi.fn<GestureCallback>();
     g = createListGestures({ onHold, onDoubleTap });
   });
 

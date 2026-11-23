@@ -198,3 +198,10 @@ export function lockItem(itemId: string): void {
 export function getSessionPin(itemId: string): string | null {
     return sessionPinCache.get(itemId) || null;
 }
+
+/**
+ * Clears all cached session PINs from memory.
+ */
+export function clearSessionPinCache(): void {
+    sessionPinCache.clear();
+}

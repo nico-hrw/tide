@@ -1,24 +1,28 @@
 import { apiFetch } from '@/lib/api';
+import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 import type { DataItem, DataStoreSlice, NoteLayout, NoteMargin, NotesSlice } from './types';
 
 export function loadCachedNotes(): DataItem[] {
-    if (typeof window === 'undefined') return [];
-    try {
-        const cached = localStorage.getItem('tide_offline_notes');
-        return cached ? JSON.parse(cached) : [];
-    } catch (e) {
-        console.warn('Failed to load cached notes from localStorage', e);
-        return [];
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem('tide_offline_notes');
+        } catch {
+            // Ignore storage errors
+        }
     }
+    return [];
 }
 
 export function saveNotesToOfflineCache(notes: DataItem[]): void {
     if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem('tide_offline_notes', JSON.stringify(notes));
-    } catch (e) {
-        console.warn('Failed to save notes to offline cache', e);
+        localStorage.removeItem('tide_offline_notes');
+    } catch {
+        // Ignore storage errors
     }
+    void saveEncryptedOfflineCache('notes', notes).catch((e) => {
+        console.warn('Failed to save notes to offline cache', e);
+    });
 }
 
 function loadCachedOrderedNoteIds(): string[] {

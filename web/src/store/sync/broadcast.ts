@@ -1,3 +1,5 @@
+import { generateSecureId } from '@/lib/offlineCacheCrypto';
+
 export type SyncChannelName = 'tide_state_sync';
 
 export interface SyncMessage<T = unknown> {
@@ -17,7 +19,7 @@ const tabInstanceId: string = (() => {
     if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
         return crypto.randomUUID();
     }
-    return Math.random().toString(36).substring(2, 10);
+    return generateSecureId('tab');
 })();
 
 function getBroadcastChannel(): BroadcastChannel | null {

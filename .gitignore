@@ -107,3 +107,21 @@ target/
 # Development worktree clone
 tide-dev/
 
+# System / Android local build & clone (do not commit to git)
+sys/
+/sys/
+/sys/android/
+
+# Android APK / AAB artifacts (do not commit to git)
+*.apk
+*.aab
+/web/public/*.apk
+/web/public/downloads/
+
+# Linux server binary & key/certificate files
+cloud/tide-server-linux
+*.pem
+*.key
+*.p12
+*.pfx
+

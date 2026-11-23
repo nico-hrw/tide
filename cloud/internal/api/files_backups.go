@@ -183,6 +183,15 @@ func (h *FileHandler) handleBackupCascade(ctx context.Context, id string, blobBy
 	}
 }
 
+var validBackupSlots = map[string]bool{
+	"10 minutes": true,
+	"30 minutes": true,
+	"1 hour":     true,
+	"1 day":      true,
+	"2 days":     true,
+	"1 week":     true,
+}
+
 func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
 	slotName := chi.URLParam(r, "slotName")
@@ -192,6 +201,10 @@ func (h *FileHandler) UpdateFileBackup(w http.ResponseWriter, r *http.Request) {
 	slotName = strings.TrimSpace(slotName)
 	if id == "" || slotName == "" {
 		http.Error(w, "Missing arguments", http.StatusBadRequest)
+		return
+	}
+	if !validBackupSlots[slotName] {
+		http.Error(w, "Invalid backup slot name", http.StatusBadRequest)
 		return
 	}
 

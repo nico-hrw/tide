@@ -32,6 +32,46 @@ const PRESET_ICONS: Record<string, React.ElementType> = {
     'graduation-cap': GraduationCap,
 };
 
+function sanitizeQuickLinkUrl(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+    if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+        return trimmed;
+    }
+    const candidate = /^[a-zA-Z][a-zA-Z0-9+.-]*:/.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+    try {
+        const u = new URL(candidate);
+        if (u.protocol === 'https:' || u.protocol === 'http:') {
+            return u.toString();
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
+function sanitizeQuickLinkIcon(raw: string): string | null {
+    const trimmed = raw.trim();
+    if (!trimmed || /[\u0000-\u001f\u007f]/.test(trimmed)) return null;
+    if (/^\/[^/]/.test(trimmed)) {
+        return trimmed;
+    }
+    if (/^data:image\/(png|jpeg|gif|webp);base64,[A-Za-z0-9+/]+={0,2}$/i.test(trimmed)) {
+        return trimmed;
+    }
+    try {
+        const u = new URL(trimmed);
+        if (u.protocol === 'https:' || u.protocol === 'http:') {
+            return u.toString();
+        }
+        return null;
+    } catch {
+        return null;
+    }
+}
+
 export default function PlannerQuickLinks() {
     const { quickLinks, addQuickLink, updateQuickLink, deleteQuickLink } = useJobPlannerStore();
 
@@ -96,9 +136,12 @@ export default function PlannerQuickLinks() {
 
     const handleSaveLink = () => {
         if (!modalState.name.trim()) return;
-        let finalUrl = modalState.url.trim();
-        if (finalUrl && !finalUrl.startsWith('http://') && !finalUrl.startsWith('https://') && !finalUrl.startsWith('/')) {
-            finalUrl = `https://${finalUrl}`;
+        const trimmedUrl = modalState.url.trim();
+        let finalUrl = '';
+        if (trimmedUrl) {
+            const sanitized = sanitizeQuickLinkUrl(trimmedUrl);
+            if (!sanitized) return;
+            finalUrl = sanitized;
         }
 
         if (modalState.editingId) {
@@ -124,11 +167,12 @@ export default function PlannerQuickLinks() {
 
         const reader = new FileReader();
         reader.onload = (event) => {
-            const dataUrl = event.target?.result as string;
-            if (dataUrl) {
+            const dataUrl = typeof event.target?.result === 'string' ? event.target.result : '';
+            const safeDataUrl = dataUrl ? sanitizeQuickLinkIcon(dataUrl) : null;
+            if (safeDataUrl && safeDataUrl.startsWith('data:')) {
                 setModalState(prev => ({
                     ...prev,
-                    icon: dataUrl,
+                    icon: safeDataUrl,
                     iconType: 'upload',
                 }));
             }
@@ -138,9 +182,8 @@ export default function PlannerQuickLinks() {
 
     const handleIconClick = (link: PlannerQuickLink) => {
         if (!link.url) return;
-        const targetUrl = link.url.startsWith('http') || link.url.startsWith('/') 
-            ? link.url 
-            : `https://${link.url}`;
+        const targetUrl = sanitizeQuickLinkUrl(link.url);
+        if (!targetUrl) return;
         window.open(targetUrl, '_blank', 'noopener,noreferrer');
     };
 
@@ -153,12 +196,13 @@ export default function PlannerQuickLinks() {
 
     const renderIconContent = (link: PlannerQuickLink) => {
         const iconValue = link.icon || '';
+        const safeIconSrc = sanitizeQuickLinkIcon(iconValue);
         
-        // Custom uploaded image or HTTP URL
-        if (iconValue.startsWith('data:') || iconValue.startsWith('http')) {
+        // Custom uploaded image or validated URL
+        if (safeIconSrc) {
             return (
                 <img 
-                    src={iconValue} 
+                    src={safeIconSrc} 
                     alt={link.name} 
                     className="w-7 h-7 object-contain rounded-md"
                     onError={(e) => {
@@ -173,6 +217,10 @@ export default function PlannerQuickLinks() {
         const IconComp = PRESET_ICONS[iconValue] || PRESET_ICONS['globe'];
         return <IconComp size={24} className="text-t2-ink " />;
     };
+
+    const safeUploadPreview = modalState.icon.startsWith('data:')
+        ? sanitizeQuickLinkIcon(modalState.icon)
+        : null;
 
     return (
         <div className="w-full relative">
@@ -393,9 +441,9 @@ export default function PlannerQuickLinks() {
                                             <Upload size={14} />
                                             <span>Bilddatei wählen...</span>
                                         </button>
-                                        {modalState.icon.startsWith('data:') && (
+                                        {safeUploadPreview && (
                                             <img
-                                                src={modalState.icon}
+                                                src={safeUploadPreview}
                                                 alt="Preview"
                                                 className="w-8 h-8 rounded-lg object-contain border border-t2-line  bg-t2-surface "
                                             />

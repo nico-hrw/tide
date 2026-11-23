@@ -34,7 +34,7 @@ export default function PublicProfilePage() {
         setPreviewContent(null);
 
         try {
-            const res = await apiFetch(`/api/v1/files/public/${userId}/download/${file.id}`);
+            const res = await apiFetch(`/api/v1/files/public/${encodeURIComponent(userId)}/download/${encodeURIComponent(file.id)}`);
             if (!res.ok) throw new Error("Failed to download content");
 
             const text = await res.text();
@@ -52,7 +52,7 @@ export default function PublicProfilePage() {
 
         const fetchFiles = async () => {
             try {
-                const res = await apiFetch(`/api/v1/files/public/${userId}`);
+                const res = await apiFetch(`/api/v1/files/public/${encodeURIComponent(userId)}`);
                 if (!res.ok) {
                     if (res.status === 404) throw new Error("User not found or no public files.");
                     throw new Error("Failed to load public files");
@@ -96,7 +96,7 @@ export default function PublicProfilePage() {
         }
 
         try {
-            const res = await apiFetch(`/api/v1/files/${fileId}/copy`, {
+            const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/copy`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ new_owner_id: myId })

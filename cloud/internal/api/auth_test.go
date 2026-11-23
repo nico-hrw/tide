@@ -348,3 +348,178 @@ func TestAuthMiddleware_Protection(t *testing.T) {
 		}
 	}
 }
+
+func setupSecurityFileTest(t *testing.T) (*store.SQLiteStore, store.BlobStore, chi.Router, string) {
+	t.Helper()
+	secret := "super-secret-test-jwt-key-with-sufficient-length-32bytes"
+	t.Setenv("JWT_SECRET", secret)
+	s, _ := setupTestStore(t)
+	bs := store.NewLocalBlobStore(t.TempDir())
+	r := chi.NewRouter()
+	NewFileHandler(s, bs, NewBroker()).RegisterRoutes(r)
+	return s, bs, r, secret
+}
+
+func createSecurityTestUser(t *testing.T, s *store.SQLiteStore, username string) string {
+	t.Helper()
+	id := uuid.New().String()
+	emailHash := hashString(username + "-" + id + "@example.com")
+	if err := s.CreateUser(context.Background(), &db.User{
+		ID: id, EmailHash: &emailHash, Username: username, PublicKey: "pk",
+		EncryptedVault: []byte("v"), EncryptedPepper: []byte("p"), CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("failed to create user %s: %v", username, err)
+	}
+	return id
+}
+
+func signTestJWT(t *testing.T, secret, userID string) string {
+	t.Helper()
+	tok := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"sub": userID, "exp": time.Now().Add(time.Hour).Unix(),
+	})
+	signed, err := tok.SignedString([]byte(secret))
+	if err != nil {
+		t.Fatalf("failed to sign JWT: %v", err)
+	}
+	return signed
+}
+
+func TestSecurity_DevLoginBlockedInProductionEvenWithDevMode(t *testing.T) {
+	t.Setenv("ENV", "production")
+	t.Setenv("DEV_MODE", "true")
+	_, authHandler := setupTestStore(t)
+
+	r := chi.NewRouter()
+	r.Post("/api/v1/auth/dev-login", authHandler.DevLogin)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/dev-login", strings.NewReader(`{"type":"persistent","username":"Dev Alice"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	r.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 Forbidden, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestSecurity_CreateFileRejectsInvalidUUIDAndQuicknoteCollision(t *testing.T) {
+	s, _, r, secret := setupSecurityFileTest(t)
+	ctx := context.Background()
+	userID := createSecurityTestUser(t, s, "createfile-sec")
+	tok := signTestJWT(t, secret, userID)
+
+	// 1. Path traversal / invalid UUID must return 400 Bad Request
+	reqBad := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"id":"../../bad","type":"note","secured_meta":"m"}`))
+	reqBad.Header.Set("Authorization", "Bearer "+tok)
+	reqBad.Header.Set("Content-Type", "application/json")
+	recBad := httptest.NewRecorder()
+	r.ServeHTTP(recBad, reqBad)
+	if recBad.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400 for invalid id, got %d: %s", recBad.Code, recBad.Body.String())
+	}
+
+	// 2. Collision with quicknote_files ID must return 409 Conflict
+	qnID := uuid.New().String()
+	if _, err := s.GetOrCreateQuicknote(ctx, "sec-qn-slug", "Sec QN"); err != nil {
+		t.Fatalf("GetOrCreateQuicknote failed: %v", err)
+	}
+	if err := s.CreateQuicknoteFile(ctx, &store.QuicknoteFile{
+		ID: qnID, Slug: "sec-qn-slug", Name: "f.bin", MIMEType: "application/octet-stream", Size: 4, BlobPath: "bp", CreatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("CreateQuicknoteFile failed: %v", err)
+	}
+
+	reqDup := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(`{"id":"`+qnID+`","type":"note","secured_meta":"m"}`))
+	reqDup.Header.Set("Authorization", "Bearer "+tok)
+	reqDup.Header.Set("Content-Type", "application/json")
+	recDup := httptest.NewRecorder()
+	r.ServeHTTP(recDup, reqDup)
+	if recDup.Code != http.StatusConflict {
+		t.Fatalf("expected HTTP 409 for quicknote_files collision, got %d: %s", recDup.Code, recDup.Body.String())
+	}
+}
+
+func TestSecurity_UpdateFileBlocksCollaboratorVisibilityEscalationAndCycle(t *testing.T) {
+	s, _, r, secret := setupSecurityFileTest(t)
+	ctx := context.Background()
+	ownerID := createSecurityTestUser(t, s, "owner-sec")
+	collabID := createSecurityTestUser(t, s, "collab-sec")
+	fileID := uuid.New().String()
+
+	if err := s.CreateFile(ctx, &db.File{
+		ID: fileID, OwnerID: ownerID, Type: db.FileTypeNote, Visibility: "private", Version: 1,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("CreateFile failed: %v", err)
+	}
+	if err := s.ShareFileWithPermission(ctx, fileID, collabID, []byte("meta"), "edit", false); err != nil {
+		t.Fatalf("ShareFileWithPermission failed: %v", err)
+	}
+	if err := s.AcceptShare(ctx, fileID, collabID); err != nil {
+		t.Fatalf("AcceptShare failed: %v", err)
+	}
+
+	// 1. Edit collaborator attempting private -> public visibility escalation gets 403
+	reqEsc := httptest.NewRequest(http.MethodPatch, "/"+fileID, strings.NewReader(`{"visibility":"public"}`))
+	reqEsc.Header.Set("Authorization", "Bearer "+signTestJWT(t, secret, collabID))
+	reqEsc.Header.Set("Content-Type", "application/json")
+	recEsc := httptest.NewRecorder()
+	r.ServeHTTP(recEsc, reqEsc)
+	if recEsc.Code != http.StatusForbidden {
+		t.Fatalf("expected HTTP 403 for collaborator visibility change, got %d: %s", recEsc.Code, recEsc.Body.String())
+	}
+
+	// 2. Setting parent_id equal to file's own id gets 400
+	reqCycle := httptest.NewRequest(http.MethodPatch, "/"+fileID, strings.NewReader(`{"parent_id":"`+fileID+`"}`))
+	reqCycle.Header.Set("Authorization", "Bearer "+signTestJWT(t, secret, ownerID))
+	reqCycle.Header.Set("Content-Type", "application/json")
+	recCycle := httptest.NewRecorder()
+	r.ServeHTTP(recCycle, reqCycle)
+	if recCycle.Code != http.StatusBadRequest {
+		t.Fatalf("expected HTTP 400 for self-parent cycle, got %d: %s", recCycle.Code, recCycle.Body.String())
+	}
+}
+
+func TestSecurity_DownloadPublicFileChecksOwnerAndHeaders(t *testing.T) {
+	s, bs, r, _ := setupSecurityFileTest(t)
+	ctx := context.Background()
+	ownerID := createSecurityTestUser(t, s, "pub-owner")
+	otherID := createSecurityTestUser(t, s, "pub-other")
+	fileID := uuid.New().String()
+
+	if err := bs.Put(ctx, fileID, strings.NewReader("public-payload")); err != nil {
+		t.Fatalf("BlobStore.Put failed: %v", err)
+	}
+	if err := s.CreateFile(ctx, &db.File{
+		ID: fileID, OwnerID: ownerID, Type: db.FileTypeFile, Visibility: "public", BlobPath: &fileID, Version: 1,
+		CreatedAt: time.Now(), UpdatedAt: time.Now(),
+	}); err != nil {
+		t.Fatalf("CreateFile failed: %v", err)
+	}
+
+	// 1. Mismatched userID returns 404 Not Found
+	reqMismatch := httptest.NewRequest(http.MethodGet, "/public/"+otherID+"/download/"+fileID, nil)
+	recMismatch := httptest.NewRecorder()
+	r.ServeHTTP(recMismatch, reqMismatch)
+	if recMismatch.Code != http.StatusNotFound {
+		t.Fatalf("expected HTTP 404 for mismatched userID, got %d: %s", recMismatch.Code, recMismatch.Body.String())
+	}
+
+	// 2. Matching userID returns 200 OK with security headers
+	reqOK := httptest.NewRequest(http.MethodGet, "/public/"+ownerID+"/download/"+fileID, nil)
+	recOK := httptest.NewRecorder()
+	r.ServeHTTP(recOK, reqOK)
+	if recOK.Code != http.StatusOK {
+		t.Fatalf("expected HTTP 200 for matching owner, got %d: %s", recOK.Code, recOK.Body.String())
+	}
+	if got := recOK.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("expected X-Content-Type-Options=nosniff, got %q", got)
+	}
+	if got := recOK.Header().Get("Content-Disposition"); got != "attachment" {
+		t.Fatalf("expected Content-Disposition=attachment, got %q", got)
+	}
+	if recOK.Body.String() != "public-payload" {
+		t.Fatalf("expected body %q, got %q", "public-payload", recOK.Body.String())
+	}
+}

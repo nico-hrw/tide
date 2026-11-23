@@ -1,13 +1,10 @@
 import { useState, useEffect } from "react";
-import { getApiBase } from "@/lib/api";
+import { apiFetch, clearAllSessionData } from "@/lib/api";
 import type { UserProfile } from "./types";
 
-export const handleSignOut = () => {
-        sessionStorage.clear();
-        localStorage.removeItem("tide_user_email");
-        localStorage.removeItem("tide_user_id");
-        localStorage.removeItem("tide_session_token");
-        window.location.reload();
+export const handleSignOut = async () => {
+    await clearAllSessionData({ callServerLogout: true });
+    window.location.reload();
 };
 
 export function useSidebarUserProfile() {
@@ -34,7 +31,7 @@ export function useSidebarUserProfile() {
 
             // Fetch real profile (avatar_seed + avatar_salt) from backend
             if (id) {
-                fetch(`${getApiBase()}/api/v1/profiles/${id}`)
+                apiFetch(`/api/v1/profiles/${encodeURIComponent(id)}`)
                     .then(r => r.ok ? r.json() : null)
                     .then(profile => {
                         if (profile) {

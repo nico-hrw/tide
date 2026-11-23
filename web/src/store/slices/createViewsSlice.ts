@@ -1,12 +1,13 @@
 import type { DataStoreSlice, DataStoreState, ViewsSlice } from './types';
 import { createApiViewsStorage, type SavedView, type ViewsStorage } from '@/lib/viewsStorage';
+import { generateSecureId } from '@/lib/offlineCacheCrypto';
 
 type StorageProvider = (get: () => DataStoreState) => ViewsStorage;
 
 function newId(): string {
     return typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
         ? crypto.randomUUID()
-        : `view-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+        : generateSecureId('view');
 }
 
 /** Default provider: one API storage per signed-in user, keys read lazily from the store. */

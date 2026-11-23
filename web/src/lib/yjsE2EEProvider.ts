@@ -18,9 +18,13 @@ import {
     decryptSnapshot,
 } from './e2eeFraming';
 import { base64ToArrayBuffer } from './crypto';
-import { apiFetch, getApiBase } from './api';
+import { apiFetch, fetchWSTicket, getApiBase } from './api';
 import { activeNoteStore, NotePermission } from '@/store/activeNoteStore';
 import { setDocHydrated } from './ydocRegistry';
+
+function redactWsUrl(url: string): string {
+    return url.replace(/([?&](?:ticket|token)=)[^&]*/gi, '$1[REDACTED]');
+}
 
 export interface YjsE2EEProviderOptions {
     keyEpoch?: number;
@@ -56,6 +60,7 @@ export class YjsE2EEProvider {
     private localUpdateFlushTimer: ReturnType<typeof setTimeout> | null = null;
     private reconnectTimer: any = null;
     private reconnectAttempts: number = 0;
+    private connectAttemptId: number = 0;
     private currentPathIndex: number = 0;
     private bootstrapPromise: Promise<void> | null = null;
     private hasConnectedBefore: boolean = false;
@@ -299,15 +304,10 @@ export class YjsE2EEProvider {
         this.options.onSynced?.(synced);
     }
 
-    private resolveWsEndpoint(): string {
+    private resolveWsEndpoint(ticket?: string | null): string {
         if (this.options.url) {
             return this.options.url;
         }
-
-        const token = this.token || this.options.token ||
-            (typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('tide_session_token') : null) ||
-            (typeof localStorage !== 'undefined' ? localStorage.getItem('tide_session_token') : null) ||
-            '';
 
         const isHttps = typeof window !== 'undefined' && window.location.protocol === 'https:';
         let protocol: 'ws:' | 'wss:' = isHttps ? 'wss:' : 'ws:';
@@ -361,9 +361,11 @@ export class YjsE2EEProvider {
             }
         }
 
+        const ticketParam = ticket ? `&ticket=${encodeURIComponent(ticket)}` : '';
+
         if (this.noteId.startsWith('quicknote:')) {
             const slug = this.noteId.replace('quicknote:', '');
-            return `${protocol}//${wsHost}/api/ws/quicknotes/${encodeURIComponent(slug)}?yClientId=${encodeURIComponent(this.ydoc.clientID)}${this.token ? '&token=' + encodeURIComponent(this.token) : ''}`;
+            return `${protocol}//${wsHost}/api/ws/quicknotes/${encodeURIComponent(slug)}?yClientId=${encodeURIComponent(this.ydoc.clientID)}${ticketParam}`;
         }
 
         const encodedNoteId = encodeURIComponent(this.noteId);
@@ -374,12 +376,11 @@ export class YjsE2EEProvider {
         ];
 
         const basePath = pathTemplates[this.currentPathIndex % pathTemplates.length];
-        const tokenParam = token ? `&token=${encodeURIComponent(token)}` : '';
-        return `${protocol}//${wsHost}${basePath}?yClientId=${encodeURIComponent(String(this.ydoc.clientID))}${tokenParam}`;
+        return `${protocol}//${wsHost}${basePath}?yClientId=${encodeURIComponent(String(this.ydoc.clientID))}${ticketParam}`;
     }
 
     public connect(): void {
-        this.connectWebSocket();
+        void this.connectWebSocket();
     }
 
     public checkLivenessAndReconnect(): void {
@@ -395,19 +396,29 @@ export class YjsE2EEProvider {
         }
     }
 
-    private connectWebSocket(): void {
+    private async connectWebSocket(): Promise<void> {
         if (this.destroyed) return;
 
+        const attemptId = ++this.connectAttemptId;
         const isDev = process.env.NODE_ENV !== 'production' ||
             (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'));
 
-        const wsEndpoint = this.resolveWsEndpoint();
-
-        if (isDev) {
-            console.log(`[YjsE2EEProvider] Connecting (attempt ${this.reconnectAttempts + 1}, path index ${this.currentPathIndex}):`, wsEndpoint);
-        }
-
         try {
+            const hasAuth = Boolean(
+                this.token ||
+                this.options.token ||
+                (typeof sessionStorage !== 'undefined' && sessionStorage.getItem('tide_session_token')) ||
+                (typeof localStorage !== 'undefined' && localStorage.getItem('tide_session_token'))
+            );
+            const ticket = !this.options.url && hasAuth ? await fetchWSTicket() : null;
+            if (this.destroyed || attemptId !== this.connectAttemptId) return;
+
+            const wsEndpoint = this.resolveWsEndpoint(ticket);
+
+            if (isDev) {
+                console.log(`[YjsE2EEProvider] Connecting (attempt ${this.reconnectAttempts + 1}, path index ${this.currentPathIndex}):`, redactWsUrl(wsEndpoint));
+            }
+
             if (this.ws) {
                 try {
                     this.ws.onopen = null;
@@ -432,7 +443,7 @@ export class YjsE2EEProvider {
                 (window as Window & { __tideWsConnected?: boolean }).__tideWsConnected = true;
 
                 if (isDev) {
-                    console.log('[YjsE2EEProvider] WebSocket connected successfully:', wsEndpoint);
+                    console.log('[YjsE2EEProvider] WebSocket connected successfully:', redactWsUrl(wsEndpoint));
                 }
 
                 this.emit('status', { status: 'connected' });
@@ -478,7 +489,7 @@ export class YjsE2EEProvider {
 
             this.ws.onerror = (err) => {
                 if (isDev) {
-                    console.warn('[YjsE2EEProvider] WebSocket error on endpoint:', wsEndpoint, err);
+                    console.warn('[YjsE2EEProvider] WebSocket error on endpoint:', redactWsUrl(wsEndpoint), err);
                 } else {
                     console.warn('[YjsE2EEProvider] WebSocket error:', err);
                 }
@@ -507,16 +518,17 @@ export class YjsE2EEProvider {
                 }
 
                 this.reconnectTimer = setTimeout(() => {
-                    if (!this.destroyed) this.connectWebSocket();
+                    if (!this.destroyed) void this.connectWebSocket();
                 }, delay);
             };
         } catch (err) {
+            if (this.destroyed || attemptId !== this.connectAttemptId) return;
             console.error('[YjsE2EEProvider] Failed to instantiate WebSocket:', err);
             this.currentPathIndex = (this.currentPathIndex + 1) % 3;
             const delay = Math.min(1000 * Math.pow(1.5, this.reconnectAttempts), 10000);
             this.reconnectAttempts++;
             this.reconnectTimer = setTimeout(() => {
-                if (!this.destroyed) this.connectWebSocket();
+                if (!this.destroyed) void this.connectWebSocket();
             }, delay);
         }
     }

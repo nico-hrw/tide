@@ -1,6 +1,7 @@
 import * as cryptoV2 from './cryptoV2';
 import * as cryptoLib from './crypto';
 import { apiFetch } from './api';
+import { encryptChatMessage } from './chatCrypto';
 import { useDataStore } from '../store/useDataStore';
 
 export async function performMessengerShare(
@@ -24,7 +25,7 @@ export async function performMessengerShare(
 
     try {
         // 1. Fetch file to get current access_keys
-        const res = await apiFetch(`/api/v1/files/${fileId}`);
+        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`);
         if (!res.ok) throw new Error("Failed to fetch file");
         const file = await res.json().catch(() => null);
         if (!file) throw new Error("Failed to parse file metadata");
@@ -94,7 +95,7 @@ export async function performMessengerShare(
         );
         
         // Push the sharing update to the backend.
-        const shareRes = await apiFetch(`/api/v1/files/${fileId}/share`, {
+        const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/share`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -116,7 +117,7 @@ export async function performMessengerShare(
         if (dependencyFileIds && dependencyFileIds.length > 0) {
             for (const depId of dependencyFileIds) {
                 try {
-                    const depRes = await apiFetch(`/api/v1/files/${depId}`);
+                    const depRes = await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}`);
                     if (!depRes.ok) continue;
                     const depFile = await depRes.json().catch(() => null);
                     if (!depFile) continue;
@@ -135,7 +136,7 @@ export async function performMessengerShare(
                         recipientPubKey
                     );
 
-                    await apiFetch(`/api/v1/files/${depId}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -173,23 +174,37 @@ export async function performMessengerShare(
         const currentUser = (useDataStore.getState() as any).user;
         const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
 
+        const rawPayload = JSON.stringify({
+            type: isEvent ? "event_share" : "file_share_request",
+            file_id: fileId,
+            file_name: shareModalFile.title,
+            file_type: file.type,
+            file_preview: isEvent ? "" : "Shared document",
+            permission,
+            can_reshare: canReshare ?? false,
+            event_meta: eventMeta,
+            sender_name: senderName,
+        });
+
+        if (!publicKey || !recipientPubKeySpki || !myId || !recipientId) {
+            throw new Error("E2EE encryption keys missing for share notification");
+        }
+
+        const encryptedContent = await encryptChatMessage(
+            rawPayload,
+            myId,
+            publicKey,
+            recipientId,
+            recipientPubKeySpki
+        );
+
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
                 recipient_email: recipientEmail,
-                content: JSON.stringify({
-                    type: isEvent ? "event_share" : "file_share_request",
-                    file_id: fileId,
-                    file_name: shareModalFile.title,
-                    file_type: file.type,
-                    file_preview: isEvent ? "" : "Shared document",
-                    permission,
-                    can_reshare: canReshare ?? false,
-                    event_meta: eventMeta,
-                    sender_name: senderName,
-                })
+                content: encryptedContent
             })
         });
 
@@ -232,7 +247,7 @@ export async function performFolderShare(
         recipientPubKey
     );
 
-    const shareRes = await apiFetch(`/api/v1/files/${folderId}/share`, {
+    const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(folderId)}/share`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -289,7 +304,7 @@ export async function performFolderShare(
                         { title: childTitle },
                         recipientPubKey
                     );
-                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -320,7 +335,7 @@ export async function performFolderShare(
 
                     const childSecuredMeta = await cryptoLib.encryptMetadata(childMetaObj, recipientPubKey);
 
-                    await apiFetch(`/api/v1/files/${child.id}/share`, {
+                    await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -343,22 +358,41 @@ export async function performFolderShare(
     const currentUser = (useDataStore.getState() as any).user;
     const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
 
+    const rawPayload = JSON.stringify({
+        type: "file_share_request",
+        file_id: folderId,
+        file_name: folderTitle,
+        file_type: "folder",
+        file_preview: "Shared folder and all nested contents",
+        permission,
+        sender_name: senderName,
+    });
+
+    if (!publicKey || !recipientPubKeySpki || !myId || !recipientId) {
+        throw new Error("E2EE encryption keys missing for folder share notification");
+    }
+
+    const encryptedContent = await encryptChatMessage(
+        rawPayload,
+        myId,
+        publicKey,
+        recipientId,
+        recipientPubKeySpki
+    );
+
     // 3. Send chat notification
-    await apiFetch("/api/v1/messages", {
+    const messageRes = await apiFetch("/api/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             recipient_id: recipientId,
             recipient_email: recipientEmail,
-            content: JSON.stringify({
-                type: "file_share_request",
-                file_id: folderId,
-                file_name: folderTitle,
-                file_type: "folder",
-                file_preview: "Shared folder and all nested contents",
-                permission,
-                sender_name: senderName,
-            })
+            content: encryptedContent
         })
     });
+
+    if (!messageRes.ok) {
+        const errText = await messageRes.text();
+        throw new Error(`Failed to send folder share request: ${messageRes.status} - ${errText}`);
+    }
 }

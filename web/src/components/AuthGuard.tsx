@@ -4,6 +4,9 @@ import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { useDataStore } from "@/store/useDataStore";
 import { normalizePath, getAuthPath } from "@/lib/routeUtils";
+import { getMasterKey } from "@/lib/keyStorage";
+import { apiFetch, clearAllSessionData } from "@/lib/api";
+import { idb } from "@/lib/idb";
 
 const PUBLIC_PATHS = ["/", "/auth", "/verify"];
 
@@ -40,38 +43,61 @@ export default function AuthGuard({ children }: { children: React.ReactNode }) {
     }, [themePreference, setThemePreference]);
 
     useEffect(() => {
+        let cancelled = false;
+
         const checkAuth = async () => {
             if (isPublic(pathname)) {
-                setAuthorized(true);
+                if (!cancelled) setAuthorized(true);
                 return;
             }
 
-            const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
-            if (!vaultKey) {
+            const masterKey = await getMasterKey();
+            if (cancelled) return;
+
+            if (!masterKey) {
                 setAuthorized(false);
-                router.push(getAuthPath(pathname));
+                await clearAllSessionData({ callServerLogout: false });
+                if (!cancelled) {
+                    router.push(getAuthPath(pathname));
+                }
                 return;
             }
 
             try {
-                const { apiFetch } = await import("@/lib/api");
                 const res = await apiFetch("/api/v1/auth/me");
+                if (cancelled) return;
+
                 if (res.ok) {
                     setAuthorized(true);
                 } else {
                     setAuthorized(false);
-                    sessionStorage.clear();
-                    localStorage.removeItem("tide_session_token");
-                    router.push(getAuthPath(pathname));
+                    await clearAllSessionData({ callServerLogout: false });
+                    if (!cancelled) {
+                        router.push(getAuthPath(pathname));
+                    }
                 }
             } catch (err) {
                 console.error("Auth check failed:", err);
-                // If offline, maybe allow if vault key exists?
-                setAuthorized(true); 
+                if (cancelled) return;
+
+                const isOffline = typeof navigator !== "undefined" && !navigator.onLine;
+                const hasOfflineCache = isOffline || Boolean(await idb.get("api_cache_/api/v1/auth/me"));
+                if (cancelled) return;
+
+                if (masterKey && hasOfflineCache) {
+                    setAuthorized(true);
+                } else {
+                    setAuthorized(false);
+                    router.push(getAuthPath(pathname));
+                }
             }
         };
 
-        checkAuth();
+        void checkAuth();
+
+        return () => {
+            cancelled = true;
+        };
     }, [pathname, router]);
 
     // Prevent flash of content

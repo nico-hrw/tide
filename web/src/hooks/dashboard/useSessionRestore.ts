@@ -15,7 +15,8 @@ import {
     parseStoredCalendarDate,
 } from "@/lib/calendarWeeks";
 import { sanitizeRestoredTabs } from "@/lib/tabStorage";
-import { useDataStore } from "@/store/useDataStore";
+import { loadEncryptedOfflineCache } from "@/lib/offlineCacheCrypto";
+import { useDataStore, type DataItem, type DataStoreState, type TaskItem } from "@/store/useDataStore";
 import type {
     DashboardStatus,
     SessionKeyPair,
@@ -219,6 +220,31 @@ export function useSessionRestore(options: UseSessionRestoreOptions = {}): UseSe
                 if (!keysValid || cancelled) return;
 
                 setKeys(privKey, pubKey, userId);
+                void Promise.all([
+                    loadEncryptedOfflineCache<DataItem[]>("notes"),
+                    loadEncryptedOfflineCache<DataItem[]>("events"),
+                    loadEncryptedOfflineCache<TaskItem[]>("tasks"),
+                ])
+                    .then(([cachedNotes, cachedEvents, cachedTasks]) => {
+                        if (cancelled) return;
+                        const store = useDataStore.getState();
+                        const patch: Partial<Pick<DataStoreState, "notes" | "events" | "tasks">> = {};
+                        if (Array.isArray(cachedNotes) && cachedNotes.length > 0 && store.notes.length === 0) {
+                            patch.notes = cachedNotes;
+                        }
+                        if (Array.isArray(cachedEvents) && cachedEvents.length > 0 && store.events.length === 0) {
+                            patch.events = cachedEvents;
+                        }
+                        if (Array.isArray(cachedTasks) && cachedTasks.length > 0 && store.tasks.length === 0) {
+                            patch.tasks = cachedTasks;
+                        }
+                        if (Object.keys(patch).length > 0) {
+                            useDataStore.setState(patch);
+                        }
+                    })
+                    .catch((err) => {
+                        console.warn("[OFFLINE-CACHE] Failed to hydrate encrypted offline cache", err);
+                    });
                 void fetchDirectory(null);
                 setMyId(userId);
                 optionsRef.current.setMyId?.(userId);

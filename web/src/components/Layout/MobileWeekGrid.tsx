@@ -486,7 +486,16 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
           const color = paletteFor(ev.color).bg;
           const overlay = document.createElement('div');
           overlay.style.cssText = `position:fixed;left:${pillRect.left}px;top:${pillRect.top}px;width:${pillRect.width}px;height:${pillRect.height}px;background:${withAlpha(color, 93)};border-radius:7px;border:2px solid ${color};box-shadow:0 8px 28px ${withAlpha(color, 33)};z-index:9999;pointer-events:none;padding:4px;overflow:hidden;will-change:transform;`;
-          overlay.innerHTML = `<div style="font-size:11px;font-weight:700;color:${paletteFor(ev.color).ink};line-height:1.3;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${ev.title.replace(/</g, '&lt;')}</div>`;
+          const titleEl = document.createElement('div');
+          titleEl.style.fontSize = '11px';
+          titleEl.style.fontWeight = '700';
+          titleEl.style.color = paletteFor(ev.color).ink;
+          titleEl.style.lineHeight = '1.3';
+          titleEl.style.overflow = 'hidden';
+          titleEl.style.textOverflow = 'ellipsis';
+          titleEl.style.whiteSpace = 'nowrap';
+          titleEl.textContent = ev.title;
+          overlay.replaceChildren(titleEl);
           document.body.appendChild(overlay);
           dragOverlayRef.current = overlay;
         }

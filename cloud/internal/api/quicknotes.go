@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"encoding/base64"
 	"encoding/binary"
 	"encoding/json"
@@ -107,16 +108,29 @@ func (h *QuicknoteHandler) RegisterRoutes(r chi.Router) {
 	r.Delete("/{slug}/files/{fileID}", h.DeleteQuicknoteFile)
 	r.Get("/{slug}/ws", h.ServeWs)
 	r.Get("/ws/{slug}", h.ServeWs)
+
+	r.Group(func(r chi.Router) {
+		r.Use(AuthMiddleware)
+		r.Put("/{slug}/access", h.SetQuicknoteAccess)
+		r.Post("/{slug}/access-requests", h.RequestQuicknoteAccess)
+		r.Get("/{slug}/access-requests", h.ListQuicknoteAccessRequests)
+		r.Post("/{slug}/access-requests/{userID}/approve", h.ApproveQuicknoteAccessRequest)
+		r.Post("/{slug}/access-requests/{userID}/deny", h.DenyQuicknoteAccessRequest)
+	})
 }
 
 // QuicknoteResponse represents the JSON output for quicknote metadata & content.
 type QuicknoteResponse struct {
-	Slug       string    `json:"slug"`
-	ParentSlug *string   `json:"parent_slug,omitempty"`
-	Title      string    `json:"title"`
-	Content    string    `json:"content"`
-	CreatedAt  time.Time `json:"created_at"`
-	UpdatedAt  time.Time `json:"updated_at"`
+	Slug         string    `json:"slug"`
+	ParentSlug   *string   `json:"parent_slug,omitempty"`
+	Title        string    `json:"title"`
+	Content      string    `json:"content"`
+	OwnerID      *string   `json:"owner_id,omitempty"`
+	AccessMode   string    `json:"access_mode"`
+	IsOwner      bool      `json:"is_owner"`
+	AccessStatus string    `json:"access_status"`
+	CreatedAt    time.Time `json:"created_at"`
+	UpdatedAt    time.Time `json:"updated_at"`
 }
 
 // SaveQuicknoteRequest represents the JSON input for saving quicknote title, content & parent.
@@ -131,6 +145,171 @@ type QuicknoteTreeResponse struct {
 	Tree []store.QuicknoteTreeNode `json:"tree"`
 }
 
+// extractOptionalUserID resolves an optional authenticated user ID from a WS ticket,
+// request context, Bearer token, query token, or session cookie.
+// Returns ("", false) when an explicit ?ticket= parameter is invalid or expired.
+func extractOptionalUserID(r *http.Request) (string, bool) {
+	if ticket := strings.TrimSpace(r.URL.Query().Get("ticket")); ticket != "" {
+		uid, ok := ConsumeWSTicket(ticket)
+		if !ok || uid == "" {
+			return "", false
+		}
+		return uid, true
+	}
+
+	if ctxUserID, ok := r.Context().Value("user_id").(string); ok && ctxUserID != "" {
+		return ctxUserID, true
+	}
+
+	tokenString := ""
+	authHeader := r.Header.Get("Authorization")
+	if strings.HasPrefix(authHeader, "Bearer ") {
+		tokenString = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
+	}
+	if tokenString == "" {
+		tokenString = strings.TrimSpace(r.URL.Query().Get("token"))
+	}
+	if tokenString == "" {
+		if cookie, err := r.Cookie("tide_session"); err == nil {
+			tokenString = strings.TrimSpace(cookie.Value)
+		}
+	}
+
+	if tokenString != "" {
+		jwtKeyStr := os.Getenv("JWT_SECRET")
+		if jwtKeyStr != "" {
+			token, err := jwt.Parse(
+				tokenString,
+				func(t *jwt.Token) (interface{}, error) {
+					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+						return nil, http.ErrAbortHandler
+					}
+					return []byte(jwtKeyStr), nil
+				},
+				jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+				jwt.WithExpirationRequired(),
+			)
+			if err == nil && token.Valid {
+				if claims, ok := token.Claims.(jwt.MapClaims); ok {
+					if sub, okSub := claims["sub"].(string); okSub && sub != "" {
+						return sub, true
+					}
+					if uid, okUID := claims["user_id"].(string); okUID && uid != "" {
+						return uid, true
+					}
+				}
+			}
+		}
+	}
+
+	return "", true
+}
+
+func writeQuicknoteAccessDenied(w http.ResponseWriter, qn *store.Quicknote, accessStatus string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusForbidden)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"error":         "access_approval_required",
+		"access_mode":   "approval_required",
+		"access_status": accessStatus,
+		"slug":          qn.Slug,
+		"title":         qn.Title,
+	})
+}
+
+func buildQuicknoteResponse(qn *store.Quicknote, callerID, accessStatus string) QuicknoteResponse {
+	accessMode := qn.AccessMode
+	if accessMode == "" {
+		accessMode = "open"
+	}
+	isOwner := callerID != "" && qn.OwnerID != nil && *qn.OwnerID == callerID
+	return QuicknoteResponse{
+		Slug:         qn.Slug,
+		ParentSlug:   qn.ParentSlug,
+		Title:        qn.Title,
+		Content:      qn.Content,
+		OwnerID:      qn.OwnerID,
+		AccessMode:   accessMode,
+		IsOwner:      isOwner,
+		AccessStatus: accessStatus,
+		CreatedAt:    qn.CreatedAt,
+		UpdatedAt:    qn.UpdatedAt,
+	}
+}
+
+func (h *QuicknoteHandler) authorizeQuicknote(w http.ResponseWriter, r *http.Request, slug string, createIfMissing bool) (*store.Quicknote, string, string, bool) {
+	callerID, ticketOK := extractOptionalUserID(r)
+	if !ticketOK {
+		http.Error(w, "Unauthorized: invalid or expired ticket", http.StatusUnauthorized)
+		return nil, "", "", false
+	}
+
+	var qn *store.Quicknote
+	var err error
+	if createIfMissing {
+		qn, err = h.store.GetQuicknoteBySlug(r.Context(), slug)
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			var parentSlug *string
+			if p := strings.TrimSpace(r.URL.Query().Get("parent_slug")); p != "" {
+				parentSlug = &p
+			}
+			qn, err = h.store.GetOrCreateQuicknote(r.Context(), slug, slug, parentSlug)
+			if err == nil && callerID != "" {
+				if setErr := h.store.SetQuicknoteOwnerIfUnset(r.Context(), slug, callerID); setErr == nil && qn.OwnerID == nil {
+					ownerCopy := callerID
+					qn.OwnerID = &ownerCopy
+				}
+			}
+		}
+	} else {
+		qn, err = h.store.GetQuicknoteBySlug(r.Context(), slug)
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return nil, "", "", false
+		}
+	}
+	if err != nil {
+		log.Printf("[Quicknote] Failed to load quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to load quicknote", http.StatusInternalServerError)
+		return nil, "", "", false
+	}
+
+	if qn.AccessMode == "" || qn.AccessMode == "open" {
+		accessStatus := "open"
+		if callerID != "" && qn.OwnerID != nil && *qn.OwnerID == callerID {
+			accessStatus = "owner"
+		}
+		return qn, callerID, accessStatus, true
+	}
+
+	if qn.AccessMode == "approval_required" {
+		if callerID == "" {
+			writeQuicknoteAccessDenied(w, qn, "auth_required")
+			return nil, "", "", false
+		}
+		if qn.OwnerID != nil && *qn.OwnerID == callerID {
+			return qn, callerID, "owner", true
+		}
+		req, reqErr := h.store.GetQuicknoteAccessRequest(r.Context(), slug, callerID)
+		if reqErr == nil && req != nil && req.Status == "approved" {
+			return qn, callerID, "approved", true
+		}
+		status := "none"
+		if reqErr == nil && req != nil && req.Status != "" {
+			status = req.Status
+		} else if reqErr != nil && !errors.Is(reqErr, store.ErrNotFound) && !errors.Is(reqErr, sql.ErrNoRows) {
+			log.Printf("[Quicknote] Failed to check access request for %s user %s: %v", slug, callerID, reqErr)
+			http.Error(w, "Failed to verify quicknote access", http.StatusInternalServerError)
+			return nil, "", "", false
+		}
+		writeQuicknoteAccessDenied(w, qn, status)
+		return nil, "", "", false
+	}
+
+	writeQuicknoteAccessDenied(w, qn, "none")
+	return nil, "", "", false
+}
+
 // GetQuicknote retrieves or lazily creates a quicknote by slug.
 func (h *QuicknoteHandler) GetQuicknote(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
@@ -139,25 +318,12 @@ func (h *QuicknoteHandler) GetQuicknote(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	var parentSlug *string
-	if p := strings.TrimSpace(r.URL.Query().Get("parent_slug")); p != "" {
-		parentSlug = &p
-	}
-
-	qn, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug, parentSlug)
-	if err != nil {
-		http.Error(w, "Failed to get quicknote: "+err.Error(), http.StatusInternalServerError)
+	qn, callerID, accessStatus, ok := h.authorizeQuicknote(w, r, slug, true)
+	if !ok {
 		return
 	}
 
-	resp := QuicknoteResponse{
-		Slug:       qn.Slug,
-		ParentSlug: qn.ParentSlug,
-		Title:      qn.Title,
-		Content:    qn.Content,
-		CreatedAt:  qn.CreatedAt,
-		UpdatedAt:  qn.UpdatedAt,
-	}
+	resp := buildQuicknoteResponse(qn, callerID, accessStatus)
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(resp)
@@ -171,9 +337,20 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
+	qn, callerID, accessStatus, ok := h.authorizeQuicknote(w, r, slug, true)
+	if !ok {
+		return
+	}
+
 	var body SaveQuicknoteRequest
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Invalid request body for %s: %v", slug, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if body.ParentSlug != nil && strings.TrimSpace(*body.ParentSlug) == slug {
+		http.Error(w, "parent_slug cannot equal slug", http.StatusBadRequest)
 		return
 	}
 
@@ -182,12 +359,17 @@ func (h *QuicknoteHandler) SaveQuicknote(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to save quicknote: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to save quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to save quicknote", http.StatusInternalServerError)
 		return
 	}
 
+	if updated, err := h.store.GetQuicknoteBySlug(r.Context(), slug); err == nil && updated != nil {
+		qn = updated
+	}
+
 	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+	_ = json.NewEncoder(w).Encode(buildQuicknoteResponse(qn, callerID, accessStatus))
 }
 
 // GetTree returns the hierarchical tree of quicknotes containing the specified slug.
@@ -198,11 +380,27 @@ func (h *QuicknoteHandler) GetTree(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, err := h.store.GetQuicknoteBySlug(r.Context(), slug); errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(QuicknoteTreeResponse{Tree: []store.QuicknoteTreeNode{}})
+		return
+	}
+
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, false); !ok {
+		return
+	}
+
 	nodes, err := h.store.GetQuicknoteTree(r.Context(), slug)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(QuicknoteTreeResponse{Tree: []store.QuicknoteTreeNode{}})
+			return
+		}
+		log.Printf("[Quicknote] Failed to get quicknote tree for %s: %v", slug, err)
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
-		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get quicknote tree: " + err.Error()})
+		_ = json.NewEncoder(w).Encode(map[string]string{"error": "Failed to get quicknote tree"})
 		return
 	}
 
@@ -244,13 +442,18 @@ func (h *QuicknoteHandler) GetCRDTState(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, true); !ok {
+		return
+	}
+
 	qn, entries, err := h.store.GetQuicknoteCRDTState(r.Context(), slug)
 	if err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to get CRDT state: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to get CRDT state for %s: %v", slug, err)
+		http.Error(w, "Failed to get CRDT state", http.StatusInternalServerError)
 		return
 	}
 
@@ -291,6 +494,10 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, false); !ok {
+		return
+	}
+
 	var req struct {
 		IV               string `json:"iv"`
 		IVBase64         string `json:"ivBase64"`
@@ -300,7 +507,8 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 		UpToSeqIDCamel   int64  `json:"upToSeqId"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Invalid compact request body for %s: %v", slug, err)
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
 
@@ -329,12 +537,28 @@ func (h *QuicknoteHandler) Compact(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	qn, _, err := h.store.GetQuicknoteCRDTState(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to verify CRDT state for %s: %v", slug, err)
+		http.Error(w, "Failed to verify quicknote state", http.StatusInternalServerError)
+		return
+	}
+	if upToSeqID < qn.SnapshotSeqID {
+		http.Error(w, "up_to_seq_id cannot be less than current snapshot_seq_id", http.StatusConflict)
+		return
+	}
+
 	if err := h.store.CompactQuicknoteSnapshot(r.Context(), slug, iv, ciphertext, upToSeqID); err != nil {
 		if errors.Is(err, store.ErrNotFound) {
 			http.Error(w, "Quicknote not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "Failed to compact snapshot: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to compact snapshot for %s: %v", slug, err)
+		http.Error(w, "Failed to compact snapshot", http.StatusInternalServerError)
 		return
 	}
 
@@ -350,9 +574,20 @@ func (h *QuicknoteHandler) GetQuicknoteFiles(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
+	if _, err := h.store.GetQuicknoteBySlug(r.Context(), slug); errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode([]store.QuicknoteFile{})
+		return
+	}
+
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, false); !ok {
+		return
+	}
+
 	files, err := h.store.GetQuicknoteFiles(r.Context(), slug)
 	if err != nil {
-		http.Error(w, "Failed to get quicknote files: "+err.Error(), http.StatusInternalServerError)
+		log.Printf("[Quicknote] Failed to get quicknote files for %s: %v", slug, err)
+		http.Error(w, "Failed to get quicknote files", http.StatusInternalServerError)
 		return
 	}
 
@@ -364,16 +599,32 @@ func (h *QuicknoteHandler) GetQuicknoteFiles(w http.ResponseWriter, r *http.Requ
 	_ = json.NewEncoder(w).Encode(files)
 }
 
-// UploadQuicknoteFile handles file attachment uploads with a 250MB per-note quota check.
+type quicknoteCountingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *quicknoteCountingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
+
+func getMaxQuicknotesTotalStorage() int64 {
+	const defaultMaxTotal = int64(2) << 30 // 2 GB
+	if envVal := strings.TrimSpace(os.Getenv("MAX_QUICKNOTES_TOTAL_STORAGE_MB")); envVal != "" {
+		if mb, err := strconv.ParseInt(envVal, 10, 64); err == nil && mb > 0 && mb <= (1<<42) {
+			return mb << 20
+		}
+	}
+	return defaultMaxTotal
+}
+
+// UploadQuicknoteFile handles file attachment uploads with per-note and global storage quota checks.
 func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
 	if slug == "" {
 		http.Error(w, "slug is required", http.StatusBadRequest)
-		return
-	}
-
-	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
-		http.Error(w, "Failed to initialize quicknote: "+err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -382,56 +633,102 @@ func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		http.Error(w, "Invalid multipart form: "+err.Error(), http.StatusBadRequest)
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, true); !ok {
 		return
+	}
+
+	const maxPerNote = int64(250 << 20) // 250 MB
+	maxTotal := getMaxQuicknotesTotalStorage()
+
+	token := r.Header.Get("X-Access-Token")
+	if token == "" {
+		token = r.URL.Query().Get("token")
+	}
+	if token == "" {
+		authHeader := r.Header.Get("Authorization")
+		if strings.HasPrefix(authHeader, "Bearer ") {
+			token = strings.TrimPrefix(authHeader, "Bearer ")
+		}
+	}
+	hasExpandToken := token != "" && ValidateStorageExpandToken(r.Context(), h.store, token)
+
+	currentNoteStorage, err := h.store.GetQuicknoteTotalStorage(r.Context(), slug)
+	if err != nil {
+		log.Printf("[Quicknote] Failed to check current storage usage for %s: %v", slug, err)
+		http.Error(w, "Failed to check current storage usage", http.StatusInternalServerError)
+		return
+	}
+
+	currentTotalStorage, err := h.store.GetTotalQuicknotesStorage(r.Context())
+	if err != nil {
+		log.Printf("[Quicknote] Failed to check global quicknotes storage usage: %v", err)
+		http.Error(w, "Failed to check global storage usage", http.StatusInternalServerError)
+		return
+	}
+
+	remaining := maxTotal - currentTotalStorage
+	if !hasExpandToken {
+		perNoteRemaining := maxPerNote - currentNoteStorage
+		if perNoteRemaining < remaining {
+			remaining = perNoteRemaining
+		}
+	}
+
+	if remaining <= 0 {
+		http.Error(w, "Storage quota exceeded", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	const multipartOverhead = int64(1 << 20)
+	maxBodyBytes := remaining + multipartOverhead
+	if r.ContentLength > maxBodyBytes {
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	respCtrl := http.NewResponseController(w)
+	_ = respCtrl.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	_ = respCtrl.SetWriteDeadline(time.Now().Add(30 * time.Minute))
+
+	r.Body = http.MaxBytesReader(w, r.Body, maxBodyBytes)
+	if err := r.ParseMultipartForm(32 << 20); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
+			return
+		}
+		log.Printf("[Quicknote] Invalid multipart form for %s: %v", slug, err)
+		http.Error(w, "Invalid multipart form", http.StatusBadRequest)
+		return
+	}
+	if r.MultipartForm != nil {
+		defer func() { _ = r.MultipartForm.RemoveAll() }()
 	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
-		http.Error(w, "Failed to read file from form: "+err.Error(), http.StatusBadRequest)
+		log.Printf("[Quicknote] Failed to read file from form for %s: %v", slug, err)
+		http.Error(w, "Failed to read file from form", http.StatusBadRequest)
 		return
 	}
 	defer file.Close()
 
-	const maxStorage = 250 * 1024 * 1024 // 250MB
-	currentStorage, err := h.store.GetQuicknoteTotalStorage(r.Context(), slug)
-	if err != nil {
-		http.Error(w, "Failed to check current storage usage: "+err.Error(), http.StatusInternalServerError)
+	if header.Size > remaining {
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
 		return
 	}
 
-	if currentStorage+header.Size > maxStorage {
-		token := r.Header.Get("X-Access-Token")
-		if token == "" {
-			token = r.FormValue("token")
-		}
-		if token == "" {
-			token = r.URL.Query().Get("token")
-		}
-		if token == "" {
-			authHeader := r.Header.Get("Authorization")
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				token = strings.TrimPrefix(authHeader, "Bearer ")
-			}
-		}
-
-		if !ValidateStorageExpandToken(r.Context(), h.store, token) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusForbidden)
-			_ = json.NewEncoder(w).Encode(map[string]interface{}{
-				"error":   "storage_limit_exceeded",
-				"limit":   maxStorage,
-				"current": currentStorage,
-				"message": "Speicherlimit von 250MB pro Notiz überschritten. Bitte melde dich an oder gib ein Zugriffs-Token ein.",
-			})
-			return
-		}
-	}
-
 	fileID := uuid.New().String()
-	if err := h.blobStore.Put(r.Context(), fileID, file); err != nil {
-		http.Error(w, "Failed to store file: "+err.Error(), http.StatusInternalServerError)
+	blobPath := "quicknotes/" + fileID
+	cr := &quicknoteCountingReader{r: io.LimitReader(file, remaining+1)}
+	if err := h.blobStore.Put(r.Context(), blobPath, cr); err != nil {
+		log.Printf("[Quicknote] Failed to store file %s for %s: %v", blobPath, slug, err)
+		http.Error(w, "Failed to store file", http.StatusInternalServerError)
+		return
+	}
+	if cr.n > remaining {
+		_ = h.blobStore.Delete(r.Context(), blobPath)
+		http.Error(w, "File too large for remaining storage quota", http.StatusRequestEntityTooLarge)
 		return
 	}
 
@@ -445,14 +742,15 @@ func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Re
 		Slug:      slug,
 		Name:      filepath.Base(header.Filename),
 		MIMEType:  mimeType,
-		Size:      header.Size,
-		BlobPath:  fileID,
+		Size:      cr.n,
+		BlobPath:  blobPath,
 		CreatedAt: time.Now(),
 	}
 
 	if err := h.store.CreateQuicknoteFile(r.Context(), qf); err != nil {
-		_ = h.blobStore.Delete(r.Context(), fileID)
-		http.Error(w, "Failed to save file metadata: "+err.Error(), http.StatusInternalServerError)
+		_ = h.blobStore.Delete(r.Context(), blobPath)
+		log.Printf("[Quicknote] Failed to save file metadata for %s: %v", slug, err)
+		http.Error(w, "Failed to save file metadata", http.StatusInternalServerError)
 		return
 	}
 
@@ -467,6 +765,10 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 	fileID := strings.TrimSpace(chi.URLParam(r, "fileID"))
 	if slug == "" || fileID == "" {
 		http.Error(w, "slug and fileID are required", http.StatusBadRequest)
+		return
+	}
+
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, false); !ok {
 		return
 	}
 
@@ -487,6 +789,10 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 		return
 	}
 	defer rc.Close()
+
+	respCtrl := http.NewResponseController(w)
+	_ = respCtrl.SetReadDeadline(time.Now().Add(30 * time.Minute))
+	_ = respCtrl.SetWriteDeadline(time.Now().Add(30 * time.Minute))
 
 	mediaType, params, err := mime.ParseMediaType(qf.MIMEType)
 	contentType := "application/octet-stream"
@@ -525,8 +831,16 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 
 // DeleteQuicknoteFile removes an attachment from database and blob storage.
 func (h *QuicknoteHandler) DeleteQuicknoteFile(w http.ResponseWriter, r *http.Request) {
-	slug := chi.URLParam(r, "slug")
-	fileID := chi.URLParam(r, "fileID")
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	fileID := strings.TrimSpace(chi.URLParam(r, "fileID"))
+	if slug == "" || fileID == "" {
+		http.Error(w, "slug and fileID are required", http.StatusBadRequest)
+		return
+	}
+
+	if _, _, _, ok := h.authorizeQuicknote(w, r, slug, false); !ok {
+		return
+	}
 
 	qf, err := h.store.GetQuicknoteFile(r.Context(), slug, fileID)
 	if err != nil {
@@ -547,6 +861,215 @@ func (h *QuicknoteHandler) DeleteQuicknoteFile(w http.ResponseWriter, r *http.Re
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// SetQuicknoteAccess toggles the quicknote access mode ('open' | 'approval_required') for the owner.
+func (h *QuicknoteHandler) SetQuicknoteAccess(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	var req struct {
+		AccessMode string `json:"access_mode"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+	req.AccessMode = strings.TrimSpace(req.AccessMode)
+	if req.AccessMode != "open" && req.AccessMode != "approval_required" {
+		http.Error(w, "access_mode must be 'open' or 'approval_required'", http.StatusBadRequest)
+		return
+	}
+
+	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
+		log.Printf("[Quicknote] Failed to ensure quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to initialize quicknote", http.StatusInternalServerError)
+		return
+	}
+
+	qn, err := h.store.SetQuicknoteAccessMode(r.Context(), slug, userID, req.AccessMode)
+	if err != nil {
+		if errors.Is(err, store.ErrForbidden) {
+			http.Error(w, "Forbidden: only the quicknote owner can change access mode", http.StatusForbidden)
+			return
+		}
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to set access mode for %s: %v", slug, err)
+		http.Error(w, "Failed to update quicknote access mode", http.StatusInternalServerError)
+		return
+	}
+
+	accessStatus := "open"
+	if qn.OwnerID != nil && *qn.OwnerID == userID {
+		accessStatus = "owner"
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(buildQuicknoteResponse(qn, userID, accessStatus))
+}
+
+// RequestQuicknoteAccess submits or refreshes an access request for an approval-gated quicknote.
+func (h *QuicknoteHandler) RequestQuicknoteAccess(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	qn, err := h.store.GetQuicknoteBySlug(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to load quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to load quicknote", http.StatusInternalServerError)
+		return
+	}
+
+	if qn.OwnerID != nil && *qn.OwnerID == userID {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"status": "owner"})
+		return
+	}
+
+	req, err := h.store.UpsertQuicknoteAccessRequest(r.Context(), slug, userID)
+	if err != nil {
+		log.Printf("[Quicknote] Failed to upsert access request for %s user %s: %v", slug, userID, err)
+		http.Error(w, "Failed to submit access request", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(req)
+}
+
+// ListQuicknoteAccessRequests lists all access requests for a quicknote (owner only).
+func (h *QuicknoteHandler) ListQuicknoteAccessRequests(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	if slug == "" {
+		http.Error(w, "slug is required", http.StatusBadRequest)
+		return
+	}
+
+	qn, err := h.store.GetQuicknoteBySlug(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to load quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to load quicknote", http.StatusInternalServerError)
+		return
+	}
+
+	if qn.OwnerID == nil || *qn.OwnerID != userID {
+		http.Error(w, "Forbidden: only the quicknote owner can view access requests", http.StatusForbidden)
+		return
+	}
+
+	reqs, err := h.store.ListQuicknoteAccessRequests(r.Context(), slug)
+	if err != nil {
+		log.Printf("[Quicknote] Failed to list access requests for %s: %v", slug, err)
+		http.Error(w, "Failed to list access requests", http.StatusInternalServerError)
+		return
+	}
+	if reqs == nil {
+		reqs = []*store.QuicknoteAccessRequest{}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(reqs)
+}
+
+// ApproveQuicknoteAccessRequest approves a user's access request for a quicknote (owner only).
+func (h *QuicknoteHandler) ApproveQuicknoteAccessRequest(w http.ResponseWriter, r *http.Request) {
+	h.resolveQuicknoteAccessRequest(w, r, "approved")
+}
+
+// DenyQuicknoteAccessRequest denies a user's access request and evicts them from the active room (owner only).
+func (h *QuicknoteHandler) DenyQuicknoteAccessRequest(w http.ResponseWriter, r *http.Request) {
+	h.resolveQuicknoteAccessRequest(w, r, "denied")
+}
+
+func (h *QuicknoteHandler) resolveQuicknoteAccessRequest(w http.ResponseWriter, r *http.Request, status string) {
+	callerID, ok := r.Context().Value("user_id").(string)
+	if !ok || callerID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
+	targetUserID := strings.TrimSpace(chi.URLParam(r, "userID"))
+	if slug == "" || targetUserID == "" {
+		http.Error(w, "slug and userID are required", http.StatusBadRequest)
+		return
+	}
+
+	qn, err := h.store.GetQuicknoteBySlug(r.Context(), slug)
+	if err != nil {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to load quicknote %s: %v", slug, err)
+		http.Error(w, "Failed to load quicknote", http.StatusInternalServerError)
+		return
+	}
+
+	if qn.OwnerID == nil || *qn.OwnerID != callerID {
+		http.Error(w, "Forbidden: only the quicknote owner can resolve access requests", http.StatusForbidden)
+		return
+	}
+
+	if err := h.store.ResolveQuicknoteAccessRequest(r.Context(), slug, targetUserID, status); err != nil {
+		if errors.Is(err, store.ErrNotFound) || errors.Is(err, sql.ErrNoRows) {
+			http.Error(w, "Quicknote not found", http.StatusNotFound)
+			return
+		}
+		log.Printf("[Quicknote] Failed to resolve access request for %s user %s: %v", slug, targetUserID, err)
+		http.Error(w, "Failed to resolve access request", http.StatusInternalServerError)
+		return
+	}
+
+	if status == "denied" {
+		hub := h.hub
+		if hub == nil {
+			hub = GlobalHub
+		}
+		hub.EvictUserFromRoom("quicknote:"+slug, targetUserID)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{
+		"status":  status,
+		"user_id": targetUserID,
+	})
+}
+
 // ServeWs upgrades HTTP to WebSocket and handles collaborative editing for quicknotes.
 func (h *QuicknoteHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
@@ -555,10 +1078,8 @@ func (h *QuicknoteHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Ensure quicknote exists so foreign key references in quicknote_wal succeed
-	if _, err := h.store.GetOrCreateQuicknote(r.Context(), slug, slug); err != nil {
-		log.Printf("[Quicknote WS] Failed to get or create quicknote for slug %s: %v", slug, err)
-		http.Error(w, "Failed to initialize quicknote: "+err.Error(), http.StatusInternalServerError)
+	qn, callerID, _, ok := h.authorizeQuicknote(w, r, slug, true)
+	if !ok {
 		return
 	}
 
@@ -569,49 +1090,8 @@ func (h *QuicknoteHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var userID string
-	if ctxUserID, ok := r.Context().Value("user_id").(string); ok && ctxUserID != "" {
-		userID = ctxUserID
-	}
-
-	if userID == "" {
-		tokenString := ""
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-		}
-		if tokenString == "" {
-			tokenString = r.URL.Query().Get("token")
-		}
-		if tokenString == "" {
-			if cookie, err := r.Cookie("tide_session"); err == nil {
-				tokenString = cookie.Value
-			}
-		}
-
-		if tokenString != "" {
-			jwtKeyStr := os.Getenv("JWT_SECRET")
-			if jwtKeyStr != "" {
-				token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, http.ErrAbortHandler
-					}
-					return []byte(jwtKeyStr), nil
-				})
-				if err == nil && token.Valid {
-					if claims, ok := token.Claims.(jwt.MapClaims); ok {
-						if sub, okSub := claims["sub"].(string); okSub && sub != "" {
-							userID = sub
-						} else if uid, okUID := claims["user_id"].(string); okUID && uid != "" {
-							userID = uid
-						}
-					}
-				}
-			}
-		}
-	}
-
-	if userID == "" {
+	userID := callerID
+	if userID == "" && (qn.AccessMode == "" || qn.AccessMode == "open") {
 		userID = "guest-" + uuid.New().String()[:8]
 	}
 

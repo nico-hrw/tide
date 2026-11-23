@@ -12,6 +12,10 @@ export interface E2EEMessageEnvelope {
 // In-memory cache for decrypted chat messages so re-renders don't re-run subtle crypto
 const chatDecryptionCache = new Map<string, string>();
 
+export function clearChatDecryptionCache(): void {
+    chatDecryptionCache.clear();
+}
+
 /**
  * Checks whether a raw message content string is an end-to-end encrypted envelope.
  */
@@ -81,32 +85,38 @@ export async function encryptChatMessage(
     return envelopeString;
 }
 
+export type ChatDecryptStatus = 'decrypted' | 'legacy_plaintext' | 'missing_key' | 'failed';
+
 /**
- * Decrypts a chat message content. If the message is unencrypted (e.g. legacy
- * plaintext or JSON share cards), returns the content as-is.
+ * Decrypts a chat message content along with E2EE status metadata. If the message
+ * is unencrypted (e.g. legacy plaintext or JSON share cards), returns the content as-is.
  */
-export async function decryptChatMessage(
+export async function decryptChatMessageWithMeta(
     content: string,
     myId: string,
     myPrivateKey: CryptoKey | null
-): Promise<string> {
+): Promise<{ text: string; isE2EE: boolean; status: ChatDecryptStatus }> {
     if (!content || !isE2EEMessage(content)) {
-        return content;
+        return { text: content, isE2EE: false, status: 'legacy_plaintext' };
     }
 
     const cacheKey = `${myId}:${content}`;
     if (chatDecryptionCache.has(cacheKey)) {
-        return chatDecryptionCache.get(cacheKey)!;
+        return { text: chatDecryptionCache.get(cacheKey)!, isE2EE: true, status: 'decrypted' };
     }
 
     if (!myPrivateKey) {
-        return "[Verschlüsselte Nachricht - Schlüssel wird geladen...]";
+        return {
+            text: "[Verschlüsselte Nachricht - Schlüssel wird geladen...]",
+            isE2EE: true,
+            status: 'missing_key',
+        };
     }
 
     try {
         const envelope: E2EEMessageEnvelope = JSON.parse(content);
         if (!envelope._e2ee || !envelope.keys) {
-            return content;
+            return { text: content, isE2EE: false, status: 'legacy_plaintext' };
         }
 
         let wrappedKey = envelope.keys[myId];
@@ -119,7 +129,11 @@ export async function decryptChatMessage(
         }
 
         if (!wrappedKey) {
-            return "[Verschlüsselte Nachricht - Kein Zugriffsschlüssel]";
+            return {
+                text: "[Verschlüsselte Nachricht - Kein Zugriffsschlüssel]",
+                isE2EE: true,
+                status: 'missing_key',
+            };
         }
 
         // Unwrap the ephemeral AES key using private key
@@ -137,9 +151,26 @@ export async function decryptChatMessage(
 
         const decryptedText = new TextDecoder().decode(decryptedBuffer);
         chatDecryptionCache.set(cacheKey, decryptedText);
-        return decryptedText;
+        return { text: decryptedText, isE2EE: true, status: 'decrypted' };
     } catch (err) {
         console.warn("[ChatCrypto] Decryption failed for message:", err);
-        return "[Verschlüsselte Nachricht - Entschlüsselung fehlgeschlagen]";
+        return {
+            text: "[Verschlüsselte Nachricht - Entschlüsselung fehlgeschlagen]",
+            isE2EE: true,
+            status: 'failed',
+        };
     }
+}
+
+/**
+ * Decrypts a chat message content. If the message is unencrypted (e.g. legacy
+ * plaintext or JSON share cards), returns the content as-is.
+ */
+export async function decryptChatMessage(
+    content: string,
+    myId: string,
+    myPrivateKey: CryptoKey | null
+): Promise<string> {
+    const result = await decryptChatMessageWithMeta(content, myId, myPrivateKey);
+    return result.text;
 }

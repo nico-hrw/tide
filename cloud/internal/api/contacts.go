@@ -12,7 +12,12 @@ import (
 
 type ContactHandler struct {
 	Store  *store.SQLiteStore
-	Broker *Broker
+	Broker        *Broker
+	searchLimiter *IPRateLimiter
+}
+
+func (h *ContactHandler) SetSearchLimiter(l *IPRateLimiter) {
+	h.searchLimiter = l
 }
 
 func (h *ContactHandler) RegisterRoutes(r chi.Router) {
@@ -23,7 +28,11 @@ func (h *ContactHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/accept/{contactID}", h.AcceptRequest)
 	r.Post("/decline/{contactID}", h.DeclineRequest)
 	r.Delete("/{contactRowID}", h.DeleteContactByRowID)
-	r.Post("/search", h.SearchUser)
+	if h.searchLimiter != nil {
+		r.With(RateLimitMiddleware(h.searchLimiter)).Post("/search", h.SearchUser)
+	} else {
+		r.Post("/search", h.SearchUser)
+	}
 	r.Get("/", h.ListContacts)
 }
 
@@ -89,6 +98,11 @@ func (h *ContactHandler) SendRequest(w http.ResponseWriter, r *http.Request) {
 
 	if targetID == "" {
 		http.Error(w, "Target ID is required", http.StatusBadRequest)
+		return
+	}
+
+	if targetID == userID {
+		http.Error(w, "Cannot send contact request to yourself", http.StatusBadRequest)
 		return
 	}
 

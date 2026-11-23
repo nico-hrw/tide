@@ -14,10 +14,12 @@ param (
     [string]$Server = "root@go-tide.app",
     [string]$RemoteBackupRoot = "~/tide_backup",
     [string]$LocalBackupDir = "$PSScriptRoot\backups",
-    [switch]$TriggerRemoteBackup = $true
+    [switch]$TriggerRemoteBackup = $true,
+    [switch]$StrictHostKeyCheck
 )
 
 $ErrorActionPreference = "Stop"
+$hostKeyPolicy = if ($StrictHostKeyCheck) { "yes" } else { "accept-new" }
 
 Write-Host "=======================================================" -ForegroundColor Cyan
 Write-Host " Tide Nutzerdaten-Sicherung (Server -> Laptop)" -ForegroundColor Cyan
@@ -26,7 +28,7 @@ Write-Host "=======================================================" -Foreground
 # 1. Optional: Erst auf dem Server ein frisches Backup erzeugen
 if ($TriggerRemoteBackup) {
     Write-Host "📡 Erstelle frisches Backup auf dem Server ($Server)..." -ForegroundColor Yellow
-    ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new $Server "bash -c 'cd ~/tide && ./tide.sh -c'"
+    ssh -o BatchMode=yes -o StrictHostKeyChecking=$hostKeyPolicy $Server "bash -c 'cd ~/tide && ./tide.sh -c'"
     if ($LASTEXITCODE -ne 0) {
         Write-Warning "Remote-Backup-Befehl beendete mit Code $LASTEXITCODE. Fahre mit bestehenden Backups fort..."
     }
@@ -34,15 +36,25 @@ if ($TriggerRemoteBackup) {
 
 # 2. Neuestes Backup-Verzeichnis vom Server ermitteln
 Write-Host "🔍 Ermittle neuesten Sicherungsordner..." -ForegroundColor Yellow
-$latestFolder = ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new $Server "readlink -f $RemoteBackupRoot/latest 2>/dev/null || ls -td $RemoteBackupRoot/* 2>/dev/null | grep -v latest | head -n 1"
-$latestFolder = $latestFolder.Trim()
+$latestFolder = ssh -o BatchMode=yes -o StrictHostKeyChecking=$hostKeyPolicy $Server "readlink -f $RemoteBackupRoot/latest 2>/dev/null || ls -td $RemoteBackupRoot/* 2>/dev/null | grep -v latest | head -n 1"
+$latestFolder = ("$latestFolder").Trim()
 
 if (-not $latestFolder -or $latestFolder -eq "") {
     Write-Error "❌ Kein Backup-Verzeichnis unter $RemoteBackupRoot auf dem Server gefunden!"
     exit 1
 }
 
+if (-not ($latestFolder -match '^/[A-Za-z0-9_./-]+$' -and $latestFolder -notmatch '\.\.')) {
+    Write-Error "❌ Ungueltiger Remote-Backup-Pfad vom Server erhalten: '$latestFolder'"
+    exit 1
+}
+
 $folderName = Split-Path $latestFolder -Leaf
+if (-not ($folderName -match '^\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}$')) {
+    Write-Error "❌ Ungueltiger Backup-Ordnername '$folderName' (erwartet YYYY-MM-DD_HH-MM-SS)."
+    exit 1
+}
+
 $targetDir = Join-Path $LocalBackupDir $folderName
 
 Write-Host "📥 Gefunden: $latestFolder" -ForegroundColor Green
@@ -54,7 +66,7 @@ if (-not (Test-Path $targetDir)) {
 
 # 3. Sichere Uebertragung via SCP (Nur Download Server -> Laptop)
 Write-Host "⬇️  Lade Backup herunter..." -ForegroundColor Yellow
-scp -r "${Server}:${latestFolder}/*" "$targetDir"
+scp -o BatchMode=yes -o StrictHostKeyChecking=$hostKeyPolicy -r "${Server}:${latestFolder}/*" "$targetDir"
 
 if ($LASTEXITCODE -eq 0) {
     Write-Host ""

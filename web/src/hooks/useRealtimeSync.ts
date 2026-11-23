@@ -47,7 +47,7 @@ export function useRealtimeSync({
         const OWN_SAVE_COOLDOWN_MS = 3000;
 
         // Expose a setter so performSave and handleEventSave can stamp the time
-        (window as any).__tideSaveTimestamp = () => { lastOwnSaveTime = Date.now(); };
+        (window as unknown as { __tideSaveTimestamp?: () => void }).__tideSaveTimestamp = () => { lastOwnSaveTime = Date.now(); };
 
         // [FIX-2] Exponential backoff reconnect so a proxy timeout (common with Nginx)
         // doesn't spam the server with rapid reconnections every 3s.
@@ -60,7 +60,7 @@ export function useRealtimeSync({
         const connect = () => {
             if (isClosed) return;
             const base = getApiBase();
-            eventSource = new EventSource(`${base}/api/v1/events?user_id=${myId}&token=${token}`);
+            eventSource = new EventSource(`${base}/api/v1/events?user_id=${encodeURIComponent(myId)}`, { withCredentials: true });
 
             eventSource.onopen = () => {
                 retryDelay = 2000; // reset backoff on successful connect
@@ -313,7 +313,7 @@ export function useRealtimeSync({
             isClosed = true;
             if (retryTimer) clearTimeout(retryTimer);
             eventSource?.close();
-            delete (window as any).__tideSaveTimestamp;
+            delete (window as unknown as { __tideSaveTimestamp?: () => void }).__tideSaveTimestamp;
         };
     }, [myId]);
 

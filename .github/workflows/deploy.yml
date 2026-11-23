@@ -51,6 +51,8 @@ on:
           - staging
           - production
 
+permissions: { contents: read }
+
 concurrency:
   group: deploy-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: false
@@ -72,37 +74,46 @@ jobs:
       # ------------------------------------------------------------------------
       - name: Determine environment configuration
         id: set-env
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          INPUT_ENV: ${{ github.event.inputs.environment }}
+          GITHUB_REF: ${{ github.ref }}
         run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            TARGET_ENV="${{ github.event.inputs.environment }}"
-          elif [ "${{ github.ref }}" = "refs/heads/main" ]; then
+          if [ "$EVENT_NAME" = "workflow_dispatch" ]; then
+            TARGET_ENV="$INPUT_ENV"
+          elif [ "$GITHUB_REF" = "refs/heads/main" ]; then
             TARGET_ENV="production"
           else
             TARGET_ENV="staging"
           fi
 
+          if [ "$TARGET_ENV" != "staging" ] && [ "$TARGET_ENV" != "production" ]; then
+            echo "::error::Invalid TARGET_ENV '$TARGET_ENV': must be 'staging' or 'production'."
+            exit 1
+          fi
+
           echo "Deploying to environment: $TARGET_ENV"
-          echo "TARGET_ENV=$TARGET_ENV" >> $GITHUB_ENV
+          echo "TARGET_ENV=$TARGET_ENV" >> "$GITHUB_ENV"
 
           if [ "$TARGET_ENV" = "production" ]; then
-            echo "DEPLOY_PATH=/root/tide" >> $GITHUB_ENV
-            echo "DEPLOY_DOMAIN=hrw.rocks/tide" >> $GITHUB_ENV
-            echo "PM2_BACKEND=tide-backend" >> $GITHUB_ENV
-            echo "PM2_FRONTEND=tide-frontend" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=/root/tide" >> "$GITHUB_ENV"
+            echo "DEPLOY_DOMAIN=hrw.rocks/tide" >> "$GITHUB_ENV"
+            echo "PM2_BACKEND=tide-backend" >> "$GITHUB_ENV"
+            echo "PM2_FRONTEND=tide-frontend" >> "$GITHUB_ENV"
           else
-            echo "DEPLOY_PATH=/root/tide-staging" >> $GITHUB_ENV
-            echo "DEPLOY_DOMAIN=test.hrw.rocks" >> $GITHUB_ENV
-            echo "PM2_BACKEND=tide-staging-backend" >> $GITHUB_ENV
-            echo "PM2_FRONTEND=tide-staging-frontend" >> $GITHUB_ENV
+            echo "DEPLOY_PATH=/root/tide-staging" >> "$GITHUB_ENV"
+            echo "DEPLOY_DOMAIN=test.hrw.rocks" >> "$GITHUB_ENV"
+            echo "PM2_BACKEND=tide-staging-backend" >> "$GITHUB_ENV"
+            echo "PM2_FRONTEND=tide-staging-frontend" >> "$GITHUB_ENV"
           fi
 
       # ------------------------------------------------------------------------
       # 3. Setup Go & Build Backend
       # ------------------------------------------------------------------------
-      - name: Setup Go 1.24
+      - name: Setup Go 1.26
         uses: actions/setup-go@v5
         with:
-          go-version: '1.24'
+          go-version: '1.26'
           cache: true
           cache-dependency-path: cloud/go.sum
 
@@ -135,14 +146,24 @@ jobs:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
           SSH_HOST: ${{ secrets.SSH_HOST }}
           SSH_USER: ${{ secrets.SSH_USER }}
+          SSH_KNOWN_HOSTS: ${{ secrets.SSH_KNOWN_HOSTS }}
         run: |
           # Configure SSH authentication
           mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          trap 'rm -f ~/.ssh/deploy_key' EXIT
           echo "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
-          ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
-          SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          if [ -n "$SSH_KNOWN_HOSTS" ]; then
+            printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > ~/.ssh/known_hosts
+            chmod 600 ~/.ssh/known_hosts
+            SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=yes"
+          else
+            echo "::warning::SSH_KNOWN_HOSTS secret is not set; falling back to ssh-keyscan with StrictHostKeyChecking=accept-new. Set SSH_KNOWN_HOSTS to pin the server host key."
+            ssh-keyscan -H "$SSH_HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
+            SSH_CMD="ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+          fi
 
           echo "🚀 Syncing files to $TARGET_ENV ($SSH_HOST:$DEPLOY_PATH)..."
 
@@ -171,7 +192,7 @@ jobs:
           fi
 
           # Install production node modules on server if needed
-          $SSH_CMD "$SSH_USER@$SSH_HOST" "cd $DEPLOY_PATH/web && npm ci --omit=dev --ignore-scripts || true"
+          $SSH_CMD "$SSH_USER@$SSH_HOST" "cd $DEPLOY_PATH/web && npm ci --omit=dev --ignore-scripts"
 
           # 3. Trigger zero-downtime PM2 reload or initial start
           echo "🔄 Triggering PM2 reload/start for $TARGET_ENV..."
@@ -195,6 +216,8 @@ jobs:
               # Ensure staging data dir and .env exist
               mkdir -p /root/tide-staging/data
               if [ ! -f /root/tide-staging/.env ] && [ -f /root/tide/.env ]; then
+                # WARNING: Fallback copies production .env; provision a dedicated staging .env with isolated secrets
+                echo "::warning::/root/tide-staging/.env missing; copying /root/tide/.env as fallback. Provision a dedicated staging .env with isolated secrets."
                 cp /root/tide/.env /root/tide-staging/.env
               fi
 

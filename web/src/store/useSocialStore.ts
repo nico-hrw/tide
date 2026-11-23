@@ -128,7 +128,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
 
     sendRequest: async (targetUserId: string) => {
         try {
-            const res = await apiFetch(`/api/v1/contacts/${targetUserId}`, { method: 'POST' });
+            const res = await apiFetch(`/api/v1/contacts/${encodeURIComponent(targetUserId)}`, { method: 'POST' });
             if (res.ok) {
                 set(s => ({ sentRequests: { ...s.sentRequests, [targetUserId]: true } }));
                 return true;
@@ -142,7 +142,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
 
     acceptRequest: async (requestId: string) => {
         try {
-            const res = await apiFetch(`/api/v1/contacts/accept/${requestId}`, { method: 'POST' });
+            const res = await apiFetch(`/api/v1/contacts/accept/${encodeURIComponent(requestId)}`, { method: 'POST' });
             if (res.ok) {
                 set(s => ({
                     pendingRequests: s.pendingRequests.filter(r => r.id !== requestId)
@@ -160,7 +160,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
 
     declineRequest: async (requestId: string) => {
         try {
-            const res = await apiFetch(`/api/v1/contacts/decline/${requestId}`, { method: 'POST' });
+            const res = await apiFetch(`/api/v1/contacts/decline/${encodeURIComponent(requestId)}`, { method: 'POST' });
             if (res.ok) {
                 set(s => ({
                     pendingRequests: s.pendingRequests.filter(r => r.id !== requestId)
@@ -178,7 +178,7 @@ export const useSocialStore = create<SocialState>((set, get) => ({
         const contact = get().contacts.find(c => c.partner.id === contactUserId);
         if (!contact) return false;
         try {
-            const res = await apiFetch(`/api/v1/contacts/${contact.contact_row_id}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/v1/contacts/${encodeURIComponent(contact.contact_row_id)}`, { method: 'DELETE' });
             if (res.ok) {
                 set(s => ({
                     contacts: s.contacts.filter(c => c.partner.id !== contactUserId)

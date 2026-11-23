@@ -1,5 +1,6 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
+import { createEncryptedIdbStorage } from '@/lib/offlineCacheCrypto';
 
 export type PlannerMode = 'job' | 'study' | 'both';
 
@@ -157,6 +158,7 @@ export const useJobPlannerStore = create<JobPlannerState>()(
         }),
         {
             name: 'tide-job-planner-storage',
+            storage: createJSONStorage(() => createEncryptedIdbStorage()),
         }
     )
 );

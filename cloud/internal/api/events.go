@@ -1,13 +1,22 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
+
+	"github.com/nicoh/tide/internal/store"
 )
+
+// ContactsProvider retrieves a user's accepted contacts for scoped presence broadcasts.
+type ContactsProvider interface {
+	GetContacts(ctx context.Context, userID string) ([]*store.Contact, error)
+}
 
 // Broker handles SSE connections and broadcasting
 type Broker struct {
@@ -26,6 +35,9 @@ type Broker struct {
 	// User status tracking
 	userStatus map[string]string
 	lastSeen   map[string]time.Time
+
+	// Optional store used to scope presence broadcasts to contacts
+	store ContactsProvider
 
 	// Mutex for clients map safety
 	mu sync.RWMutex
@@ -55,6 +67,12 @@ func NewBroker() *Broker {
 	return broker
 }
 
+func (b *Broker) SetStore(s ContactsProvider) {
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	b.store = s
+}
+
 func makeStatusPayload(userID, status string) string {
 	payload, err := json.Marshal(map[string]any{
 		"type": "user_status_changed",
@@ -81,6 +99,50 @@ func (b *Broker) broadcastLocked(data string) {
 	}
 }
 
+func (b *Broker) broadcastPresenceScoped(userID, status string) {
+	data := makeStatusPayload(userID, status)
+	if data == "" {
+		return
+	}
+
+	b.mu.RLock()
+	st := b.store
+	b.mu.RUnlock()
+
+	if st == nil {
+		b.mu.RLock()
+		b.broadcastLocked(data)
+		b.mu.RUnlock()
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	recipients := map[string]bool{userID: true}
+	contacts, err := st.GetContacts(ctx, userID)
+	if err != nil {
+		log.Printf("Failed to fetch contacts for presence broadcast (%s): %v", userID, err)
+	} else {
+		for _, c := range contacts {
+			if c != nil && c.ContactID != "" {
+				recipients[c.ContactID] = true
+			}
+		}
+	}
+
+	b.mu.RLock()
+	for clientChan, uid := range b.clients {
+		if recipients[uid] {
+			select {
+			case clientChan <- data:
+			default:
+			}
+		}
+	}
+	b.mu.RUnlock()
+}
+
 func (b *Broker) listen() {
 	for {
 		select {
@@ -94,6 +156,7 @@ func (b *Broker) listen() {
 				}
 			}
 			b.clients[req.msgChan] = req.userID
+			var notifyStatus string
 			if activeChannels == 0 {
 				st := b.userStatus[req.userID]
 				if st == "" || st == "offline" {
@@ -101,9 +164,17 @@ func (b *Broker) listen() {
 				}
 				b.userStatus[req.userID] = st
 				b.lastSeen[req.userID] = time.Now()
-				b.broadcastLocked(makeStatusPayload(req.userID, st))
+				notifyStatus = st
 			}
+			hasStore := b.store != nil
 			b.mu.Unlock()
+			if notifyStatus != "" {
+				if hasStore {
+					go b.broadcastPresenceScoped(req.userID, notifyStatus)
+				} else {
+					b.broadcastPresenceScoped(req.userID, notifyStatus)
+				}
+			}
 			log.Printf("Client connected: %s", req.userID)
 
 		// Remove client
@@ -113,6 +184,7 @@ func (b *Broker) listen() {
 			delete(b.clients, s)
 			close(s)
 
+			var offlineUser string
 			if userID != "" {
 				hasRemaining := false
 				for _, uid := range b.clients {
@@ -124,10 +196,18 @@ func (b *Broker) listen() {
 				if !hasRemaining {
 					b.lastSeen[userID] = time.Now()
 					b.userStatus[userID] = "offline"
-					b.broadcastLocked(makeStatusPayload(userID, "offline"))
+					offlineUser = userID
 				}
 			}
+			hasStore := b.store != nil
 			b.mu.Unlock()
+			if offlineUser != "" {
+				if hasStore {
+					go b.broadcastPresenceScoped(offlineUser, "offline")
+				} else {
+					b.broadcastPresenceScoped(offlineUser, "offline")
+				}
+			}
 			log.Printf("Client disconnected")
 
 		// Broadcast message
@@ -178,11 +258,10 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
 	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("X-Accel-Buffering", "no")
 
-	// Create a channel for this client
-	messageChan := make(chan string)
+	// Create a buffered channel for this client so bursts/flushes don't drop messages
+	messageChan := make(chan string, 32)
 
 	// Register client
 	b.newClients <- clientReq{msgChan: messageChan, userID: userID}
@@ -209,7 +288,8 @@ func (b *Broker) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			if !open {
 				return
 			}
-			fmt.Fprintf(w, "data: %s\n\n", msg)
+			sanitized := strings.NewReplacer("\r", "", "\n", "").Replace(msg)
+			fmt.Fprintf(w, "data: %s\n\n", sanitized)
 			flusher.Flush()
 		case <-ticker.C:
 			// Send a comment ping to keep the connection alive
@@ -273,10 +353,15 @@ func (b *Broker) TouchUser(userID string) {
 }
 
 func (b *Broker) BroadcastPresence(userID string, status string) {
-	data := makeStatusPayload(userID, status)
 	b.mu.RLock()
-	defer b.mu.RUnlock()
-	b.broadcastLocked(data)
+	hasStore := b.store != nil
+	b.mu.RUnlock()
+
+	if hasStore {
+		go b.broadcastPresenceScoped(userID, status)
+		return
+	}
+	b.broadcastPresenceScoped(userID, status)
 }
 
 func (b *Broker) reaper() {
@@ -290,19 +375,29 @@ func (b *Broker) reaper() {
 
 func (b *Broker) sweepInactiveUsers() {
 	b.mu.Lock()
-	defer b.mu.Unlock()
 
 	activeUsers := make(map[string]bool)
 	for _, uid := range b.clients {
 		activeUsers[uid] = true
 	}
 
+	var offlineUsers []string
 	for userID, status := range b.userStatus {
 		if status == "online" && !activeUsers[userID] {
 			if last, ok := b.lastSeen[userID]; ok && time.Since(last) > 90*time.Second {
 				b.userStatus[userID] = "offline"
-				b.broadcastLocked(makeStatusPayload(userID, "offline"))
+				offlineUsers = append(offlineUsers, userID)
 			}
+		}
+	}
+	hasStore := b.store != nil
+	b.mu.Unlock()
+
+	for _, userID := range offlineUsers {
+		if hasStore {
+			go b.broadcastPresenceScoped(userID, "offline")
+		} else {
+			b.broadcastPresenceScoped(userID, "offline")
 		}
 	}
 }

@@ -281,13 +281,20 @@ function AuthContent() {
 
     // Auto-login check on mount
     useEffect(() => {
-        if (typeof window !== "undefined") {
-            const vaultKey = sessionStorage.getItem("tide_session_key") || localStorage.getItem("tide_session_key");
+        let cancelled = false;
+        const checkAutoLogin = async () => {
+            if (typeof window === "undefined") return;
             const sessionToken = localStorage.getItem("tide_session_token");
-            if (sessionToken && vaultKey) {
+            if (!sessionToken) return;
+            const masterKey = await getMasterKey();
+            if (!cancelled && masterKey) {
                 router.push(getHomePath());
             }
-        }
+        };
+        void checkAutoLogin();
+        return () => {
+            cancelled = true;
+        };
     }, [router]);
 
     // Multi-tab synchronization (magic link signal)
@@ -430,13 +437,14 @@ function AuthContent() {
             await storeMasterKey(decryptedKey);
             purgeLegacyKeys();
 
-            localStorage.setItem("tide_user_email", identifier.trim().toLowerCase());
+            const normalizedId = identifier.trim().toLowerCase();
+            localStorage.setItem("tide_user_email", normalizedId);
             localStorage.setItem("tide_user_id", loginData.user_id);
             if (loginData.username) {
                 localStorage.setItem("tide_user_name", loginData.username);
                 sessionStorage.setItem("tide_user_name", loginData.username);
-                const localRec = JSON.parse(localStorage.getItem("tide_user_" + identifier) || "{}");
-                localStorage.setItem("tide_user_" + identifier, JSON.stringify({ ...localRec, username: loginData.username }));
+                const localRec = JSON.parse(localStorage.getItem(`tide_user_${normalizedId}`) || "{}");
+                localStorage.setItem(`tide_user_${normalizedId}`, JSON.stringify({ ...localRec, username: loginData.username }));
             }
             localStorage.setItem("tide_user_public_key", loginData.public_key);
             if (loginData.token) localStorage.setItem("tide_session_token", loginData.token);

@@ -109,6 +109,18 @@ export const useMobileConnectionStore = create<MobileConnectionState>()(
     }),
     {
       name: 'tide-mobile-connection-storage',
+      // Keep `token` in memory only so the Whisper API bearer token is never persisted in plaintext localStorage.
+      partialize: (state) => ({
+        enabled: state.enabled,
+        channelId: state.channelId,
+        widgetId: state.widgetId,
+        notifyUpcoming: state.notifyUpcoming,
+        notifyDailyAgenda: state.notifyDailyAgenda,
+        updateWidget: state.updateWidget,
+        lastDailyAgendaDate: state.lastDailyAgendaDate,
+        notifiedEventKeys: state.notifiedEventKeys,
+        lastWidgetUpdate: state.lastWidgetUpdate,
+      }),
     }
   )
 );

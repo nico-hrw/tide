@@ -25,3 +25,18 @@ tide-dev/
 # Logs & temp files
 **/*.log
 **/*.tmp
+
+# Environment, backups, keys & certificates
+.env*
+backups/
+tide_backup/
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Mobile builds, archives & downloads
+*.apk
+*.aab
+*.tar.gz
+web/public/downloads/

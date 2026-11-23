@@ -209,14 +209,19 @@ func (h *SurveysHandler) RequireScopes(allowedScopes ...string) func(http.Handle
 					return
 				}
 
-				token, err := jwt.Parse(jwtTokenString, func(t *jwt.Token) (interface{}, error) {
-					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, http.ErrAbortHandler
-					}
-					return []byte(jwtKeyStr), nil
-				})
+				token, err := jwt.Parse(
+					jwtTokenString,
+					func(t *jwt.Token) (interface{}, error) {
+						if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+							return nil, http.ErrAbortHandler
+						}
+						return []byte(jwtKeyStr), nil
+					},
+					jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+					jwt.WithExpirationRequired(),
+				)
 
-				if err == nil && token.Valid {
+				if err == nil && token != nil && token.Valid {
 					if claims, ok := token.Claims.(jwt.MapClaims); ok {
 						if userID, ok := claims["sub"].(string); ok && userID != "" {
 							ctx := context.WithValue(r.Context(), "user_id", userID)
@@ -305,6 +310,14 @@ func (h *SurveysHandler) CreateResponse(w http.ResponseWriter, r *http.Request) 
 	id := strings.TrimSpace(input.ID)
 	if id == "" {
 		id = uuid.New().String()
+	} else if _, err := uuid.Parse(id); err != nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{
+			"error":   "Bad Request",
+			"message": "Invalid id format; must be a valid UUID",
+		})
+		return
 	}
 
 	dataStr := "{}"

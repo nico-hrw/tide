@@ -94,7 +94,7 @@ export function useFileActions({
 
         try {
             setDeleteConfirm(null);
-            const res = await apiFetch(`/api/v1/files/${fileId}`, { method: "DELETE" });
+            const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
             if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
 
             useDataStore.getState().setNotes(freshNotes.filter((f) => f.id !== fileId));
@@ -172,7 +172,7 @@ export function useFileActions({
             const isPublic = "visibility" in target && target.visibility === "public";
 
             if (isPublic) {
-                await apiFetch(`/api/v1/files/${fileId}`, {
+                await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ public_meta: { title: newTitle } }),
@@ -185,7 +185,7 @@ export function useFileActions({
                 }
 
                 const payload = await buildEncryptedRenamePayload(target, fileId, newTitle, publicKey, privateKey);
-                const res = await apiFetch(`/api/v1/files/${fileId}`, {
+                const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, {
                     method: "PUT",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(payload),
@@ -242,7 +242,7 @@ export function useFileActions({
             );
 
             if (uploadBlob) {
-                await apiFetch(`/api/v1/files/${fileId}/upload`, { method: "POST", body: uploadBlob });
+                await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/upload`, { method: "POST", body: uploadBlob });
             }
 
             await updateVisibilityWithConflictRetry(fileId, updatePayload);
@@ -366,7 +366,7 @@ export function useFileActions({
                   security_settings: null,
               };
 
-        const res = await apiFetch(`/api/v1/files/${itemId}`, {
+        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(itemId)}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ metadata: updatedMeta }),

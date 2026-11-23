@@ -1,11 +1,46 @@
 import { apiFetch } from './api';
 
+export type QuicknoteAccessMode = 'open' | 'approval_required';
+export type QuicknoteAccessGateStatus = 'auth_required' | 'none' | 'pending' | 'denied';
+
 export interface QuicknoteData {
     slug: string;
     title: string;
     content: string;
     created_at: string;
     updated_at: string;
+    owner_id?: string;
+    access_mode?: QuicknoteAccessMode;
+    is_owner?: boolean;
+    access_status?: string;
+}
+
+export interface QuicknoteAccessRequest {
+    slug: string;
+    user_id: string;
+    username: string;
+    status: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export class QuicknoteAccessError extends Error {
+    accessStatus: QuicknoteAccessGateStatus;
+    noteTitle: string;
+    slug: string;
+
+    constructor(
+        accessStatus: QuicknoteAccessGateStatus,
+        noteTitle: string,
+        slug: string,
+        message?: string
+    ) {
+        super(message || 'Access approval required');
+        this.name = 'QuicknoteAccessError';
+        this.accessStatus = accessStatus;
+        this.noteTitle = noteTitle;
+        this.slug = slug;
+    }
 }
 
 export interface QuicknoteTreeNode {
@@ -90,6 +125,23 @@ export async function deriveQuicknoteKey(slug: string): Promise<CryptoKey> {
     );
 }
 
+async function parseQuicknoteApiError(res: Response, fallback: string): Promise<string> {
+    try {
+        const body = await res.text();
+        if (body) {
+            try {
+                const parsed = JSON.parse(body) as { error?: string; message?: string };
+                return parsed.error || parsed.message || body;
+            } catch {
+                return body;
+            }
+        }
+    } catch {
+        // Keep fallback error message
+    }
+    return fallback;
+}
+
 /**
  * Fetches quicknote metadata and content by slug.
  */
@@ -104,13 +156,42 @@ export async function fetchQuicknote(slug: string): Promise<QuicknoteData> {
             const body = await res.text();
             if (body) {
                 try {
-                    const parsed = JSON.parse(body) as { error?: string; message?: string };
+                    const parsed = JSON.parse(body) as {
+                        error?: string;
+                        message?: string;
+                        access_mode?: string;
+                        access_status?: string;
+                        slug?: string;
+                        title?: string;
+                    };
+                    if (res.status === 403 && parsed.error === 'access_approval_required') {
+                        const rawStatus = parsed.access_status;
+                        const accessStatus: QuicknoteAccessGateStatus =
+                            rawStatus === 'auth_required' ||
+                            rawStatus === 'none' ||
+                            rawStatus === 'pending' ||
+                            rawStatus === 'denied'
+                                ? rawStatus
+                                : 'none';
+                        throw new QuicknoteAccessError(
+                            accessStatus,
+                            parsed.title || slug,
+                            parsed.slug || slug,
+                            parsed.message || parsed.error
+                        );
+                    }
                     errorMessage = parsed.error || parsed.message || body;
-                } catch {
+                } catch (err) {
+                    if (err instanceof QuicknoteAccessError) {
+                        throw err;
+                    }
                     errorMessage = body;
                 }
             }
-        } catch {
+        } catch (err) {
+            if (err instanceof QuicknoteAccessError) {
+                throw err;
+            }
             // Keep fallback error message
         }
         throw new Error(errorMessage);
@@ -255,6 +336,71 @@ export async function deleteQuicknoteFile(slug: string, fileId: string): Promise
         return res.ok;
     } catch {
         return false;
+    }
+}
+
+export async function setQuicknoteAccessMode(
+    slug: string,
+    accessMode: QuicknoteAccessMode
+): Promise<QuicknoteData> {
+    const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}/access`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ access_mode: accessMode }),
+    });
+
+    if (!res.ok) {
+        const fallback = `Failed to update access mode (${res.status} ${res.statusText})`;
+        throw new Error(await parseQuicknoteApiError(res, fallback));
+    }
+
+    return (await res.json()) as QuicknoteData;
+}
+
+export async function requestQuicknoteAccess(slug: string): Promise<{ status: string }> {
+    const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}/access-requests`, {
+        method: 'POST',
+    });
+
+    if (!res.ok) {
+        const fallback = `Failed to request access (${res.status} ${res.statusText})`;
+        throw new Error(await parseQuicknoteApiError(res, fallback));
+    }
+
+    return (await res.json()) as { status: string };
+}
+
+export async function fetchQuicknoteAccessRequests(slug: string): Promise<QuicknoteAccessRequest[]> {
+    const res = await apiFetch(`/api/v1/quicknotes/${encodeURIComponent(slug)}/access-requests`, {
+        method: 'GET',
+    });
+
+    if (!res.ok) {
+        const fallback = `Failed to fetch access requests (${res.status} ${res.statusText})`;
+        throw new Error(await parseQuicknoteApiError(res, fallback));
+    }
+
+    const data = await res.json();
+    return Array.isArray(data) ? (data as QuicknoteAccessRequest[]) : [];
+}
+
+export async function resolveQuicknoteAccessRequest(
+    slug: string,
+    userId: string,
+    action: 'approve' | 'deny'
+): Promise<void> {
+    const res = await apiFetch(
+        `/api/v1/quicknotes/${encodeURIComponent(slug)}/access-requests/${encodeURIComponent(userId)}/${action}`,
+        {
+            method: 'POST',
+        }
+    );
+
+    if (!res.ok) {
+        const fallback = `Failed to ${action} access request (${res.status} ${res.statusText})`;
+        throw new Error(await parseQuicknoteApiError(res, fallback));
     }
 }
 

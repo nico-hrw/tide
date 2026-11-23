@@ -29,8 +29,8 @@ COPY --from=builder /app/server /app/server
 
 # Default environment configuration
 ENV PORT=8080 \
-    ENV=development \
-    DEV_MODE=true \
+    ENV=production \
+    DEV_MODE=false \
     DATA_DIR=/app/data
 
 # Expose HTTP port

@@ -105,13 +105,13 @@ func decodeBase64(s string) ([]byte, error) {
 }
 
 // verifyArgon2idPin verifies an input PIN against an Argon2id formatted hash.
-func verifyArgon2idPin(pin, storedHash string) bool {
+func verifyArgon2idPin(pin, storedHash string) (bool, error) {
 	parts := strings.Split(storedHash, "$")
 	if len(parts) != 6 {
-		return false
+		return false, fmt.Errorf("invalid argon2id hash format")
 	}
 	if parts[1] != "argon2id" {
-		return false
+		return false, fmt.Errorf("unsupported argon2 variant")
 	}
 
 	var memory uint32 = argon2Memory
@@ -120,39 +120,47 @@ func verifyArgon2idPin(pin, storedHash string) bool {
 
 	for _, param := range strings.Split(parts[3], ",") {
 		kv := strings.SplitN(param, "=", 2)
-		if len(kv) == 2 {
-			switch kv[0] {
-			case "m":
-				var m uint32
-				if _, err := fmt.Sscanf(kv[1], "%d", &m); err == nil {
-					memory = m
-				}
-			case "t":
-				var t uint32
-				if _, err := fmt.Sscanf(kv[1], "%d", &t); err == nil {
-					iterations = t
-				}
-			case "p":
-				var p uint8
-				if _, err := fmt.Sscanf(kv[1], "%d", &p); err == nil {
-					parallelism = p
-				}
+		if len(kv) != 2 {
+			return false, fmt.Errorf("malformed argon2id parameter")
+		}
+		switch kv[0] {
+		case "m":
+			var m uint32
+			if _, err := fmt.Sscanf(kv[1], "%d", &m); err != nil {
+				return false, fmt.Errorf("invalid argon2id memory parameter: %w", err)
 			}
+			memory = m
+		case "t":
+			var t uint32
+			if _, err := fmt.Sscanf(kv[1], "%d", &t); err != nil {
+				return false, fmt.Errorf("invalid argon2id iterations parameter: %w", err)
+			}
+			iterations = t
+		case "p":
+			var p uint8
+			if _, err := fmt.Sscanf(kv[1], "%d", &p); err != nil {
+				return false, fmt.Errorf("invalid argon2id parallelism parameter: %w", err)
+			}
+			parallelism = p
 		}
 	}
 
+	if iterations < 1 || iterations > 100 || memory < 1024 || memory > 1024*1024 || parallelism < 1 || parallelism > 64 {
+		return false, fmt.Errorf("argon2id parameters out of allowed bounds")
+	}
+
 	salt, err := decodeBase64(parts[4])
-	if err != nil {
-		return false
+	if err != nil || len(salt) == 0 {
+		return false, fmt.Errorf("invalid argon2id salt")
 	}
 
 	expectedHash, err := decodeBase64(parts[5])
-	if err != nil {
-		return false
+	if err != nil || len(expectedHash) == 0 {
+		return false, fmt.Errorf("invalid argon2id hash")
 	}
 
 	computedHash := argon2.IDKey([]byte(pin), salt, iterations, memory, parallelism, uint32(len(expectedHash)))
-	return subtle.ConstantTimeCompare(computedHash, expectedHash) == 1
+	return subtle.ConstantTimeCompare(computedHash, expectedHash) == 1, nil
 }
 
 // verifyAndMigratePin verifies the PIN against storedHash.
@@ -161,7 +169,12 @@ func verifyArgon2idPin(pin, storedHash string) bool {
 // If valid, it transparently re-hashes with Argon2id and updates the user's PIN in the database.
 func (h *AuthHandler) verifyAndMigratePin(ctx context.Context, userID, pin, storedHash string) bool {
 	if strings.HasPrefix(storedHash, "$argon2id$") {
-		return verifyArgon2idPin(pin, storedHash)
+		ok, err := verifyArgon2idPin(pin, storedHash)
+		if err != nil {
+			log.Printf("PIN verification failed due to invalid Argon2id hash: %v", err)
+			return false
+		}
+		return ok
 	}
 
 	// Legacy 64-char hex SHA-256 verify
@@ -189,9 +202,13 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Email == "" || req.PublicKey == "" || req.EncryptedVault == "" {
-		log.Printf("REGISTRATION FAILED: Missing required fields. Email: %s, PubKey: %d chars, Vault: %d chars", 
-			req.Email, len(req.PublicKey), len(req.EncryptedVault))
+		log.Printf("REGISTRATION FAILED: Missing required fields. HasEmail: %t, PubKey: %d chars, Vault: %d chars",
+			req.Email != "", len(req.PublicKey), len(req.EncryptedVault))
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Pin) == "" {
+		http.Error(w, "PIN is required", http.StatusBadRequest)
 		return
 	}
 
@@ -268,7 +285,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		if strings.Contains(errMsg, "users.email_blind_index") {
 			http.Error(w, "Email already registered", http.StatusConflict)
 		} else {
-			http.Error(w, fmt.Sprintf("User already exists or conflict: %v", err), http.StatusConflict)
+			http.Error(w, "User already exists or conflict", http.StatusConflict)
 		}
 		return
 	}
@@ -339,8 +356,11 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if user.PinHash == nil || !h.verifyAndMigratePin(r.Context(), user.ID, req.PIN, *user.PinHash) {
-			http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+		pinHash := ""
+		if user.PinHash != nil {
+			pinHash = *user.PinHash
+		}
+		if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, pinHash) {
 			return
 		}
 
@@ -368,8 +388,7 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Current PIN required to change PIN", http.StatusForbidden)
 				return
 			}
-			if !h.verifyAndMigratePin(r.Context(), user.ID, req.PIN, *user.PinHash) {
-				http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+			if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, *user.PinHash) {
 				return
 			}
 		}
@@ -386,6 +405,28 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func (h *AuthHandler) verifyPinWithLimiter(ctx context.Context, w http.ResponseWriter, userID, pin, storedHash string) bool {
+	if h.pinLimiter != nil {
+		if locked, remaining := h.pinLimiter.IsLocked(userID); locked {
+			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
+			return false
+		}
+	}
+
+	if storedHash == "" || !h.verifyAndMigratePin(ctx, userID, pin, storedHash) {
+		if h.pinLimiter != nil {
+			h.pinLimiter.RecordFailure(userID)
+		}
+		http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+		return false
+	}
+
+	if h.pinLimiter != nil {
+		h.pinLimiter.RecordSuccess(userID)
+	}
+	return true
 }
 
 // VerifyPinRequest for PIN verification during login or step-up
@@ -408,37 +449,13 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	lockKey := user.ID
-	if h.pinLimiter != nil {
-		if locked, remaining := h.pinLimiter.IsLocked(lockKey); locked {
-			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
-			return
-		}
+	if user.PinHash == nil || *user.PinHash == "" {
+		http.Error(w, "Invalid credentials", http.StatusUnauthorized)
+		return
 	}
 
-	if user.PinHash == nil || *user.PinHash == "" {
-		newPinHash, err := hashPinArgon2id(req.Pin)
-		if err != nil {
-			http.Error(w, "Failed to hash PIN", http.StatusInternalServerError)
-			return
-		}
-		if err := h.Store.UpdateUserPin(r.Context(), user.ID, newPinHash); err != nil {
-			http.Error(w, "Failed to set PIN", http.StatusInternalServerError)
-			return
-		}
-		if h.pinLimiter != nil {
-			h.pinLimiter.RecordSuccess(lockKey)
-		}
-	} else if !h.verifyAndMigratePin(r.Context(), user.ID, req.Pin, *user.PinHash) {
-		if h.pinLimiter != nil {
-			h.pinLimiter.RecordFailure(lockKey)
-		}
-		http.Error(w, "Invalid PIN", http.StatusUnauthorized)
+	if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.Pin, *user.PinHash) {
 		return
-	} else {
-		if h.pinLimiter != nil {
-			h.pinLimiter.RecordSuccess(lockKey)
-		}
 	}
 
 	w.WriteHeader(http.StatusOK)

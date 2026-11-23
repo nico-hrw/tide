@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { MobileCreateModal } from '../MobileCreateModal';
+import { MobileCreateModal, type MobileCreateModalProps } from '../MobileCreateModal';
 import { useDataStore } from '@/store/useDataStore';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -31,7 +31,10 @@ function typeTitle(value: string) {
 const button = (text: string) =>
   Array.from(host.querySelectorAll('button')).find((b) => b.textContent?.trim() === text) as HTMLButtonElement;
 
-function renderEventModal(onSaveEvent: ReturnType<typeof vi.fn>) {
+type OnSaveEvent = NonNullable<MobileCreateModalProps['onSaveEvent']>;
+type OnSaveTodo = NonNullable<MobileCreateModalProps['onSaveTodo']>;
+
+function renderEventModal(onSaveEvent: OnSaveEvent) {
   act(() => {
     root.render(
       <MobileCreateModal isOpen mode="event" themes={THEMES} onClose={() => {}} onSaveEvent={onSaveEvent} />,
@@ -41,7 +44,7 @@ function renderEventModal(onSaveEvent: ReturnType<typeof vi.fn>) {
 
 describe('MobileCreateModal tag prompt (event)', () => {
   it('asks before saving without tag, then saves without groupIds on confirm', async () => {
-    const onSave = vi.fn();
+    const onSave = vi.fn<OnSaveEvent>();
     renderEventModal(onSave);
     typeTitle('Meeting');
     await act(async () => { button('Hinzufügen').click(); });
@@ -53,7 +56,7 @@ describe('MobileCreateModal tag prompt (event)', () => {
   });
 
   it('saves with selected tag ids and parent_id without prompting', async () => {
-    const onSave = vi.fn();
+    const onSave = vi.fn<OnSaveEvent>();
     renderEventModal(onSave);
     typeTitle('Meeting');
     act(() => { (host.querySelector('button[aria-label="Tag hinzufügen"]') as HTMLButtonElement).click(); });
@@ -67,7 +70,7 @@ describe('MobileCreateModal tag prompt (event)', () => {
 describe('MobileCreateModal todo preselect', () => {
   it('drops stale filter ids from the preselected tags', async () => {
     useDataStore.getState().setTodoTagFilter({ tagIds: ['a', 'gone'], untagged: false });
-    const onSaveTodo = vi.fn();
+    const onSaveTodo = vi.fn<OnSaveTodo>();
     act(() => {
       root.render(
         <MobileCreateModal isOpen mode="todo" themes={THEMES} onClose={() => {}} onSaveTodo={onSaveTodo} />,
@@ -84,7 +87,7 @@ describe('MobileCreateModal todo preselect', () => {
 describe('MobileCreateModal event preselect', () => {
   it('preselects pruned calendar filter tags in event mode', async () => {
     useDataStore.getState().setCalendarTagFilter({ tagIds: ['b', 'gone'], untagged: false });
-    const onSave = vi.fn();
+    const onSave = vi.fn<OnSaveEvent>();
     renderEventModal(onSave);
     typeTitle('Meeting');
     await act(async () => { button('Hinzufügen').click(); });

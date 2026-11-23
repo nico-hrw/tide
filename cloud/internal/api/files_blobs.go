@@ -7,10 +7,22 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/nicoh/tide/internal/store"
 )
+
+type countingReader struct {
+	r io.Reader
+	n int64
+}
+
+func (c *countingReader) Read(p []byte) (int, error) {
+	n, err := c.r.Read(p)
+	c.n += int64(n)
+	return n, err
+}
 
 func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "fileID")
@@ -46,47 +58,63 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	const maxStorage = 250 * 1024 * 1024 // 250MB
+	const maxStorage int64 = 250 * 1024 * 1024        // 250MB
+	const maxFileUploadBytes int64 = 250 * 1024 * 1024 // 250MB
+	remainingBytes := maxFileUploadBytes
 	if parentFileID != "" {
 		currentStorage, err := h.Store.GetFileTotalStorage(r.Context(), parentFileID)
-		if err == nil {
-			if file.ParentFileID != nil && *file.ParentFileID == parentFileID {
-				currentStorage -= file.Size
-				if currentStorage < 0 {
-					currentStorage = 0
-				}
+		if err != nil {
+			http.Error(w, "Failed to verify storage quota", http.StatusInternalServerError)
+			return
+		}
+		if file.ParentFileID != nil && *file.ParentFileID == parentFileID {
+			currentStorage -= file.Size
+			if currentStorage < 0 {
+				currentStorage = 0
 			}
-			incomingSize := r.ContentLength
-			if incomingSize > 0 && currentStorage+incomingSize > maxStorage {
-				// Check if user has storage:expand token
-				token := r.Header.Get("X-Access-Token")
-				if token == "" {
-					token = r.Header.Get("Authorization")
-				}
-				if !ValidateStorageExpandToken(r.Context(), h.Store, token) {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusForbidden)
-					_ = json.NewEncoder(w).Encode(map[string]interface{}{
-						"error":   "storage_limit_exceeded",
-						"limit":   maxStorage,
-						"current": currentStorage,
-						"message": "Speicherlimit von 250MB pro Notiz überschritten. Bitte melde dich an oder gib ein Zugriffs-Token ein.",
-					})
-					return
-				}
+		}
+		token := r.Header.Get("X-Access-Token")
+		if token == "" {
+			token = r.Header.Get("Authorization")
+		}
+		if !ValidateStorageExpandToken(r.Context(), h.Store, token) {
+			remainingBytes = maxStorage - currentStorage
+			if remainingBytes <= 0 {
+				http.Error(w, "Storage limit exceeded", http.StatusRequestEntityTooLarge)
+				return
 			}
 		}
 	}
 
-	oldRc, blobErr := h.BlobStore.Get(r.Context(), id)
+	if r.ContentLength > remainingBytes {
+		http.Error(w, "Storage limit exceeded", http.StatusRequestEntityTooLarge)
+		return
+	}
+
+	// Extend read/write deadlines so global http.Server timeouts do not abort large uploads.
+	rcCtrl := http.NewResponseController(w)
+	_ = rcCtrl.SetReadDeadline(time.Time{})
+	_ = rcCtrl.SetWriteDeadline(time.Time{})
+
+	r.Body = http.MaxBytesReader(w, r.Body, remainingBytes)
+	cr := &countingReader{r: r.Body}
+
+	const maxBackupCascadeBytes = 10 * 1024 * 1024 // 10MB
 	var oldBlobBytes []byte
-	if blobErr == nil {
-		oldBlobBytes, _ = io.ReadAll(oldRc)
-		oldRc.Close()
+	if oldSize, sizeErr := h.BlobStore.GetSize(r.Context(), id); sizeErr == nil && oldSize > 0 && oldSize <= maxBackupCascadeBytes {
+		if oldRc, blobErr := h.BlobStore.Get(r.Context(), id); blobErr == nil {
+			oldBlobBytes, _ = io.ReadAll(io.LimitReader(oldRc, maxBackupCascadeBytes))
+			oldRc.Close()
+		}
 	}
 
 	// Stream body to BlobStore
-	if err := h.BlobStore.Put(r.Context(), id, r.Body); err != nil {
+	if err := h.BlobStore.Put(r.Context(), id, cr); err != nil {
+		var maxBytesErr *http.MaxBytesError
+		if errors.As(err, &maxBytesErr) {
+			http.Error(w, "Storage limit exceeded", http.StatusRequestEntityTooLarge)
+			return
+		}
 		http.Error(w, "Failed to write blob", http.StatusInternalServerError)
 		return
 	}
@@ -98,7 +126,6 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 
 	// Update file blob path (if not already set, though BlobStore abstracts path)
 	// We might want to mark it as "uploaded" or update size.
-	// For now, just assume it's there.
 	path := id // logic in LocalBlobStore uses ID as filename
 	file.BlobPath = &path
 	if parentFileID != "" {
@@ -109,10 +136,12 @@ func (h *FileHandler) UploadFile(w http.ResponseWriter, r *http.Request) {
 			file.ParentID = &parentFileID
 		}
 	}
-	if r.ContentLength > 0 {
-		file.Size = r.ContentLength
+	file.Size = cr.n
+	if err := h.Store.UpdateFile(r.Context(), file); err != nil {
+		log.Printf("[ERROR] UploadFile: failed to update file %s: %v", id, err)
+		http.Error(w, "Failed to update file metadata", http.StatusInternalServerError)
+		return
 	}
-	h.Store.UpdateFile(r.Context(), file)
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -155,6 +184,8 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if len(file.Content) > 0 {
 			w.Header().Set("Content-Type", "application/octet-stream")
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Content-Disposition", "attachment")
 			w.Write(file.Content)
 			return
 		}
@@ -164,14 +195,24 @@ func (h *FileHandler) DownloadFile(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rc.Close()
 
+	rcCtrl := http.NewResponseController(w)
+	_ = rcCtrl.SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", "attachment")
 	io.Copy(w, rc)
 }
 
 func (h *FileHandler) DownloadPublicFile(w http.ResponseWriter, r *http.Request) {
+	userID := chi.URLParam(r, "userID")
 	fileID := chi.URLParam(r, "fileID")
 	if fileID == "" {
 		http.Error(w, "Missing file ID", http.StatusBadRequest)
+		return
+	}
+	if userID == "" {
+		http.Error(w, "File not found", http.StatusNotFound)
 		return
 	}
 
@@ -179,6 +220,23 @@ func (h *FileHandler) DownloadPublicFile(w http.ResponseWriter, r *http.Request)
 	if err != nil {
 		http.Error(w, "File not found", http.StatusNotFound)
 		return
+	}
+
+	if file.OwnerID != userID {
+		http.Error(w, "File not found", http.StatusNotFound)
+		return
+	}
+
+	if len(file.Metadata) > 0 {
+		var meta map[string]interface{}
+		if err := json.Unmarshal(file.Metadata, &meta); err == nil && meta != nil {
+			if deletedAt, exists := meta["deleted_at"]; exists && deletedAt != nil {
+				if deletedStr, isStr := deletedAt.(string); isStr && deletedStr != "" {
+					http.Error(w, "File not found", http.StatusNotFound)
+					return
+				}
+			}
+		}
 	}
 
 	if file.Visibility != "public" {
@@ -199,5 +257,7 @@ func (h *FileHandler) DownloadPublicFile(w http.ResponseWriter, r *http.Request)
 	defer rc.Close()
 
 	w.Header().Set("Content-Type", "application/octet-stream")
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Disposition", "attachment")
 	io.Copy(w, rc)
 }

@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 import type { WeekStart } from '@/lib/calendarWeeks';
 import type {
     CalendarColorPalette,
@@ -13,23 +14,26 @@ import type {
 } from './types';
 
 export function loadCachedEvents(): DataItem[] {
-    if (typeof window === 'undefined') return [];
-    try {
-        const cached = localStorage.getItem('tide_offline_events');
-        return cached ? JSON.parse(cached) : [];
-    } catch (e) {
-        console.warn('Failed to load cached events from localStorage', e);
-        return [];
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem('tide_offline_events');
+        } catch {
+            // Ignore storage errors
+        }
     }
+    return [];
 }
 
 export function saveEventsToOfflineCache(events: DataItem[]): void {
     if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem('tide_offline_events', JSON.stringify(events));
-    } catch (e) {
-        console.warn('Failed to save events to offline cache', e);
+        localStorage.removeItem('tide_offline_events');
+    } catch {
+        // Ignore storage errors
     }
+    void saveEncryptedOfflineCache('events', events).catch((e) => {
+        console.warn('Failed to save events to offline cache', e);
+    });
 }
 
 function loadCalendarScrollMode(): CalendarScrollMode {

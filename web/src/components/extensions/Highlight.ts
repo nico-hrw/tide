@@ -15,6 +15,17 @@ declare module '@tiptap/core' {
     }
 }
 
+const SAFE_HIGHLIGHT_COLOR_RE =
+    /^(#[0-9a-fA-F]{3,8}|(rgb|rgba|hsl|hsla)\([0-9.,%\s/]+\)|var\(--[a-zA-Z0-9_-]+\)|[a-zA-Z]{3,20})$/;
+
+function sanitizeHighlightColor(color: unknown): string | null {
+    if (typeof color !== 'string') {
+        return null;
+    }
+    const trimmed = color.trim();
+    return SAFE_HIGHLIGHT_COLOR_RE.test(trimmed) ? trimmed : null;
+}
+
 export const Highlight = Mark.create<HighlightOptions>({
     name: 'highlight',
 
@@ -33,15 +44,17 @@ export const Highlight = Mark.create<HighlightOptions>({
         return {
             color: {
                 default: null,
-                parseHTML: element => element.getAttribute('data-color') || element.style.backgroundColor,
+                parseHTML: element =>
+                    sanitizeHighlightColor(element.getAttribute('data-color') || element.style.backgroundColor),
                 renderHTML: attributes => {
-                    if (!attributes.color) {
+                    const color = sanitizeHighlightColor(attributes.color);
+                    if (!color) {
                         return {}
                     }
 
                     return {
-                        'data-color': attributes.color,
-                        style: `background-color: ${attributes.color}; color: inherit`,
+                        'data-color': color,
+                        style: `background-color: ${color}; color: inherit`,
                     }
                 },
             },

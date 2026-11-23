@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strconv"
 	"strings"
@@ -42,10 +43,8 @@ func checkOrigin(r *http.Request) bool {
 		return true
 	}
 
-	// 2. Default local development origins & production domains
+	// 2. Default production domains
 	trustedOrigins := []string{
-		"http://localhost:3000", "http://localhost:5173", "http://localhost:8080",
-		"http://127.0.0.1:3000", "http://127.0.0.1:5173", "http://127.0.0.1:8080",
 		"https://go-tide.app", "https://www.go-tide.app",
 		"https://hrw.rocks", "https://www.hrw.rocks", "https://track.hrw.rocks",
 	}
@@ -55,9 +54,11 @@ func checkOrigin(r *http.Request) bool {
 		}
 	}
 
-	// Also allow arbitrary localhost and 127.0.0.1 dev ports
-	if strings.HasPrefix(origin, "http://localhost:") || strings.HasPrefix(origin, "http://127.0.0.1:") {
-		return true
+	// Also allow arbitrary localhost and 127.0.0.1 dev ports (non-production only)
+	if !strings.EqualFold(os.Getenv("ENV"), "production") {
+		if u, err := url.Parse(origin); err == nil && u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
+			return true
+		}
 	}
 
 	// 3. Configured APP_URL
@@ -323,6 +324,33 @@ func (h *Hub) EnforcePermissionChange(fileID, targetUserID, newPermission string
 	}
 }
 
+// EvictUserFromRoom disconnects and removes all active clients for userID in roomID.
+func (h *Hub) EvictUserFromRoom(roomID, userID string) {
+	h.mu.Lock()
+	room := h.rooms[roomID]
+	var targets []*Client
+	for client := range room {
+		if client.userID == userID {
+			targets = append(targets, client)
+			delete(room, client)
+		}
+	}
+	if room != nil && len(room) == 0 {
+		delete(h.rooms, roomID)
+		delete(h.lastPulse, roomID)
+		log.Printf("[WebSocket] Room %s closed (empty)", roomID)
+	}
+	h.mu.Unlock()
+
+	for _, client := range targets {
+		client.close()
+		h.broadcastControl(roomID, map[string]any{
+			"action":    "PEER_LEFT",
+			"yClientId": client.yClientID,
+		})
+	}
+}
+
 // BroadcastKeyRotation sends KEY_ROTATED control frame to all room participants.
 func (h *Hub) BroadcastKeyRotation(fileID string, newKeyEpoch uint32) {
 	h.broadcastControl(fileID, map[string]any{
@@ -474,39 +502,48 @@ func (h *FileHandler) ServeWs(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if userID == "" {
-		tokenString := ""
-		authHeader := r.Header.Get("Authorization")
-		if strings.HasPrefix(authHeader, "Bearer ") {
-			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
-		}
-		if tokenString == "" {
-			tokenString = r.URL.Query().Get("token")
-		}
-		if tokenString == "" {
-			if cookie, err := r.Cookie("tide_session"); err == nil {
-				tokenString = cookie.Value
+		if ticket := r.URL.Query().Get("ticket"); ticket != "" {
+			uid, ok := ConsumeWSTicket(ticket)
+			if !ok {
+				http.Error(w, "Invalid or expired WebSocket ticket", http.StatusUnauthorized)
+				return
 			}
-		}
+			userID = uid
+		} else {
+			tokenString := ""
+			authHeader := r.Header.Get("Authorization")
+			if strings.HasPrefix(authHeader, "Bearer ") {
+				tokenString = strings.TrimPrefix(authHeader, "Bearer ")
+			}
+			if tokenString == "" {
+				tokenString = r.URL.Query().Get("token")
+			}
+			if tokenString == "" {
+				if cookie, err := r.Cookie("tide_session"); err == nil {
+					tokenString = cookie.Value
+				}
+			}
 
-		if tokenString != "" {
-			jwtKeyStr := os.Getenv("JWT_SECRET")
-			if jwtKeyStr != "" {
-				token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
-					if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-						return nil, http.ErrAbortHandler
-					}
-					return []byte(jwtKeyStr), nil
-				})
-				if err == nil && token.Valid {
-					if claims, ok := token.Claims.(jwt.MapClaims); ok {
-						if sub, okSub := claims["sub"].(string); okSub && sub != "" {
-							userID = sub
-						} else if uid, okUID := claims["user_id"].(string); okUID && uid != "" {
-							userID = uid
+			if tokenString != "" {
+				jwtKeyStr := os.Getenv("JWT_SECRET")
+				if jwtKeyStr != "" {
+					token, err := jwt.Parse(tokenString, func(t *jwt.Token) (interface{}, error) {
+						if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+							return nil, http.ErrAbortHandler
 						}
+						return []byte(jwtKeyStr), nil
+					}, jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}), jwt.WithExpirationRequired())
+					if err == nil && token.Valid {
+						if claims, ok := token.Claims.(jwt.MapClaims); ok {
+							if sub, okSub := claims["sub"].(string); okSub && sub != "" {
+								userID = sub
+							} else if uid, okUID := claims["user_id"].(string); okUID && uid != "" {
+								userID = uid
+							}
+						}
+					} else if err != nil {
+						log.Printf("[WebSocket] Token validation error: %v", err)
 					}
-				} else if err != nil {
-					log.Printf("[WebSocket] Token validation error: %v", err)
 				}
 			}
 		}

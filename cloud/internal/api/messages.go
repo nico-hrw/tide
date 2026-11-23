@@ -197,6 +197,15 @@ type UpdateMessageStatusRequest struct {
 	Status string `json:"status"`
 }
 
+var allowedMessageStatuses = map[string]bool{
+	"pending":   true,
+	"sent":      true,
+	"delivered": true,
+	"read":      true,
+	"accepted":  true,
+	"declined":  true,
+}
+
 func (h *MessageHandler) UpdateMessageStatus(w http.ResponseWriter, r *http.Request) {
 	msgID := chi.URLParam(r, "messageID")
 	userID, ok := r.Context().Value("user_id").(string)
@@ -211,15 +220,19 @@ func (h *MessageHandler) UpdateMessageStatus(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// Permission: Only the recipient should be able to update status (Accept/Decline)
-	// For "accepted", maybe sender too? For now, simple check.
+	if !allowedMessageStatuses[req.Status] {
+		http.Error(w, "Invalid status", http.StatusBadRequest)
+		return
+	}
+
+	// Permission: Only the recipient can update message status (Accept/Decline/Read/Delivered).
 	msg, err := h.Store.GetMessage(r.Context(), msgID)
 	if err != nil {
 		http.Error(w, "Message not found", http.StatusNotFound)
 		return
 	}
 
-	if msg.RecipientID != userID && msg.SenderID != userID {
+	if msg.RecipientID != userID {
 		http.Error(w, "Unauthorized", http.StatusForbidden)
 		return
 	}

@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
+	"crypto/rand"
 	"crypto/subtle"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -16,9 +18,10 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"github.com/nicoh/tide/internal/store"
 )
+
+const maxOTPCacheSize = 10000
 
 type otpEntry struct {
 	Code      string
@@ -30,6 +33,8 @@ type OTPRequest struct {
 }
 
 func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
+	isProduction := strings.EqualFold(os.Getenv("ENV"), "production")
+
 	var req OTPRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -51,37 +56,59 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 			json.NewEncoder(w).Encode(resp)
 			return
 		}
-		log.Printf("ERROR in RequestOTP (GetUserByEmailHash): %v for email %s", err, req.Email)
+		log.Printf("ERROR in RequestOTP (GetUserByEmailHash): %v", err)
 		http.Error(w, "Internal server error", http.StatusInternalServerError)
 		return
 	}
 
 	resp["user_exists"] = true
-	resp["username"] = user.Username // Return plaintext username for display
 
-	// Basic rate limiting / existing code check
-	h.mu.Lock()
-	if entry, exists := h.otpCache[user.ID]; exists && time.Now().Before(entry.ExpiresAt) {
-		h.mu.Unlock()
-		// Re-send or just tell them to wait - let's just generate a new one and overwrite for MVP simplicity
-		// Or return early. For simplicity we overwrite.
-	} else {
-		h.mu.Unlock()
+	var otpBytes [3]byte
+	if _, err := rand.Read(otpBytes[:]); err != nil {
+		log.Printf("ERROR in RequestOTP (generating OTP): %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
 	}
+	otpCode := hex.EncodeToString(otpBytes[:]) // 6-char lowercase hex
 
-	otpCode := uuid.New().String()[:6] // 6-digit alphanumeric
+	now := time.Now()
 	h.mu.Lock()
+	if h.otpCache == nil {
+		h.otpCache = make(map[string]otpEntry)
+	}
+	for id, entry := range h.otpCache {
+		if now.After(entry.ExpiresAt) {
+			delete(h.otpCache, id)
+		}
+	}
+	if _, exists := h.otpCache[user.ID]; !exists {
+		for len(h.otpCache) >= maxOTPCacheSize {
+			var oldestID string
+			var oldestExp time.Time
+			first := true
+			for id, entry := range h.otpCache {
+				if first || entry.ExpiresAt.Before(oldestExp) {
+					oldestID = id
+					oldestExp = entry.ExpiresAt
+					first = false
+				}
+			}
+			if first {
+				break
+			}
+			delete(h.otpCache, oldestID)
+		}
+	}
 	h.otpCache[user.ID] = otpEntry{
 		Code:      otpCode,
-		ExpiresAt: time.Now().Add(5 * time.Minute),
+		ExpiresAt: now.Add(5 * time.Minute),
 	}
 	h.mu.Unlock()
 
 	// Send OTP via Resend
 	apiKey := os.Getenv("RESEND_API_KEY")
-	isDev := os.Getenv("ENV") != "production"
 
-	if isDev {
+	if !isProduction {
 		if apiKey == "" {
 			log.Printf("[DEV] OTP for %s: %s", req.Email, otpCode)
 			resp["message"] = "OTP generated in dev mode"
@@ -90,7 +117,7 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[DEV] OTP for %s: %s", req.Email, otpCode)
 			resp["message"] = "OTP generated (mailer failed in dev)"
 		} else {
-			log.Printf("OTP sent via Resend to %s", req.Email)
+			log.Printf("[DEV] OTP sent via Resend for user %s", user.ID)
 			resp["message"] = "OTP sent successfully"
 		}
 	} else {
@@ -105,7 +132,7 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "Failed to send verification code", http.StatusServiceUnavailable)
 			return
 		}
-		log.Printf("OTP sent via Resend to %s", req.Email)
+		log.Printf("OTP sent via Resend for user %s", user.ID)
 		resp["message"] = "OTP sent successfully"
 	}
 
@@ -165,7 +192,7 @@ func sendOTPEmail(email, code string) error {
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{}
+	client := &http.Client{Timeout: 10 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		return err
@@ -321,7 +348,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Set httpOnly cookie
-	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" || os.Getenv("ENV") == "production"
+	isSecure := r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" || strings.EqualFold(os.Getenv("ENV"), "production")
 	http.SetCookie(w, &http.Cookie{
 		Name:     "tide_session",
 		Value:    tokenString,
