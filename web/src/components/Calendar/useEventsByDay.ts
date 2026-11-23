@@ -64,6 +64,8 @@ export function useEventsByDay(
             }
 
             const occDateKey = format(occurrenceStart, "yyyy-MM-dd");
+            // Moved or deleted occurrences leave nothing behind (cancelled ones stay visible, struck through)
+            if (Array.isArray(e.removed_dates) && e.removed_dates.includes(occDateKey)) return;
 
             // [TASK 2] Cancel Check: Option B - Mark as cancelled
             // [TASK 2] Cancel Check

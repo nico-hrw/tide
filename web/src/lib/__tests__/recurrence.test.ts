@@ -60,3 +60,19 @@ describe('ICS UNTIL', () => {
         expect(ev.recurrenceEnd).toBe('2027-01-25T08:45:00.000Z');
     });
 });
+
+describe('removed vs cancelled occurrences', async () => {
+    const { getEventsForDate } = await import('../calendarUtils');
+    const base = {
+        id: 'e1', title: 'Weekly', start: new Date(2026, 9, 5, 9, 45).toISOString(), end: new Date(2026, 9, 5, 11, 15).toISOString(),
+        recurrence_rule: 'FREQ=WEEKLY;INTERVAL=1;',
+    };
+    it('draws a cancelled occurrence (marked) but nothing for a removed one', () => {
+        const ev = { ...base, exdates: ['2026-10-12'], removed_dates: ['2026-10-19'] };
+        const cancelled = getEventsForDate(new Date(2026, 9, 12), [ev]);
+        expect(cancelled).toHaveLength(1);
+        expect(cancelled[0].is_cancelled).toBe(true);
+        expect(getEventsForDate(new Date(2026, 9, 19), [ev])).toHaveLength(0);
+        expect(getEventsForDate(new Date(2026, 9, 26), [ev])).toHaveLength(1);
+    });
+});

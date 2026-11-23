@@ -39,6 +39,7 @@ export interface CalendarEventUpdates extends Partial<CalendarEventExtraMeta> {
     end?: string;
     allDay?: boolean;
     exdates?: string[];
+    removed_dates?: string[];
     completed_dates?: string[];
 }
 
@@ -75,7 +76,7 @@ interface WindowWithTideSave {
 }
 
 const FALLBACK_META_KEYS = [
-    "title", "description", "allDay", "isGroup", "effect", "is_cancelled", "exdates",
+    "title", "description", "allDay", "isGroup", "effect", "is_cancelled", "exdates", "removed_dates",
     "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds",
 ] as const;
 
@@ -340,15 +341,15 @@ export function useCalendarActions({
                             }
                         } else {
                             // Only this occurrence: it becomes its own event, and the series skips that date.
-                            const { start: _s, end: _e, recurrence_rule: _r, recurrence_end: _re, recurrence: _rc, exdates: _x, completed_dates: _c, is_cancelled: _ic, ...rest } = updates;
-                            void [_s, _e, _r, _re, _rc, _x, _c, _ic];
+                            const { start: _s, end: _e, recurrence_rule: _r, recurrence_end: _re, recurrence: _rc, exdates: _x, removed_dates: _rd, completed_dates: _c, is_cancelled: _ic, ...rest } = updates;
+                            void [_s, _e, _r, _re, _rc, _x, _rd, _c, _ic];
                             const createdId = await handleEventCreate(newStart, newEnd, !!(updates.allDay ?? event.allDay), {
                                 title: event.title, description: event.description, color: event.color, effect: event.effect,
                                 groupIds: event.groupIds, parent_id: event.parent_id ?? null, is_important: event.is_important, tags: event.tags,
                                 ...rest,
                             });
                             if (!createdId) throw new Error("Could not create the moved occurrence");
-                            effectiveUpdates = { exdates: toggleDateInList(event.exdates, occurrenceKey(occStart), true) };
+                            effectiveUpdates = { removed_dates: toggleDateInList(event.removed_dates, occurrenceKey(occStart), true) };
                         }
                     }
                 }
@@ -478,36 +479,37 @@ export function useCalendarActions({
     const handleDeleteEvent = useCallback(
         async (id: string): Promise<void> => {
             if (!myId) return;
-            if (id.includes("_")) {
-                await handleEventSave(id, { is_cancelled: true });
-                return;
-            }
-            const seriesEvt = useDataStore.getState().events.find((e) => e.id === id) as CalendarEventRecord | undefined;
+            const baseId = id.includes("_") ? id.split("_")[0] : id;
+            const seriesEvt = useDataStore.getState().events.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
+            let targetId = id;
             if (seriesEvt && isRecurringEvent(seriesEvt)) {
-                // The first occurrence carries the series id: ask whether to cancel just it or delete everything.
+                // Deleting a repeating event: only this occurrence (it disappears, unlike "absagen") or the whole series.
                 const scope = await askRecurrenceScope("delete", seriesEvt.title || "");
                 if (scope === null) return;
                 if (scope === "this") {
-                    await handleEventSave(id, { is_cancelled: true });
+                    const ts = occurrenceTimestamp(id);
+                    const key = occurrenceKey(ts !== null ? ts : (seriesEvt.start || Date.now()));
+                    await handleEventSave(id, { removed_dates: toggleDateInList(seriesEvt.removed_dates, key, true) });
                     return;
                 }
+                targetId = baseId; // the whole series; the dialog already was the confirmation
             } else if (!confirm("Are you sure you want to delete this event?")) return;
             try {
                 const storeState = useDataStore.getState();
                 const currentEvents = storeState.events;
-                const targetEvt = currentEvents.find((e) => e.id === id) as CalendarEventRecord | undefined;
+                const targetEvt = currentEvents.find((e) => e.id === targetId) as CalendarEventRecord | undefined;
                 if (targetEvt?.linkedTaskId) {
                     const remainingLinkedEvents = currentEvents.filter(
-                        (e) => e.id !== id && (e as CalendarEventRecord).linkedTaskId === targetEvt.linkedTaskId
+                        (e) => e.id !== targetId && (e as CalendarEventRecord).linkedTaskId === targetEvt.linkedTaskId
                     );
                     if (remainingLinkedEvents.length === 0) {
                         void (updateTask ?? storeState.updateTask)(targetEvt.linkedTaskId, { dueDate: undefined, scheduledDate: undefined });
                     }
                 }
-                const res = await apiFetch(`/api/v1/files/${id}`, { method: "DELETE" });
+                const res = await apiFetch(`/api/v1/files/${targetId}`, { method: "DELETE" });
                 if (res.ok) {
                     const latestState = useDataStore.getState();
-                    (setEvents ?? latestState.setEvents)(latestState.events.filter((e) => e.id !== id));
+                    (setEvents ?? latestState.setEvents)(latestState.events.filter((e) => e.id !== targetId));
                 }
             } catch (e) {
                 console.error(e);

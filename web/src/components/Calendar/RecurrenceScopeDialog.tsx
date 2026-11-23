@@ -3,7 +3,7 @@ import { registerScopePromptHost, type ScopeRequest } from '@/lib/recurrenceScop
 
 const COPY = {
     move: { heading: 'Wiederholenden Termin ändern', this: 'Nur dieser Termin', all: 'Alle Wiederholungen' },
-    delete: { heading: 'Wiederholenden Termin absagen', this: 'Nur dieser Termin', all: 'Alle Wiederholungen löschen' },
+    delete: { heading: 'Wiederholenden Termin löschen', this: 'Nur dieser Termin', all: 'Alle Wiederholungen löschen' },
 } as const;
 
 /** Mounted once at the app root; answers `askRecurrenceScope` with a small modal. */

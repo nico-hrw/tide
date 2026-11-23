@@ -72,6 +72,9 @@ export function useCalendarDragResize({
     // Last snapped values the user saw: the drop uses exactly these, so it lands where the preview showed it.
     const ghostBaseRef = React.useRef({ top: 0, left: 0 });
     const creationDeltaMinsRef = React.useRef(0);
+    // True from the drop until the change is saved or cancelled (e.g. while the "only this / all" dialog is open):
+    // the pointer is ignored then, otherwise the ghost keeps following the mouse and a click on the dialog counts as a second drop.
+    const commitLockRef = React.useRef(false);
     useCalendarTouch(scrollContainerRef, s);
 
     const {
@@ -111,6 +114,7 @@ export function useCalendarDragResize({
         // We filter actions inside the handlers based on state.
 
         const handleMouseMove = (e: MouseEvent) => {
+            if (commitLockRef.current) return;
             physicalMouseRef.current = { x: e.clientX, y: e.clientY };
 
             if (isPreciseModeRef.current && preciseAnchorRef.current) {
@@ -262,6 +266,7 @@ export function useCalendarDragResize({
         };
 
         const handleMouseUp = async (e: MouseEvent) => {
+            if (commitLockRef.current) return;
             // Clear pending drag if any (was just a click)
             if (pendingDragRef.current) {
                 // If we haven't moved enough to drag, treat this as a CLICK.
@@ -353,6 +358,15 @@ export function useCalendarDragResize({
     }, [draggingId, dragState, creationDrag, resizingId, resizeDragState, events]);
 
     const handleGlobalMouseUp = async (e: MouseEvent) => {
+        commitLockRef.current = true;
+        try {
+            await runGlobalMouseUp(e);
+        } finally {
+            commitLockRef.current = false;
+        }
+    };
+
+    const runGlobalMouseUp = async (e: MouseEvent) => {
         if (creationDrag && onEventCreate) {
             const cDrag = creationDrag;
             setCreationDrag(null);

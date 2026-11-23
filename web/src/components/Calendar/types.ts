@@ -15,6 +15,8 @@ export interface CalendarEvent {
     recurrence?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
     recurrence_rule?: string;
     exdates?: string[];
+    /** Occurrences that no longer exist (moved or deleted): they are not drawn at all, unlike cancelled ones (exdates). */
+    removed_dates?: string[];
     completed_dates?: string[];
     is_task?: boolean;
     is_completed?: boolean;

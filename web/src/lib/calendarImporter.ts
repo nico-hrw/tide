@@ -83,7 +83,8 @@ export async function importCalendarEvents(
                         color: options?.color || undefined,
                         recurrence_rule: event.recurrenceRule || undefined,
                         recurrence_end: event.recurrenceEnd,
-                        exdates: event.exdates,
+                        // ICS EXDATE = the occurrence does not exist: it is removed, not shown as cancelled
+                        removed_dates: event.exdates,
                         is_cancelled: event.isCancelled || false,
                     };
 

@@ -168,7 +168,8 @@ export function useCalendarDragState({
                 const rect = col.getBoundingClientRect();
                 if (clientX >= rect.left && clientX <= rect.right) {
                     const dayStr = col.getAttribute('data-day-col');
-                    if (dayStr) targetBaseDate = new Date(dayStr);
+                    // yyyy-MM-dd as a LOCAL date (new Date('yyyy-MM-dd') is UTC midnight and can land on the previous day)
+                    if (dayStr) { const [y, m, d] = dayStr.split('-').map(Number); targetBaseDate = new Date(y, m - 1, d); }
                 }
             });
 

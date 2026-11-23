@@ -14,7 +14,8 @@ export interface CalendarEvent {
     is_task?: boolean;
     is_completed?: boolean;
     is_cancelled?: boolean;
-    exdates?: string[]; // YYYY-MM-DD strings of skipped instances
+    exdates?: string[]; // YYYY-MM-DD strings of cancelled instances (drawn struck through)
+    removed_dates?: string[]; // YYYY-MM-DD strings of instances that are gone (moved/deleted), not drawn
     completed_dates?: string[]; // YYYY-MM-DD strings of completed instances
     recurrence_rule?: string;
     recurrence_end?: string;
@@ -78,6 +79,7 @@ export function getEventsForDate(targetDate: string | Date, allEvents: CalendarE
                 
                 if (targetStart >= occStart && targetStart <= occEnd) {
                     const occDateKey = format(current, "yyyy-MM-dd");
+                    if (e.removed_dates?.includes(occDateKey)) break;
 
                     // [TASK 2] Cancel Check: Option B - Mark as cancelled
                     // [TASK 2] Cancel Check: If it's in exdates, it's definitely cancelled.
