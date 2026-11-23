@@ -198,6 +198,10 @@ export const ReferenceAutopilotMode = Extension.create({
         let dirtyRange: { from: number; to: number } | null = null;
         let isFullScanScheduled = false;
 
+        // The scan must never interrupt typing: it runs only after a quiet period without edits.
+        const QUIET_MS = 3000;
+        let lastEditAt = 0;
+
         let debounceTimeout: ReturnType<typeof setTimeout> | null = null;
         let cancelIdleFn: (() => void) | null = null;
 
@@ -214,6 +218,17 @@ export const ReferenceAutopilotMode = Extension.create({
 
         const executePendingScan = () => {
             if (!currentView || currentView.isDestroyed) return;
+
+            // Typed again in the meantime: try again after the next quiet period
+            const sinceEdit = Date.now() - lastEditAt;
+            if (sinceEdit < QUIET_MS - 200) {
+                cancelPending();
+                debounceTimeout = setTimeout(() => {
+                    debounceTimeout = null;
+                    cancelIdleFn = scheduleIdle(() => { cancelIdleFn = null; executePendingScan(); }, 1000);
+                }, QUIET_MS - sinceEdit);
+                return;
+            }
 
             const store = useReferenceStore.getState();
             if (!store.autoScanEnabled) {
@@ -263,7 +278,7 @@ export const ReferenceAutopilotMode = Extension.create({
                     cancelIdleFn = null;
                     executePendingScan();
                 }, 1000);
-            }, 800);
+            }, QUIET_MS);
         };
 
         const scheduleFullScan = () => {
@@ -271,10 +286,14 @@ export const ReferenceAutopilotMode = Extension.create({
             isFullScanScheduled = true;
             cancelPending();
 
-            cancelIdleFn = scheduleIdle(() => {
-                cancelIdleFn = null;
-                executePendingScan();
-            }, 1500);
+            // Not right at start-up / right after a dictionary change: give the editor time to settle
+            debounceTimeout = setTimeout(() => {
+                debounceTimeout = null;
+                cancelIdleFn = scheduleIdle(() => {
+                    cancelIdleFn = null;
+                    executePendingScan();
+                }, 2000);
+            }, 2500);
         };
 
         return [
@@ -286,12 +305,17 @@ export const ReferenceAutopilotMode = Extension.create({
                         return null;
                     }
 
-                    const userTrs = transactions.filter(
-                        (tr) => tr.docChanged && !tr.getMeta('isReferenceAutopilot')
-                    );
+                    // Own edits only: remote (collaboration) changes and the autopilot's own marks don't count,
+                    // otherwise every collaborator keystroke would trigger scans (and write marks back to everyone)
+                    const userTrs = transactions.filter((tr) => {
+                        if (!tr.docChanged || tr.getMeta('isReferenceAutopilot')) return false;
+                        const meta = (tr as unknown as { meta?: Record<string, unknown> }).meta;
+                        return !(meta && Object.keys(meta).some((k) => k.startsWith('y-sync')));
+                    });
                     if (userTrs.length === 0) {
                         return null;
                     }
+                    lastEditAt = Date.now();
 
                     let minPos = Infinity;
                     let maxPos = -Infinity;
