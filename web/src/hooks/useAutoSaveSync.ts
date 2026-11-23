@@ -537,27 +537,33 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     // Checkpoint Compaction triggers:
     // 1) Server COMPACT_REQUEST control frame / event
     // 2) Component unmount or visibilityState === 'hidden'
+    // triggerCompaction changes identity whenever its deps change (e.g. an unstable switchTab).
+    // Listener registration and the unmount cleanup below must not re-run for that, otherwise the
+    // cleanup would fire a full compaction + backup cascade on every keystroke.
+    const triggerCompactionRef = useRef(triggerCompaction);
+    triggerCompactionRef.current = triggerCompaction;
+
     useEffect(() => {
         const handleServerCompact = (e: Event) => {
             const detail = (e as CustomEvent)?.detail;
             const targetId = detail?.noteId || detail?.fileId || detail?.fileID || activeNoteIdRef.current;
             const seqId = detail?.upToSeqId || detail?.seqId;
             if (targetId) {
-                triggerCompaction(targetId, seqId);
+                triggerCompactionRef.current(targetId, seqId);
             }
         };
 
         const handleVisChange = () => {
             if (document.visibilityState === "hidden" && activeNoteIdRef.current) {
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
         };
 
         const handleBeforeUnload = () => {
             if (activeNoteIdRef.current) {
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
         };
 
@@ -574,11 +580,11 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             // On unmount:
             if (activeNoteIdRef.current && unsavedNotesRef.current.has(activeNoteIdRef.current)) {
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
             useActiveNoteStore.getState().setActiveDEK(null);
         };
-    }, [triggerCompaction]);
+    }, []);
 
     // Note switch compaction
     useEffect(() => {

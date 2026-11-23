@@ -103,8 +103,10 @@ function CollaborativeEditor(props: EditorProps) {
         }
     }, [activeTabId]);
 
+    // Owned imperatively (set where a provider is created/destroyed), NOT mirrored from state during
+    // render: under StrictMode the effect re-runs before state commits and a render-time mirror would
+    // read null, orphaning the first provider (live socket + focus/visibility listeners).
     const providerRef = useRef<YjsE2EEProvider | null>(null);
-    providerRef.current = provider;
     const ydocRef = useRef<Y.Doc>(ydoc);
     ydocRef.current = ydoc;
 
@@ -183,8 +185,9 @@ function CollaborativeEditor(props: EditorProps) {
 
         if (!providerRef.current) {
             const newProvider = createProvider(activeDek, ydocRef.current);
-            if (newProvider && !isCancelled) {
-                setProvider(newProvider);
+            if (newProvider) {
+                providerRef.current = newProvider;
+                if (!isCancelled) setProvider(newProvider);
             }
         } else {
             providerRef.current.updateDEK(activeDek, activeEpoch);

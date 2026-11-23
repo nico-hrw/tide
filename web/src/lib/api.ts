@@ -207,7 +207,29 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
     ]);
 }
 
-export async function apiFetch(url: string, options: RequestInit & { _isSyncReplay?: boolean } = {}) {
+const inflightGets = new Map<string, Promise<Response>>();
+
+/**
+ * Same-tick identical GETs (startup, tab switches and SSE refreshes all hit /files, /tasks, ...)
+ * share one network request. Every caller gets its own cloned Response, so bodies stay readable.
+ */
+export function apiFetch(url: string, options: RequestInit & { _isSyncReplay?: boolean } = {}): Promise<Response> {
+    const isGet = !options.method || options.method.toUpperCase() === 'GET';
+    if (!isGet || options.signal || options._isSyncReplay || options.body) {
+        return apiFetchInner(url, options);
+    }
+    const key = `${url.trim()}|${JSON.stringify(options.headers ?? {})}|${options.cache ?? ''}`;
+    let pending = inflightGets.get(key);
+    if (!pending) {
+        pending = apiFetchInner(url, options);
+        const release = () => { if (inflightGets.get(key) === pending) inflightGets.delete(key); };
+        pending.then(release, release);
+        inflightGets.set(key, pending);
+    }
+    return pending.then((res) => res.clone());
+}
+
+async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay?: boolean } = {}): Promise<Response> {
     const base = getApiBase();
     const trimmedUrl = url.trim();
     validateApiFetchOrigin(trimmedUrl, base);
