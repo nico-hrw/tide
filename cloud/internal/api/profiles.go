@@ -10,15 +10,25 @@ import (
 )
 
 type ProfileHandler struct {
-	Store store.Store
+	Store         store.Store
+	searchLimiter *IPRateLimiter
+}
+
+func (h *ProfileHandler) SetSearchLimiter(l *IPRateLimiter) {
+	h.searchLimiter = l
 }
 
 func (h *ProfileHandler) RegisterRoutes(r chi.Router) {
 	// Protected routes
 	r.Group(func(r chi.Router) {
 		r.Use(AuthMiddleware)
-		r.Get("/search", h.Search)
-		r.Get("/suggestions", h.Suggestions)
+		if h.searchLimiter != nil {
+			r.With(RateLimitMiddleware(h.searchLimiter)).Get("/search", h.Search)
+			r.With(RateLimitMiddleware(h.searchLimiter)).Get("/suggestions", h.Suggestions)
+		} else {
+			r.Get("/search", h.Search)
+			r.Get("/suggestions", h.Suggestions)
+		}
 		r.Put("/", h.UpsertProfile)
 	})
 	

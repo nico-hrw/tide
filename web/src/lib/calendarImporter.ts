@@ -144,14 +144,6 @@ export async function importCalendarEvents(
         const currentEvents = store.events || [];
         const mergedEvents = [...currentEvents, ...createdItems];
         store.setEvents(mergedEvents);
-
-        if (typeof window !== 'undefined') {
-            try {
-                localStorage.setItem('tide_offline_events', JSON.stringify(mergedEvents));
-            } catch (err) {
-                console.warn('Failed to update tide_offline_events in localStorage', err);
-            }
-        }
     }
 
     return {

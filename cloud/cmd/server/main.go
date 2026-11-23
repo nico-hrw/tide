@@ -123,6 +123,34 @@ func trustedProxyRealIP(trustedNets []*net.IPNet) func(http.Handler) http.Handle
 	}
 }
 
+// redactingLogger logs HTTP requests while masking sensitive query parameters.
+func redactingLogger(next http.Handler) http.Handler {
+	sensitiveKeys := map[string]bool{
+		"token":        true,
+		"api_token":    true,
+		"ticket":       true,
+		"access_token": true,
+		"secret":       true,
+	}
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := middleware.NewWrapResponseWriter(w, r.ProtoMajor)
+		next.ServeHTTP(ww, r)
+
+		displayPath := r.URL.Path
+		if r.URL.RawQuery != "" {
+			q := r.URL.Query()
+			for k := range q {
+				if sensitiveKeys[strings.ToLower(k)] {
+					q.Set(k, "[REDACTED]")
+				}
+			}
+			displayPath += "?" + q.Encode()
+		}
+		log.Printf("%s %s -> %d (%dB in %s)", r.Method, displayPath, ww.Status(), ww.BytesWritten(), time.Since(start))
+	})
+}
+
 func main() {
 	// Determine stable base directory for path resolution
 	baseDir := "."
@@ -187,17 +215,21 @@ func main() {
 
 	// 2. Initialize Handlers and Rate Limiters
 	broker := api.NewBroker()
+	broker.SetStore(sqliteStore)
 	authHandler := api.NewAuthHandler(sqliteStore, masterKey)
 	authLimiter := api.NewIPRateLimiter(0.1, 5)
 	otpVerifyLimiter := api.NewIPRateLimiter(0.166, 5)
 	searchLimiter := api.NewIPRateLimiter(20.0/60.0, 20)
 	quicknoteLimiter := api.NewIPRateLimiter(5.0, 30) // 5 req/s, burst 30 to prevent spamming
+	apiLimiter := api.NewIPRateLimiter(10.0, 60)
 	fileHandler := api.NewFileHandler(sqliteStore, blobStore, broker)
 	linkHandler := api.NewLinkHandler(sqliteStore)
 	messageHandler := &api.MessageHandler{Store: sqliteStore, Broker: broker}
 	contactHandler := &api.ContactHandler{Store: sqliteStore, Broker: broker}
+	contactHandler.SetSearchLimiter(searchLimiter)
 	presenceHandler := &api.PresenceHandler{Broker: broker}
 	profileHandler := &api.ProfileHandler{Store: sqliteStore}
+	profileHandler.SetSearchLimiter(searchLimiter)
 	extensionsHandler := api.NewExtensionsHandler(sqliteStore)
 	taskHandler := api.NewTaskHandler(sqliteStore)
 	quicknoteHandler := api.NewQuicknoteHandler(sqliteStore, blobStore, api.GlobalHub)
@@ -211,7 +243,7 @@ func main() {
 	// 3. Setup Router
 	trustedProxies := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
 	r := chi.NewRouter()
-	r.Use(middleware.Logger)
+	r.Use(redactingLogger)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.RequestID)
 	r.Use(trustedProxyRealIP(trustedProxies))
@@ -232,47 +264,49 @@ func main() {
 		})
 	})
 
+	trustedOrigins := map[string]bool{
+		"https://go-tide.app":     true,
+		"https://www.go-tide.app": true,
+		"https://hrw.rocks":       true,
+		"https://www.hrw.rocks":   true,
+		"https://track.hrw.rocks": true,
+	}
+	if appURL := os.Getenv("APP_URL"); appURL != "" {
+		trustedOrigins[strings.TrimRight(strings.TrimSpace(appURL), "/")] = true
+	}
+	if allowedOrigins := os.Getenv("ALLOWED_ORIGINS"); allowedOrigins != "" {
+		for _, o := range strings.Split(allowedOrigins, ",") {
+			o = strings.TrimRight(strings.TrimSpace(o), "/")
+			if o != "" {
+				trustedOrigins[o] = true
+			}
+		}
+	}
+
+	isTrustedOrigin := func(origin string) bool {
+		if origin == "" {
+			// No Origin header (same-origin or non-browser request)
+			return true
+		}
+		cleanOrigin := strings.TrimRight(origin, "/")
+		if trustedOrigins[cleanOrigin] {
+			return true
+		}
+		if !isProduction {
+			if u, err := url.Parse(origin); err == nil && u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
+				return true
+			}
+		}
+		return false
+	}
+
 	// CORS Middleware
 	r.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Add("Vary", "Origin")
 			origin := r.Header.Get("Origin")
-			trustedOrigins := map[string]bool{
-				"https://go-tide.app":     true,
-				"https://www.go-tide.app": true,
-				"https://hrw.rocks":       true,
-				"https://www.hrw.rocks":   true,
-				"https://track.hrw.rocks": true,
-			}
 
-			if appURL := os.Getenv("APP_URL"); appURL != "" {
-				trustedOrigins[strings.TrimRight(strings.TrimSpace(appURL), "/")] = true
-			}
-			if allowedOrigins := os.Getenv("ALLOWED_ORIGINS"); allowedOrigins != "" {
-				for _, o := range strings.Split(allowedOrigins, ",") {
-					o = strings.TrimRight(strings.TrimSpace(o), "/")
-					if o != "" {
-						trustedOrigins[o] = true
-					}
-				}
-			}
-
-			isTrusted := false
-			if origin != "" {
-				cleanOrigin := strings.TrimRight(origin, "/")
-				if trustedOrigins[cleanOrigin] {
-					isTrusted = true
-				} else if !isProduction {
-					if u, err := url.Parse(origin); err == nil && u.Scheme == "http" && (u.Hostname() == "localhost" || u.Hostname() == "127.0.0.1") {
-						isTrusted = true
-					}
-				}
-			} else {
-				// No Origin header (same-origin or non-browser request)
-				isTrusted = true
-			}
-
-			if isTrusted {
+			if isTrustedOrigin(origin) {
 				if origin != "" {
 					w.Header().Set("Access-Control-Allow-Origin", origin)
 				}
@@ -290,6 +324,9 @@ func main() {
 			next.ServeHTTP(w, r)
 		})
 	})
+
+	// CSRF protection for cookie-authenticated state-changing requests
+	r.Use(api.CSRFMiddleware(isTrustedOrigin))
 
 	// Request body size limits (10MB default, 250MB for upload routes)
 	r.Use(func(next http.Handler) http.Handler {
@@ -334,6 +371,7 @@ func main() {
 		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/verify-otp", authHandler.VerifyOTP)
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
+		r.With(api.AuthMiddleware).Post("/auth/ws-ticket", api.IssueWSTicketHandler)
 		r.Post("/auth/logout", api.Logout)
 		if !isProduction && strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
 			r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/dev-login", authHandler.DevLogin)
@@ -350,10 +388,19 @@ func main() {
 		r.With(api.AuthMiddleware).Post("/user/heartbeat", presenceHandler.Heartbeat)
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
-		r.Route("/todos", todosHandler.RegisterRoutes)
-		r.Route("/surveys", surveysHandler.RegisterRoutes)
+		r.Route("/todos", func(r chi.Router) {
+			r.Use(api.RateLimitMiddleware(apiLimiter))
+			todosHandler.RegisterRoutes(r)
+		})
+		r.Route("/surveys", func(r chi.Router) {
+			r.Use(api.RateLimitMiddleware(apiLimiter))
+			surveysHandler.RegisterRoutes(r)
+		})
 		r.Route("/api-tokens", apiTokenHandler.RegisterRoutes)
-		r.Route("/external", externalHandler.RegisterRoutes)
+		r.Route("/external", func(r chi.Router) {
+			r.Use(api.RateLimitMiddleware(apiLimiter))
+			externalHandler.RegisterRoutes(r)
+		})
 
 		// SSE Endpoint (Wrapped with AuthMiddleware for security)
 		r.With(api.AuthMiddleware).Get("/events", broker.ServeHTTP)

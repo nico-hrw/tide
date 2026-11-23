@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import React, { act } from 'react';
 import { createRoot, type Root } from 'react-dom/client';
-import { DbTimelineDay } from '../MobileAgendaTimeline';
+import { DbTimelineDay, type DbTimelineDayProps } from '../MobileAgendaTimeline';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -28,10 +28,12 @@ function touch(el: Element, type: 'touchstart' | 'touchmove' | 'touchend', x: nu
 }
 
 describe('DbTimelineDay hold and double-tap gestures', () => {
+  type OnDraftAt = NonNullable<DbTimelineDayProps['onDraftAt']>;
+  type OnQuickEdit = NonNullable<DbTimelineDayProps['onQuickEdit']>;
   let root: Root;
   let host: HTMLDivElement;
-  let onDraftAt: ReturnType<typeof vi.fn>;
-  let onQuickEdit: ReturnType<typeof vi.fn>;
+  let onDraftAt: ReturnType<typeof vi.fn<OnDraftAt>>;
+  let onQuickEdit: ReturnType<typeof vi.fn<OnQuickEdit>>;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -39,8 +41,8 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     host = document.createElement('div');
     document.body.appendChild(host);
     root = createRoot(host);
-    onDraftAt = vi.fn();
-    onQuickEdit = vi.fn();
+    onDraftAt = vi.fn<OnDraftAt>();
+    onQuickEdit = vi.fn<OnQuickEdit>();
   });
 
   afterEach(() => {

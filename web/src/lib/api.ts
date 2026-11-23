@@ -63,6 +63,10 @@ const SENSITIVE_LOCAL_STORAGE_KEYS = [
     'tide-job-planner-storage',
     'tide_references',
     'tide_known_quicknotes',
+    'tide_safes',
+    'tide_active_safes',
+    'tide_deleted_task_ids',
+    'tide_open_folders',
 ] as const;
 
 const SENSITIVE_LOCAL_STORAGE_PREFIXES = [
@@ -134,6 +138,7 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
         await fetch(`${getApiBase()}/api/v1/auth/logout`, {
             method: 'POST',
             credentials: 'include',
+            headers: { 'X-Requested-With': 'Tide' },
         }).catch(() => {});
     }
 
@@ -165,20 +170,32 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
         { clearMasterKey, purgeLegacyKeys },
         { clearSyncQueue },
         { clearSearchIndexCache },
+        { clearChatDecryptionCache },
+        { clearNoteImageCache },
+        { clearSessionPinCache },
+        { clearOfflineCacheCrypto },
         { idb },
     ] = await Promise.all([
         import('./keyStorage'),
         import('./syncQueue'),
         import('./searchIndex'),
+        import('./chatCrypto'),
+        import('./noteImageAssets'),
+        import('./pinSecurity'),
+        import('./offlineCacheCrypto'),
         import('./idb'),
     ]);
 
     purgeLegacyKeys();
     clearSearchIndexCache();
+    clearChatDecryptionCache();
+    clearNoteImageCache();
+    clearSessionPinCache();
 
     await Promise.allSettled([
         clearMasterKey(),
         clearSyncQueue(),
+        clearOfflineCacheCrypto(),
         (async () => {
             const allKeys = await idb.keys();
             const apiCacheKeys = allKeys.filter(
@@ -209,6 +226,7 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
 
     try {
         const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
+        headers["X-Requested-With"] = "Tide";
         if (typeof window !== 'undefined') {
             const token = localStorage.getItem("tide_session_token");
             if (token) {
@@ -232,8 +250,14 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
         if (isGet && res.ok && !skipCache && typeof window !== 'undefined') {
             const clone = res.clone();
             clone.text().then(async (text) => {
-                const { idb } = await import('./idb');
-                await idb.set(`api_cache_${cleanEndpoint}`, text);
+                const [{ idb }, { encryptCacheValue }] = await Promise.all([
+                    import('./idb'),
+                    import('./offlineCacheCrypto'),
+                ]);
+                const encrypted = await encryptCacheValue(text);
+                if (encrypted !== null) {
+                    await idb.set(`api_cache_${cleanEndpoint}`, encrypted);
+                }
             }).catch(e => console.warn("Failed to cache GET response", e));
         }
 
@@ -255,11 +279,19 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
         // Fallback to offline cache for GET requests
         if (isGet && !skipCache && typeof window !== 'undefined') {
             try {
-                const { idb } = await import('./idb');
-                const cachedText = await idb.get<string>(`api_cache_${cleanEndpoint}`);
-                if (cachedText !== undefined) {
-                    console.log(`[apiFetch] Serving from offline cache: ${cleanEndpoint}`);
-                    return new Response(cachedText, { status: 200, statusText: "OK (Offline Cache)" });
+                const [{ idb }, { decryptCacheValue }] = await Promise.all([
+                    import('./idb'),
+                    import('./offlineCacheCrypto'),
+                ]);
+                const cacheKey = `api_cache_${cleanEndpoint}`;
+                const cachedRaw = await idb.get<unknown>(cacheKey);
+                if (cachedRaw !== undefined) {
+                    const decryptedText = await decryptCacheValue(cachedRaw);
+                    if (decryptedText !== null) {
+                        console.log(`[apiFetch] Serving from offline cache: ${cleanEndpoint}`);
+                        return new Response(decryptedText, { status: 200, statusText: "OK (Offline Cache)" });
+                    }
+                    await idb.del(cacheKey);
                 }
             } catch (cacheErr) {
                 console.error("Failed to read from offline cache", cacheErr);
@@ -314,11 +346,25 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
 
                 // If updating note content, also cache it immediately in idb so offline re-reads get latest ciphertext
                 if (fileId && (options.method?.toUpperCase() === 'PUT' || cleanEndpoint.includes('/upload'))) {
-                    const { idb } = await import('./idb');
-                    if (parsedBody && parsedBody.content_ciphertext) {
-                        await idb.set(`api_cache_/api/v1/files/${fileId}/download`, parsedBody.content_ciphertext);
-                    } else if (typeof options.body === 'string') {
-                        await idb.set(`api_cache_/api/v1/files/${fileId}/download`, options.body);
+                    const [{ idb }, { encryptCacheValue }] = await Promise.all([
+                        import('./idb'),
+                        import('./offlineCacheCrypto'),
+                    ]);
+                    const rawContentCiphertext =
+                        parsedBody && typeof parsedBody === 'object'
+                            ? (parsedBody as { content_ciphertext?: unknown }).content_ciphertext
+                            : undefined;
+                    const valueToCache =
+                        typeof rawContentCiphertext === 'string' && rawContentCiphertext
+                            ? rawContentCiphertext
+                            : typeof options.body === 'string'
+                                ? options.body
+                                : null;
+                    if (valueToCache !== null) {
+                        const encrypted = await encryptCacheValue(valueToCache);
+                        if (encrypted !== null) {
+                            await idb.set(`api_cache_/api/v1/files/${fileId}/download`, encrypted);
+                        }
                     }
                 }
 
@@ -351,5 +397,18 @@ export async function apiFetch(url: string, options: RequestInit & { _isSyncRepl
         }
 
         throw err; // Re-throw if queuing failed or not in browser
+    }
+}
+
+export async function fetchWSTicket(): Promise<string | null> {
+    try {
+        const res = await apiFetch('/api/v1/auth/ws-ticket', { method: 'POST' });
+        if (!res.ok) {
+            return null;
+        }
+        const data = (await res.json()) as { ticket?: string } | null;
+        return data?.ticket ?? null;
+    } catch {
+        return null;
     }
 }

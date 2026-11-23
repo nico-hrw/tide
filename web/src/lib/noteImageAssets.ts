@@ -94,3 +94,14 @@ export function loadNoteImage(asset: StoredImageAsset): Promise<string> {
     inflight.set(asset.assetId, job);
     return job;
 }
+
+/** Revokes cached object URLs and clears in-memory image caches. */
+export function clearNoteImageCache(): void {
+    if (typeof URL !== 'undefined') {
+        for (const url of objectUrls.values()) {
+            URL.revokeObjectURL(url);
+        }
+    }
+    objectUrls.clear();
+    inflight.clear();
+}

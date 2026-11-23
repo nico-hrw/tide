@@ -62,7 +62,6 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp["user_exists"] = true
-	resp["username"] = user.Username // Return plaintext username for display
 
 	var otpBytes [3]byte
 	if _, err := rand.Read(otpBytes[:]); err != nil {

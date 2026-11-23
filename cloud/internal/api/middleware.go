@@ -2,12 +2,16 @@ package api
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -129,4 +133,148 @@ func Logout(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+const (
+	wsTicketTTL  = 30 * time.Second
+	maxWSTickets = 10000
+)
+
+type wsTicketEntry struct {
+	userID    string
+	expiresAt time.Time
+}
+
+var (
+	wsTicketMu    sync.Mutex
+	wsTicketStore = make(map[string]wsTicketEntry)
+)
+
+// IssueWSTicket generates a short-lived, single-use WebSocket authentication ticket.
+func IssueWSTicket(userID string) (string, error) {
+	var raw [32]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", err
+	}
+	ticket := hex.EncodeToString(raw[:])
+
+	now := time.Now()
+	wsTicketMu.Lock()
+	defer wsTicketMu.Unlock()
+
+	for k, entry := range wsTicketStore {
+		if !now.Before(entry.expiresAt) {
+			delete(wsTicketStore, k)
+		}
+	}
+
+	for len(wsTicketStore) >= maxWSTickets {
+		var oldestKey string
+		var oldestExp time.Time
+		first := true
+		for k, entry := range wsTicketStore {
+			if first || entry.expiresAt.Before(oldestExp) {
+				oldestKey = k
+				oldestExp = entry.expiresAt
+				first = false
+			}
+		}
+		if first {
+			break
+		}
+		delete(wsTicketStore, oldestKey)
+	}
+
+	wsTicketStore[ticket] = wsTicketEntry{
+		userID:    userID,
+		expiresAt: now.Add(wsTicketTTL),
+	}
+	return ticket, nil
+}
+
+// ConsumeWSTicket validates and immediately consumes a one-time WebSocket ticket.
+func ConsumeWSTicket(ticket string) (string, bool) {
+	wsTicketMu.Lock()
+	defer wsTicketMu.Unlock()
+
+	entry, ok := wsTicketStore[ticket]
+	if !ok {
+		return "", false
+	}
+	delete(wsTicketStore, ticket)
+
+	if time.Now().Before(entry.expiresAt) {
+		return entry.userID, true
+	}
+	return "", false
+}
+
+// IssueWSTicketHandler issues a short-lived one-time WebSocket ticket for the authenticated user.
+func IssueWSTicketHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := r.Context().Value("user_id").(string)
+	if !ok || userID == "" {
+		http.Error(w, "Unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	ticket, err := IssueWSTicket(userID)
+	if err != nil {
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
+		"ticket":     ticket,
+		"expires_in": int(wsTicketTTL.Seconds()),
+	})
+}
+
+// CSRFMiddleware validates state-changing cookie-authenticated requests against cross-site forgery.
+func CSRFMiddleware(isTrustedOrigin func(string) bool) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			switch r.Method {
+			case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+			default:
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if _, err := r.Cookie("tide_session"); err != nil {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if r.URL.Path != "/api/v1/auth/logout" &&
+				(r.Header.Get("Authorization") != "" || r.Header.Get("X-API-Key") != "") {
+				next.ServeHTTP(w, r)
+				return
+			}
+
+			if strings.EqualFold(r.Header.Get("Sec-Fetch-Site"), "cross-site") {
+				http.Error(w, "CSRF validation failed: cross-site request blocked", http.StatusForbidden)
+				return
+			}
+
+			if origin := r.Header.Get("Origin"); origin != "" {
+				trusted := isTrustedOrigin != nil && isTrustedOrigin(origin)
+				if !trusted {
+					u, err := url.Parse(origin)
+					if err != nil || u.Host == "" || !strings.EqualFold(u.Host, r.Host) {
+						http.Error(w, "CSRF validation failed: untrusted origin", http.StatusForbidden)
+						return
+					}
+				}
+			}
+
+			if strings.TrimSpace(r.Header.Get("X-Requested-With")) == "" {
+				http.Error(w, "CSRF validation failed: missing X-Requested-With header", http.StatusForbidden)
+				return
+			}
+
+			next.ServeHTTP(w, r)
+		})
+	}
 }

@@ -6,6 +6,7 @@ import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import {
     Share2, FolderInput, Check, Loader2, AlertCircle, X,
     Paperclip, UploadCloud, Download, Trash2, Plus,
+    Lock, Unlock, ShieldCheck, Clock, LogIn, RefreshCw, Users, UserCheck, UserX,
 } from 'lucide-react';
 import Editor from '@/components/Editor';
 import Avatar from '@/components/Profile/Avatar';
@@ -14,7 +15,10 @@ import {
     fetchQuicknoteFiles, uploadQuicknoteFile, getQuicknoteFileDownloadUrl,
     deleteQuicknoteFile,
     saveKnownQuicknote, saveKnownQuicknotes, StorageLimitError,
+    QuicknoteAccessError, setQuicknoteAccessMode, requestQuicknoteAccess,
+    fetchQuicknoteAccessRequests, resolveQuicknoteAccessRequest,
     type QuicknoteData, type QuicknoteTreeNode, type QuicknoteAttachment,
+    type QuicknoteAccessRequest, type QuicknoteAccessMode, type QuicknoteAccessGateStatus,
 } from '@/lib/quicknotesApi';
 import { useDataStore } from '@/store/useDataStore';
 
@@ -177,6 +181,16 @@ export default function QuicknotePage() {
     const [profileMenuOpen, setProfileMenuOpen] = useState<boolean>(false);
     const profileMenuRef = useRef<HTMLDivElement | null>(null);
 
+    // Access control state
+    const [accessMode, setAccessMode] = useState<QuicknoteAccessMode>('open');
+    const [isOwner, setIsOwner] = useState<boolean>(false);
+    const [ownerId, setOwnerId] = useState<string | null>(null);
+    const [accessGate, setAccessGate] = useState<{ status: QuicknoteAccessGateStatus; title: string } | null>(null);
+    const [accessRequests, setAccessRequests] = useState<QuicknoteAccessRequest[]>([]);
+    const [accessActionLoading, setAccessActionLoading] = useState<boolean>(false);
+    const [requestsPanelOpen, setRequestsPanelOpen] = useState<boolean>(false);
+    const requestsPanelRef = useRef<HTMLDivElement | null>(null);
+
     // File attachments & upload state
     const [attachments, setAttachments] = useState<QuicknoteAttachment[]>([]);
     const [isDragging, setIsDragging] = useState(false);
@@ -197,12 +211,12 @@ export default function QuicknotePage() {
     }, [slug]);
 
     useEffect(() => {
-        if (slug) void loadAttachments();
-    }, [slug, loadAttachments]);
+        if (slug && !loading && !accessGate) void loadAttachments();
+    }, [slug, loading, accessGate, loadAttachments]);
 
     useEffect(() => {
-        if (slug && title) saveKnownQuicknote({ slug, title });
-    }, [slug, title]);
+        if (slug && title && !accessGate) saveKnownQuicknote({ slug, title });
+    }, [slug, title, accessGate]);
 
     const titleRef = useRef<string>('');
     titleRef.current = title;
@@ -220,6 +234,40 @@ export default function QuicknotePage() {
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, [profileMenuOpen]);
+
+    useEffect(() => {
+        if (!requestsPanelOpen) return;
+        const handleClickOutside = (e: MouseEvent) => {
+            if (requestsPanelRef.current && !requestsPanelRef.current.contains(e.target as Node)) {
+                setRequestsPanelOpen(false);
+            }
+        };
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [requestsPanelOpen]);
+
+    const applyQuicknoteData = useCallback((data: QuicknoteData | null) => {
+        setAccessGate(null);
+        setAccessMode(data?.access_mode === 'approval_required' ? 'approval_required' : 'open');
+        setIsOwner(Boolean(data?.is_owner));
+        setOwnerId(data?.owner_id ?? null);
+
+        const loadedTitle = data?.title || slug;
+        setTitle(loadedTitle);
+        titleRef.current = loadedTitle;
+
+        let loadedContent: unknown = null;
+        if (data?.content) {
+            try {
+                loadedContent = JSON.parse(data.content);
+            } catch {
+                loadedContent = data.content;
+            }
+        }
+        setContent(loadedContent);
+        setInitialContent(loadedContent);
+        contentRef.current = loadedContent;
+    }, [slug]);
 
     const debouncedSave = useCallback((newContent: unknown, newTitle?: string) => {
         if (!slug) return;
@@ -254,6 +302,12 @@ export default function QuicknotePage() {
         if (!slug) return;
         let isMounted = true;
         setLoading(true);
+        setAccessGate(null);
+        setAccessMode('open');
+        setIsOwner(false);
+        setOwnerId(null);
+        setAccessRequests([]);
+        setRequestsPanelOpen(false);
 
         const initNote = async () => {
             try {
@@ -264,26 +318,23 @@ export default function QuicknotePage() {
                 let data: QuicknoteData | null = null;
                 try {
                     data = await fetchQuicknote(slug);
-                } catch {
+                } catch (err) {
+                    if (!isMounted) return;
+                    if (err instanceof QuicknoteAccessError) {
+                        setAccessGate({
+                            status: err.accessStatus,
+                            title: err.noteTitle || slug,
+                        });
+                        setAccessMode('approval_required');
+                        setIsOwner(false);
+                        setOwnerId(null);
+                        return;
+                    }
                     data = null;
                 }
                 if (!isMounted) return;
 
-                const loadedTitle = data?.title || slug;
-                setTitle(loadedTitle);
-                titleRef.current = loadedTitle;
-
-                let loadedContent: unknown = null;
-                if (data?.content) {
-                    try {
-                        loadedContent = JSON.parse(data.content);
-                    } catch {
-                        loadedContent = data.content;
-                    }
-                }
-                setContent(loadedContent);
-                setInitialContent(loadedContent);
-                contentRef.current = loadedContent;
+                applyQuicknoteData(data);
             } catch (err) {
                 console.error('Failed to initialize quicknote:', err);
             } finally {
@@ -293,7 +344,133 @@ export default function QuicknotePage() {
 
         void initNote();
         return () => { isMounted = false; };
-    }, [slug]);
+    }, [slug, applyQuicknoteData]);
+
+    const checkQuicknoteStatus = useCallback(async (showSpinner = false) => {
+        if (!slug) return;
+        if (showSpinner) setAccessActionLoading(true);
+        try {
+            const data = await fetchQuicknote(slug);
+            applyQuicknoteData(data);
+        } catch (err) {
+            if (err instanceof QuicknoteAccessError) {
+                setAccessGate({
+                    status: err.accessStatus,
+                    title: err.noteTitle || slug,
+                });
+            } else if (showSpinner) {
+                const msg = err instanceof Error ? err.message : 'Status konnte nicht geprüft werden.';
+                setToast({ type: 'error', text: msg });
+            }
+        } finally {
+            if (showSpinner) setAccessActionLoading(false);
+        }
+    }, [slug, applyQuicknoteData]);
+
+    useEffect(() => {
+        if (!slug || accessGate?.status !== 'pending') return;
+        const interval = setInterval(() => {
+            void checkQuicknoteStatus(false);
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [slug, accessGate?.status, checkQuicknoteStatus]);
+
+    const loadAccessRequests = useCallback(async () => {
+        if (!slug || !isLoggedIn || accessGate || !isOwner || accessMode !== 'approval_required') return;
+        try {
+            const list = await fetchQuicknoteAccessRequests(slug);
+            setAccessRequests(list);
+        } catch (err) {
+            console.error('Failed to load quicknote access requests:', err);
+        }
+    }, [slug, isLoggedIn, accessGate, isOwner, accessMode]);
+
+    useEffect(() => {
+        if (!slug || !isLoggedIn || accessGate || !isOwner || accessMode !== 'approval_required') {
+            setAccessRequests([]);
+            return;
+        }
+        void loadAccessRequests();
+        const interval = setInterval(() => {
+            void loadAccessRequests();
+        }, 5000);
+        return () => clearInterval(interval);
+    }, [slug, isLoggedIn, accessGate, isOwner, accessMode, loadAccessRequests]);
+
+    const pendingRequests = useMemo(
+        () => accessRequests.filter((req) => req.status === 'pending'),
+        [accessRequests]
+    );
+
+    const handleRequestAccess = async () => {
+        if (!slug || accessActionLoading) return;
+        setAccessActionLoading(true);
+        try {
+            const res = await requestQuicknoteAccess(slug);
+            if (res.status === 'approved') {
+                await checkQuicknoteStatus(false);
+            } else {
+                setAccessGate((prev) =>
+                    prev ? { ...prev, status: res.status === 'denied' ? 'denied' : 'pending' } : prev
+                );
+            }
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Zugriffsanfrage fehlgeschlagen.';
+            setToast({ type: 'error', text: msg });
+        } finally {
+            setAccessActionLoading(false);
+        }
+    };
+
+    const handleSetAccessMode = async (nextMode: QuicknoteAccessMode) => {
+        if (!slug || accessActionLoading) return;
+        setAccessActionLoading(true);
+        try {
+            const updated = await setQuicknoteAccessMode(slug, nextMode);
+            const resolvedMode: QuicknoteAccessMode =
+                updated.access_mode === 'approval_required' ? 'approval_required' : 'open';
+            setAccessMode(resolvedMode);
+            setIsOwner(Boolean(updated.is_owner ?? true));
+            setOwnerId(updated.owner_id ?? myId ?? null);
+            if (resolvedMode === 'open') {
+                setAccessRequests([]);
+                setRequestsPanelOpen(false);
+            }
+            setToast({
+                type: 'success',
+                text:
+                    resolvedMode === 'approval_required'
+                        ? 'Besitzer-Freigabe aktiviert. Nur freigegebene Nutzer haben Zugriff.'
+                        : 'Quicknote ist wieder für alle mit dem Link offen.',
+            });
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Zugriffsmodus konnte nicht geändert werden.';
+            setToast({ type: 'error', text: msg });
+        } finally {
+            setAccessActionLoading(false);
+        }
+    };
+
+    const handleResolveAccessRequest = async (userId: string, action: 'approve' | 'deny') => {
+        if (!slug || accessActionLoading) return;
+        setAccessActionLoading(true);
+        try {
+            await resolveQuicknoteAccessRequest(slug, userId, action);
+            setAccessRequests((prev) =>
+                prev.map((req) =>
+                    req.user_id === userId
+                        ? { ...req, status: action === 'approve' ? 'approved' : 'denied' }
+                        : req
+                )
+            );
+            await loadAccessRequests();
+        } catch (err) {
+            const msg = err instanceof Error ? err.message : 'Anfrage konnte nicht bearbeitet werden.';
+            setToast({ type: 'error', text: msg });
+        } finally {
+            setAccessActionLoading(false);
+        }
+    };
 
     const linkedNotes = useMemo<LinkedNoteItem[]>(() => {
         let parsed: unknown = content;
@@ -308,7 +485,7 @@ export default function QuicknotePage() {
     }, [content]);
 
     useEffect(() => {
-        if (!slug) return;
+        if (!slug || loading || accessGate) return;
         let isMounted = true;
         const loadTree = async () => {
             try {
@@ -323,10 +500,10 @@ export default function QuicknotePage() {
         };
         void loadTree();
         return () => { isMounted = false; };
-    }, [slug, rootSlug]);
+    }, [slug, rootSlug, loading, accessGate]);
 
     useEffect(() => {
-        if (!slug || linkedNotes.length === 0) return;
+        if (!slug || loading || accessGate || linkedNotes.length === 0) return;
         const knownSlugs = new Set(treeNodes.map((n) => n.slug));
         if (linkedNotes.some((item) => !knownSlugs.has(item.id))) {
             const timer = setTimeout(() => {
@@ -341,7 +518,7 @@ export default function QuicknotePage() {
             }, 600);
             return () => clearTimeout(timer);
         }
-    }, [slug, rootSlug, linkedNotes, treeNodes]);
+    }, [slug, rootSlug, loading, accessGate, linkedNotes, treeNodes]);
 
     const handleUpload = useCallback(async (files: File[]) => {
         if (!slug || files.length === 0) return;
@@ -441,11 +618,13 @@ export default function QuicknotePage() {
         <div
             className="min-h-screen flex flex-col bg-[var(--background)] text-[var(--foreground)] relative"
             onDragOver={(e) => {
+                if (accessGate) return;
                 e.preventDefault();
                 e.stopPropagation();
                 setIsDragging(true);
             }}
             onDragLeave={(e) => {
+                if (accessGate) return;
                 e.preventDefault();
                 e.stopPropagation();
                 if (!e.currentTarget.contains(e.relatedTarget as Node)) {
@@ -453,6 +632,7 @@ export default function QuicknotePage() {
                 }
             }}
             onDrop={async (e) => {
+                if (accessGate) return;
                 e.preventDefault();
                 e.stopPropagation();
                 setIsDragging(false);
@@ -469,7 +649,7 @@ export default function QuicknotePage() {
                 className="hidden"
             />
             {/* Visual drop overlay */}
-            {isDragging && (
+            {isDragging && !accessGate && (
                 <div className="fixed inset-4 z-50 backdrop-blur-sm bg-t2-sub  border-2 border-dashed border-t2-accent rounded-2xl flex flex-col items-center justify-center pointer-events-none animate-in fade-in duration-150">
                     <UploadCloud className="w-12 h-12 text-t2-accent mb-3 animate-bounce" />
                     <p className="text-lg font-semibold text-t2-accent ">Dateien hier ablegen zum Hochladen</p>
@@ -477,6 +657,7 @@ export default function QuicknotePage() {
                 </div>
             )}
             {/* Left Directory Hierarchy (Baumstruktur mit Ästen) */}
+            {!accessGate && (
             <aside
                 aria-label="Notizhierarchie"
                 className="hidden xl:block fixed left-8 top-16 w-56 select-none z-20"
@@ -591,6 +772,7 @@ export default function QuicknotePage() {
                     )}
                 </div>
             </aside>
+            )}
 
             {/* Notification / Toast Banner */}
             {toast && (
@@ -618,6 +800,99 @@ export default function QuicknotePage() {
                     <div className="flex-1 flex flex-col items-center justify-center text-t2-ink-3  min-h-[50vh]">
                         <Loader2 className="w-8 h-8 animate-spin text-t2-accent mb-3" />
                         <span className="font-medium text-sm">Lade Quicknote...</span>
+                    </div>
+                ) : accessGate ? (
+                    <div className="flex-1 flex items-center justify-center min-h-[60vh]">
+                        <div className="w-full max-w-md rounded-2xl bg-t2-surface border border-t2-line shadow-xl p-6 sm:p-8 text-center">
+                            <div className="mx-auto mb-4 w-12 h-12 rounded-2xl bg-t2-sub border border-t2-line flex items-center justify-center text-t2-accent">
+                                {accessGate.status === 'pending' ? (
+                                    <Clock className="w-6 h-6" />
+                                ) : (
+                                    <Lock className="w-6 h-6" />
+                                )}
+                            </div>
+                            <h1 className="text-xl font-bold text-t2-ink truncate mb-2" title={accessGate.title || slug}>
+                                {accessGate.title || slug}
+                            </h1>
+
+                            {accessGate.status === 'auth_required' && (
+                                <>
+                                    <p className="text-sm text-t2-ink-2 mb-6 leading-relaxed">
+                                        Diese Quicknote erfordert eine Besitzer-Freigabe.
+                                    </p>
+                                    <Link
+                                        href={`/auth?redirect=/notes/${encodeURIComponent(slug)}`}
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-t2-accent text-white text-sm font-semibold hover:opacity-90 transition-opacity"
+                                    >
+                                        <LogIn className="w-4 h-4" />
+                                        <span>Anmelden</span>
+                                    </Link>
+                                </>
+                            )}
+
+                            {accessGate.status === 'none' && (
+                                <>
+                                    <p className="text-sm text-t2-ink-2 mb-6 leading-relaxed">
+                                        Diese Quicknote erfordert eine Besitzer-Freigabe.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleRequestAccess()}
+                                        disabled={accessActionLoading}
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-t2-accent text-white text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {accessActionLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin" />
+                                        ) : (
+                                            <Lock className="w-4 h-4" />
+                                        )}
+                                        <span>Zugriff anfragen</span>
+                                    </button>
+                                </>
+                            )}
+
+                            {accessGate.status === 'pending' && (
+                                <>
+                                    <p className="text-sm text-t2-ink-2 mb-6 leading-relaxed">
+                                        Zugriffsanfrage ausstehend – warte auf Freigabe durch den Besitzer.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void checkQuicknoteStatus(true)}
+                                        disabled={accessActionLoading}
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-t2-sub border border-t2-line text-t2-ink text-sm font-semibold hover:bg-t2-hover transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {accessActionLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-t2-accent" />
+                                        ) : (
+                                            <RefreshCw className="w-4 h-4 text-t2-accent" />
+                                        )}
+                                        <span>Status prüfen</span>
+                                    </button>
+                                </>
+                            )}
+
+                            {accessGate.status === 'denied' && (
+                                <>
+                                    <p className="text-sm text-t2-ink-2 mb-6 leading-relaxed">
+                                        Zugriffsanfrage wurde abgelehnt.
+                                    </p>
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleRequestAccess()}
+                                        disabled={accessActionLoading}
+                                        className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl bg-t2-sub border border-t2-line text-t2-ink text-sm font-semibold hover:bg-t2-hover transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {accessActionLoading ? (
+                                            <Loader2 className="w-4 h-4 animate-spin text-t2-accent" />
+                                        ) : (
+                                            <RefreshCw className="w-4 h-4 text-t2-accent" />
+                                        )}
+                                        <span>Erneut anfragen</span>
+                                    </button>
+                                </>
+                            )}
+                        </div>
                     </div>
                 ) : (
                     <>
@@ -654,16 +929,107 @@ export default function QuicknotePage() {
             {/* Bottom-Right Controls (Floating Actions) */}
             <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
                 {/* Mobile / Tablet Upload Button */}
-                <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={isUploading}
-                    className="xl:hidden w-11 h-11 rounded-full flex items-center justify-center bg-t2-surface  border border-t2-line  shadow-lg text-t2-ink  hover:bg-t2-sub  hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
-                    title="Datei hinzufügen"
-                    aria-label="Datei hinzufügen"
-                >
-                    {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-t2-accent" /> : <Paperclip className="w-5 h-5" />}
-                </button>
+                {!accessGate && (
+                    <button
+                        type="button"
+                        onClick={() => fileInputRef.current?.click()}
+                        disabled={isUploading}
+                        className="xl:hidden w-11 h-11 rounded-full flex items-center justify-center bg-t2-surface  border border-t2-line  shadow-lg text-t2-ink  hover:bg-t2-sub  hover:scale-105 active:scale-95 transition-all cursor-pointer disabled:opacity-50"
+                        title="Datei hinzufügen"
+                        aria-label="Datei hinzufügen"
+                    >
+                        {isUploading ? <Loader2 className="w-5 h-5 animate-spin text-t2-accent" /> : <Paperclip className="w-5 h-5" />}
+                    </button>
+                )}
+
+                {/* Owner Access Requests Floating Button & Popover */}
+                {isLoggedIn && !accessGate && isOwner && accessMode === 'approval_required' && (
+                    <div className="relative" ref={requestsPanelRef}>
+                        <button
+                            type="button"
+                            onClick={() => setRequestsPanelOpen((prev) => !prev)}
+                            className="relative w-11 h-11 rounded-full flex items-center justify-center bg-t2-surface border border-t2-line shadow-lg text-t2-ink hover:bg-t2-sub hover:scale-105 active:scale-95 transition-all cursor-pointer"
+                            title="Zugriffsanfragen verwalten"
+                            aria-label="Zugriffsanfragen verwalten"
+                        >
+                            <Users className="w-5 h-5" />
+                            {pendingRequests.length > 0 && (
+                                <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-t2-accent text-white text-[11px] font-bold flex items-center justify-center shadow">
+                                    {pendingRequests.length}
+                                </span>
+                            )}
+                        </button>
+
+                        {requestsPanelOpen && (
+                            <div className="absolute bottom-full right-0 mb-3 w-80 max-w-[calc(100vw-3rem)] rounded-xl bg-t2-surface backdrop-blur-md border border-t2-line shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-bottom-2 duration-150">
+                                <div className="px-3.5 py-2.5 border-b border-t2-line flex items-center justify-between">
+                                    <div className="flex items-center gap-2">
+                                        <ShieldCheck className="w-4 h-4 text-t2-accent shrink-0" />
+                                        <span className="text-xs font-semibold text-t2-ink">Zugriffsanfragen</span>
+                                    </div>
+                                    <span className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-t2-sub text-t2-ink-2 border border-t2-line">
+                                        {pendingRequests.length} offen
+                                    </span>
+                                </div>
+
+                                <div className="max-h-64 overflow-y-auto divide-y divide-t2-line">
+                                    {pendingRequests.length > 0 ? (
+                                        pendingRequests.map((req) => (
+                                            <div key={req.user_id} className="px-3.5 py-2.5 flex items-center justify-between gap-2">
+                                                <div className="min-w-0">
+                                                    <p className="text-sm font-medium text-t2-ink truncate">
+                                                        {req.username || req.user_id}
+                                                    </p>
+                                                    <p className="text-[11px] text-t2-ink-3 truncate">
+                                                        Wartet auf Freigabe
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleResolveAccessRequest(req.user_id, 'approve')}
+                                                        disabled={accessActionLoading}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-t2-accent text-white text-xs font-medium hover:opacity-90 transition-opacity disabled:opacity-50 cursor-pointer"
+                                                        title="Freigeben"
+                                                    >
+                                                        <UserCheck className="w-3.5 h-3.5" />
+                                                        <span>Freigeben</span>
+                                                    </button>
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => void handleResolveAccessRequest(req.user_id, 'deny')}
+                                                        disabled={accessActionLoading}
+                                                        className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-t2-sub border border-t2-line text-t2-ink-2 hover:text-red-500 hover:bg-t2-hover text-xs font-medium transition-colors disabled:opacity-50 cursor-pointer"
+                                                        title="Ablehnen"
+                                                    >
+                                                        <UserX className="w-3.5 h-3.5" />
+                                                        <span>Ablehnen</span>
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ))
+                                    ) : (
+                                        <div className="px-3.5 py-5 text-center text-xs text-t2-ink-3">
+                                            Aktuell keine offenen Zugriffsanfragen.
+                                        </div>
+                                    )}
+                                </div>
+
+                                <div className="p-2 border-t border-t2-line bg-t2-sub">
+                                    <button
+                                        type="button"
+                                        onClick={() => void handleSetAccessMode('open')}
+                                        disabled={accessActionLoading}
+                                        className="w-full px-3 py-2 rounded-lg text-xs font-medium flex items-center justify-center gap-1.5 text-t2-ink hover:bg-t2-hover border border-t2-line bg-t2-surface transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        <Unlock className="w-3.5 h-3.5 text-t2-ink-2" />
+                                        <span>Für alle öffnen</span>
+                                    </button>
+                                </div>
+                            </div>
+                        )}
+                    </div>
+                )}
 
                 {/* Share Button */}
                 <div className="relative">
@@ -684,7 +1050,7 @@ export default function QuicknotePage() {
                 </div>
 
                 {/* Profile Circle (when logged in) */}
-                {isLoggedIn && (
+                {isLoggedIn && !accessGate && (
                     <div className="relative" ref={profileMenuRef}>
                         <button
                             type="button"
@@ -697,7 +1063,7 @@ export default function QuicknotePage() {
                         </button>
 
                         {profileMenuOpen && (
-                            <div className="absolute bottom-full right-0 mb-3 w-52 rounded-xl bg-t2-surface  backdrop-blur-md border border-t2-line  shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
+                            <div className="absolute bottom-full right-0 mb-3 w-64 rounded-xl bg-t2-surface  backdrop-blur-md border border-t2-line  shadow-xl py-1.5 z-50 animate-in fade-in slide-in-from-bottom-2 duration-150">
                                 <button
                                     type="button"
                                     onClick={() => { setProfileMenuOpen(false); void handleCopyToVault(); }}
@@ -707,6 +1073,28 @@ export default function QuicknotePage() {
                                     {copyStatus === 'copying' ? <Loader2 className="w-4 h-4 animate-spin text-t2-accent shrink-0" /> : copyStatus === 'success' ? <Check className="w-4 h-4 text-emerald-500 shrink-0" /> : <FolderInput className="w-4 h-4 text-t2-ink-2  shrink-0" />}
                                     <span className="font-medium">Für mich speichern</span>
                                 </button>
+                                {(isOwner || !ownerId) && (
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setProfileMenuOpen(false);
+                                            void handleSetAccessMode(accessMode === 'open' ? 'approval_required' : 'open');
+                                        }}
+                                        disabled={accessActionLoading}
+                                        className="w-full px-3.5 py-2.5 text-left text-sm flex items-center gap-2.5 text-t2-ink hover:bg-t2-hover transition-colors disabled:opacity-50 cursor-pointer"
+                                    >
+                                        {accessMode === 'approval_required' ? (
+                                            <Lock className="w-4 h-4 text-t2-accent shrink-0" />
+                                        ) : (
+                                            <Unlock className="w-4 h-4 text-t2-ink-2 shrink-0" />
+                                        )}
+                                        <span className="font-medium">
+                                            {accessMode === 'approval_required'
+                                                ? 'Zugriff: Besitzer-Freigabe'
+                                                : 'Zugriff: Offen für alle'}
+                                        </span>
+                                    </button>
+                                )}
                             </div>
                         )}
                     </div>

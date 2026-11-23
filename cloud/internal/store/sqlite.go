@@ -164,12 +164,6 @@ func (s *SQLiteStore) migrate() error {
 		FOREIGN KEY(user_id) REFERENCES users(id)
 	);
 
-    CREATE TABLE IF NOT EXISTS tokens (
-		token TEXT PRIMARY KEY,
-		user_id TEXT NOT NULL,
-		expires_at DATETIME NOT NULL
-	);
-
 	CREATE TABLE IF NOT EXISTS links (
 		source_id TEXT NOT NULL,
 		target_id TEXT NOT NULL,
@@ -238,6 +232,8 @@ func (s *SQLiteStore) migrate() error {
 	CREATE TABLE IF NOT EXISTS quicknotes (
 		slug TEXT PRIMARY KEY,
 		parent_slug TEXT,
+		owner_id TEXT,
+		access_mode TEXT NOT NULL DEFAULT 'open',
 		title TEXT NOT NULL DEFAULT 'Untitled Quicknote',
 		content TEXT NOT NULL DEFAULT '',
 		snapshot_iv BLOB,
@@ -246,6 +242,17 @@ func (s *SQLiteStore) migrate() error {
 		created_at DATETIME NOT NULL,
 		updated_at DATETIME NOT NULL
 	);
+
+	CREATE TABLE IF NOT EXISTS quicknote_access_requests (
+		slug TEXT NOT NULL,
+		user_id TEXT NOT NULL,
+		status TEXT NOT NULL DEFAULT 'pending',
+		created_at DATETIME NOT NULL,
+		updated_at DATETIME NOT NULL,
+		PRIMARY KEY (slug, user_id),
+		FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+	);
+	CREATE INDEX IF NOT EXISTS idx_quicknote_access_requests_slug_status ON quicknote_access_requests(slug, status);
 
 	CREATE TABLE IF NOT EXISTS quicknote_wal (
 		seq_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -644,6 +651,25 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"CREATE INDEX IF NOT EXISTS idx_contacts_contact_status ON contacts(contact_id, status);",
 				"CREATE INDEX IF NOT EXISTS idx_files_parent_file ON files(parent_file_id);",
 				"CREATE INDEX IF NOT EXISTS idx_files_blob_path ON files(blob_path) WHERE blob_path IS NOT NULL AND blob_path != '';",
+			},
+		},
+		{
+			version: 13,
+			name:    "quicknotes_access_control",
+			stmts: []string{
+				"ALTER TABLE quicknotes ADD COLUMN owner_id TEXT;",
+				"ALTER TABLE quicknotes ADD COLUMN access_mode TEXT NOT NULL DEFAULT 'open';",
+				`CREATE TABLE IF NOT EXISTS quicknote_access_requests (
+					slug TEXT NOT NULL,
+					user_id TEXT NOT NULL,
+					status TEXT NOT NULL DEFAULT 'pending',
+					created_at DATETIME NOT NULL,
+					updated_at DATETIME NOT NULL,
+					PRIMARY KEY (slug, user_id),
+					FOREIGN KEY(slug) REFERENCES quicknotes(slug) ON DELETE CASCADE
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_quicknote_access_requests_slug_status ON quicknote_access_requests(slug, status);",
+				"DROP TABLE IF EXISTS tokens;",
 			},
 		},
 	}
@@ -1656,39 +1682,6 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 func (s *SQLiteStore) ListFiles(ctx context.Context, ownerID string, parentID *string) ([]*db.File, error) {
 	// Re-route to AccessibleFiles assuming viewer is owner
 	return s.ListAccessibleFiles(ctx, ownerID, parentID, nil, false)
-}
-
-// --- Token Operations ---
-
-func (s *SQLiteStore) SetToken(ctx context.Context, token string, userID string, ttl time.Duration) error {
-	query := `INSERT INTO tokens (token, user_id, expires_at) VALUES (?, ?, ?)`
-	expiresAt := time.Now().Add(ttl)
-	_, err := s.DB.ExecContext(ctx, query, token, userID, expiresAt)
-	return err
-}
-
-func (s *SQLiteStore) GetToken(ctx context.Context, token string) (string, error) {
-	query := `SELECT user_id, expires_at FROM tokens WHERE token = ?`
-	row := s.readDB().QueryRowContext(ctx, query, token)
-	var userID string
-	var expiresAt time.Time
-	if err := row.Scan(&userID, &expiresAt); err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return "", ErrNotFound
-		}
-		return "", err
-	}
-	if time.Now().After(expiresAt) {
-		_ = s.DeleteToken(ctx, token)
-		return "", ErrNotFound
-	}
-	return userID, nil
-}
-
-func (s *SQLiteStore) DeleteToken(ctx context.Context, token string) error {
-	query := `DELETE FROM tokens WHERE token = ?`
-	_, err := s.DB.ExecContext(ctx, query, token)
-	return err
 }
 
 // --- Personal Access Token (API Token) Operations ---
@@ -2844,6 +2837,8 @@ func (s *SQLiteStore) RevokeShareAndRotateKey(ctx context.Context, fileID, targe
 type Quicknote struct {
 	Slug               string    `json:"slug"`
 	ParentSlug         *string   `json:"parent_slug,omitempty"`
+	OwnerID            *string   `json:"owner_id,omitempty"`
+	AccessMode         string    `json:"access_mode"`
 	Title              string    `json:"title"`
 	Content            string    `json:"content"`
 	SnapshotIV         []byte    `json:"-"`
@@ -2851,6 +2846,15 @@ type Quicknote struct {
 	SnapshotSeqID      int64     `json:"snapshot_seq_id"`
 	CreatedAt          time.Time `json:"created_at"`
 	UpdatedAt          time.Time `json:"updated_at"`
+}
+
+type QuicknoteAccessRequest struct {
+	Slug      string    `json:"slug"`
+	UserID    string    `json:"user_id"`
+	Username  string    `json:"username"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type QuicknoteTreeNode struct {
@@ -2879,6 +2883,37 @@ type QuicknoteFile struct {
 	CreatedAt time.Time `json:"created_at" db:"created_at"`
 }
 
+const quicknoteSelectCols = `slug, parent_slug, owner_id, COALESCE(access_mode, 'open'), title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at`
+
+func scanQuicknote(row *sql.Row) (*Quicknote, error) {
+	var qn Quicknote
+	var ownerID sql.NullString
+	err := row.Scan(
+		&qn.Slug,
+		&qn.ParentSlug,
+		&ownerID,
+		&qn.AccessMode,
+		&qn.Title,
+		&qn.Content,
+		&qn.SnapshotIV,
+		&qn.SnapshotCiphertext,
+		&qn.SnapshotSeqID,
+		&qn.CreatedAt,
+		&qn.UpdatedAt,
+	)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	if ownerID.Valid && ownerID.String != "" {
+		v := ownerID.String
+		qn.OwnerID = &v
+	}
+	return &qn, nil
+}
+
 // GetOrCreateQuicknote returns an existing quicknote by slug, or creates one if it does not exist.
 func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, defaultTitle string, parentSlug ...*string) (*Quicknote, error) {
 	if defaultTitle == "" {
@@ -2898,22 +2933,80 @@ func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, def
 		return nil, err
 	}
 
-	selectQuery := `
-		SELECT slug, parent_slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
-		FROM quicknotes
+	selectQuery := `SELECT ` + quicknoteSelectCols + ` FROM quicknotes WHERE slug = ?`
+	return scanQuicknote(s.DB.QueryRowContext(ctx, selectQuery, slug))
+}
+
+// GetQuicknoteBySlug returns an existing quicknote by slug without auto-creating it.
+func (s *SQLiteStore) GetQuicknoteBySlug(ctx context.Context, slug string) (*Quicknote, error) {
+	selectQuery := `SELECT ` + quicknoteSelectCols + ` FROM quicknotes WHERE slug = ?`
+	return scanQuicknote(s.readDB().QueryRowContext(ctx, selectQuery, slug))
+}
+
+// SetQuicknoteOwnerIfUnset assigns owner_id on a quicknote only if it is currently unset.
+func (s *SQLiteStore) SetQuicknoteOwnerIfUnset(ctx context.Context, slug, ownerID string) error {
+	query := `UPDATE quicknotes SET owner_id = ? WHERE slug = ? AND (owner_id IS NULL OR owner_id = '')`
+	_, err := s.DB.ExecContext(ctx, query, ownerID, slug)
+	return err
+}
+
+// SetQuicknoteAccessMode updates access_mode (and sets owner_id if unset) when called by the owner.
+func (s *SQLiteStore) SetQuicknoteAccessMode(ctx context.Context, slug, callerUserID, accessMode string) (*Quicknote, error) {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+	defer tx.Rollback()
+
+	selectQuery := `SELECT ` + quicknoteSelectCols + ` FROM quicknotes WHERE slug = ?`
+	qn, err := scanQuicknote(tx.QueryRowContext(ctx, selectQuery, slug))
+	if err != nil {
+		return nil, err
+	}
+
+	if qn.OwnerID != nil && *qn.OwnerID != "" && *qn.OwnerID != callerUserID {
+		return nil, ErrForbidden
+	}
+
+	now := time.Now()
+	updateQuery := `
+		UPDATE quicknotes
+		SET owner_id = COALESCE(NULLIF(owner_id, ''), ?),
+		    access_mode = ?,
+		    updated_at = ?
 		WHERE slug = ?
 	`
-	var qn Quicknote
-	err := s.DB.QueryRowContext(ctx, selectQuery, slug).Scan(
-		&qn.Slug,
-		&qn.ParentSlug,
-		&qn.Title,
-		&qn.Content,
-		&qn.SnapshotIV,
-		&qn.SnapshotCiphertext,
-		&qn.SnapshotSeqID,
-		&qn.CreatedAt,
-		&qn.UpdatedAt,
+	if _, err := tx.ExecContext(ctx, updateQuery, callerUserID, accessMode, now, slug); err != nil {
+		return nil, err
+	}
+
+	updated, err := scanQuicknote(tx.QueryRowContext(ctx, selectQuery, slug))
+	if err != nil {
+		return nil, err
+	}
+
+	if err := tx.Commit(); err != nil {
+		return nil, err
+	}
+	return updated, nil
+}
+
+// GetQuicknoteAccessRequest returns a user's access request for a quicknote, or ErrNotFound.
+func (s *SQLiteStore) GetQuicknoteAccessRequest(ctx context.Context, slug, userID string) (*QuicknoteAccessRequest, error) {
+	query := `
+		SELECT r.slug, r.user_id, COALESCE(u.username, ''), r.status, r.created_at, r.updated_at
+		FROM quicknote_access_requests r
+		LEFT JOIN users u ON u.id = r.user_id
+		WHERE r.slug = ? AND r.user_id = ?
+	`
+	var req QuicknoteAccessRequest
+	err := s.readDB().QueryRowContext(ctx, query, slug, userID).Scan(
+		&req.Slug,
+		&req.UserID,
+		&req.Username,
+		&req.Status,
+		&req.CreatedAt,
+		&req.UpdatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -2921,7 +3014,113 @@ func (s *SQLiteStore) GetOrCreateQuicknote(ctx context.Context, slug string, def
 		}
 		return nil, err
 	}
-	return &qn, nil
+	return &req, nil
+}
+
+// UpsertQuicknoteAccessRequest creates or updates an access request to 'pending' unless already 'approved'.
+func (s *SQLiteStore) UpsertQuicknoteAccessRequest(ctx context.Context, slug, userID string) (*QuicknoteAccessRequest, error) {
+	now := time.Now()
+	upsertQuery := `
+		INSERT INTO quicknote_access_requests (slug, user_id, status, created_at, updated_at)
+		VALUES (?, ?, 'pending', ?, ?)
+		ON CONFLICT(slug, user_id) DO UPDATE SET
+			status = CASE WHEN quicknote_access_requests.status = 'approved' THEN 'approved' ELSE 'pending' END,
+			updated_at = excluded.updated_at
+	`
+	if _, err := s.DB.ExecContext(ctx, upsertQuery, slug, userID, now, now); err != nil {
+		return nil, err
+	}
+
+	selectQuery := `
+		SELECT r.slug, r.user_id, COALESCE(u.username, ''), r.status, r.created_at, r.updated_at
+		FROM quicknote_access_requests r
+		LEFT JOIN users u ON u.id = r.user_id
+		WHERE r.slug = ? AND r.user_id = ?
+	`
+	var req QuicknoteAccessRequest
+	err := s.DB.QueryRowContext(ctx, selectQuery, slug, userID).Scan(
+		&req.Slug,
+		&req.UserID,
+		&req.Username,
+		&req.Status,
+		&req.CreatedAt,
+		&req.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &req, nil
+}
+
+// ListQuicknoteAccessRequests lists all access requests for a quicknote ordered by updated_at DESC.
+func (s *SQLiteStore) ListQuicknoteAccessRequests(ctx context.Context, slug string) ([]*QuicknoteAccessRequest, error) {
+	query := `
+		SELECT r.slug, r.user_id, COALESCE(u.username, ''), r.status, r.created_at, r.updated_at
+		FROM quicknote_access_requests r
+		LEFT JOIN users u ON u.id = r.user_id
+		WHERE r.slug = ?
+		ORDER BY r.updated_at DESC
+	`
+	rows, err := s.readDB().QueryContext(ctx, query, slug)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	requests := make([]*QuicknoteAccessRequest, 0)
+	for rows.Next() {
+		var req QuicknoteAccessRequest
+		if err := rows.Scan(
+			&req.Slug,
+			&req.UserID,
+			&req.Username,
+			&req.Status,
+			&req.CreatedAt,
+			&req.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		requests = append(requests, &req)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return requests, nil
+}
+
+// ResolveQuicknoteAccessRequest updates or inserts an access request with status "approved" or "denied".
+func (s *SQLiteStore) ResolveQuicknoteAccessRequest(ctx context.Context, slug, targetUserID, status string) error {
+	if status != "approved" && status != "denied" {
+		return fmt.Errorf("invalid access request status: %q", status)
+	}
+
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	var exists int
+	if err := tx.QueryRowContext(ctx, `SELECT 1 FROM quicknotes WHERE slug = ?`, slug).Scan(&exists); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return ErrNotFound
+		}
+		return err
+	}
+
+	now := time.Now()
+	query := `
+		INSERT INTO quicknote_access_requests (slug, user_id, status, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(slug, user_id) DO UPDATE SET
+			status = excluded.status,
+			updated_at = excluded.updated_at
+	`
+	if _, err := tx.ExecContext(ctx, query, slug, targetUserID, status, now, now); err != nil {
+		return err
+	}
+
+	return tx.Commit()
 }
 
 // SaveQuicknote creates or updates the title, content, and updated_at timestamp for a quicknote.
@@ -3022,27 +3221,9 @@ func (s *SQLiteStore) GetQuicknoteTree(ctx context.Context, slug string) ([]Quic
 
 // GetQuicknoteCRDTState returns the quicknote snapshot information and all subsequent WAL entries.
 func (s *SQLiteStore) GetQuicknoteCRDTState(ctx context.Context, slug string) (*Quicknote, []QuicknoteWALEntry, error) {
-	selectQuery := `
-		SELECT slug, parent_slug, title, content, snapshot_iv, snapshot_ciphertext, COALESCE(snapshot_seq_id, 0), created_at, updated_at
-		FROM quicknotes
-		WHERE slug = ?
-	`
-	var qn Quicknote
-	err := s.readDB().QueryRowContext(ctx, selectQuery, slug).Scan(
-		&qn.Slug,
-		&qn.ParentSlug,
-		&qn.Title,
-		&qn.Content,
-		&qn.SnapshotIV,
-		&qn.SnapshotCiphertext,
-		&qn.SnapshotSeqID,
-		&qn.CreatedAt,
-		&qn.UpdatedAt,
-	)
+	selectQuery := `SELECT ` + quicknoteSelectCols + ` FROM quicknotes WHERE slug = ?`
+	qn, err := scanQuicknote(s.readDB().QueryRowContext(ctx, selectQuery, slug))
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil, ErrNotFound
-		}
 		return nil, nil, err
 	}
 
@@ -3077,7 +3258,7 @@ func (s *SQLiteStore) GetQuicknoteCRDTState(ctx context.Context, slug string) (*
 		return nil, nil, err
 	}
 
-	return &qn, entries, nil
+	return qn, entries, nil
 }
 
 // AppendQuicknoteWAL inserts a new WAL entry and returns the generated seq_id.

@@ -1,6 +1,7 @@
 import * as cryptoV2 from './cryptoV2';
 import * as cryptoLib from './crypto';
 import { apiFetch } from './api';
+import { encryptChatMessage } from './chatCrypto';
 import { useDataStore } from '../store/useDataStore';
 
 export async function performMessengerShare(
@@ -173,23 +174,37 @@ export async function performMessengerShare(
         const currentUser = (useDataStore.getState() as any).user;
         const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
 
+        const rawPayload = JSON.stringify({
+            type: isEvent ? "event_share" : "file_share_request",
+            file_id: fileId,
+            file_name: shareModalFile.title,
+            file_type: file.type,
+            file_preview: isEvent ? "" : "Shared document",
+            permission,
+            can_reshare: canReshare ?? false,
+            event_meta: eventMeta,
+            sender_name: senderName,
+        });
+
+        if (!publicKey || !recipientPubKeySpki || !myId || !recipientId) {
+            throw new Error("E2EE encryption keys missing for share notification");
+        }
+
+        const encryptedContent = await encryptChatMessage(
+            rawPayload,
+            myId,
+            publicKey,
+            recipientId,
+            recipientPubKeySpki
+        );
+
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
                 recipient_email: recipientEmail,
-                content: JSON.stringify({
-                    type: isEvent ? "event_share" : "file_share_request",
-                    file_id: fileId,
-                    file_name: shareModalFile.title,
-                    file_type: file.type,
-                    file_preview: isEvent ? "" : "Shared document",
-                    permission,
-                    can_reshare: canReshare ?? false,
-                    event_meta: eventMeta,
-                    sender_name: senderName,
-                })
+                content: encryptedContent
             })
         });
 
@@ -343,22 +358,41 @@ export async function performFolderShare(
     const currentUser = (useDataStore.getState() as any).user;
     const senderName = currentUser?.name || currentUser?.email || (typeof window !== 'undefined' ? localStorage.getItem('tide_user_name') || '' : '') || '';
 
+    const rawPayload = JSON.stringify({
+        type: "file_share_request",
+        file_id: folderId,
+        file_name: folderTitle,
+        file_type: "folder",
+        file_preview: "Shared folder and all nested contents",
+        permission,
+        sender_name: senderName,
+    });
+
+    if (!publicKey || !recipientPubKeySpki || !myId || !recipientId) {
+        throw new Error("E2EE encryption keys missing for folder share notification");
+    }
+
+    const encryptedContent = await encryptChatMessage(
+        rawPayload,
+        myId,
+        publicKey,
+        recipientId,
+        recipientPubKeySpki
+    );
+
     // 3. Send chat notification
-    await apiFetch("/api/v1/messages", {
+    const messageRes = await apiFetch("/api/v1/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             recipient_id: recipientId,
             recipient_email: recipientEmail,
-            content: JSON.stringify({
-                type: "file_share_request",
-                file_id: folderId,
-                file_name: folderTitle,
-                file_type: "folder",
-                file_preview: "Shared folder and all nested contents",
-                permission,
-                sender_name: senderName,
-            })
+            content: encryptedContent
         })
     });
+
+    if (!messageRes.ok) {
+        const errText = await messageRes.text();
+        throw new Error(`Failed to send folder share request: ${messageRes.status} - ${errText}`);
+    }
 }

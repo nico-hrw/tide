@@ -1,5 +1,6 @@
 import type { DataItem, TaskItem } from './types';
 import { apiFetch } from '@/lib/api';
+import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 
 export interface RawFileItem {
     id: string;
@@ -72,12 +73,48 @@ function saveToStorage<T>(key: string, data: T): void {
     }
 }
 
-export const loadCachedNotes = (): DataItem[] => loadFromStorage<DataItem>('tide_offline_notes');
-export const saveNotesToOfflineCache = (n: DataItem[]): void => saveToStorage('tide_offline_notes', n);
-export const loadCachedEvents = (): DataItem[] => loadFromStorage<DataItem>('tide_offline_events');
-export const saveEventsToOfflineCache = (e: DataItem[]): void => saveToStorage('tide_offline_events', e);
-export const loadCachedTasks = (): TaskItem[] => loadFromStorage<TaskItem>('tide_offline_tasks');
-export const saveTasksToOfflineCache = (t: TaskItem[]): void => saveToStorage('tide_offline_tasks', t);
+function purgeLegacyOfflineKey(key: string): void {
+    if (typeof window === 'undefined') return;
+    try {
+        localStorage.removeItem(key);
+    } catch {
+        // Ignore storage errors
+    }
+}
+
+export const loadCachedNotes = (): DataItem[] => {
+    purgeLegacyOfflineKey('tide_offline_notes');
+    return [];
+};
+export const saveNotesToOfflineCache = (n: DataItem[]): void => {
+    if (typeof window === 'undefined') return;
+    purgeLegacyOfflineKey('tide_offline_notes');
+    void saveEncryptedOfflineCache('notes', n).catch((err) => {
+        console.warn('Failed to save notes to offline cache', err);
+    });
+};
+export const loadCachedEvents = (): DataItem[] => {
+    purgeLegacyOfflineKey('tide_offline_events');
+    return [];
+};
+export const saveEventsToOfflineCache = (e: DataItem[]): void => {
+    if (typeof window === 'undefined') return;
+    purgeLegacyOfflineKey('tide_offline_events');
+    void saveEncryptedOfflineCache('events', e).catch((err) => {
+        console.warn('Failed to save events to offline cache', err);
+    });
+};
+export const loadCachedTasks = (): TaskItem[] => {
+    purgeLegacyOfflineKey('tide_offline_tasks');
+    return [];
+};
+export const saveTasksToOfflineCache = (t: TaskItem[]): void => {
+    if (typeof window === 'undefined') return;
+    purgeLegacyOfflineKey('tide_offline_tasks');
+    void saveEncryptedOfflineCache('tasks', t).catch((err) => {
+        console.warn('Failed to save tasks to offline cache', err);
+    });
+};
 export const loadOpenFoldersFromCache = (): Set<string> => new Set(loadFromStorage<string>('tide_open_folders'));
 export const saveOpenFoldersToCache = (ids: Set<string>): void => saveToStorage('tide_open_folders', Array.from(ids));
 

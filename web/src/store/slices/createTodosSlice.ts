@@ -1,27 +1,31 @@
 import { apiFetch } from '@/lib/api';
+import { generateSecureId, saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 import type { DataStoreSlice, TaskItem, TodosSlice } from './types';
 import { deletedTaskIds, recordDeletedTaskId } from './fsHelpers';
 
 export { deletedTaskIds, recordDeletedTaskId };
 
 export function loadCachedTasks(): TaskItem[] {
-    if (typeof window === 'undefined') return [];
-    try {
-        const cached = localStorage.getItem('tide_offline_tasks');
-        return cached ? (JSON.parse(cached) as TaskItem[]) : [];
-    } catch (e) {
-        console.warn('Failed to load cached tasks from localStorage', e);
-        return [];
+    if (typeof window !== 'undefined') {
+        try {
+            localStorage.removeItem('tide_offline_tasks');
+        } catch {
+            // Ignore storage errors
+        }
     }
+    return [];
 }
 
 export function saveTasksToOfflineCache(tasks: TaskItem[]): void {
     if (typeof window === 'undefined') return;
     try {
-        localStorage.setItem('tide_offline_tasks', JSON.stringify(tasks));
-    } catch (e) {
-        console.warn('Failed to save tasks to offline cache', e);
+        localStorage.removeItem('tide_offline_tasks');
+    } catch {
+        // Ignore storage errors
     }
+    void saveEncryptedOfflineCache('tasks', tasks).catch((e) => {
+        console.warn('Failed to save tasks to offline cache', e);
+    });
 }
 
 function compactVaultPayload(rawPayload: Record<string, unknown>): Record<string, unknown> {
@@ -49,7 +53,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         const fallbackId =
             typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
                 ? crypto.randomUUID()
-                : Math.random().toString(36).substring(2);
+                : generateSecureId('task');
         const initialStatus: 'todo' | 'in_progress' | 'completed' =
             taskDraft.status || (taskDraft.isCompleted ? 'completed' : 'todo');
         const showInCalendar = taskDraft.showInCalendar ?? true;
@@ -219,25 +223,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             updatedAt: now,
         };
 
-        // 3. Resolve publicKey — prefer store, fall back to sessionStorage
-        let publicKey = state.publicKey;
-        if (!publicKey && typeof window !== 'undefined') {
-            try {
-                const cryptoLib = await import('@/lib/crypto');
-                const pubKeyStr = sessionStorage.getItem('tide_user_public_key');
-                if (pubKeyStr) {
-                    publicKey = await window.crypto.subtle.importKey(
-                        'spki',
-                        cryptoLib.base64ToArrayBuffer(pubKeyStr),
-                        { name: 'RSA-OAEP', hash: 'SHA-256' },
-                        true,
-                        ['encrypt']
-                    );
-                }
-            } catch (e) {
-                console.error('[updateTask] Failed to recover public key from sessionStorage', e);
-            }
-        }
+        // 3. Resolve publicKey from validated store state
+        const publicKey = state.publicKey;
         if (!publicKey) {
             console.warn('[updateTask] publicKey unavailable — task update NOT persisted to backend:', id);
             if (strict) throw new Error('Task update failed: publicKey unavailable');

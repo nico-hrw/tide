@@ -1,6 +1,7 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { createJSONStorage, persist } from 'zustand/middleware';
 import { apiFetch } from '@/lib/api';
+import { createEncryptedIdbStorage, generateSecureId } from '@/lib/offlineCacheCrypto';
 import type { MoodData, MoodType, SurveyResponseItem } from '@/types/surveys';
 
 export interface SurveyState {
@@ -153,7 +154,7 @@ export const useSurveyStore = create<SurveyState>()(
                 const newId =
                     typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
                         ? crypto.randomUUID()
-                        : `resp_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+                        : generateSecureId('survey');
 
                 const newResponse: SurveyResponseItem = {
                     id: newId,
@@ -225,6 +226,7 @@ export const useSurveyStore = create<SurveyState>()(
         }),
         {
             name: 'tide_surveys_store',
+            storage: createJSONStorage(() => createEncryptedIdbStorage()),
             partialize: (state) => ({
                 responses: state.responses,
                 isMoodTrackerEnabled: state.isMoodTrackerEnabled,

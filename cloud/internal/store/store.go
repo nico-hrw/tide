@@ -8,7 +8,10 @@ import (
 	"github.com/nicoh/tide/internal/db"
 )
 
-var ErrVersionConflict = errors.New("version conflict")
+var (
+	ErrVersionConflict = errors.New("version conflict")
+	ErrForbidden       = errors.New("forbidden")
+)
 
 type File = db.File
 
@@ -132,11 +135,6 @@ type Store interface {
 	UpdateTask(ctx context.Context, task *db.Task) error
 	DeleteTask(ctx context.Context, id, userID string) error
 
-	// Token
-	SetToken(ctx context.Context, token string, userID string, ttl time.Duration) error
-	GetToken(ctx context.Context, token string) (string, error)
-	DeleteToken(ctx context.Context, token string) error
-
 	// Messaging & Contacts
 	GetContact(ctx context.Context, userID, partnerID string) (*Contact, error) // Check if Contact is in db or store package?
 	// Wait, grep said Contact in sqlite.go. So likely store.Contact.
@@ -167,6 +165,13 @@ type Store interface {
 	GetRandomProfiles(ctx context.Context, limit int, skipUserID string) ([]*db.SearchResult, error)
 
 	// Quicknotes
+	GetQuicknoteBySlug(ctx context.Context, slug string) (*Quicknote, error)
+	SetQuicknoteOwnerIfUnset(ctx context.Context, slug, ownerID string) error
+	SetQuicknoteAccessMode(ctx context.Context, slug, callerUserID, accessMode string) (*Quicknote, error)
+	GetQuicknoteAccessRequest(ctx context.Context, slug, userID string) (*QuicknoteAccessRequest, error)
+	UpsertQuicknoteAccessRequest(ctx context.Context, slug, userID string) (*QuicknoteAccessRequest, error)
+	ListQuicknoteAccessRequests(ctx context.Context, slug string) ([]*QuicknoteAccessRequest, error)
+	ResolveQuicknoteAccessRequest(ctx context.Context, slug, targetUserID, status string) error
 	GetTotalQuicknotesStorage(ctx context.Context) (int64, error)
 	QuicknoteFileExists(ctx context.Context, id string) (bool, error)
 }
