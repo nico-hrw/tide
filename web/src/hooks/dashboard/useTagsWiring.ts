@@ -6,6 +6,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
 import { selectTags } from '@/lib/tags';
 import { filterEventsByTags, getEventGroupIds } from '@/lib/calendarUtils';
+import { applyTagColorOverride } from '@/lib/tagColorOverride';
 import { useTagMigration } from '@/hooks/dashboard/useTagMigration';
 
 export interface TagTheme {
@@ -22,16 +23,18 @@ export function useTagCalendarView(files: DecryptedFile[], events: CalendarEvent
         [files]
     );
     const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));
+    const colorOverrideIds = useDataStore((s) => s.calendarTagColorOverrideIds);
     const filteredCalendarEvents = useMemo(
         () => filterEventsByTags(events, calendarTagFilter, mobileThemes)
             .map((e) => ({ ...e, effect: files?.find((f) => f.id === getEventGroupIds(e)[0])?.effect || 'none' }))
+            .map((e) => applyTagColorOverride(e, mobileThemes, colorOverrideIds))
             .filter((e) => {
                 const gIds = getEventGroupIds(e);
                 return gIds.length === 0
                     ? !hiddenThemeIds.includes('general-theme')
                     : gIds.some((gid) => !hiddenThemeIds.includes(gid));
             }),
-        [events, files, hiddenThemeIds, calendarTagFilter, mobileThemes]
+        [events, files, hiddenThemeIds, calendarTagFilter, mobileThemes, colorOverrideIds]
     );
     return { mobileThemes, filteredCalendarEvents };
 }

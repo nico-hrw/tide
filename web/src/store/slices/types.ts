@@ -128,7 +128,10 @@ export interface EventsSlice {
     visibleCalendarRange?: { start: string; end: string } | null;
     calendarHolidaysEnabled: boolean;
     calendarHolidayPackage: CalendarHolidayPackage;
+    /** Tag ids whose colour replaces the main tag colour when used as a secondary tag. */
+    calendarTagColorOverrideIds: string[];
 
+    toggleCalendarTagColorOverride: (tagId: string) => void;
     setEvents: (events: DataItem[]) => void;
     setEventsLoaded: (loaded: boolean) => void;
     setEventMentionStyle: (style: EventMentionStyle) => void;

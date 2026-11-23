@@ -64,6 +64,9 @@ export function expandMobileEvents(
     const end = new Date(start.getTime() + duration);
     const timeKey = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-${String(start.getDate()).padStart(2, '0')}`;
 
+    // Cancelled repetitions (exdates) are not shown.
+    if (evt.exdates?.includes(timeKey)) return;
+
     const dayOverrides = evt.overrides?.[timeKey];
     if (dayOverrides) {
       if (dayOverrides.is_cancelled) return;

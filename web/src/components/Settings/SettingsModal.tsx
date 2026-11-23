@@ -36,6 +36,7 @@ interface SettingsModalProps {
     onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
     onShareGroup?: (e: React.MouseEvent, id: string) => void;
     onDeleteGroup?: (e: React.MouseEvent, id: string) => void;
+    onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
@@ -65,6 +66,7 @@ function SettingsModalBody({
     onUpdateGroup,
     onShareGroup,
     onDeleteGroup,
+    onDeleteGroupEvents,
     onCreateGroup,
 }: SettingsModalProps) {
     const t = useT();
@@ -165,6 +167,7 @@ function SettingsModalBody({
                                     onUpdateGroup={onUpdateGroup}
                                     onShareGroup={onShareGroup}
                                     onDeleteGroup={onDeleteGroup}
+                                    onDeleteGroupEvents={onDeleteGroupEvents}
                                     onCreateGroup={onCreateGroup}
                                     enabledExtensions={enabledExtensions}
                                 />

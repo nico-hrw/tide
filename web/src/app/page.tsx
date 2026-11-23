@@ -28,6 +28,7 @@ import SocialHub from "@/components/Social/SocialHub";
 import { filterFilesBySafe } from "@/components/Layout/sidebar/SidebarFiles";
 import { DashboardDesktopContent, type DashboardCollaborator, type DashboardDesktopContentProps } from "@/components/Dashboard/DashboardDesktopContent";
 import { DashboardModals } from "@/components/Dashboard/DashboardModals";
+import { RecurrenceScopeDialog } from "@/components/Calendar/RecurrenceScopeDialog";
 import type {
     CalendarEvent, CalendarViewMode, DecryptedFile, DeleteConfirmState, DeleteErrorState,
     NoteSecurityModalItem, SaveStatus, ShareModalFile, SummaryStats, Tab,
@@ -472,6 +473,7 @@ export default function Dashboard() {
                 </>
             )}
 
+            <RecurrenceScopeDialog />
             <DashboardModals
                 shareModalFile={shareModalFile} setShareModalFile={setShareModalFile} onShare={performShare} myId={myId}
                 noteSecurityModalItem={noteSecurityModalItem} setNoteSecurityModalItem={setNoteSecurityModalItem}

@@ -56,6 +56,18 @@ function loadWeekStartsOn(): WeekStart {
     }
 }
 
+const TAG_COLOR_OVERRIDE_KEY = 'tide_calendar_tag_color_override';
+
+function loadTagColorOverrideIds(): string[] {
+    try {
+        const raw = typeof window === 'undefined' ? null : localStorage.getItem(TAG_COLOR_OVERRIDE_KEY);
+        const parsed: unknown = raw ? JSON.parse(raw) : [];
+        return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
 export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
     events: loadCachedEvents(),
     eventsLoaded: false,
@@ -88,6 +100,19 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
                   'tide_calendar_holiday_package'
               ) as CalendarHolidayPackage) || 'DE')
             : 'DE',
+
+    calendarTagColorOverrideIds: loadTagColorOverrideIds(),
+
+    toggleCalendarTagColorOverride: (tagId: string) => {
+        const current = get().calendarTagColorOverrideIds;
+        const next = current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId];
+        try {
+            localStorage.setItem(TAG_COLOR_OVERRIDE_KEY, JSON.stringify(next));
+        } catch (e) {
+            console.warn('Failed to persist tag colour overrides', e);
+        }
+        set({ calendarTagColorOverrideIds: next });
+    },
 
     setEvents: (events: DataItem[]) => {
         saveEventsToOfflineCache(events);

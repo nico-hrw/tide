@@ -778,13 +778,15 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                         {displayBadges.map((badge, idx) => {
                             // Badge colours come from the same five calendar colours as the event itself
                             const badgeCat = resolveCategory(badge.color ?? event.color);
+                            // Same colour as the card (e.g. after a colour override): tint instead of filling, so it stays visible.
+                            const sameAsCard = badgeCat.key === resolveCategory(effectiveColor ?? event.color).key;
                             return (
                             <div
                                 key={badge.id || idx}
                                 className={`px-2 py-0.5 rounded-full text-[11px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
                                 style={{
-                                    backgroundColor: badgeCat.bg,
-                                    color: badgeCat.ink,
+                                    backgroundColor: sameAsCard ? 'color-mix(in srgb, currentColor 16%, transparent)' : badgeCat.bg,
+                                    color: sameAsCard ? 'inherit' : badgeCat.ink,
                                     boxShadow: 'inset 0 0 0 1px color-mix(in srgb, currentColor 25%, transparent)',
                                 }}
                             >

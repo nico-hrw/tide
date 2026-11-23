@@ -12,6 +12,10 @@ export interface ParsedIcsEvent {
     end: string;   // ISO-8601 string
     allDay: boolean;
     recurrenceRule?: string;
+    /** End of the series (RRULE `UNTIL`) as ISO string. */
+    recurrenceEnd?: string;
+    /** Excluded occurrence dates (EXDATE) as local `yyyy-MM-dd` keys. */
+    exdates?: string[];
     status?: string;
     isCancelled?: boolean;
 }
@@ -94,7 +98,7 @@ function parseIcsDate(val: string, tzId?: string, valueParam?: string): ParsedDa
     // 2. Date-time: YYYYMMDDTHHMMSS with optional Z or offset
     const dtMatch = cleanVal.match(/^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})(?:(Z)|([+-])(\d{2}):?(\d{2})?)?$/i);
     if (dtMatch) {
-        const [, y, m, d, hh, mm, ss] = dtMatch.slice(1, 7).map(Number);
+        const [y, m, d, hh, mm, ss] = dtMatch.slice(1, 7).map(Number);
         const isUtc = Boolean(dtMatch[7]);
         const tzSign = dtMatch[8];
         const tzHour = dtMatch[9];
@@ -183,6 +187,32 @@ function parsePropertyLine(line: string): IcsProperty | null {
     return { name, params, value };
 }
 
+/** Converts EXDATE properties into local `yyyy-MM-dd` keys (comma-separated values allowed). */
+function parseExdates(
+    exdateProps: { value: string; params: Record<string, string> }[] | undefined,
+    fallbackTzId?: string
+): string[] {
+    const keys = new Set<string>();
+    for (const prop of exdateProps ?? []) {
+        for (const part of prop.value.split(',')) {
+            const val = part.trim();
+            const local = val.match(/^(\d{4})(\d{2})(\d{2})(?:T\d{6})?$/);
+            if (local) {
+                // Floating or TZID-bound value: the written date is already the local date.
+                keys.add(`${local[1]}-${local[2]}-${local[3]}`);
+                continue;
+            }
+            const parsed = parseIcsDate(val, prop.params['TZID'] || fallbackTzId, prop.params['VALUE']);
+            if (parsed) {
+                const d = parsed.date;
+                const pad = (n: number) => String(n).padStart(2, '0');
+                keys.add(`${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`);
+            }
+        }
+    }
+    return [...keys];
+}
+
 /** Constructs a ParsedIcsEvent from gathered VEVENT properties. */
 function buildEventFromProps(
     props: Record<string, { value: string; params: Record<string, string> }[]>
@@ -231,6 +261,9 @@ function buildEventFromProps(
     const locRaw = props['LOCATION']?.[0]?.value;
     const rruleRaw = props['RRULE']?.[0]?.value;
     const statusRaw = props['STATUS']?.[0]?.value?.trim();
+    const exdates = parseExdates(props['EXDATE'], startTzId);
+    const untilRaw = rruleRaw?.match(/(?:^|;)UNTIL=([^;]+)/i)?.[1];
+    const until = untilRaw ? parseIcsDate(untilRaw, startTzId) : null;
 
     return {
         title,
@@ -241,6 +274,8 @@ function buildEventFromProps(
         ...(descRaw !== undefined ? { description: unescapeIcsText(descRaw) } : {}),
         ...(locRaw ? { location: unescapeIcsText(locRaw).trim() } : {}),
         ...(rruleRaw ? { recurrenceRule: rruleRaw.trim() } : {}),
+        ...(until ? { recurrenceEnd: until.iso } : {}),
+        ...(exdates.length > 0 ? { exdates } : {}),
         ...(statusRaw ? { status: statusRaw } : {}),
         ...(statusRaw?.toUpperCase() === 'CANCELLED' ? { isCancelled: true } : {}),
     };

@@ -1,5 +1,6 @@
 "use client";
 
+import { isRecurringEvent } from '@/lib/recurrence';
 import React, { useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -182,11 +183,15 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
     if (meta.title && editingEvent && meta.title !== editingEvent.title && onNoteRename) {
       onNoteRename(id, meta.title);
     }
-    useDataStore.setState((s) => ({
-      events: s.events.map((e) =>
-        e.id === id || (id.includes('_') && e.id === id.split('_')[0]) ? { ...e, ...payload } : e
-      ),
-    }));
+    // Repeating events are updated by `handleEventSave` itself (it asks whether one occurrence or the series
+    // changes); writing the payload onto the series here would move every repetition.
+    const baseId = id.includes('_') ? id.split('_')[0] : id;
+    const target = useDataStore.getState().events.find((e) => e.id === baseId);
+    if (!target || !isRecurringEvent(target as { recurrence_rule?: string; recurrence?: string })) {
+      useDataStore.setState((s) => ({
+        events: s.events.map((e) => (e.id === id ? { ...e, ...payload } : e)),
+      }));
+    }
     onEditEvent(null);
   };
 

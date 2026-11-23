@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Eye, EyeOff, Lock, Palette, Plus, Share2, Trash2 } from 'lucide-react';
 import { SettingsCard, SettingsEmpty, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
-import { Button, IconButton, TextField } from '../ui/Controls';
+import { Button, IconButton, TextField, Toggle } from '../ui/Controls';
 import { cx } from '../ui/cx';
 import { useT } from '../useT';
+import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 
 export interface CalendarGroup {
     id: string;
@@ -14,20 +15,21 @@ export interface CalendarGroup {
 
 /** Musterfuellungen der Termin-Karten pro Gruppe. Label-Schluessel: `cal.effect.<id>`. */
 const EFFECT_IDS = ['none', 'stripes', 'waves', 'dots', 'chess', 'diamonds', 'gradient', 'bars', 'dimmed'] as const;
-/** Waehlbare Gruppenfarben (Nutzerdaten, nicht Teil der App-Palette). */
-const COLOR_SWATCHES = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#64748b'];
 
 interface GroupRowProps {
     group: CalendarGroup;
     hidden: boolean;
     isProtected: boolean;
     onToggleVisibility?: (id: string) => void;
+    colorOverride: boolean;
+    onToggleColorOverride?: (id: string) => void;
     onUpdate?: (id: string, updates: Partial<CalendarGroup>) => void;
     onShare?: (e: React.MouseEvent, id: string) => void;
     onDelete?: (e: React.MouseEvent, id: string) => void;
+    onDeleteEvents?: (id: string) => void;
 }
 
-function GroupRow({ group, hidden, isProtected, onToggleVisibility, onUpdate, onShare, onDelete }: GroupRowProps) {
+function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOverride, onToggleVisibility, onUpdate, onShare, onDelete, onDeleteEvents }: GroupRowProps) {
     const t = useT();
     // Entwurf des Namens, solange getippt wird; null = der gespeicherte Name wird gezeigt.
     const [draft, setDraft] = useState<string | null>(null);
@@ -38,7 +40,9 @@ function GroupRow({ group, hidden, isProtected, onToggleVisibility, onUpdate, on
         if (draft !== null && draft !== group.title) onUpdate?.(group.id, { title: draft });
         setDraft(null);
     };
-    const color = group.color || '#3b82f6';
+    // Tag colours are the five calendar colours; older free hex values resolve to the nearest one.
+    const category = resolveCategory(group.color);
+    const color = category.bg;
 
     return (
         <div>
@@ -97,19 +101,39 @@ function GroupRow({ group, hidden, isProtected, onToggleVisibility, onUpdate, on
                     <div>
                         <div className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.04em] text-t2-ink-3">{t('cal.color')}</div>
                         <div className="flex flex-wrap gap-2">
-                            {COLOR_SWATCHES.map((c) => (
-                                <button
-                                    key={c}
-                                    type="button"
-                                    onClick={() => onUpdate?.(group.id, { color: c })}
-                                    aria-label={c}
-                                    aria-pressed={group.color === c}
-                                    className={cx('h-5 w-5 rounded-full transition-transform', group.color === c ? 'scale-110 ring-2 ring-t2-accent ring-offset-2 ring-offset-t2-sub' : 'hover:scale-105')}
-                                    style={{ backgroundColor: c }}
-                                />
-                            ))}
+                            {CALENDAR_CATEGORIES.map((cat) => {
+                                const active = category.key === cat.key;
+                                return (
+                                    <button
+                                        key={cat.key}
+                                        type="button"
+                                        onClick={() => onUpdate?.(group.id, { color: cat.hex })}
+                                        aria-label={cat.name}
+                                        title={cat.name}
+                                        aria-pressed={active}
+                                        className={cx('h-5 w-5 rounded-full transition-transform', active ? 'scale-110 ring-2 ring-t2-accent ring-offset-2 ring-offset-t2-sub' : 'hover:scale-105')}
+                                        style={{ backgroundColor: cat.bg }}
+                                    />
+                                );
+                            })}
                         </div>
                     </div>
+                    <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                            <div className="text-[13px] font-medium text-t2-ink">{t('cal.colorOverride')}</div>
+                            <div className="text-[12px] text-t2-ink-3">{t('cal.colorOverrideDesc')}</div>
+                        </div>
+                        <Toggle checked={colorOverride} onChange={() => onToggleColorOverride?.(group.id)} label={t('cal.colorOverride')} />
+                    </div>
+                    {onDeleteEvents && (
+                        <div className="flex items-center justify-between gap-3">
+                            <div className="min-w-0">
+                                <div className="text-[13px] font-medium text-t2-ink">{t('cal.deleteEvents')}</div>
+                                <div className="text-[12px] text-t2-ink-3">{t('cal.deleteEventsDesc')}</div>
+                            </div>
+                            <Button onClick={() => onDeleteEvents(group.id)}>{t('cal.deleteEventsAction')}</Button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -120,14 +144,18 @@ export interface CalendarGroupsSectionProps {
     groups: CalendarGroup[];
     hiddenGroupIds: string[];
     protectedGroupId?: string | null;
+    colorOverrideIds?: string[];
+    onToggleColorOverride?: (id: string) => void;
     onToggleGroupVisibility?: (id: string) => void;
     onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
     onShareGroup?: (e: React.MouseEvent, id: string) => void;
     onDeleteGroup?: (e: React.MouseEvent, id: string) => void;
+    /** Deletes every event that carries the tag (the tag stays). */
+    onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, onToggleGroupVisibility, onUpdateGroup, onShareGroup, onDeleteGroup, onCreateGroup }: CalendarGroupsSectionProps) {
+export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, colorOverrideIds = [], onToggleColorOverride, onToggleGroupVisibility, onUpdateGroup, onShareGroup, onDeleteGroup, onDeleteGroupEvents, onCreateGroup }: CalendarGroupsSectionProps) {
     const t = useT();
     const [newName, setNewName] = useState('');
 
@@ -147,10 +175,13 @@ export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId
                         group={g}
                         hidden={hiddenGroupIds.includes(g.id)}
                         isProtected={Boolean(protectedGroupId && g.id === protectedGroupId)}
+                        colorOverride={colorOverrideIds.includes(g.id)}
+                        onToggleColorOverride={onToggleColorOverride}
                         onToggleVisibility={onToggleGroupVisibility}
                         onUpdate={onUpdateGroup}
                         onShare={onShareGroup}
                         onDelete={onDeleteGroup}
+                        onDeleteEvents={onDeleteGroupEvents}
                     />
                 ))}
                 <SettingsRow title={t('cal.newGroup')} htmlFor="set-new-group">

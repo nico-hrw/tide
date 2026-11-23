@@ -1,11 +1,15 @@
 "use client";
 
 import { useCallback, type MutableRefObject } from "react";
-import { format } from "date-fns";
+import { addDays, differenceInCalendarDays, format } from "date-fns";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
 import { useDataStore, type DataItem, type TaskItem } from "@/store/useDataStore";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
+import {
+    changesOccurrenceTime, isRecurringEvent, occurrenceKey, occurrenceTimestamp, shiftSeriesForMove, type RecurrenceScope,
+} from "@/lib/recurrence";
+import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
 
 export interface CalendarEventExtraMeta {
     title?: string;
@@ -56,7 +60,7 @@ export interface UseCalendarActionsReturn {
     handleEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     handleEventRename: (id: string, newTitle: string) => Promise<void>;
     /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
-    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean }) => Promise<void>;
+    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }) => Promise<void>;
     handleDeleteEvent: (id: string) => Promise<void>;
 }
 
@@ -278,7 +282,7 @@ export function useCalendarActions({
     );
 
     const handleEventSave = useCallback(
-        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean }): Promise<void> => {
+        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }): Promise<void> => {
             const strict = options?.strict === true;
             if (!privateKey || !publicKey) {
                 if (strict) throw new Error("Event save failed: keys unavailable");
@@ -304,6 +308,49 @@ export function useCalendarActions({
                 }
 
                 let effectiveUpdates = updates;
+
+                // Moving one occurrence of a recurring event: ask whether only it or the whole series moves.
+                if (isRecurringEvent(event) && (updates.start !== undefined || updates.end !== undefined)) {
+                    const masterStart = new Date(event.start || Date.now());
+                    const duration = new Date(event.end || event.start || Date.now()).getTime() - masterStart.getTime();
+                    const ts = occurrenceTimestamp(id);
+                    const occStart = ts !== null ? new Date(ts) : masterStart;
+                    const occEnd = new Date(occStart.getTime() + duration);
+                    if (changesOccurrenceTime({ start: occStart.toISOString(), end: occEnd.toISOString() }, updates)) {
+                        const scope = options?.scope ?? (await askRecurrenceScope("move", event.title || ""));
+                        if (scope === null) return; // cancelled: nothing changes
+                        const newStart = new Date(updates.start ?? occStart.toISOString());
+                        const newEnd = new Date(updates.end ?? new Date(newStart.getTime() + duration).toISOString());
+                        if (scope === "all") {
+                            const shifted = shiftSeriesForMove({ start: event.start || masterStart.toISOString() }, occStart, newStart, newEnd);
+                            const dayShift = differenceInCalendarDays(newStart, occStart);
+                            const shiftKeys = (keys?: string[]) =>
+                                keys && dayShift !== 0 ? keys.map((k) => format(addDays(new Date(`${k}T12:00:00`), dayShift), "yyyy-MM-dd")) : undefined;
+                            effectiveUpdates = {
+                                ...updates, ...shifted,
+                                ...(shiftKeys(event.exdates) ? { exdates: shiftKeys(event.exdates) } : {}),
+                                ...(shiftKeys(event.completed_dates) ? { completed_dates: shiftKeys(event.completed_dates) } : {}),
+                            };
+                            if (event.recurrence_end && updates.recurrence_end === undefined) {
+                                effectiveUpdates.recurrence_end = new Date(
+                                    new Date(event.recurrence_end).getTime() + (newStart.getTime() - occStart.getTime())
+                                ).toISOString();
+                            }
+                        } else {
+                            // Only this occurrence: it becomes its own event, and the series skips that date.
+                            const { start: _s, end: _e, recurrence_rule: _r, recurrence_end: _re, recurrence: _rc, exdates: _x, completed_dates: _c, is_cancelled: _ic, ...rest } = updates;
+                            void [_s, _e, _r, _re, _rc, _x, _c, _ic];
+                            const createdId = await handleEventCreate(newStart, newEnd, !!(updates.allDay ?? event.allDay), {
+                                title: event.title, description: event.description, color: event.color, effect: event.effect,
+                                groupIds: event.groupIds, parent_id: event.parent_id ?? null, is_important: event.is_important, tags: event.tags,
+                                ...rest,
+                            });
+                            if (!createdId) throw new Error("Could not create the moved occurrence");
+                            effectiveUpdates = { exdates: toggleDateInList(event.exdates, occurrenceKey(occStart), true) };
+                        }
+                    }
+                }
+
                 if (occurrenceDateKey !== null) {
                     if (effectiveUpdates.is_cancelled !== undefined) {
                         effectiveUpdates = {
@@ -415,13 +462,13 @@ export function useCalendarActions({
                 if (strict) throw e;
             }
         },
-        [privateKey, publicKey, setEvents, syncingTaskIdsRef, updateTask]
+        [privateKey, publicKey, setEvents, syncingTaskIdsRef, updateTask, handleEventCreate]
     );
 
     const handleEventUpdate = useCallback(
         async (id: string, start: Date, end: Date): Promise<void> => {
-            const baseId = id.includes("_") ? id.split("_")[0] : id;
-            await handleEventSave(baseId, { start: start.toISOString(), end: end.toISOString() });
+            // Keep the occurrence id: `handleEventSave` needs it to know which repetition was moved.
+            await handleEventSave(id, { start: start.toISOString(), end: end.toISOString() });
         },
         [handleEventSave]
     );
@@ -433,7 +480,16 @@ export function useCalendarActions({
                 await handleEventSave(id, { is_cancelled: true });
                 return;
             }
-            if (!confirm("Are you sure you want to delete this event?")) return;
+            const seriesEvt = useDataStore.getState().events.find((e) => e.id === id) as CalendarEventRecord | undefined;
+            if (seriesEvt && isRecurringEvent(seriesEvt)) {
+                // The first occurrence carries the series id: ask whether to cancel just it or delete everything.
+                const scope = await askRecurrenceScope("delete", seriesEvt.title || "");
+                if (scope === null) return;
+                if (scope === "this") {
+                    await handleEventSave(id, { is_cancelled: true });
+                    return;
+                }
+            } else if (!confirm("Are you sure you want to delete this event?")) return;
             try {
                 const storeState = useDataStore.getState();
                 const currentEvents = storeState.events;

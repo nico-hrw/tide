@@ -7,11 +7,22 @@ import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { parseIcsString, type ParsedIcsEvent } from '@/lib/icsParser';
 import { importCalendarEvents } from '@/lib/calendarImporter';
+import { normalizeTagName } from '@/lib/tags';
+import { CALENDAR_CATEGORIES } from '@/lib/calendarColors';
+import {
+    applyImportRules, loadImportRules, saveImportRules, suggestPrefixRules, type ImportRule,
+} from '@/lib/importRules';
+import { ImportTagSettings, type MainTagChoice } from './ImportTagSettings';
+
+// New tags cycle through the five calendar colours so tag dots, badges and events share one palette.
+const NEW_TAG_COLORS = CALENDAR_CATEGORIES.map((c) => c.hex);
 
 export interface CalendarImportModalProps {
     isOpen: boolean;
     onClose: () => void;
     themes?: { id: string; title: string; effect?: string; color?: string }[];
+    /** Creates a tag and returns its id. Without it only existing tags can be used. */
+    onCreateTag?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
 type ImportStep = 'upload' | 'preview' | 'importing' | 'done';
@@ -27,11 +38,12 @@ interface ImportResult {
     failed: number;
 }
 
-export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarImportModalProps) {
+export function CalendarImportModal({ isOpen, onClose, themes = [], onCreateTag }: CalendarImportModalProps) {
     const [step, setStep] = useState<ImportStep>('upload');
     const [parsedEvents, setParsedEvents] = useState<ParsedIcsEvent[]>([]);
     const [selectedUids, setSelectedUids] = useState<Set<string>>(new Set());
-    const [selectedGroupId, setSelectedGroupId] = useState<string>('');
+    const [mainTag, setMainTag] = useState<MainTagChoice>({ tagId: '', newName: '' });
+    const [rules, setRules] = useState<ImportRule[]>([]);
     const [importProgress, setImportProgress] = useState<ImportProgress>({ current: 0, total: 0 });
     const [importResult, setImportResult] = useState<ImportResult | null>(null);
     const [error, setError] = useState<string | null>(null);
@@ -43,7 +55,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
         setStep('upload');
         setParsedEvents([]);
         setSelectedUids(new Set());
-        setSelectedGroupId('');
+        setMainTag({ tagId: '', newName: '' });
         setImportProgress({ current: 0, total: 0 });
         setImportResult(null);
         setError(null);
@@ -53,6 +65,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
 
     useEffect(() => {
         if (!isOpen) resetState();
+        else setRules(loadImportRules());
     }, [isOpen, resetState]);
 
     useEffect(() => {
@@ -88,6 +101,11 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                     return;
                 }
                 setParsedEvents(events);
+                setMainTag((prev) => ({
+                    ...prev,
+                    newName: prev.newName || file.name.replace(/\.ics$/i, ''),
+                    tagId: prev.tagId || (onCreateTag || themes.length === 0 ? '' : themes[0].id),
+                }));
                 setSelectedUids(new Set(events.map((ev, idx) => getEventId(ev, idx))));
                 setStep('preview');
             } catch (err) {
@@ -140,18 +158,67 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
         setSelectedUids(next);
     };
 
+    // Rules run on the original ICS text; the matched strings are removed only where a rule asks for it.
+    const cleanedText = (ev: ParsedIcsEvent) => {
+        const { title, description } = applyImportRules(ev, rules);
+        return { title, ...(description !== undefined ? { description } : {}) };
+    };
+    const tagNamesFor = (ev: ParsedIcsEvent) => applyImportRules(ev, rules).tagNames;
+
     const handleStartImport = async () => {
-        const eventsToImport = parsedEvents.filter((ev, idx) => selectedUids.has(getEventId(ev, idx)));
+        // Tags are decided on the original text; only afterwards are matched strings removed from title/description.
+        const tagNamesByEvent = new WeakMap<ParsedIcsEvent, string[]>();
+        const eventsToImport = parsedEvents
+            .filter((ev, idx) => selectedUids.has(getEventId(ev, idx)))
+            .map((ev) => {
+                const cleaned = { ...ev, ...cleanedText(ev) };
+                tagNamesByEvent.set(cleaned, tagNamesFor(ev));
+                return cleaned;
+            });
         if (eventsToImport.length === 0) {
             setError('Bitte wähle mindestens ein Ereignis zum Importieren aus.');
+            return;
+        }
+        const mainName = mainTag.newName.trim();
+        if (!mainTag.tagId && !mainName) {
+            setError('Bitte wähle einen gemeinsamen Tag oder gib einen Namen für einen neuen Tag ein.');
             return;
         }
         setStep('importing');
         setError(null);
         setImportProgress({ current: 0, total: eventsToImport.length });
         try {
+            const tagIdByName = new Map<string, string>(themes.map((th) => [normalizeTagName(th.title), th.id]));
+            const colorByTagId = new Map<string, string | undefined>(themes.map((th) => [th.id, th.color]));
+            let createdCount = 0;
+            const ensureTag = async (name: string): Promise<string> => {
+                const key = normalizeTagName(name);
+                const known = tagIdByName.get(key);
+                if (known) return known;
+                // New tags get a colour right away so secondary tags can override the main colour later.
+                const color = NEW_TAG_COLORS[createdCount++ % NEW_TAG_COLORS.length];
+                const created = await onCreateTag?.(name.trim(), color);
+                if (!created) throw new Error(`Tag "${name}" konnte nicht angelegt werden.`);
+                tagIdByName.set(key, created);
+                colorByTagId.set(created, color);
+                return created;
+            };
+
+            const mainTagId = mainTag.tagId || (await ensureTag(mainName));
+            const mainColor = colorByTagId.get(mainTagId);
+            // Only create tags that at least one imported event actually gets.
+            const ruleTagIds = new Map<string, string>();
+            for (const ev of eventsToImport) {
+                for (const name of tagNamesByEvent.get(ev) ?? []) {
+                    const key = normalizeTagName(name);
+                    if (!ruleTagIds.has(key)) ruleTagIds.set(key, await ensureTag(name));
+                }
+            }
+            saveImportRules(rules.filter((r) => r.pattern.trim() && r.tagName.trim()));
+
             const result = await importCalendarEvents(eventsToImport, {
-                groupId: selectedGroupId || undefined,
+                tagIdsFor: (ev) => [mainTagId, ...(tagNamesByEvent.get(ev) ?? []).map((n) => ruleTagIds.get(normalizeTagName(n))!)],
+                color: mainColor,
                 onProgress: (progress) => {
                     setImportProgress({ current: progress.current, total: progress.total });
                 },
@@ -298,24 +365,21 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                     >
                                         {selectedUids.size === parsedEvents.length ? 'Alle abwählen' : 'Alle auswählen'}
                                     </button>
-                                    {themes.length > 0 && (
-                                        <select
-                                            value={selectedGroupId}
-                                            onChange={(e) => setSelectedGroupId(e.target.value)}
-                                            className="text-xs rounded-xl border border-t2-line  bg-t2-surface  px-3 py-1.5 text-t2-ink  focus:outline-none focus:ring-1 focus:ring-t2-accent"
-                                        >
-                                            <option value="">Standard-Kategorie</option>
-                                            {themes.map((th) => (
-                                                <option key={th.id} value={th.id}>
-                                                    {th.title}
-                                                </option>
-                                            ))}
-                                        </select>
-                                    )}
                                 </div>
                             </div>
 
-                            <div className="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
+                            <ImportTagSettings
+                                tags={themes}
+                                canCreate={!!onCreateTag}
+                                mainTag={mainTag}
+                                onMainTagChange={setMainTag}
+                                rules={rules}
+                                onRulesChange={setRules}
+                                onSuggest={() => setRules((prev) => [...prev, ...suggestPrefixRules(parsedEvents)])}
+                                suggestAvailable={suggestPrefixRules(parsedEvents).length > 0}
+                            />
+
+                            <div className="max-h-[40vh] overflow-y-auto space-y-2 pr-1">
                                 {parsedEvents.map((ev, index) => {
                                     const id = getEventId(ev, index);
                                     const isSelected = selectedUids.has(id);
@@ -338,7 +402,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                             <div className="flex-1 min-w-0">
                                                 <div className="flex items-center space-x-2">
                                                     <h4 className="text-sm font-medium text-t2-ink  truncate">
-                                                        {ev.title || 'Ohne Titel'}
+                                                        {cleanedText(ev).title || 'Ohne Titel'}
                                                     </h4>
                                                     {ev.allDay && (
                                                         <span className="text-[11px] uppercase font-semibold px-2 py-0.5 rounded-full bg-t2-sub  text-t2-accent ">
@@ -351,6 +415,11 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                                                         <Clock className="w-3.5 h-3.5" />
                                                         <span>{formatEventDate(ev.start, ev.end, ev.allDay)}</span>
                                                     </span>
+                                                    {tagNamesFor(ev).map((name) => (
+                                                        <span key={name} className="text-[11px] font-medium px-2 py-0.5 rounded-full bg-t2-hover text-t2-ink-2">
+                                                            {name}
+                                                        </span>
+                                                    ))}
                                                     {ev.location && (
                                                         <span className="flex items-center space-x-1 truncate max-w-xs">
                                                             <MapPin className="w-3.5 h-3.5 flex-shrink-0" />
@@ -419,7 +488,7 @@ export function CalendarImportModal({ isOpen, onClose, themes = [] }: CalendarIm
                             <button
                                 type="button"
                                 onClick={handleStartImport}
-                                disabled={selectedUids.size === 0}
+                                disabled={selectedUids.size === 0 || (!mainTag.tagId && !mainTag.newName.trim())}
                                 className="px-5 py-2 rounded-xl text-sm font-medium text-t2-accent-ink bg-t2-accent hover:opacity-90 disabled:opacity-50 disabled:pointer-events-none shadow-sm transition-colors"
                             >
                                 Importieren ({selectedUids.size})

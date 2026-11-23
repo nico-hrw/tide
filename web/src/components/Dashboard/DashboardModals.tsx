@@ -14,6 +14,7 @@ import { apiFetch } from "@/lib/api";
 import { formatMessage, getTranslation } from "@/lib/i18n";
 import { isForeignOwned, removeTagFromItems } from "@/lib/tags";
 import { deleteTagEverywhere } from "@/lib/deleteTag";
+import { deleteEventsWithTag, eventIdsWithTag } from "@/lib/deleteTagEvents";
 import { setNoteTags } from "@/hooks/dashboard/useNoteTags";
 import type { CalendarEvent } from "@/components/Calendar/types";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
@@ -234,6 +235,28 @@ ${text("cal.deleteConfirmCount", {
         });
     };
 
+    const handleDeleteGroupEvents = (id: string) => {
+        const store = useDataStore.getState();
+        const text = (key: string, vars?: Record<string, string | number>) =>
+            formatMessage(getTranslation(store.language || "de", "settings", key), vars);
+        const events = store.events as unknown as CalendarEvent[];
+        const count = eventIdsWithTag(id, events, myId).length;
+        if (count === 0) {
+            alert(text("cal.deleteEventsNone"));
+            return;
+        }
+        if (!confirm(text("cal.deleteEventsConfirm", { count }))) return;
+        void deleteEventsWithTag(id, events, async (eventId) => {
+            const res = await apiFetch(`/api/v1/files/${eventId}`, { method: "DELETE" });
+            return res.ok || res.status === 404;
+        }, myId).then(({ deleted, failed }) => {
+            const latest = useDataStore.getState();
+            const gone = new Set(deleted);
+            latest.setEvents(latest.events.filter((e) => !gone.has(e.id)));
+            if (failed.length > 0) alert(text("cal.deleteEventsFailed", { count: failed.length }));
+        });
+    };
+
     const handleConfirmDeleteError = () => {
         if (deleteError?.isCorrupt) {
             const currentNotes = useDataStore.getState().notes;
@@ -290,6 +313,7 @@ ${text("cal.deleteConfirmCount", {
                 onUpdateGroup={onUpdateEventGroup}
                 onShareGroup={onShareGroup}
                 onDeleteGroup={handleDeleteGroup}
+                onDeleteGroupEvents={handleDeleteGroupEvents}
                 onCreateGroup={onCreateEventGroup}
                 scheduleModalOpen={scheduleModalOpen}
                 setScheduleModalOpen={setScheduleModalOpen}

@@ -67,6 +67,7 @@ export interface DashboardModalsProps {
     onUpdateGroup: (id: string, updates: any) => void;
     onShareGroup: (e: any, id: string) => void;
     onDeleteGroup: (e: any, id: string) => void;
+    onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 
     // Schedule Modal
@@ -133,6 +134,7 @@ export function DashboardModals({
     onUpdateGroup,
     onShareGroup,
     onDeleteGroup,
+    onDeleteGroupEvents,
     onCreateGroup,
 
     // Schedule Modal
@@ -201,6 +203,7 @@ export function DashboardModals({
                 onUpdateGroup={onUpdateGroup}
                 onShareGroup={onShareGroup}
                 onDeleteGroup={onDeleteGroup}
+                onDeleteGroupEvents={onDeleteGroupEvents}
                 onCreateGroup={onCreateGroup}
             />
 

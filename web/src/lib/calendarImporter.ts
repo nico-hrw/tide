@@ -12,7 +12,8 @@ export interface ImportProgress {
 }
 
 export interface ImportOptions {
-    groupId?: string;
+    /** Ordered tag ids for an event: the first is the main tag, the rest are secondary tags. */
+    tagIdsFor?: (event: ParsedIcsEvent) => string[];
     color?: string;
     onProgress?: (progress: ImportProgress) => void;
 }
@@ -25,6 +26,23 @@ export interface ImportResult {
 }
 
 const CHUNK_SIZE = 5;
+
+/** Max plaintext bytes for RSA-OAEP (2048-bit key, SHA-256): 256 - 2*32 - 2 = 190. Keep a margin. */
+const MAX_SECURED_META_BYTES = 180;
+
+/** Builds a secured_meta payload guaranteed to fit into a single RSA-OAEP block. */
+function buildSecuredMeta(event: ParsedIcsEvent): Record<string, unknown> {
+    const byteLength = (o: unknown) => new TextEncoder().encode(JSON.stringify(o)).length;
+    const base = { start: event.start, end: event.end, allDay: event.allDay };
+    let title = event.title;
+    let candidate: Record<string, unknown> = { title, ...base };
+    while (byteLength(candidate) > MAX_SECURED_META_BYTES && title.length > 1) {
+        title = title.slice(0, Math.max(1, title.length - 8));
+        candidate = { title, ...base };
+    }
+    if (byteLength(candidate) > MAX_SECURED_META_BYTES) candidate = { title };
+    return candidate;
+}
 
 /**
  * Batch imports parsed calendar events into Tide's encrypted backend
@@ -69,6 +87,7 @@ export async function importCalendarEvents(
         await Promise.all(
             chunk.map(async (event) => {
                 try {
+                    const tagIds = [...new Set(options?.tagIdsFor?.(event) ?? [])];
                     const meta: Record<string, unknown> = {
                         title: event.title,
                         start: event.start,
@@ -76,13 +95,20 @@ export async function importCalendarEvents(
                         allDay: event.allDay,
                         description: event.description || '',
                         location: event.location || '',
-                        groupIds: options?.groupId ? [options.groupId] : undefined,
+                        groupIds: tagIds.length > 0 ? tagIds : undefined,
                         color: options?.color || undefined,
                         recurrence_rule: event.recurrenceRule || undefined,
+                        recurrence_end: event.recurrenceEnd,
+                        exdates: event.exdates,
                         is_cancelled: event.isCancelled || false,
                     };
 
-                    const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+                    // RSA-OAEP can only encrypt ~190 bytes, so secured_meta carries just the essentials.
+                    // Full details live in `metadata` and the AES-encrypted content blob.
+                    const securedMeta = await cryptoLib.encryptMetadata(
+                        buildSecuredMeta(event),
+                        publicKey
+                    );
 
                     const contentString = JSON.stringify({
                         title: event.title,
@@ -94,7 +120,7 @@ export async function importCalendarEvents(
 
                     const bodyPayload: Record<string, unknown> = {
                         type: 'event',
-                        parent_id: null,
+                        parent_id: tagIds[0] ?? null,
                         public_meta: {},
                         secured_meta: securedMeta,
                         version: 2,
@@ -123,7 +149,7 @@ export async function importCalendarEvents(
                         id: newFile.id,
                         title: event.title,
                         type: 'event',
-                        parent_id: null,
+                        parent_id: tagIds[0] ?? null,
                         ...meta,
                     };
 
