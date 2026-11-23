@@ -7,11 +7,6 @@ import TabList from "@/components/Layout/TabList";
 import CalendarView from "@/components/Calendar/CalendarView";
 import type { CalendarViewProps } from "@/components/Calendar/types";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
-import ProfilePage from "@/components/Profile/ProfilePage";
-import SocialHub from "@/components/Social/SocialHub";
-import { JobsWorkspace } from "@/components/Workspaces/JobsWorkspace";
-import { TodoList } from "@/components/Todo/TodoList";
-import TrashPanel from "@/components/TrashPanel";
 import { CentralFolderView } from "@/components/Workspaces/CentralFolderView";
 import { CanvasWorkspace } from "@/components/Workspaces/CanvasWorkspace";
 import type { UseStyleFileReturn } from "@/components/Canvas/useStyleFile";
@@ -26,6 +21,17 @@ import type {
     Tab,
     UserProfile,
 } from "./types";
+
+const ProfilePage = dynamic(() => import("@/components/Profile/ProfilePage"), { ssr: false });
+const SocialHub = dynamic(() => import("@/components/Social/SocialHub"), { ssr: false });
+const JobsWorkspace = dynamic(
+    () => import("@/components/Workspaces/JobsWorkspace").then((m) => m.JobsWorkspace),
+    { ssr: false }
+);
+const TodoList = dynamic(() => import("@/components/Todo/TodoList").then((m) => m.TodoList), {
+    ssr: false,
+});
+const TrashPanel = dynamic(() => import("@/components/TrashPanel"), { ssr: false });
 
 export interface DashboardCollaborator {
     id?: string;

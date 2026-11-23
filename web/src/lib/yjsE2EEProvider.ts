@@ -168,6 +168,7 @@ export class YjsE2EEProvider {
      * Bootstrap CRDT state from server REST snapshot + WAL
      */
     private hydrationFailed = false;
+    private lastBootstrapAt: number = 0;
 
     public async bootstrap(): Promise<void> {
         if (this.destroyed) return;
@@ -175,6 +176,7 @@ export class YjsE2EEProvider {
             return this.bootstrapPromise;
         }
 
+        this.lastBootstrapAt = Date.now();
         this.bootstrapPromise = (async () => {
             try {
                 let res: Response;
@@ -206,6 +208,9 @@ export class YjsE2EEProvider {
                     console.warn(`[YjsE2EEProvider] CRDT bootstrap fetch returned HTTP ${res.status}`);
                     setDocHydrated(this.ydoc, false);
                     this.markSynced(true);
+                    if (res.status === 404) {
+                        this.destroy();
+                    }
                     return;
                 }
 
@@ -392,6 +397,9 @@ export class YjsE2EEProvider {
             }
             this.connect();
         } else if (this.ws.readyState === WebSocket.OPEN) {
+            if (this.synced && Date.now() - this.lastBootstrapAt < 15000) {
+                return;
+            }
             void this.bootstrap();
         }
     }

@@ -1,43 +1,36 @@
 import { apiFetch } from '@/lib/api';
-import { generateSecureId, saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
+import { generateSecureId } from '@/lib/offlineCacheCrypto';
 import type { DataStoreSlice, TaskItem, TodosSlice } from './types';
-import { deletedTaskIds, recordDeletedTaskId } from './fsHelpers';
+import { deletedTaskIds, recordDeletedTaskId, loadCachedTasks, saveTasksToOfflineCache } from './fsHelpers';
 
-export { deletedTaskIds, recordDeletedTaskId };
+export { deletedTaskIds, recordDeletedTaskId, loadCachedTasks, saveTasksToOfflineCache };
 
-export function loadCachedTasks(): TaskItem[] {
-    if (typeof window !== 'undefined') {
-        try {
-            localStorage.removeItem('tide_offline_tasks');
-        } catch {
-            // Ignore storage errors
-        }
+function taskToServerTodoPayload(task: TaskItem, includeId: boolean): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+        title: task.title,
+        description: task.description ?? '',
+        status: task.status ?? (task.isCompleted ? 'completed' : 'todo'),
+        priority: task.priority ?? '',
+        due_date: task.dueDate ?? '',
+        scheduled_date: task.scheduledDate ?? '',
+        tags: task.tags ?? [],
+        color: task.color ?? '',
+        is_completed: Boolean(task.isCompleted),
+        folder: task.folder ?? '',
+        linked_note_id: task.linkedNoteId ?? '',
+        recurrence: task.recurrence ?? '',
+        recurrence_rule: task.recurrence_rule ?? '',
+        recurrence_end: task.recurrence_end ?? '',
+        completed_dates: task.completed_dates ?? [],
+        show_in_calendar: task.showInCalendar ?? true,
+        is_archived: Boolean(task.isArchived),
+        parent_id: task.parentId ?? '',
+        order: task.order ?? 0,
+    };
+    if (includeId) {
+        payload.id = task.id;
     }
-    return [];
-}
-
-export function saveTasksToOfflineCache(tasks: TaskItem[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.removeItem('tide_offline_tasks');
-    } catch {
-        // Ignore storage errors
-    }
-    void saveEncryptedOfflineCache('tasks', tasks).catch((e) => {
-        console.warn('Failed to save tasks to offline cache', e);
-    });
-}
-
-function compactVaultPayload(rawPayload: Record<string, unknown>): Record<string, unknown> {
-    return Object.fromEntries(
-        Object.entries(rawPayload).filter(
-            ([, v]) =>
-                v !== undefined &&
-                v !== null &&
-                v !== '' &&
-                !(Array.isArray(v) && v.length === 0)
-        )
-    );
+    return payload;
 }
 
 export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
@@ -85,57 +78,16 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         set({ tasks: nextTasks });
         saveTasksToOfflineCache(nextTasks);
 
-        if (!state.publicKey) return fallbackId;
-
         try {
-            const cryptoLib = await import('@/lib/crypto');
-            // Include all fields (including scheduledDate) in the vault, compacted to fit RSA-OAEP limit
-            const rawPayload: Record<string, unknown> = {
-                title: newTask.title,
-                isCompleted: newTask.isCompleted,
-                status: newTask.status || (newTask.isCompleted ? 'completed' : 'todo'),
-                description: newTask.description,
-                color: newTask.color,
-                linkedNoteId: newTask.linkedNoteId,
-                scheduledDate: newTask.scheduledDate,
-                priority: newTask.priority,
-                dueDate: newTask.dueDate,
-                recurrence: newTask.recurrence,
-                recurrence_rule: newTask.recurrence_rule,
-                recurrence_end: newTask.recurrence_end,
-                completed_dates: newTask.completed_dates,
-                folder: newTask.folder,
-                tags: newTask.tags || [],
-                showInCalendar: newTask.showInCalendar !== undefined ? newTask.showInCalendar : true,
-                createdAt: newTask.createdAt,
-                completedAt: newTask.completedAt,
-                updatedAt: newTask.updatedAt,
-                isArchived: newTask.isArchived,
-                parentId: newTask.parentId ?? null,
-                order: newTask.order ?? 0,
-            };
-            const vaultPayload = compactVaultPayload(rawPayload);
-
-            let securedMeta: string;
-            try {
-                securedMeta = await cryptoLib.encryptMetadata(vaultPayload, state.publicKey);
-            } catch (encryptErr) {
-                console.error('[addTask] Failed to encrypt task metadata with cryptoLib.encryptMetadata:', encryptErr);
-                return fallbackId;
-            }
-
-            const res = await apiFetch('/api/v1/tasks', {
+            const res = await apiFetch('/api/v1/todos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: fallbackId,
-                    encrypted_vault: securedMeta,
-                }),
+                body: JSON.stringify(taskToServerTodoPayload(newTask, true)),
             });
 
             if (res.ok) {
-                const createdTask = (await res.json()) as { id?: string };
-                const newId = createdTask.id;
+                const createdTodo = (await res.json()) as { id?: string };
+                const newId = createdTodo.id;
                 if (newId && newId !== fallbackId) {
                     const reconciled: TaskItem[] = get().tasks.map((t) =>
                         t.id === fallbackId ? { ...t, id: newId } : t
@@ -144,9 +96,11 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                     saveTasksToOfflineCache(reconciled);
                     return newId;
                 }
+            } else {
+                console.error('[addTask] API returned non-OK status:', res.status);
             }
         } catch (e) {
-            console.error('Failed to sync task', e);
+            console.error('[addTask] Failed to sync todo', e);
         }
         return fallbackId;
     },
@@ -213,7 +167,7 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         set({ tasks: nextTasks });
         saveTasksToOfflineCache(nextTasks);
 
-        // 2. Get the fully merged task for encryption
+        // 2. Get the fully merged task for server sync
         const mergedTask: TaskItem = {
             ...task,
             ...mergedUpdates,
@@ -223,78 +177,32 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             updatedAt: now,
         };
 
-        // 3. Resolve publicKey from validated store state
-        const publicKey = state.publicKey;
-        if (!publicKey) {
-            console.warn('[updateTask] publicKey unavailable — task update NOT persisted to backend:', id);
-            if (strict) throw new Error('Task update failed: publicKey unavailable');
-            return;
-        }
-
+        // 3. Persist directly to unified /api/v1/todos endpoint
         try {
-            const cryptoLib = await import('@/lib/crypto');
-            // Explicitly include all persistent fields so scheduledDate survives reloads, compacted to fit RSA-OAEP limit
-            const rawPayload: Record<string, unknown> = {
-                title: mergedTask.title,
-                isCompleted: mergedTask.isCompleted,
-                status:
-                    updates.status !== undefined
-                        ? updates.status
-                        : updates.isCompleted !== undefined
-                        ? updates.isCompleted
-                            ? 'completed'
-                            : 'todo'
-                        : task.status,
-                description: mergedTask.description,
-                color: mergedTask.color,
-                linkedNoteId: mergedTask.linkedNoteId,
-                scheduledDate: mergedTask.scheduledDate,
-                priority: mergedTask.priority,
-                dueDate: mergedTask.dueDate,
-                recurrence: mergedTask.recurrence,
-                recurrence_rule: mergedTask.recurrence_rule,
-                recurrence_end: mergedTask.recurrence_end,
-                completed_dates: mergedTask.completed_dates,
-                folder: mergedTask.folder,
-                tags: mergedTask.tags !== undefined ? mergedTask.tags : [],
-                showInCalendar:
-                    mergedTask.showInCalendar !== undefined ? mergedTask.showInCalendar : true,
-                createdAt: mergedTask.createdAt,
-                completedAt: mergedTask.completedAt,
-                updatedAt: mergedTask.updatedAt,
-                isArchived: mergedTask.isArchived,
-                parentId: (updates.parentId !== undefined ? updates.parentId : task?.parentId) ?? null,
-                order: (updates.order !== undefined ? updates.order : task?.order) ?? 0,
-            };
-            const vaultPayload = compactVaultPayload(rawPayload);
-
-            let securedMeta: string;
-            try {
-                securedMeta = await cryptoLib.encryptMetadata(vaultPayload, publicKey);
-            } catch (encryptErr) {
-                console.error('[updateTask] Failed to encrypt task metadata with cryptoLib.encryptMetadata:', encryptErr);
-                if (strict) throw encryptErr;
-                return;
-            }
-
-            const res = await apiFetch(`/api/v1/tasks/${id}`, {
+            const res = await apiFetch(`/api/v1/todos/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    encrypted_vault: securedMeta,
-                }),
+                body: JSON.stringify(taskToServerTodoPayload(mergedTask, false)),
             });
             if (!res.ok) {
                 if (res.status === 404) {
-                    console.warn('[updateTask] Task not found in backend (404) — removing locally:', id);
-                    get().deleteTask(id);
+                    // Legacy task not yet migrated to /api/v1/todos — upsert instead of deleting
+                    const upsertRes = await apiFetch('/api/v1/todos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(taskToServerTodoPayload(mergedTask, true)),
+                    });
+                    if (!upsertRes.ok) {
+                        console.error('[updateTask] Upsert after 404 returned non-OK status:', upsertRes.status);
+                        if (strict) throw new Error(`Task upsert failed (${upsertRes.status})`);
+                    }
                 } else {
                     console.error('[updateTask] API returned non-OK status:', res.status);
                     if (strict) throw new Error(`Task update failed (${res.status})`);
                 }
             }
         } catch (e) {
-            console.error('Failed to sync task update', e);
+            console.error('[updateTask] Failed to sync todo update', e);
             if (strict) throw e;
         }
     },
@@ -366,9 +274,15 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         set({ tasks: nextTasks });
         saveTasksToOfflineCache(nextTasks);
 
-        const linkedEvents = (get().events || []).filter((e) => (e as any).linkedTaskId === id);
+        const linkedEvents = (get().events || []).filter(
+            (e) => (e as { linkedTaskId?: string }).linkedTaskId === id
+        );
         if (linkedEvents.length > 0) {
-            set({ events: (get().events || []).filter((e) => (e as any).linkedTaskId !== id) });
+            set({
+                events: (get().events || []).filter(
+                    (e) => (e as { linkedTaskId?: string }).linkedTaskId !== id
+                ),
+            });
             for (const event of linkedEvents) {
                 apiFetch(`/api/v1/files/${event.id}`, { method: 'DELETE' }).catch((err) => {
                     console.warn('[deleteTask] Failed to delete linked calendar event:', event.id, err);
@@ -377,9 +291,23 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         }
 
         try {
-            await apiFetch(`/api/v1/tasks/${id}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/v1/todos/${id}`, { method: 'DELETE' });
+            if (!res.ok && res.status !== 404) {
+                console.error('[deleteTask] Failed to delete todo from backend:', res.status);
+            }
         } catch (e) {
-            console.error('[deleteTask] Failed to delete task from backend', e);
+            console.error('[deleteTask] Failed to delete todo from backend', e);
         }
+
+        // Fire-and-forget cleanup of any legacy encrypted copy so it never resurrects
+        void apiFetch(`/api/v1/tasks/${id}`, { method: 'DELETE' })
+            .then((res) => {
+                if (!res.ok && res.status !== 404) {
+                    console.warn('[deleteTask] Legacy task cleanup returned status:', res.status);
+                }
+            })
+            .catch((err) => {
+                console.warn('[deleteTask] Failed to delete legacy task copy:', err);
+            });
     },
 });

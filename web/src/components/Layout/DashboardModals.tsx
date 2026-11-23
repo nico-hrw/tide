@@ -1,14 +1,20 @@
 "use client";
 
 import React from "react";
-import ShareModal from "@/components/ShareModal";
-import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
-import SettingsModal from "@/components/Settings/SettingsModal";
-import { ScheduleModal, ScheduleEventData } from "@/components/Calendar/ScheduleModal";
+import dynamic from "next/dynamic";
+import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import ConfirmModal from "@/components/Modals/ConfirmModal";
-import VariablesModal from "@/components/Variables/VariablesModal";
 import { useDataStore } from "@/store/useDataStore";
 import type { NoteLayout } from "@/store/slices/types";
+
+const ShareModal = dynamic(() => import("@/components/ShareModal"), { ssr: false });
+const SecuritySettingsModal = dynamic(() => import("@/components/Security/SecuritySettingsModal"), { ssr: false });
+const SettingsModal = dynamic(() => import("@/components/Settings/SettingsModal"), { ssr: false });
+const ScheduleModal = dynamic(
+    () => import("@/components/Calendar/ScheduleModal").then((m) => m.ScheduleModal),
+    { ssr: false }
+);
+const VariablesModal = dynamic(() => import("@/components/Variables/VariablesModal"), { ssr: false });
 
 export type { ScheduleEventData };
 

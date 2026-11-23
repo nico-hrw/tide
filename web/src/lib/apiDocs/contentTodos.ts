@@ -6,7 +6,7 @@ const ID = '7df4ba62-a567-4e78-9584-f7b58c743bc1';
 const USER = '893d59a2-5b94-4dc4-8399-5ef6ee15c103';
 
 const todoJson = (extra: { status: string; done: boolean; at?: string }) =>
-  `{\n  "id": "${ID}",\n  "user_id": "${USER}",\n  "title": "Sicherheitsbericht prüfen",\n  "description": "Token-Hashing und Rechte kontrollieren",\n  "status": "${extra.status}",\n  "priority": "high",\n  "due_date": "2026-11-25",\n  "scheduled_date": "2026-11-24",\n  "tags": ["security", "audit"],\n  "color": "",\n  "is_completed": ${extra.done},\n${extra.at ? `  "completed_at": "${extra.at}",\n` : ''}  "is_overdue": false,\n  "created_at": "2026-11-11T12:00:00Z",\n  "updated_at": "${extra.at ?? '2026-11-11T12:00:00Z'}"\n}`;
+  `{\n  "id": "${ID}",\n  "user_id": "${USER}",\n  "title": "Sicherheitsbericht prüfen",\n  "description": "Token-Hashing und Rechte kontrollieren",\n  "status": "${extra.status}",\n  "priority": "high",\n  "due_date": "2026-11-25",\n  "scheduled_date": "2026-11-24",\n  "tags": ["security", "audit"],\n  "color": "",\n  "is_completed": ${extra.done},\n${extra.at ? `  "completed_at": "${extra.at}",\n` : ''}  "is_overdue": false,\n  "folder": "Security",\n  "linked_note_id": "3f2a1b4c-8d9e-4a1b-9c2d-1234567890ab",\n  "recurrence": "weekly",\n  "recurrence_rule": "FREQ=WEEKLY;BYDAY=MO",\n  "recurrence_end": "2026-12-31",\n  "completed_dates": ${extra.done ? '["2026-11-11"]' : '[]'},\n  "show_in_calendar": true,\n  "is_archived": false,\n  "parent_id": "a1b2c3d4-e5f6-4a7b-8c9d-0123456789ef",\n  "order": 1,\n  "created_at": "2026-11-11T12:00:00Z",\n  "updated_at": "${extra.at ?? '2026-11-11T12:00:00Z'}"\n}`;
 
 export const todosSection: DocSection = {
   id: 'todos',
@@ -15,7 +15,7 @@ export const todosSection: DocSection = {
     { kind: 'p', text: 'Todos sind Aufgaben mit Titel, Priorität, Fälligkeit und Tags. Sie gehören immer genau einem Konto. Unter `/external/todos` sind dieselben Endpunkte ein zweites Mal erreichbar.' },
     { kind: 'h3', text: 'Felder' },
     { kind: 'table', head: ['Feld', 'Typ', 'Beschreibung'], rows: [
-      ['`id`, `user_id`', 'string', 'ID des Todos und des Besitzers'],
+      ['`id`, `user_id`', 'string', 'ID des Todos (UUID) und des Besitzers'],
       ['`title`', 'string', 'Titel, Pflichtfeld beim Erstellen'],
       ['`description`', 'string', 'Beschreibung, leer wenn nicht gesetzt'],
       ['`status`', 'string', '`todo` (Standard), `in_progress` oder `completed`'],
@@ -27,9 +27,19 @@ export const todosSection: DocSection = {
       ['`is_completed`', 'boolean', '`true`, wenn erledigt'],
       ['`completed_at`', 'string (RFC 3339)', 'Zeitpunkt der Erledigung. Fehlt, solange das Todo offen ist.'],
       ['`is_overdue`', 'boolean', 'Vom Server berechnet: offen und Fälligkeit liegt in der Vergangenheit'],
+      ['`folder`', 'string', 'Ordnername zur Gruppierung in der Web-UI. Fehlt, wenn nicht gesetzt.'],
+      ['`linked_note_id`', 'string', 'ID einer verknüpften Notiz (UUID). Fehlt, wenn nicht gesetzt.'],
+      ['`recurrence`', 'string', 'Einfaches Wiederholungsintervall (z. B. `daily`, `weekly`, `monthly`). Fehlt, wenn nicht gesetzt.'],
+      ['`recurrence_rule`', 'string', 'Wiederholungsregel im RRULE-Format (z. B. `FREQ=WEEKLY;BYDAY=MO`). Fehlt, wenn nicht gesetzt.'],
+      ['`recurrence_end`', 'string', 'Enddatum der Wiederholung (`YYYY-MM-DD`). Fehlt, wenn nicht gesetzt.'],
+      ['`completed_dates`', 'string[]', 'Liste erledigter Instanzdaten (`YYYY-MM-DD`) bei wiederkehrenden Todos'],
+      ['`show_in_calendar`', 'boolean', '`true`, wenn das Todo im Kalender angezeigt wird'],
+      ['`is_archived`', 'boolean', '`true`, wenn das Todo archiviert ist'],
+      ['`parent_id`', 'string', 'ID des übergeordneten Todos bei Unteraufgaben (UUID). Fehlt, wenn nicht gesetzt.'],
+      ['`order`', 'number', 'Sortierposition innerhalb der Liste bzw. des Ordners'],
       ['`created_at`, `updated_at`', 'string (RFC 3339)', 'Erstellt und zuletzt geändert'],
     ] },
-    { kind: 'note', tone: 'unverified', text: 'Der Server prüft `status` und `priority` nicht gegen eine feste Liste und akzeptiert auch andere Texte. Verwende die oben genannten Werte, nur sie haben eine definierte Bedeutung. Auch das Datumsformat wird nicht geprüft.' },
+    { kind: 'note', tone: 'info', text: 'Todos werden in Echtzeit per SSE über `/api/v1/todos` mit der Web-UI synchronisiert. Änderungen über die REST-API erscheinen sofort in der Oberfläche und umgekehrt.' },
 
     { kind: 'endpoint', method: 'GET', path: '/todos', scope: '`todos:read` oder `todos:write`', summary: 'Todos auflisten und filtern. Antwort ist eine JSON-Liste ohne Umschlag.' },
     { kind: 'table', head: ['Parameter', 'Beispiel', 'Beschreibung'], rows: [
@@ -40,6 +50,8 @@ export const todosSection: DocSection = {
       ['`overdue`', '`true`', 'Nur überfällige, noch offene Todos. Nur `true` oder `1` schalten den Filter ein.'],
       ['`status`', '`in_progress`', 'Nach Status filtern'],
       ['`completed`', '`false`', '`true` oder `1` für erledigte, jeder andere Wert für offene Todos'],
+      ['`folder`', '`Security`', 'Nur Todos aus genau diesem Ordner'],
+      ['`include_archived`', '`false`', 'Bei `false` werden archivierte Todos ausgeblendet; `true` (oder Weglassen) liefert auch archivierte Todos'],
       ['`limit`', '`50`', 'Standard 100, höchstens 500'],
       ['`offset`', '`100`', 'Anzahl zu überspringender Todos zum Blättern'],
     ] },
@@ -48,7 +60,7 @@ export const todosSection: DocSection = {
     { kind: 'code', lang: 'json', label: 'Antwort 200', code: `[\n${todoJson({ status: 'todo', done: false }).replace(/^/gm, '  ')}\n]` },
 
     { kind: 'endpoint', method: 'POST', path: '/todos', scope: '`todos:create` oder `todos:write`', summary: 'Ein Todo anlegen.' },
-    { kind: 'p', text: 'Pflicht ist nur `title`. Optional sind `description`, `status`, `priority`, `due_date`, `scheduled_date`, `tags`, `color` und `is_completed`. Ein fehlender `title` führt zu `400` mit "Title is required". Ist `is_completed` gesetzt oder `status` gleich `completed`, trägt der Server `completed_at` ein.' },
+    { kind: 'p', text: 'Pflicht ist nur `title`. Optional kann eine eigene UUID als `id` mitgegeben werden (sonst erzeugt der Server eine UUID; eine ungültige UUID führt zu `400` mit "Invalid todo ID"). Ebenfalls optional sind `description`, `status`, `priority`, `due_date`, `scheduled_date`, `tags`, `color`, `is_completed`, `folder`, `linked_note_id`, `recurrence`, `recurrence_rule`, `recurrence_end`, `completed_dates`, `show_in_calendar`, `is_archived`, `parent_id` und `order`. Ein fehlender `title` führt zu `400` mit "Title is required". Ist `is_completed` gesetzt oder `status` gleich `completed`, trägt der Server `completed_at` ein.' },
     { kind: 'code', lang: 'bash', label: 'Anfrage', code: `curl -X POST ${AUTH} \\\n  -H "Content-Type: application/json" \\\n  -d '{"title": "Sicherheitsbericht prüfen", "description": "Token-Hashing und Rechte kontrollieren", "priority": "high", "due_date": "2026-11-25", "scheduled_date": "2026-11-24", "tags": ["security", "audit"]}' \\\n  "${B}/todos"` },
     { kind: 'code', lang: 'json', label: 'Antwort 201', code: todoJson({ status: 'todo', done: false }) },
 

@@ -3,17 +3,24 @@ import type { ApiDoc, DocSection } from './types';
 import { notesSection } from './contentNotes';
 import { todosSection } from './contentTodos';
 import { eventsSection } from './contentEvents';
+import { foldersSection, tagsSection, workspacesSection } from './contentOrganization';
+import { settingsSection } from './contentSettings';
 
 const overview: DocSection = {
   id: 'ueberblick',
   title: 'Überblick',
   blocks: [
-    { kind: 'p', text: 'Die Tide-API ist eine REST-Schnittstelle mit JSON. Mit ihr lassen sich Notizen, Todos (Aufgaben) und Termine eines Tide-Kontos abfragen und teilweise ändern. Alle Routen liegen unter `/api/v1`.' },
+    { kind: 'p', text: 'Die Tide-API ist eine REST-Schnittstelle mit JSON. Mit ihr lassen sich Notizen, Termine, Todos (Aufgaben), Ordner, Tags, Workspaces, Einstellungen und Umfragen eines Tide-Kontos abfragen und verwalten. Alle Routen liegen unter `/api/v1`.' },
     { kind: 'table', head: ['', 'Basis-URL'], rows: [['Produktion', `\`${B}\``]] },
     { kind: 'table', head: ['Ressource', 'Pfad (relativ zur Basis-URL)', 'Methoden'], rows: [
       ['Notizen', '`/external/notes`, `/external/notes/{id}`', 'GET, POST, PUT, PATCH, DELETE'],
+      ['Termine', '`/external/events`, `/external/events/{id}`', 'GET, POST, PUT, PATCH, DELETE'],
       ['Todos', '`/todos`, `/todos/{id}` (Alias: `/external/todos`)', 'GET, POST, PUT, PATCH, DELETE'],
-      ['Termine', '`/external/events`, `/external/events/{id}`', 'nur GET'],
+      ['Ordner', '`/external/folders`, `/external/folders/{id}`', 'GET, POST, PUT, PATCH, DELETE'],
+      ['Tags', '`/external/tags`, `/external/tags/{id}`', 'GET, POST, PUT, PATCH, DELETE'],
+      ['Workspaces', '`/external/workspaces`, `/external/workspaces/{name}`, `/external/workspaces/active`', 'GET, POST, PUT, PATCH, DELETE'],
+      ['Einstellungen', '`/external/settings`', 'GET, PUT, PATCH'],
+      ['Token-Info', '`/external/me`', 'GET'],
     ] },
     { kind: 'h3', text: 'Konventionen' },
     { kind: 'list', items: [
@@ -55,21 +62,32 @@ const rights: DocSection = {
   id: 'rechte',
   title: 'Rechte',
   blocks: [
-    { kind: 'p', text: 'Ein Token darf nur, was ihm beim Erstellen erlaubt wurde. Ein Endpunkt akzeptiert je nach Route eines von mehreren Rechten. Es genügt, wenn der Token mindestens eines davon trägt oder das Recht `*` hat.' },
+    { kind: 'p', text: 'Ein Token darf nur, was ihm beim Erstellen erlaubt wurde. Ein Endpunkt akzeptiert je nach Route eines von mehreren Rechten. Es genügt, wenn der Token mindestens eines davon trägt oder das Recht `*` hat. Grundsätzlich gilt: **`<resource>:write` schließt `<resource>:read` automatisch ein**.' },
     { kind: 'table', head: ['Recht (Klartext)', 'Technischer Name', 'Erlaubt'], rows: [
       ['Termine lesen', '`events:read`', '`GET /external/events`, `GET /external/events/{id}`'],
-      ['Termine ändern', '`events:write`', 'Wird als Recht angenommen, aber es gibt derzeit keine schreibenden Termin-Endpunkte (vom Server als nicht umgesetzt gekennzeichnet).'],
+      ['Termine ändern', '`events:write`', 'Termine erstellen, bearbeiten und löschen (`POST`, `PUT`, `PATCH`, `DELETE /external/events`). Schließt `events:read` ein.'],
       ['Notizen lesen', '`notes:read`', '`GET /external/notes`, `GET /external/notes/{id}`'],
-      ['Notizen ändern', '`notes:write`', 'Notizen erstellen, ändern, löschen. Schließt Lesen ein.'],
+      ['Notizen ändern', '`notes:write`', 'Notizen erstellen, ändern und löschen (`POST`, `PUT`, `PATCH`, `DELETE /external/notes`). Schließt `notes:read` ein.'],
       ['Aufgaben lesen', '`todos:read`', '`GET /todos`, `GET /todos/{id}`'],
       ['Aufgaben erstellen', '`todos:create`', '`POST /todos`'],
       ['Aufgaben bearbeiten', '`todos:edit`', '`PUT /todos/{id}`, `PATCH /todos/{id}` (inklusive Abhaken)'],
       ['Aufgaben löschen', '`todos:delete`', '`DELETE /todos/{id}`'],
-      ['Aufgaben vollständig verwalten', '`todos:write`', 'Alle Todo-Endpunkte (lesen, erstellen, bearbeiten, löschen)'],
-      ['Alles', '`*`', 'Voller Zugriff auf alle Endpunkte dieser Seite'],
+      ['Aufgaben vollständig verwalten', '`todos:write`', 'Alle Todo-Endpunkte (lesen, erstellen, bearbeiten, löschen). Schließt `todos:read` ein.'],
+      ['Ordner lesen', '`folders:read`', '`GET /external/folders`, `GET /external/folders/{id}`'],
+      ['Ordner ändern', '`folders:write`', 'Ordner erstellen, ändern, verschieben und löschen. Schließt `folders:read` ein.'],
+      ['Tags lesen', '`tags:read`', '`GET /external/tags`, `GET /external/tags/{id}`'],
+      ['Tags ändern', '`tags:write`', 'Tags erstellen, ändern und löschen. Schließt `tags:read` ein.'],
+      ['Workspaces lesen', '`workspaces:read`', '`GET /external/workspaces`'],
+      ['Workspaces ändern', '`workspaces:write`', 'Workspaces anlegen, umbenennen, aktivieren und löschen. Schließt `workspaces:read` ein.'],
+      ['Einstellungen lesen', '`settings:read`', '`GET /external/settings`'],
+      ['Einstellungen ändern', '`settings:write`', 'Nicht-sensitive Einstellungen per `PUT` oder `PATCH /external/settings` aktualisieren. Schließt `settings:read` ein.'],
       ['Große Uploads', '`storage:expand`', 'Betrifft das Upload-Limit der App, hat keinen Endpunkt in dieser Dokumentation.'],
+      ['Vollzugriff', '`*`', 'Voller Zugriff auf alle API-Endpunkte. **Ausnahme:** Sicherheitskritische Felder (`pin`, `email`, `vault`, API-Tokens u. Ä.) bleiben auch mit `*` strikt geschützt (`403`).'],
+      ['Workspace-Bereich (Notizen)', '`safe:<name>`', 'Beschränkt Notiz-Zugriffe auf einen bestimmten Workspace/Safe (z. B. `safe:work`).'],
+      ['Ordner-Bereich (Notizen)', '`folder:<uuid>`', 'Beschränkt Notiz-Zugriffe auf einen Ordner inkl. Unterordner (bis 5 Ebenen tief).'],
     ] },
-    { kind: 'note', tone: 'unverified', text: 'Der Server nimmt `*` beim Erstellen eines Tokens an. Ob die Tide-Oberfläche es zur Auswahl anbietet, ist nicht verifiziert (in der Rechte-Auswahl der App fehlt es laut Code).' },
+    { kind: 'note', tone: 'info', text: 'Jeder gültige Token darf ohne gesonderten Scope `GET /external/me` abrufen. Bei allen Ressource-Scopes gilt die Vererbung: `<resource>:write` enthält automatisch `<resource>:read`.' },
+    { kind: 'note', tone: 'warn', text: 'Auch der Wildcard-Scope `*` erlaubt **keinen** Zugriff auf PIN, E-Mail-Adresse, Vault-/Verschlüsselungsschlüssel oder API-Tokens — entsprechende Felder und Aktionen bleiben über die External-API gesperrt.' },
     { kind: 'h3', text: 'Bereichs-Rechte für Notizen: safe und folder' },
     { kind: 'p', text: 'Ein Token kann zusätzlich auf einen Safe (`safe:<name>`, z. B. `safe:work`) oder einen Ordner (`folder:<id>`) beschränkt werden. Die Rechte werden kombiniert, zum Beispiel:' },
     { kind: 'code', lang: 'json', label: 'Rechte eines eingeschränkten Tokens', code: '["notes:read", "notes:write", "safe:work"]' },
@@ -129,19 +147,19 @@ const e2ee: DocSection = {
   id: 'verschluesselung',
   title: 'Verschlüsselung',
   blocks: [
-    { kind: 'p', text: 'Notizen in Tide sind Ende-zu-Ende-verschlüsselt, sofern sie nicht ausdrücklich als unverschlüsselt gespeichert sind. Ein API-Token ist kein Schlüssel und kann nichts entschlüsseln. Daraus ergibt sich, was die API bei Notizen kann.' },
+    { kind: 'p', text: 'Notizen in Tide können Ende-zu-Ende-verschlüsselt (Zero-Knowledge) gespeichert sein. Ein API-Token ist kein Verschlüsselungsschlüssel und kann verschlüsselte Inhalte nicht entschlüsseln. Je nach Ressource und Verschlüsselungsstatus verhält sich die API unterschiedlich:' },
     { kind: 'list', items: [
-      '**Verschlüsselte Notizen:** Die API liefert nur Metadaten (`id`, `title`, `parent_id`, Zeitstempel) und `"encrypted": true`, aber keinen `content`. Den Inhalt zu ändern geht nicht (`400`). Titel und Elternordner lassen sich ändern.',
-      '**Über die API erstellte Notizen:** Sie werden vom Server unverschlüsselt gespeichert und sind für ihn lesbar. Inhalte, die du per API sendest, sind also nicht Ende-zu-Ende-verschlüsselt. Solche Notizen liefern `"encrypted": false` samt `content`.',
-      '**Todos:** Der Server speichert Titel und Beschreibung nach dem Code als normale Felder, die auch die API im Klartext liefert.',
-      '**Termine:** Die API liest sie aus den Metadaten, die der Server lesen kann. Fehlt ein Titel, liefert sie "Untitled Event".',
+      '**E2EE-geschützte Notizen:** Bleiben Zero-Knowledge-verschlüsselt. Die API liefert nur Metadaten (`id`, `title`, `parent_id`, Zeitstempel) und `"encrypted": true`, aber keinen `content`. Den Inhalt zu ändern geht nicht (`400`); Titel, Tags und Elternordner lassen sich anpassen.',
+      '**Über die API erstellte oder unverschlüsselte Notizen:** Sie werden ohne E2EE mit `"encrypted": false` gespeichert, unterstützen vollständiges **Markdown** im `content`-Feld und setzen beim Speichern den **CRDT-Zustand live zurück**, sodass Änderungen sofort in der Web-UI erscheinen.',
+      '**Todos:** Über die Web-UI und die API erstellte Todos werden im Klartext gespeichert und in Echtzeit zwischen API und Web-UI live synchronisiert.',
+      '**Termine:** Über die Web-UI und die API erstellte Termine werden serverlesbar gespeichert und vollständig in Echtzeit zwischen API und Web-UI live synchronisiert.',
     ] },
-    { kind: 'note', tone: 'unverified', text: 'Nicht verifiziert: ob die Tide-App Todo- oder Termin-Inhalte vor dem Hochladen zusätzlich verschlüsselt und die API dann Platzhalter oder Chiffretext liefern könnte. Aus den Quellen dieser Seite ist dazu keine Aussage belegbar.' },
+    { kind: 'note', tone: 'info', text: 'Änderungen an unverschlüsselten Notizen (inkl. CRDT-Live-Reset), Terminen, Todos, Ordnern, Tags, Workspaces und Einstellungen werden per Echtzeit-Event unmittelbar an verbundene Tide-Clients übertragen.' },
   ],
 };
 
 export const API_DOC: ApiDoc = {
   title: 'Tide API',
-  lead: 'Öffentliche Referenz der HTTP-Schnittstelle für Notizen, Todos und Termine. Ohne Login lesbar und so formuliert, dass auch KI-Assistenten damit arbeiten können.',
-  sections: [overview, auth, rights, notesSection, todosSection, eventsSection, errors, limits, e2ee],
+  lead: 'Öffentliche Referenz der HTTP-Schnittstelle für Notizen, Termine, Todos, Ordner, Tags, Workspaces und Einstellungen. Ohne Login lesbar und so formuliert, dass auch KI-Assistenten damit arbeiten können.',
+  sections: [overview, auth, rights, notesSection, eventsSection, todosSection, foldersSection, tagsSection, workspacesSection, settingsSection, errors, limits, e2ee],
 };

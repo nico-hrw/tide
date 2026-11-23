@@ -16,6 +16,7 @@ import {
 } from "@/lib/calendarWeeks";
 import { sanitizeRestoredTabs } from "@/lib/tabStorage";
 import { loadEncryptedOfflineCache } from "@/lib/offlineCacheCrypto";
+import { hydrateSettingsFromServer, hydrateWorkspacesFromServer } from "../../lib/settingsSync";
 import { useDataStore, type DataItem, type DataStoreState, type TaskItem } from "@/store/useDataStore";
 import type {
     DashboardStatus,
@@ -246,6 +247,8 @@ export function useSessionRestore(options: UseSessionRestoreOptions = {}): UseSe
                         console.warn("[OFFLINE-CACHE] Failed to hydrate encrypted offline cache", err);
                     });
                 void fetchDirectory(null);
+                void hydrateSettingsFromServer();
+                void hydrateWorkspacesFromServer();
                 setMyId(userId);
                 optionsRef.current.setMyId?.(userId);
                 setUserEmail(email);

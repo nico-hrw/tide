@@ -2,7 +2,14 @@
  * Rechte (Scopes) fuer Personal-Access-Tokens.
  * Die technischen Namen bleiben unveraendert (Backend/Request), nur die Anzeige wird uebersetzt.
  */
-export type ScopeGroupId = 'events' | 'notes' | 'todos' | 'storage';
+export type ScopeGroupId =
+    | 'events'
+    | 'notes'
+    | 'todos'
+    | 'organization'
+    | 'settings'
+    | 'storage'
+    | 'full';
 
 export interface ScopeDefinition {
     key: string;
@@ -13,7 +20,7 @@ export interface ScopeDefinition {
 
 export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     { key: 'events:read', group: 'events', implemented: true },
-    { key: 'events:write', group: 'events', implemented: false },
+    { key: 'events:write', group: 'events', implemented: true },
     { key: 'notes:read', group: 'notes', implemented: true },
     { key: 'notes:write', group: 'notes', implemented: true },
     { key: 'todos:read', group: 'todos', implemented: true },
@@ -21,10 +28,27 @@ export const SCOPE_DEFINITIONS: readonly ScopeDefinition[] = [
     { key: 'todos:edit', group: 'todos', implemented: true },
     { key: 'todos:delete', group: 'todos', implemented: true },
     { key: 'todos:write', group: 'todos', implemented: true },
+    { key: 'folders:read', group: 'organization', implemented: true },
+    { key: 'folders:write', group: 'organization', implemented: true },
+    { key: 'tags:read', group: 'organization', implemented: true },
+    { key: 'tags:write', group: 'organization', implemented: true },
+    { key: 'workspaces:read', group: 'organization', implemented: true },
+    { key: 'workspaces:write', group: 'organization', implemented: true },
+    { key: 'settings:read', group: 'settings', implemented: true },
+    { key: 'settings:write', group: 'settings', implemented: true },
     { key: 'storage:expand', group: 'storage', implemented: true },
+    { key: '*', group: 'full', implemented: true },
 ];
 
-export const SCOPE_GROUP_ORDER: readonly ScopeGroupId[] = ['events', 'notes', 'todos', 'storage'];
+export const SCOPE_GROUP_ORDER: readonly ScopeGroupId[] = [
+    'events',
+    'notes',
+    'todos',
+    'organization',
+    'settings',
+    'storage',
+    'full',
+];
 
 export const DEFAULT_SCOPES: readonly string[] = ['events:read'];
 

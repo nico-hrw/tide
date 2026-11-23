@@ -12,6 +12,7 @@ import {
     type BackupSlotMeta,
     type BackupSlotName,
 } from "@/lib/noteBackupCascade";
+import { markdownToTipTap } from "../lib/bundleImportExport";
 
 interface ProseMirrorNodeLike {
     type?: string;
@@ -350,6 +351,24 @@ function ensureTipTapContent(rawText: string): string {
     });
 }
 
+export function parseUnencryptedNoteContent(rawText: string): string {
+    const trimmed = rawText.trim();
+    if (!trimmed) {
+        return JSON.stringify(markdownToTipTap(''));
+    }
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+        try {
+            const parsed: unknown = JSON.parse(trimmed);
+            if (parsed && typeof parsed === 'object' && !Array.isArray(parsed) && (parsed as ProseMirrorNodeLike).type === 'doc') {
+                return ensureTipTapContent(trimmed);
+            }
+        } catch {
+            // Fall through to Markdown parsing if invalid JSON
+        }
+    }
+    return JSON.stringify(markdownToTipTap(rawText));
+}
+
 export async function decryptNotePayload(params: {
     target: any;
     fileId: string;
@@ -377,7 +396,7 @@ export async function decryptNotePayload(params: {
     if (isExplicitlyUnencrypted) {
         const resBlob = await fetchDownload();
         const rawText = resBlob.ok ? await resBlob.text() : "";
-        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: parsedTargetMeta?.title || target?.title };
+        return { contentText: parseUnencryptedNoteContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: parsedTargetMeta?.title || target?.title };
     }
 
     if ((target.version ?? 1) >= 2 && target.access_keys) {
@@ -438,7 +457,7 @@ export async function decryptNotePayload(params: {
     if (meta?.unencrypted === true) {
         const resBlob = await fetchDownload();
         const rawText = resBlob.ok ? await resBlob.text() : "";
-        return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: (meta.title || target?.title) as string };
+        return { contentText: parseUnencryptedNoteContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: (meta.title || target?.title) as string };
     }
     if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) throw new Error("Invalid or missing FileKey structure.");
     const importedFileKey = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);

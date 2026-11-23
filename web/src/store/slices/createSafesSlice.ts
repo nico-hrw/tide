@@ -1,5 +1,6 @@
 import type { DataStoreSlice, SafesSlice } from './types';
 import { apiFetch } from '@/lib/api';
+import { syncCreateWorkspace, syncDeleteWorkspace, syncActiveWorkspaces } from '../../lib/settingsSync';
 import { saveNotesToOfflineCache } from './createNotesSlice';
 
 export const DEFAULT_SAFES = ['main', 'Archiv'];
@@ -72,21 +73,23 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             }
         }
         set({ activeSafes: resolved });
+        syncActiveWorkspaces(resolved);
     },
 
     toggleSafe: (safe: string) => {
         const trimmed = safe.trim();
         if (!trimmed) return;
+        const normalized = trimmed === 'Standard' ? 'main' : trimmed;
         const current = get().activeSafes;
         let next: string[];
-        if (current.includes(trimmed)) {
+        if (current.includes(normalized)) {
             if (current.length > 1) {
-                next = current.filter((s) => s !== trimmed);
+                next = current.filter((s) => s !== normalized);
             } else {
                 next = current;
             }
         } else {
-            next = [...current, trimmed];
+            next = [...current, normalized];
         }
         if (typeof window !== 'undefined') {
             try {
@@ -96,14 +99,16 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             }
         }
         set({ activeSafes: next });
+        syncActiveWorkspaces(next);
     },
 
     createSafe: (name: string) => {
         const trimmed = name.trim();
         if (!trimmed) return;
+        const normalized = trimmed === 'Standard' ? 'main' : trimmed;
         const current = get().availableSafes;
-        if (current.includes(trimmed)) return;
-        const next = [...current, trimmed];
+        if (current.includes(normalized)) return;
+        const next = [...current, normalized];
         if (typeof window !== 'undefined') {
             try {
                 localStorage.setItem('tide_safes', JSON.stringify(next));
@@ -112,13 +117,16 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             }
         }
         set({ availableSafes: next });
+        syncCreateWorkspace(normalized);
     },
 
     deleteSafe: (name: string) => {
-        if (name === 'Standard' || name === 'main') return; // Protect default safe
+        const trimmed = name.trim();
+        const normalized = trimmed === 'Standard' ? 'main' : trimmed;
+        if (!normalized || normalized === 'main') return; // Protect default safe
         const state = get();
-        const nextAvailable = state.availableSafes.filter((s) => s !== name);
-        let nextActive = state.activeSafes.filter((s) => s !== name);
+        const nextAvailable = state.availableSafes.filter((s) => s !== normalized);
+        let nextActive = state.activeSafes.filter((s) => s !== normalized);
         if (nextActive.length === 0) {
             nextActive = ['main'];
         }
@@ -133,7 +141,7 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
 
         // Reassign all notes in this safe to 'main'
         const updatedNotes = state.notes.map((n) => {
-            if ((n.safe || n.metadata?.safe) === name) {
+            if ((n.safe || n.metadata?.safe) === normalized) {
                 const nextMeta = { ...(n.metadata || {}), safe: 'main' };
                 return { ...n, safe: 'main', metadata: nextMeta };
             }
@@ -146,6 +154,7 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
             activeSafes: nextActive,
             notes: updatedNotes,
         });
+        syncDeleteWorkspace(normalized);
     },
 
     setNoteSafe: async (noteId: string, safeName: string) => {

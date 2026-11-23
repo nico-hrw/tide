@@ -82,39 +82,30 @@ function purgeLegacyOfflineKey(key: string): void {
     }
 }
 
-export const loadCachedNotes = (): DataItem[] => {
-    purgeLegacyOfflineKey('tide_offline_notes');
-    return [];
-};
-export const saveNotesToOfflineCache = (n: DataItem[]): void => {
+const offlineCacheTimers: Partial<Record<'notes' | 'events' | 'tasks', ReturnType<typeof setTimeout>>> = {};
+const offlineCachePending: Partial<Record<'notes' | 'events' | 'tasks', unknown>> = {};
+
+function scheduleOfflineCacheWrite(key: 'notes' | 'events' | 'tasks', legacyKey: string, data: unknown): void {
     if (typeof window === 'undefined') return;
-    purgeLegacyOfflineKey('tide_offline_notes');
-    void saveEncryptedOfflineCache('notes', n).catch((err) => {
-        console.warn('Failed to save notes to offline cache', err);
-    });
-};
-export const loadCachedEvents = (): DataItem[] => {
-    purgeLegacyOfflineKey('tide_offline_events');
-    return [];
-};
-export const saveEventsToOfflineCache = (e: DataItem[]): void => {
-    if (typeof window === 'undefined') return;
-    purgeLegacyOfflineKey('tide_offline_events');
-    void saveEncryptedOfflineCache('events', e).catch((err) => {
-        console.warn('Failed to save events to offline cache', err);
-    });
-};
-export const loadCachedTasks = (): TaskItem[] => {
-    purgeLegacyOfflineKey('tide_offline_tasks');
-    return [];
-};
-export const saveTasksToOfflineCache = (t: TaskItem[]): void => {
-    if (typeof window === 'undefined') return;
-    purgeLegacyOfflineKey('tide_offline_tasks');
-    void saveEncryptedOfflineCache('tasks', t).catch((err) => {
-        console.warn('Failed to save tasks to offline cache', err);
-    });
-};
+    purgeLegacyOfflineKey(legacyKey);
+    offlineCachePending[key] = data;
+    if (offlineCacheTimers[key]) clearTimeout(offlineCacheTimers[key]);
+    offlineCacheTimers[key] = setTimeout(() => {
+        delete offlineCacheTimers[key];
+        const latest = offlineCachePending[key];
+        delete offlineCachePending[key];
+        void saveEncryptedOfflineCache(key, latest).catch((err) => {
+            console.warn(`Failed to save ${key} to offline cache`, err);
+        });
+    }, 500);
+}
+
+export const loadCachedNotes = (): DataItem[] => (purgeLegacyOfflineKey('tide_offline_notes'), []);
+export const saveNotesToOfflineCache = (n: DataItem[]): void => scheduleOfflineCacheWrite('notes', 'tide_offline_notes', n);
+export const loadCachedEvents = (): DataItem[] => (purgeLegacyOfflineKey('tide_offline_events'), []);
+export const saveEventsToOfflineCache = (e: DataItem[]): void => scheduleOfflineCacheWrite('events', 'tide_offline_events', e);
+export const loadCachedTasks = (): TaskItem[] => (purgeLegacyOfflineKey('tide_offline_tasks'), []);
+export const saveTasksToOfflineCache = (t: TaskItem[]): void => scheduleOfflineCacheWrite('tasks', 'tide_offline_tasks', t);
 export const loadOpenFoldersFromCache = (): Set<string> => new Set(loadFromStorage<string>('tide_open_folders'));
 export const saveOpenFoldersToCache = (ids: Set<string>): void => saveToStorage('tide_open_folders', Array.from(ids));
 
@@ -133,40 +124,39 @@ export async function decryptTasks(
     privateKey: CryptoKey
 ): Promise<TaskItem[]> {
     const cryptoLib = await import('@/lib/crypto');
-    const loadedTasks: TaskItem[] = [];
-
-    for (const t of tasksList) {
-        if (!t.encrypted_vault) continue;
-        try {
-            const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, privateKey, `task-${t.id}`);
-            if (!meta.isLocked) {
-                loadedTasks.push({
-                    id: t.id,
-                    ...meta,
-                    status: (meta.status as TaskItem['status']) || (meta.isCompleted ? 'completed' : 'todo'),
-                    recurrence: meta.recurrence as TaskItem['recurrence'],
-                    recurrence_rule: meta.recurrence_rule as string | undefined,
-                    recurrence_end: meta.recurrence_end as string | undefined,
-                    completed_dates: meta.completed_dates as string[] | undefined,
-                    folder: meta.folder as string | undefined,
-                    tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
-                    showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
-                    createdAt: meta.createdAt as string | undefined,
-                    completedAt: meta.completedAt as string | undefined,
-                    updatedAt: meta.updatedAt as string | undefined,
-                    isArchived: meta.isArchived as boolean | undefined,
-                    parentId: (meta.parentId as string | null) ?? null,
-                    order: (meta.order as number) ?? 0,
-                    synced: true,
-                } as unknown as TaskItem);
-            } else {
-                loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem);
+    const results = await Promise.all(
+        tasksList.map(async (t): Promise<TaskItem | null> => {
+            if (!t.encrypted_vault) return null;
+            try {
+                const meta = await cryptoLib.decryptMetadata(t.encrypted_vault, privateKey, `task-${t.id}`);
+                if (!meta.isLocked) {
+                    return {
+                        id: t.id,
+                        ...meta,
+                        status: (meta.status as TaskItem['status']) || (meta.isCompleted ? 'completed' : 'todo'),
+                        recurrence: meta.recurrence as TaskItem['recurrence'],
+                        recurrence_rule: meta.recurrence_rule as string | undefined,
+                        recurrence_end: meta.recurrence_end as string | undefined,
+                        completed_dates: meta.completed_dates as string[] | undefined,
+                        folder: meta.folder as string | undefined,
+                        tags: Array.isArray(meta.tags) ? (meta.tags as string[]) : [],
+                        showInCalendar: meta.showInCalendar !== undefined ? (meta.showInCalendar as boolean) : true,
+                        createdAt: meta.createdAt as string | undefined,
+                        completedAt: meta.completedAt as string | undefined,
+                        updatedAt: meta.updatedAt as string | undefined,
+                        isArchived: meta.isArchived as boolean | undefined,
+                        parentId: (meta.parentId as string | null) ?? null,
+                        order: (meta.order as number) ?? 0,
+                        synced: true,
+                    } as unknown as TaskItem;
+                }
+                return { id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem;
+            } catch {
+                return { id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem;
             }
-        } catch {
-            loadedTasks.push({ id: t.id, title: 'Locked Task (Decrypting...)', isCompleted: false, status: 'todo', isLocked: true, synced: true } as unknown as TaskItem);
-        }
-    }
-    return loadedTasks;
+        })
+    );
+    return results.filter((item): item is TaskItem => item !== null);
 }
 
 export function reconcileTasksWithLocal(

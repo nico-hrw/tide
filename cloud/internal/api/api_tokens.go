@@ -21,16 +21,24 @@ const ScopeStorageExpand = "storage:expand"
 
 // SupportedScopes defines the valid scopes an API token can have
 var SupportedScopes = map[string]string{
-	"events:read":    "Termine abfragen (Leserechte)",
-	"events:write":   "Termine erstellen & bearbeiten (Schreibrechte)",
-	"notes:read":     "Notizen abfragen (Leserechte)",
-	"notes:write":    "Notizen erstellen & bearbeiten (Schreibrechte)",
-	"storage:expand": "Upload-Speicher Erweiterung (>250MB)",
-	"todos:read":     "Aufgaben abfragen & filtern (Leserechte)",
-	"todos:write":    "Aufgaben verwalten (Erstellen, Bearbeiten, Löschen)",
-	"todos:create":   "Aufgaben erstellen",
-	"todos:edit":     "Aufgaben bearbeiten & Status ändern",
-	"todos:delete":   "Aufgaben löschen",
+	"events:read":      "Termine abfragen (Leserechte)",
+	"events:write":     "Termine erstellen, bearbeiten & löschen (Schreibrechte)",
+	"notes:read":       "Notizen abfragen (Leserechte)",
+	"notes:write":      "Notizen erstellen, bearbeiten & löschen (Schreibrechte)",
+	ScopeStorageExpand: "Upload-Speicher Erweiterung (>250MB)",
+	"todos:read":       "Aufgaben abfragen & filtern (Leserechte)",
+	"todos:write":      "Aufgaben verwalten (Erstellen, Bearbeiten, Löschen)",
+	"todos:create":     "Aufgaben erstellen",
+	"todos:edit":       "Aufgaben bearbeiten & Status ändern",
+	"todos:delete":     "Aufgaben löschen",
+	"folders:read":     "Ordner abfragen (Leserechte)",
+	"folders:write":    "Ordner erstellen, bearbeiten & löschen (Schreibrechte)",
+	"tags:read":        "Tags abfragen (Leserechte)",
+	"tags:write":       "Tags erstellen, bearbeiten & löschen (Schreibrechte)",
+	"workspaces:read":  "Workspaces abfragen (Leserechte)",
+	"workspaces:write": "Workspaces erstellen, bearbeiten & löschen (Schreibrechte)",
+	"settings:read":    "Einstellungen abfragen (Leserechte)",
+	"settings:write":   "Einstellungen ändern (Schreibrechte)",
 }
 
 type APITokenHandler struct {
@@ -75,7 +83,7 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 
 	scopes := []ScopeItem{
 		{Key: "events:read", Description: SupportedScopes["events:read"], Implemented: true},
-		{Key: "events:write", Description: SupportedScopes["events:write"], Implemented: false},
+		{Key: "events:write", Description: SupportedScopes["events:write"], Implemented: true},
 		{Key: "notes:read", Description: SupportedScopes["notes:read"], Implemented: true},
 		{Key: "notes:write", Description: SupportedScopes["notes:write"], Implemented: true},
 		{Key: "todos:read", Description: SupportedScopes["todos:read"], Implemented: true},
@@ -83,6 +91,16 @@ func (h *APITokenHandler) ListScopes(w http.ResponseWriter, r *http.Request) {
 		{Key: "todos:create", Description: SupportedScopes["todos:create"], Implemented: true},
 		{Key: "todos:edit", Description: SupportedScopes["todos:edit"], Implemented: true},
 		{Key: "todos:delete", Description: SupportedScopes["todos:delete"], Implemented: true},
+		{Key: "folders:read", Description: SupportedScopes["folders:read"], Implemented: true},
+		{Key: "folders:write", Description: SupportedScopes["folders:write"], Implemented: true},
+		{Key: "tags:read", Description: SupportedScopes["tags:read"], Implemented: true},
+		{Key: "tags:write", Description: SupportedScopes["tags:write"], Implemented: true},
+		{Key: "workspaces:read", Description: SupportedScopes["workspaces:read"], Implemented: true},
+		{Key: "workspaces:write", Description: SupportedScopes["workspaces:write"], Implemented: true},
+		{Key: "settings:read", Description: SupportedScopes["settings:read"], Implemented: true},
+		{Key: "settings:write", Description: SupportedScopes["settings:write"], Implemented: true},
+		{Key: ScopeStorageExpand, Description: SupportedScopes[ScopeStorageExpand], Implemented: true},
+		{Key: "*", Description: "Vollzugriff auf die gesamte API (ausgenommen sensible Kontodaten wie PIN, E-Mail, Vault und API-Tokens)", Implemented: true},
 	}
 
 	w.Header().Set("Content-Type", "application/json")
@@ -143,12 +161,17 @@ func (h *APITokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 				http.Error(w, "Invalid folder scope ID", http.StatusBadRequest)
 				return
 			}
-			if _, err := h.Store.GetAccessibleFile(r.Context(), folderID, userID); err != nil {
+			file, err := h.Store.GetAccessibleFile(r.Context(), folderID, userID)
+			if err != nil {
 				if errors.Is(err, store.ErrNotFound) {
 					http.Error(w, "Forbidden: no access to scoped folder", http.StatusForbidden)
 					return
 				}
 				http.Error(w, "Failed to verify folder access", http.StatusInternalServerError)
+				return
+			}
+			if file == nil || file.Type != db.FileTypeFolder || hasIsGroupFlag(file.PublicMeta) || hasIsGroupFlag(file.Metadata) {
+				http.Error(w, "Invalid folder scope: target is not a folder", http.StatusBadRequest)
 				return
 			}
 			validScopes = append(validScopes, sc)
@@ -271,5 +294,24 @@ func ValidateStorageExpandToken(ctx context.Context, store *store.SQLiteStore, r
 		}
 	}
 	return false
+}
+
+// hasIsGroupFlag reports whether a JSON metadata payload marks the entry as a tag/group (isGroup: true or 1).
+func hasIsGroupFlag(raw json.RawMessage) bool {
+	if len(raw) == 0 {
+		return false
+	}
+	var m map[string]interface{}
+	if err := json.Unmarshal(raw, &m); err != nil || m == nil {
+		return false
+	}
+	switch v := m["isGroup"].(type) {
+	case bool:
+		return v
+	case float64:
+		return v == 1
+	default:
+		return false
+	}
 }
 

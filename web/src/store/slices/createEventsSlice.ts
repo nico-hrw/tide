@@ -1,6 +1,7 @@
 import { apiFetch } from '@/lib/api';
-import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 import type { WeekStart } from '@/lib/calendarWeeks';
+import { pushSettingsPatch } from '../../lib/settingsSync';
+import { loadCachedEvents, saveEventsToOfflineCache } from './fsHelpers';
 import type {
     CalendarColorPalette,
     CalendarHolidayPackage,
@@ -13,28 +14,7 @@ import type {
     EventsSlice,
 } from './types';
 
-export function loadCachedEvents(): DataItem[] {
-    if (typeof window !== 'undefined') {
-        try {
-            localStorage.removeItem('tide_offline_events');
-        } catch {
-            // Ignore storage errors
-        }
-    }
-    return [];
-}
-
-export function saveEventsToOfflineCache(events: DataItem[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.removeItem('tide_offline_events');
-    } catch {
-        // Ignore storage errors
-    }
-    void saveEncryptedOfflineCache('events', events).catch((e) => {
-        console.warn('Failed to save events to offline cache', e);
-    });
-}
+export { loadCachedEvents, saveEventsToOfflineCache };
 
 function loadCalendarScrollMode(): CalendarScrollMode {
     if (typeof window === 'undefined') return 'infinite';
@@ -135,21 +115,25 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
         set({ eventMentionPreview: preview });
     },
 
-    setCalendarColorPalette: (palette: CalendarColorPalette) =>
+    setCalendarColorPalette: (palette: CalendarColorPalette) => {
         set(() => {
             if (typeof window !== 'undefined') {
                 localStorage.setItem('tide_calendar_color_palette', palette);
             }
             return { calendarColorPalette: palette };
-        }),
+        });
+        pushSettingsPatch({ calendar: { color_palette: palette } });
+    },
 
-    setCalendarOverlapMode: (mode: CalendarOverlapMode) =>
+    setCalendarOverlapMode: (mode: CalendarOverlapMode) => {
         set(() => {
             if (typeof window !== 'undefined') {
                 localStorage.setItem('tide_calendar_overlap_mode', mode);
             }
             return { calendarOverlapMode: mode };
-        }),
+        });
+        pushSettingsPatch({ calendar: { overlap_mode: mode } });
+    },
 
     setCalendarScrollMode: (mode: CalendarScrollMode) => {
         try {
@@ -158,6 +142,7 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             console.warn('Failed to persist calendar scroll mode', e);
         }
         set({ calendarScrollMode: mode });
+        pushSettingsPatch({ calendar: { scroll_mode: mode } });
     },
 
     setWeekStartsOn: (w: WeekStart) => {
@@ -167,13 +152,14 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             console.warn('Failed to persist week start', e);
         }
         set({ weekStartsOn: w });
+        pushSettingsPatch({ calendar: { week_starts_on: w } });
     },
 
     setVisibleCalendarRange: (
         range: { start: string; end: string } | null
     ) => set({ visibleCalendarRange: range }),
 
-    setCalendarHolidaysEnabled: (enabled: boolean) =>
+    setCalendarHolidaysEnabled: (enabled: boolean) => {
         set(() => {
             if (typeof window !== 'undefined') {
                 localStorage.setItem(
@@ -182,15 +168,19 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
                 );
             }
             return { calendarHolidaysEnabled: enabled };
-        }),
+        });
+        pushSettingsPatch({ calendar: { holidays_enabled: enabled } });
+    },
 
-    setCalendarHolidayPackage: (pkg: CalendarHolidayPackage) =>
+    setCalendarHolidayPackage: (pkg: CalendarHolidayPackage) => {
         set(() => {
             if (typeof window !== 'undefined') {
                 localStorage.setItem('tide_calendar_holiday_package', pkg);
             }
             return { calendarHolidayPackage: pkg };
-        }),
+        });
+        pushSettingsPatch({ calendar: { holiday_package: pkg } });
+    },
 
     groupOverlappingEvents: async (parentId: string) => {
         const state = get();

@@ -1,4 +1,5 @@
 import { applyPalette, getStoredPalette, isPalette, PALETTE_STORAGE_KEY } from '@/lib/palette';
+import { pushSettingsPatch } from '../../lib/settingsSync';
 import type {
     AppLanguage,
     AppPalette,
@@ -168,12 +169,14 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     setHeadingNumbering: (on: boolean) =>
         set(() => {
             if (typeof window !== 'undefined') localStorage.setItem('tide_heading_numbering', String(on));
+            pushSettingsPatch({ notes: { heading_numbering: on } });
             return { headingNumbering: on };
         }),
     a4SideBorders: getInitialA4SideBorders(),
     setA4SideBorders: (on: boolean) =>
         set(() => {
             if (typeof window !== 'undefined') localStorage.setItem('tide_a4_side_borders', String(on));
+            pushSettingsPatch({ notes: { a4_side_borders: on } });
             return { a4SideBorders: on };
         }),
 
@@ -231,6 +234,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                 resolvedTheme = pref;
             }
             applyThemeClass(resolvedTheme);
+            pushSettingsPatch({ appearance: { theme: pref } });
             return { themePreference: pref, theme: resolvedTheme };
         }),
 
@@ -243,6 +247,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                 console.warn('Failed to save palette to localStorage', e);
             }
             applyPalette(palette);
+            pushSettingsPatch({ appearance: { app_palette: palette } });
             return { appPalette: palette };
         }),
 
@@ -255,6 +260,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                     console.warn('Failed to save language to localStorage', e);
                 }
             }
+            pushSettingsPatch({ appearance: { language: lang } });
             return { language: lang };
         }),
 
@@ -267,6 +273,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                     console.warn('Failed to save navigation mode to localStorage', e);
                 }
             }
+            pushSettingsPatch({ appearance: { navigation_mode: mode } });
             return { navigationMode: mode };
         }),
 
@@ -279,6 +286,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                     console.warn('Failed to save paper pattern to localStorage', e);
                 }
             }
+            pushSettingsPatch({ notes: { paper_pattern: pattern } });
             return { paperPattern: pattern };
         }),
 
@@ -291,6 +299,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
                     console.warn('Failed to save show page breaks to localStorage', e);
                 }
             }
+            pushSettingsPatch({ notes: { show_page_breaks: show } });
             return { showPageBreaks: show };
         }),
 });

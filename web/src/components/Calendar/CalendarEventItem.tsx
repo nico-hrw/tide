@@ -320,12 +320,14 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const startMs = start.getTime();
     const endMs = end.getTime();
 
-    const hasOverlappingChildren = timedEvents.some(other => {
-        if (other.id === event.id || (other as any).parent_id === event.id) return false;
-        const otherStartMs = new Date(other.start).getTime();
-        const otherEndMs = new Date(other.end).getTime();
-        return otherStartMs >= startMs && otherEndMs <= endMs;
-    });
+    const hasOverlappingChildren = useMemo(() => {
+        return timedEvents.some(other => {
+            if (other.id === event.id || (other as any).parent_id === event.id) return false;
+            const otherStartMs = new Date(other.start).getTime();
+            const otherEndMs = new Date(other.end).getTime();
+            return otherStartMs >= startMs && otherEndMs <= endMs;
+        });
+    }, [timedEvents, event.id, startMs, endMs]);
 
     const isDragging = draggingId === event.id;
     const isResizing = resizingId === event.id;
@@ -448,25 +450,29 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         }
     }
 
-    const isAdjacentTop = timedEvents.some(other => {
-        if (other.id === event.id) return false;
-        const otherEndMs = new Date(other.end).getTime();
-        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
-        const timeDiff = Math.abs(otherEndMs - startMs);
-        const leftDiff = Math.abs(otherPos.left - pos.left);
-        const widthDiff = Math.abs(otherPos.width - pos.width);
-        return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
-    });
+    const isAdjacentTop = useMemo(() => {
+        return timedEvents.some(other => {
+            if (other.id === event.id) return false;
+            const otherEndMs = new Date(other.end).getTime();
+            const otherPos = layout.get(other.id) || { left: 0, width: 100 };
+            const timeDiff = Math.abs(otherEndMs - startMs);
+            const leftDiff = Math.abs(otherPos.left - pos.left);
+            const widthDiff = Math.abs(otherPos.width - pos.width);
+            return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
+        });
+    }, [timedEvents, event.id, startMs, layout, pos.left, pos.width]);
 
-    const isAdjacentBottom = timedEvents.some(other => {
-        if (other.id === event.id) return false;
-        const otherStartMs = new Date(other.start).getTime();
-        const otherPos = layout.get(other.id) || { left: 0, width: 100 };
-        const timeDiff = Math.abs(otherStartMs - endMs);
-        const leftDiff = Math.abs(otherPos.left - pos.left);
-        const widthDiff = Math.abs(otherPos.width - pos.width);
-        return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
-    });
+    const isAdjacentBottom = useMemo(() => {
+        return timedEvents.some(other => {
+            if (other.id === event.id) return false;
+            const otherStartMs = new Date(other.start).getTime();
+            const otherPos = layout.get(other.id) || { left: 0, width: 100 };
+            const timeDiff = Math.abs(otherStartMs - endMs);
+            const leftDiff = Math.abs(otherPos.left - pos.left);
+            const widthDiff = Math.abs(otherPos.width - pos.width);
+            return timeDiff < 61000 && leftDiff < 3 && widthDiff < 3;
+        });
+    }, [timedEvents, event.id, endMs, layout, pos.left, pos.width]);
 
     // Base Radius
     const R = '8px'; // Normal radius

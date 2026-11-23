@@ -1,6 +1,6 @@
 # Tide Externe API & Token-Verwaltung
 
-Diese Dokumentation beschreibt die Nutzung des **Tide API-Moduls** zur Abfrage und Integration von Terminen und Notizen durch externe Dienste, Skripte und Drittanbieter-Anwendungen (z. B. Home Assistant, Kalender-Widgets, Backup-Tools oder eigene Skripte).
+Diese Dokumentation beschreibt die Nutzung des **Tide API-Moduls** zur Abfrage und Verwaltung von Terminen, Notizen, Aufgaben, Ordnern, Tags, Workspaces, Einstellungen und Umfragen durch externe Dienste, Skripte und Drittanbieter-Anwendungen (z. B. Home Assistant, MCP-Clients, Backup-Tools oder eigene Skripte).
 
 ---
 
@@ -10,14 +10,17 @@ Diese Dokumentation beschreibt die Nutzung des **Tide API-Moduls** zur Abfrage u
 3. [Rechte & Scopes](#3-rechte--scopes)
 4. [Authentifizierung bei API-Anfragen](#4-authentifizierung-bei-api-anfragen)
 5. [Endpunkte-Referenz](#5-endpunkte-referenz)
-   - [Termine abfragen (`GET /api/v1/external/events`)](#get-apiv1externalevents)
-   - [Einzelnen Termin abrufen (`GET /api/v1/external/events/{id}`)](#get-apiv1externaleventsid)
-   - [Notizen abfragen (`GET /api/v1/external/notes`)](#get-apiv1externalnotes)
+   - [Token-Info (`GET /api/v1/external/me`)](#get-apiv1externalme)
+   - [Termine (`/api/v1/external/events`)](#termine-apiv1externalevents)
+   - [Notizen (`/api/v1/external/notes`)](#notizen-apiv1externalnotes)
+   - [Aufgaben / Todos (`/api/v1/external/todos`)](#aufgaben--todos-apiv1externaltodos)
+   - [Ordner (`/api/v1/external/folders`)](#ordner-apiv1externalfolders)
+   - [Tags (`/api/v1/external/tags`)](#tags-apiv1externaltags)
+   - [Workspaces (`/api/v1/external/workspaces`)](#workspaces-apiv1externalworkspaces)
+   - [Einstellungen (`/api/v1/external/settings`)](#einstellungen-apiv1externalsettings)
+   - [Umfragen (`/api/v1/external/surveys`)](#umfragen-apiv1externalsurveys)
+   - [Web-UI-Sync-Endpunkte](#web-ui-sync-endpunkte)
 6. [Code-Beispiele](#6-code-beispiele)
-   - [cURL](#curl)
-   - [Python](#python)
-   - [JavaScript / TypeScript / Node.js](#javascript--typescript--nodejs)
-   - [Home Assistant (REST Sensor)](#home-assistant-rest-sensor)
 7. [Fehlerbehandlung & Status-Codes](#7-fehlerbehandlung--status-codes)
 8. [Sicherheitsarchitektur](#8-sicherheitsarchitektur)
 
@@ -25,12 +28,12 @@ Diese Dokumentation beschreibt die Nutzung des **Tide API-Moduls** zur Abfrage u
 
 ## 1. Übersicht & Konzept
 
-Das API-Modul ermöglicht es externen Anwendungen, über sichere **Personal Access Tokens (PAT)** auf Benutzerdaten zuzugreifen, ohne Passwörter oder Anmelde-Codes weitergeben zu müssen.
+Das API-Modul ermöglicht es externen Anwendungen, über **Personal Access Tokens (PAT)** sicher auf Benutzerdaten zuzugreifen, ohne Passwörter oder Anmelde-Codes weitergeben zu müssen.
 
 - **Token-Präfix**: Jeder Token beginnt mit `tide_pat_` gefolgt von einem kryptografisch sicheren Zufallswert.
 - **Sicherheitsmodell**: Plaintext-Tokens werden niemals auf dem Server gespeichert; die Datenbank speichert ausschließlich einen unidirektionalen **SHA-256-Hash**.
-- **Scope-basiertes Rechtesystem**: Bei der Erstellung wird festgelegt, auf welche Module der Token zugreifen darf.
-- **Aktueller Funktionsumfang**: Die Abfrage von Kalenderterminen (`events:read`) ist vollständig implementiert. Weitere Scopes (`events:write`, `notes:read`, `notes:write`) sind bereits im Modell und der Benutzeroberfläche konfigurierbar und für kommende Versionen vorbereitet.
+- **Granulares Scope-System**: Bei der Erstellung wird exakt festgelegt, auf welche Module, Aktionen, Workspaces (`safe:<name>`) oder Ordner (`folder:<uuid>`) ein Token zugreifen darf.
+- **Echtzeit-Synchronisation**: Schreibende API-Aufrufe (z. B. für Notizen, Todos, Ordner, Tags, Workspaces und Einstellungen) synchronisieren sich direkt über den Server-Broker (SSE) mit der Web-UI.
 
 ---
 
@@ -39,49 +42,47 @@ Das API-Modul ermöglicht es externen Anwendungen, über sichere **Personal Acce
 1. Öffne Tide und klicke auf das **Einstellungen**-Symbol (Zahnrad).
 2. Wechsle in den Tab **Zugriff** (bzw. **Access**).
 3. Klicke auf **Neuen Token erstellen**.
-4. Gib einen aussagekräftigen Namen ein (z. B. `Home Assistant Wohnzimmer`, `Kalender-Sync Skript`).
-5. Wähle die gewünschten **Berechtigungen (Scopes)** aus:
-   - Mindestens `events:read` (Termine abfragen) auswählen.
-6. Lege die **Gültigkeitsdauer** fest:
-   - `30 Tage`, `60 Tage`, `90 Tage`, `1 Jahr` oder `Kein Ablauf (Nie)`.
-7. Klicke auf **Token erstellen**.
-8. **Wichtig:** Kopiere den angezeigten Token sofort mit dem Kopieren-Button. Aus Sicherheitsgründen wird er dir danach nie wieder im Klartext angezeigt.
+4. Gib einen aussagekräftigen Namen ein (z. B. `Home Assistant Wohnzimmer`, `Notizen-Sync`).
+5. Wähle die gewünschten **Berechtigungen (Scopes)** aus (einzeln, als `*` oder eingeschränkt via `safe:<name>` / `folder:<uuid>`).
+6. Lege die **Gültigkeitsdauer** fest (`30 Tage`, `60 Tage`, `90 Tage`, `1 Jahr` oder `Kein Ablauf (Nie)`).
+7. Klicke auf **Token erstellen** und kopiere den angezeigten Token sofort – er wird danach nie wieder im Klartext angezeigt.
 
 ---
 
 ## 3. Rechte & Scopes
 
-Bei der Token-Erstellung stehen folgende Scopes zur Verfügung:
+### Verfügbare Scopes
 
-| Scope | Modul | Status | Beschreibung |
-|-------|-------|--------|--------------|
-| `events:read` | Kalender | **Aktiv** | Erlaubt das Abfragen und Filtern von Kalenderterminen. |
-| `events:write` | Kalender | *Vorbereitet* | Erlaubt das Erstellen, Ändern und Löschen von Terminen. |
-| `notes:read` | Notizen | *Vorbereitet* | Erlaubt das Auslesen von Notizen über die API. |
-| `notes:write` | Notizen | *Vorbereitet* | Erlaubt das Erstellen und Bearbeiten von Notizen. |
+| Scope | Modul / Zweck | Beschreibung |
+|-------|---------------|--------------|
+| `events:read`, `events:write` | Kalender | Termine abfragen (`read`) bzw. erstellen, bearbeiten & löschen (`write`). |
+| `notes:read`, `notes:write` | Notizen | Notizen abfragen (`read`) bzw. erstellen, bearbeiten & löschen (`write`). |
+| `todos:read`, `todos:write`, `todos:create`, `todos:edit`, `todos:delete` | Aufgaben | Todos abfragen (`read`), erstellen (`create`), bearbeiten (`edit`), löschen (`delete`) oder voll verwalten (`write`). |
+| `folders:read`, `folders:write` | Ordner | Ordner abfragen (`read`) bzw. erstellen, bearbeiten & löschen (`write`). |
+| `tags:read`, `tags:write` | Tags | Tags abfragen (`read`) bzw. erstellen, bearbeiten & löschen (`write`). |
+| `workspaces:read`, `workspaces:write` | Workspaces | Workspaces abfragen (`read`) bzw. erstellen, umbenennen, aktivieren & löschen (`write`). |
+| `settings:read`, `settings:write` | Einstellungen | Benutzereinstellungen abfragen (`read`) bzw. ändern (`write`). Sensible Kontodaten bleiben blockiert. |
+| `surveys:read`, `surveys:write`, `surveys:create`, `surveys:delete` | Umfragen | Umfrage-Antworten abfragen (`read`), erstellen (`create`), löschen (`delete`) oder voll verwalten (`write`). |
+| `storage:expand` | Speicher | Upload-Speicher-Erweiterung (>250 MB). |
+| `*` | Vollzugriff | Vollzugriff auf alle API-Endpunkte (ausgenommen blockierte Kontodaten wie PIN, E-Mail, Vault, Keys & Tokens). |
+| `safe:<name>` | Workspace-Filter | Beschränkt den Zugriff auf den angegebenen Workspace/Safe (z. B. `safe:main` oder `safe:Arbeit`). |
+| `folder:<uuid>` | Ordner-Filter | Beschränkt den Zugriff auf den angegebenen Ordner und dessen Unterelemente. |
 
-Wird ein Endpunkt mit einem Token aufgerufen, dem der entsprechende Scope fehlt, antwortet der Server mit `403 Forbidden`.
+### Scope-Regeln & Vererbung
+- **Implizite Leserechte**: Jeder `<resource>:write`-Scope impliziert automatisch `<resource>:read` (niemals umgekehrt).
+- **Sub-Scopes**: `todos:write` impliziert `todos:create`, `todos:edit` und `todos:delete`. `surveys:write` impliziert `surveys:create` und `surveys:delete`.
+- **Filter-Scopes (`safe:<name>`, `folder:<uuid>`)**: Diese Scopes grenzen den sichtbaren Bestand ein und erfüllen bei Leseprüfungen auf `notes:read`, `folders:read` und `workspaces:read` auch die Lese-Anforderung, gewähren aber **niemals** Schreibrechte (`*:write` muss bei Bedarf zusätzlich vergeben werden).
+- Fehlende Berechtigungen beantwortet der Server mit `403 Forbidden`.
 
 ---
 
 ## 4. Authentifizierung bei API-Anfragen
 
-Jede Anfrage an die externe API muss den Token über einen der folgenden Header übermitteln:
+Jede Anfrage an `/api/v1/external/*` muss den PAT über eine der folgenden Methoden übermitteln:
 
-### Methode 1: HTTP Authorization Header (Empfohlen)
-```http
-Authorization: Bearer tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-### Methode 2: X-API-Key Header
-```http
-X-API-Key: tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
-
-### Methode 3: URL-Query-Parameter (z. B. für Webhooks oder einfache GET-Links)
-```http
-https://hrw.rocks/api/v1/external/events?api_token=tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-```
+1. **`Authorization`-Header (Empfohlen):** `Authorization: Bearer tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+2. **`X-API-Key`-Header:** `X-API-Key: tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
+3. **Query-Parameter:** `?api_token=tide_pat_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx`
 
 ---
 
@@ -91,32 +92,32 @@ Basis-URL: `https://<deine-tide-domain>/api/v1/external` (lokal z. B. `http://lo
 
 ---
 
-### `GET /api/v1/external/events`
+### `GET /api/v1/external/me`
 
-Gibt eine Liste aller Termine des Nutzers zurück, sortiert nach Startzeitpunkt aufsteigend.
+Gibt Metadaten zum authentifizierten Token und zugehörigen Benutzer zurück (`user_id`, `username`, `token_id`, `scopes`, `name`, `token_prefix`, `expires_at`, `created_at`).
+- **Berechtigung**: Jeder gültige PAT (kein spezifischer Ressource-Scope erforderlich).
 
-#### Berechtigung
-- Erfordert Scope: `events:read`
+---
 
-#### URL-Query-Parameter
+### Termine (`/api/v1/external/events`)
 
-| Parameter | Typ | Beschreibung | Beispiel |
-|-----------|-----|--------------|----------|
-| `start` / `from` | String (ISO 8601) | Filtert Termine, die an oder nach diesem Datum enden. | `2026-10-01` oder `2026-10-01T00:00:00Z` |
-| `end` / `to` | String (ISO 8601) | Filtert Termine, die vor oder an diesem Datum beginnen. | `2026-10-31` oder `2026-10-31T23:59:59Z` |
-| `q` / `search` | String | Volltext-Suche in Titel, Beschreibung und Ort (Groß-/Kleinschreibung egal). | `Zahnarzt` oder `Meeting` |
-| `limit` | Integer | Maximale Anzahl zurückgegebener Termine (Default: `100`, Maximum: `500`). | `25` |
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/events` | `events:read` | Termine auflisten. Filter: `start`/`from`, `end`/`to` (ISO 8601), `q`/`search`, `group_id`/`tag_id`, `parent_id`, `limit` (Default `100`, Max `500`). |
+| `GET` | `/events/{id}` | `events:read` | Einzelnen Termin abrufen. |
+| `POST` | `/events` | `events:write` | Neuen Termin erstellen (`title`, `start`, `end`, `all_day`, `color`, `description`, `location`, `parent_id`, `group_ids`, `tag_ids`, `recurrence_rule`, `recurrence_end`, `exdates`, `completed_dates`, `is_task`, `is_completed`, `is_cancelled`, `is_important`, `effect`). |
+| `PUT` / `PATCH` | `/events/{id}` | `events:write` | Bestehenden Termin partiell oder vollständig aktualisieren. |
+| `DELETE` | `/events/{id}` | `events:write` | Termin löschen. |
 
-#### Beispiel-Anfrage
+#### Beispiel-Anfrage & -Antwort (`GET /api/v1/external/events`)
 ```bash
 curl -H "Authorization: Bearer tide_pat_your_token_here" \
   "https://hrw.rocks/api/v1/external/events?start=2026-10-13&end=2026-10-20&limit=10"
 ```
 
-#### Beispiel-Antwort (`200 OK`)
 ```json
 {
-  "count": 2,
+  "count": 1,
   "events": [
     {
       "id": "e4b3c9a0-1234-4567-89ab-cdef01234567",
@@ -131,20 +132,6 @@ curl -H "Authorization: Bearer tide_pat_your_token_here" \
       "source": "tide",
       "created_at": "2026-10-10T14:22:01Z",
       "updated_at": "2026-10-12T08:15:30Z"
-    },
-    {
-      "id": "f5a2b1c8-9876-4321-ba98-fedcba987654",
-      "title": "Zahnarzttermin",
-      "start": "2026-10-15T14:00:00.000Z",
-      "end": "2026-10-15T15:00:00.000Z",
-      "all_day": false,
-      "color": "#ef4444",
-      "description": "Kontrolle & Prophylaxe",
-      "location": "Dr. Muster, Hauptstraße 12",
-      "parent_id": null,
-      "source": "tide",
-      "created_at": "2026-10-01T10:00:00Z",
-      "updated_at": "2026-10-01T10:00:00Z"
     }
   ]
 }
@@ -152,172 +139,151 @@ curl -H "Authorization: Bearer tide_pat_your_token_here" \
 
 ---
 
-### `GET /api/v1/external/events/{id}`
+### Notizen (`/api/v1/external/notes`)
 
-Gibt die Detailinformationen zu einem einzelnen Termin zurück.
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/notes` | `notes:read` | Notizen auflisten. Filter: `q`/`search`, `parent_id` (auch `root`/`null`), `safe`/`workspace`, `tag_id`, `limit` (Default `100`, Max `500`). |
+| `GET` | `/notes/{id}` | `notes:read` | Einzelne Notiz inkl. Inhalt abrufen (`encrypted: true` liefert aus E2E-Gründen keinen Klartext-`content`). |
+| `POST` | `/notes` | `notes:write` | Neue unverschlüsselte Notiz erstellen (`title`, `content`, `parent_id`, `safe`/`workspace`, `linked_safes`, `tag_ids`, `icon`, `color`). |
+| `PUT` / `PATCH` | `/notes/{id}` | `notes:write` | Notiz aktualisieren (`title`, `content`, `append_content`, `parent_id`, `safe`/`workspace`, `linked_safes`, `tag_ids`, `icon`, `color`). |
+| `DELETE` | `/notes/{id}` | `notes:write` | Notiz in den Papierkorb verschieben (mit `?permanent=true` endgültig inkl. unreferenzierter Blobs löschen). |
 
-#### Berechtigung
-- Erfordert Scope: `events:read`
-
-#### Beispiel-Anfrage
-```bash
-curl -H "Authorization: Bearer tide_pat_your_token_here" \
-  "https://hrw.rocks/api/v1/external/events/e4b3c9a0-1234-4567-89ab-cdef01234567"
-```
-
-#### Beispiel-Antwort (`200 OK`)
-```json
-{
-  "event": {
-    "id": "e4b3c9a0-1234-4567-89ab-cdef01234567",
-    "title": "Team Standup",
-    "start": "2026-10-13T09:00:00.000Z",
-    "end": "2026-10-13T09:30:00.000Z",
-    "all_day": false,
-    "color": "#3b82f6",
-    "description": "Täglicher Statusabgleich via Video-Call",
-    "location": "Online / Zoom",
-    "parent_id": null,
-    "source": "tide",
-    "created_at": "2026-10-10T14:22:01Z",
-    "updated_at": "2026-10-12T08:15:30Z"
-  }
-}
-```
+**Wichtige Besonderheiten bei Notizen:**
+- **`append_content`**: Bei `PUT`/`PATCH /notes/{id}` hängt `append_content` den übergebenen Text (mit automatischem `\n`-Trenner, falls nötig) an den bestehenden unverschlüsselten Inhalt an, ohne dass der Client den alten Inhalt vorher abrufen muss.
+- **`Version: 2` & Versionierung**: Neu erstellte externe Notizen erhalten `version: 2`. Bei Updates wird `version` auf mindestens `2` gesetzt bzw. hochgezählt.
+- **Automatischer CRDT-Reset**: Sobald `content` oder `append_content` geändert wird, setzt der Server automatisch den Yjs-/CRDT-Zustand (`ResetFileCRDTState`, `SnapshotSeqID = 0`) zurück, sodass Web-Clients den neuen Inhalt sauber übernehmen.
+- **SSE Live-Sync**: Erstellen, Aktualisieren und Löschen lösen sofort Echtzeit-Events (`file_created`, `file_updated`, `file_deleted` mit `"source": "external_api"`) für alle berechtigten Benutzer aus.
+- **E2E-Verschlüsselung**: End-to-End-verschlüsselte Notizen können über die externe API weder entschlüsselt noch inhaltlich überschrieben werden (`400 Bad Request`).
 
 ---
 
-### `GET /api/v1/external/notes`
+### Aufgaben / Todos (`/api/v1/external/todos`)
 
-*(Vorbereitet für zukünftige Updates)*
+Die Endpunkte unter `/api/v1/external/todos` sind vollständig mit der Web-UI (`/api/v1/todos`) synchronisiert und senden Live-Updates via SSE.
 
-#### Berechtigung
-- Erfordert Scope: `notes:read`
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/todos` | `todos:read` (oder `todos:write`) | Todos auflisten & filtern (`date`, `prio`/`priority`, `tag`, `description`/`q`/`search`, `overdue`, `status`, `completed`, `folder`, `include_archived`, `limit`, `offset`). |
+| `GET` | `/todos/{id}` | `todos:read` (oder `todos:write`) | Einzelnes Todo abrufen. |
+| `POST` | `/todos` | `todos:create` (oder `todos:write`) | Neues Todo anlegen. |
+| `PUT` / `PATCH` | `/todos/{id}` | `todos:edit` (oder `todos:write`) | Todo bearbeiten oder Status ändern. |
+| `DELETE` | `/todos/{id}` | `todos:delete` (oder `todos:write`) | Todo löschen. |
 
-#### Antwort (`501 Not Implemented`)
-```json
-{
-  "error": "Not Implemented",
-  "message": "Notes querying via external API is planned and will be available in an upcoming update.",
-  "required_scope": "notes:read"
-}
-```
+---
+
+### Ordner (`/api/v1/external/folders`)
+
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/folders` | `folders:read` | Ordner auflisten (respektiert `safe:<name>` und `folder:<uuid>`). |
+| `GET` | `/folders/{id}` | `folders:read` | Einzelnen Ordner abrufen. |
+| `POST` | `/folders` | `folders:write` | Neuen Ordner erstellen (`title`, `parent_id`, `color`, `safe`/`workspace`, `icon`). |
+| `PUT` / `PATCH` | `/folders/{id}` | `folders:write` | Ordner aktualisieren/verschieben. |
+| `DELETE` | `/folders/{id}` | `folders:write` | Ordner löschen (mit SSE-Broadcast). |
+
+---
+
+### Tags (`/api/v1/external/tags`)
+
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/tags` | `tags:read` | Tags auflisten. |
+| `GET` | `/tags/{id}` | `tags:read` | Einzelnen Tag abrufen. |
+| `POST` | `/tags` | `tags:write` | Neuen Tag erstellen (`title`, `color`, `effect`: `none`, `stripes`, `waves`, `dots`, `chess`, `diamonds`, `gradient`, `bars`, `dimmed`). |
+| `PUT` / `PATCH` | `/tags/{id}` | `tags:write` | Tag aktualisieren. |
+| `DELETE` | `/tags/{id}` | `tags:write` | Tag löschen. |
+
+---
+
+### Workspaces (`/api/v1/external/workspaces`)
+
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/workspaces` | `workspaces:read` | Workspaces inkl. `active_workspaces` und Dateianzahl (`file_count`) abrufen. |
+| `POST` | `/workspaces` | `workspaces:write` | Neuen Workspace anlegen (`name`, optional `active`). |
+| `PUT` | `/workspaces/active` | `workspaces:write` | Aktive Workspaces setzen. |
+| `PUT` / `PATCH` | `/workspaces/{name}` | `workspaces:write` | Workspace umbenennen (`new_name`) oder Aktivierungsstatus (`active`) ändern (`main` kann nicht umbenannt werden). |
+| `DELETE` | `/workspaces/{name}` | `workspaces:write` | Workspace löschen. |
+
+Alle Änderungen lösen ein `workspaces_updated`-SSE-Event für die Web-UI aus.
+
+---
+
+### Einstellungen (`/api/v1/external/settings`)
+
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/settings` | `settings:read` | Strukturierte Benutzereinstellungen abrufen (`profile`, `appearance`, `notes`, `calendar`, `extensions`, `presence`). |
+| `PUT` / `PATCH` | `/settings` | `settings:write` | Erlaubte Einstellungs-Sektionen partiell per Deep-Merge aktualisieren (inkl. `settings_updated`-SSE-Event). |
+
+**Explizite Sicherheits-Blocklist (`403 Forbidden`):**
+Aus Sicherheitsgründen blockiert die Settings-API – **auch bei `*`-Scope** – jegliche Zugriffe bzw. Änderungen auf sensible Kontofelder mit `403 Forbidden` (`"error": "forbidden_setting"`):
+- **PIN / Passwort / Login**: `pin`, `new_pin`, `pin_hash`, `current_pin`, `password`, `new_password`, `login_code`, `delete_account`
+- **E-Mail / Telefon**: `email`, `new_email`, `email_blind_index`, `phone`, `phone_blind_index`
+- **Vault & Schlüssel**: `vault`, `encrypted_vault`, `encrypted_pepper`, `pepper`, `public_key`, `private_key`, `master_key`, `recovery_key`
+- **Tokens**: `api_tokens`, `tokens`, `token`, `whisper_token`, `mobile_token`
+
+---
+
+### Umfragen (`/api/v1/external/surveys`)
+
+| Methode | Pfad | Scope | Beschreibung |
+|---------|------|-------|--------------|
+| `GET` | `/surveys/responses` | `surveys:read` (oder `surveys:write`) | Umfrage-Antworten abfragen (optional `?survey_id=`). |
+| `POST` | `/surveys/responses` | `surveys:create` (oder `surveys:write`) | Umfrage-Antwort speichern (`survey_id`, `data`, optional `id`, `created_at`). |
+| `DELETE` | `/surveys/responses/{id}` | `surveys:delete` (oder `surveys:write`) | Umfrage-Antwort löschen. |
+
+---
+
+### Web-UI-Sync-Endpunkte
+
+Die Web-UI nutzt für Einstellungen und Workspaces dieselben Backend-Handler und Datenmodelle wie die externe API (authentifiziert per Benutzer-Session/JWT):
+- **`/api/v1/user/settings`** (`GET`, `PUT`, `PATCH`)
+- **`/api/v1/user/workspaces`** (`GET`, `POST`, `PUT /active`, `PUT/PATCH /{name}`, `DELETE /{name}`)
+
+Dadurch sind Änderungen zwischen Web-UI und externer API jederzeit konsistent und werden gegenseitig per SSE synchronisiert.
 
 ---
 
 ## 6. Code-Beispiele
 
 ### cURL
-
 ```bash
-# 1. Alle Termine für heute abfragen
-TODAY=$(date +%Y-%m-%d)
+# 1. Token-Info prüfen
 curl -s -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
-  "https://hrw.rocks/api/v1/external/events?start=${TODAY}&end=${TODAY}" | jq .
+  "https://hrw.rocks/api/v1/external/me" | jq .
 
-# 2. Termine nach Stichwort durchsuchen
+# 2. Text an eine unverschlüsselte Notiz anhängen
+curl -s -X PATCH -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"append_content": "- Neuer Eintrag via API"}' \
+  "https://hrw.rocks/api/v1/external/notes/<NOTE_ID>" | jq .
+
+# 3. Offene Todos abrufen
 curl -s -H "Authorization: Bearer tide_pat_DEIN_TOKEN" \
-  "https://hrw.rocks/api/v1/external/events?q=Projekt" | jq .
+  "https://hrw.rocks/api/v1/external/todos?completed=false&limit=20" | jq .
 ```
 
----
-
 ### Python
-
 ```python
 import os
 import requests
-from datetime import datetime, timedelta
 
 API_URL = "https://hrw.rocks/api/v1/external/events"
 TOKEN = os.getenv("TIDE_API_TOKEN", "tide_pat_DEIN_TOKEN")
 
-headers = {
-    "Authorization": f"Bearer {TOKEN}",
-    "Accept": "application/json"
-}
-
-# Termine der nächsten 7 Tage abfragen
-now = datetime.utcnow()
-next_week = now + timedelta(days=7)
-
-params = {
-    "start": now.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "end": next_week.strftime("%Y-%m-%dT%H:%M:%SZ"),
-    "limit": 50
-}
-
-response = requests.get(API_URL, headers=headers, params=params)
-
-if response.status_code == 200:
-    data = response.json()
-    print(f"Gefundene Termine: {data['count']}")
-    for ev in data.get("events", []):
-        all_day_badge = "[Ganztägig] " if ev.get("all_day") else ""
-        print(f"• {all_day_badge}{ev['title']} ({ev['start']} - {ev['end']})")
-        if ev.get("location"):
-            print(f"  Ort: {ev['location']}")
-else:
-    print(f"Fehler {response.status_code}: {response.text}")
+res = requests.get(
+    API_URL,
+    headers={"Authorization": f"Bearer {TOKEN}", "Accept": "application/json"},
+    params={"limit": 20},
+)
+res.raise_for_status()
+for ev in res.json().get("events", []):
+    print(f"• {ev['title']} ({ev['start']} - {ev['end']})")
 ```
-
----
-
-### JavaScript / TypeScript / Node.js
-
-```typescript
-const TIDE_BASE_URL = 'https://hrw.rocks/api/v1/external';
-const API_TOKEN = process.env.TIDE_API_TOKEN || 'tide_pat_DEIN_TOKEN';
-
-interface TideEvent {
-    id: string;
-    title: string;
-    start: string;
-    end: string;
-    all_day: boolean;
-    color?: string;
-    description?: string;
-    location?: string;
-}
-
-interface EventsResponse {
-    count: number;
-    events: TideEvent[];
-}
-
-async function fetchUpcomingEvents(): Promise<TideEvent[]> {
-    const today = new Date().toISOString().split('T')[0];
-    const url = new URL(`${TIDE_BASE_URL}/events`);
-    url.searchParams.set('start', today);
-    url.searchParams.set('limit', '20');
-
-    const res = await fetch(url.toString(), {
-        headers: {
-            'Authorization': `Bearer ${API_TOKEN}`,
-            'Accept': 'application/json'
-        }
-    });
-
-    if (!res.ok) {
-        throw new Error(`Tide API Error ${res.status}: ${await res.text()}`);
-    }
-
-    const json: EventsResponse = await res.json();
-    return json.events;
-}
-
-// Ausführen
-fetchUpcomingEvents()
-    .then(events => console.log('Anstehende Termine:', events))
-    .catch(console.error);
-```
-
----
 
 ### Home Assistant (REST Sensor)
-
-In deiner `configuration.yaml` kannst du Tide als RESTful Sensor einbinden, um z. B. den nächsten Termin auf dem Dashboard oder auf einem Smart-Home-Display anzuzeigen:
-
 ```yaml
 sensor:
   - platform: rest
@@ -327,7 +293,7 @@ sensor:
       Authorization: "Bearer tide_pat_DEIN_TOKEN"
     params:
       limit: 5
-    scan_interval: 300 # Alle 5 Minuten abfragen
+    scan_interval: 300
     value_template: "{{ value_json.count }}"
     json_attributes:
       - events
@@ -338,24 +304,23 @@ sensor:
 
 ## 7. Fehlerbehandlung & Status-Codes
 
-Die API nutzt standardisierte HTTP-Status-Codes und gibt Fehlermeldungen als strukturiertes JSON zurück:
-
 | Code | Bedeutung | Ursache / Lösung |
 |------|-----------|------------------|
-| `200 OK` | Erfolg | Die Anfrage wurde erfolgreich verarbeitet. |
-| `400 Bad Request` | Ungültige Parameter | Ein Datumsformat ist inkorrekt (nutze ISO 8601 wie `2026-10-13` oder `2026-10-13T10:00:00Z`). |
-| `401 Unauthorized` | Nicht authentifiziert | Der Token fehlt, ist ungültig oder abgelaufen. |
-| `403 Forbidden` | Fehlende Berechtigung | Dem Token fehlt der für diesen Endpunkt erforderliche Scope (z. B. `events:read`). Erstelle einen neuen Token mit dem benötigten Scope. |
-| `404 Not Found` | Nicht gefunden | Der angeforderte Termin existiert nicht oder gehört nicht zu deinem Account. |
-| `501 Not Implemented` | Noch nicht implementiert | Das angefragte Modul (z. B. Notizen-API) ist im Rechtesystem vorbereitet, aber noch in der Entwicklung. |
-| `500 Server Error` | Serverfehler | Interner Fehler beim Abfragen der Datenbank. |
+| `200 OK` / `201 Created` | Erfolg | Anfrage erfolgreich verarbeitet bzw. Ressource erstellt. |
+| `400 Bad Request` | Ungültige Anfrage | Fehlerhaftes JSON, ungültiges Datumsformat (ISO 8601 nutzen) oder Inhaltsänderung an einer E2E-verschlüsselten Notiz. |
+| `401 Unauthorized` | Nicht authentifiziert | Token fehlt, ist ungültig oder abgelaufen. |
+| `403 Forbidden` | Fehlende Berechtigung | Benötigter Scope fehlt, Ressource liegt außerhalb von `safe:`/`folder:`, oder blockierter Settings-Key (`forbidden_setting`). |
+| `404 Not Found` | Nicht gefunden | Ressource existiert nicht oder gehört nicht zum Account. |
+| `409 Conflict` | Konflikt | Ressource existiert bereits (z. B. Workspace-Name vergeben). |
+| `500 Internal Server Error` | Serverfehler | Interner Fehler bei Datenbank- oder Blob-Zugriff. |
 
-### Beispiel für Fehler-Antwort:
+### Beispiel für Fehler-Antwort (`403 Forbidden`)
 ```json
 {
   "error": "Forbidden",
-  "message": "Token lacks required scope 'events:read'",
-  "required_scope": "events:read",
+  "message": "Token lacks required scope 'notes:write'",
+  "required_scope": "notes:write",
+  "required_scopes": ["notes:write"],
   "token_scopes": ["notes:read"]
 }
 ```
@@ -364,16 +329,8 @@ Die API nutzt standardisierte HTTP-Status-Codes und gibt Fehlermeldungen als str
 
 ## 8. Sicherheitsarchitektur
 
-1. **Keine Plaintext-Speicherung**:
-   - Beim Erstellen wird der Token (`tide_pat_<random-hex>`) einmalig dem Nutzer im Browser angezeigt.
-   - Die Datenbank speichert ausschließlich `token_hash = SHA256(token)`.
-   - Bei einem Datenbank-Leak können keine Tokens kompromittiert werden.
-
-2. **Sichere Token-Generierung**:
-   - Tokens werden mit `crypto/rand` aus dem Go-Standardpaket erzeugt (kryptografisch sichere 256-Bit-Zufallszahlen).
-
-3. **Sofortiger Widerruf**:
-   - Sobald ein Token in den Einstellungen gelöscht wird, ist er mit sofortiger Wirkung für alle externen Anfragen ungültig.
-
-4. **Nutzungs-Tracking**:
-   - Bei jeder erfolgreichen Anfrage wird `last_used_at` asynchron aktualisiert, sodass du in den Einstellungen immer siehst, wann ein Token zuletzt aktiv war.
+1. **Keine Plaintext-Speicherung**: Tokens (`tide_pat_<random-hex>`) werden nach der Erstellung nur einmalig angezeigt; gespeichert wird ausschließlich `SHA256(token)`.
+2. **Sichere Generierung**: Tokens werden über `crypto/rand` mit kryptografisch sicheren Zufallsdaten erzeugt.
+3. **Sofortiger Widerruf**: Das Löschen eines Tokens in den Einstellungen macht ihn sofort ungültig.
+4. **Nutzungs-Tracking**: Bei jeder erfolgreichen Anfrage wird `last_used_at` asynchron aktualisiert.
+5. **E2E- & Kontoschutz**: E2E-verschlüsselte Notizinhalte und sicherheitskritische Kontoeinstellungen (PIN, E-Mail, Vault, Keys, Tokens) sind über die externe API grundsätzlich geschützt.

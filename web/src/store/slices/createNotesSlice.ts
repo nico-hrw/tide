@@ -1,29 +1,9 @@
 import { apiFetch } from '@/lib/api';
-import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
+import { pushSettingsPatch } from '../../lib/settingsSync';
+import { loadCachedNotes, saveNotesToOfflineCache } from './fsHelpers';
 import type { DataItem, DataStoreSlice, NoteLayout, NoteMargin, NotesSlice } from './types';
 
-export function loadCachedNotes(): DataItem[] {
-    if (typeof window !== 'undefined') {
-        try {
-            localStorage.removeItem('tide_offline_notes');
-        } catch {
-            // Ignore storage errors
-        }
-    }
-    return [];
-}
-
-export function saveNotesToOfflineCache(notes: DataItem[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.removeItem('tide_offline_notes');
-    } catch {
-        // Ignore storage errors
-    }
-    void saveEncryptedOfflineCache('notes', notes).catch((e) => {
-        console.warn('Failed to save notes to offline cache', e);
-    });
-}
+export { loadCachedNotes, saveNotesToOfflineCache };
 
 function loadCachedOrderedNoteIds(): string[] {
     if (typeof window === 'undefined') return [];
@@ -88,6 +68,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             if (typeof window !== 'undefined') {
                 localStorage.setItem('tide_note_layout', next);
             }
+            pushSettingsPatch({ notes: { note_layout: next } });
             return { noteLayout: next };
         }),
 
@@ -95,6 +76,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
         if (typeof window !== 'undefined') {
             localStorage.setItem('tide_note_margin', margin);
         }
+        pushSettingsPatch({ notes: { note_margin: margin } });
         set({ noteMargin: margin });
     },
 

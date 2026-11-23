@@ -399,14 +399,18 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     }, [timedEvents, dayTimestamp, allEvents, calendarOverlapMode]);
     const currentTimeTop = currentTime ? (getHours(currentTime) * 60 + getMinutes(currentTime) + currentTime.getSeconds() / 60) * (hourHeight / 60) : 0;
 
+    const sortedTimedEvents = useMemo(
+        () => [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()),
+        [timedEvents]
+    );
+
     const now = currentTime || new Date();
     let currentEventInfo: string | null = null;
     let nextEventInfo: string | null = null;
 
     if (isToday) {
-        const sortedTodayEvents = [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
-        const activeEvent = sortedTodayEvents.find(e => new Date(e.start) <= now && new Date(e.end) >= now);
-        const upcomingEvent = sortedTodayEvents.find(e => new Date(e.start) > now);
+        const activeEvent = sortedTimedEvents.find(e => new Date(e.start) <= now && new Date(e.end) >= now);
+        const upcomingEvent = sortedTimedEvents.find(e => new Date(e.start) > now);
 
         if (activeEvent) {
             const diff = Math.floor((new Date(activeEvent.end).getTime() - now.getTime()) / 60000);
@@ -1041,7 +1045,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
 
                 {/* Minimal Next Event Label positioned at its own start time */}
                 {isToday && nextEventInfo && (() => {
-                    const upcomingEvent = [...timedEvents].sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime()).find(e => new Date(e.start) > now);
+                    const upcomingEvent = sortedTimedEvents.find(e => new Date(e.start) > now);
                     if (!upcomingEvent) return null;
                     const nextTimeTop = (getHours(new Date(upcomingEvent.start)) * 60 + getMinutes(new Date(upcomingEvent.start))) * (hourHeight / 60);
                     return (

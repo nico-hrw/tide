@@ -20,6 +20,136 @@ let rootRefetchQueued = false;
 /** Local events younger than this are not removed just because the server list does not show them yet. */
 const RECENT_EVENT_GRACE_MS = 20_000;
 
+interface ServerTodoItem {
+    id: string;
+    user_id?: string;
+    title: string;
+    description?: string;
+    status?: string;
+    priority?: string;
+    due_date?: string;
+    scheduled_date?: string;
+    tags?: string[];
+    color?: string;
+    is_completed?: boolean;
+    folder?: string;
+    linked_note_id?: string;
+    recurrence?: string;
+    recurrence_rule?: string;
+    recurrence_end?: string;
+    completed_dates?: string[];
+    show_in_calendar?: boolean;
+    is_archived?: boolean;
+    parent_id?: string;
+    order?: number;
+    created_at?: string;
+    completed_at?: string;
+    updated_at?: string;
+}
+
+const syncedLegacyTodoIds = new Set<string>();
+
+function mapServerTodoToTaskItem(raw: ServerTodoItem): TaskItem {
+    return {
+        id: raw.id,
+        title: raw.title,
+        description: raw.description || undefined,
+        color: raw.color || undefined,
+        isCompleted: Boolean(raw.is_completed),
+        status: (raw.status as TaskItem['status']) || (raw.is_completed ? 'completed' : 'todo'),
+        linkedNoteId: raw.linked_note_id || undefined,
+        scheduledDate: raw.scheduled_date || undefined,
+        priority: (raw.priority as TaskItem['priority']) || 'medium',
+        dueDate: raw.due_date || undefined,
+        recurrence: (raw.recurrence as TaskItem['recurrence']) || 'none',
+        recurrence_rule: raw.recurrence_rule || undefined,
+        recurrence_end: raw.recurrence_end || undefined,
+        completed_dates: Array.isArray(raw.completed_dates) ? raw.completed_dates : [],
+        folder: raw.folder || undefined,
+        tags: Array.isArray(raw.tags) ? raw.tags : [],
+        showInCalendar: Boolean(raw.show_in_calendar),
+        createdAt: raw.created_at || undefined,
+        completedAt: raw.completed_at || undefined,
+        updatedAt: raw.updated_at || undefined,
+        isArchived: Boolean(raw.is_archived),
+        parentId: raw.parent_id ? raw.parent_id : null,
+        order: typeof raw.order === 'number' ? raw.order : undefined,
+        owner_id: raw.user_id || undefined,
+    };
+}
+
+async function parseTodosResponse(res: Response | null): Promise<{ ok: boolean; items: TaskItem[] }> {
+    if (!res || !res.ok) return { ok: false, items: [] };
+    const todosList = await parseSafeJson<ServerTodoItem[]>(res);
+    if (!Array.isArray(todosList)) return { ok: true, items: [] };
+    const items = todosList
+        .filter((t): t is ServerTodoItem => Boolean(t && typeof t.id === 'string'))
+        .map(mapServerTodoToTaskItem);
+    return { ok: true, items };
+}
+
+function mergeTodosAndLegacyTasks(
+    apiTodos: TaskItem[],
+    legacyTasks: TaskItem[],
+    deletedIds: Set<string>,
+    syncLegacy = true
+): TaskItem[] {
+    const mergedMap = new Map<string, TaskItem>();
+
+    for (const todo of apiTodos) {
+        if (!todo.id || deletedIds.has(todo.id)) continue;
+        mergedMap.set(todo.id, todo);
+    }
+
+    const legacyOnly: TaskItem[] = [];
+    for (const legacy of legacyTasks) {
+        if (!legacy.id || deletedIds.has(legacy.id)) continue;
+        if (!mergedMap.has(legacy.id)) {
+            mergedMap.set(legacy.id, legacy);
+            legacyOnly.push(legacy);
+        }
+    }
+
+    if (syncLegacy) {
+        for (const item of legacyOnly) {
+            if (syncedLegacyTodoIds.has(item.id)) continue;
+            const isLocked = (item as TaskItem & { isLocked?: boolean }).isLocked;
+            if (isLocked || !item.title || !item.title.trim()) continue;
+            syncedLegacyTodoIds.add(item.id);
+            void apiFetch('/api/v1/todos', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    id: item.id,
+                    title: item.title,
+                    description: item.description,
+                    status: item.status || (item.isCompleted ? 'completed' : 'todo'),
+                    priority: item.priority || 'medium',
+                    due_date: item.dueDate,
+                    scheduled_date: item.scheduledDate,
+                    tags: item.tags || [],
+                    color: item.color,
+                    is_completed: Boolean(item.isCompleted),
+                    folder: item.folder,
+                    linked_note_id: item.linkedNoteId,
+                    recurrence: item.recurrence || 'none',
+                    recurrence_rule: item.recurrence_rule,
+                    recurrence_end: item.recurrence_end,
+                    completed_dates: item.completed_dates || [],
+                    show_in_calendar: Boolean(item.showInCalendar),
+                    is_archived: Boolean(item.isArchived),
+                    parent_id: item.parentId ?? undefined,
+                    order: item.order ?? 0,
+                }),
+            }).catch((err) => {
+                console.warn('[STATE-AUDIT] Failed to sync legacy task to /api/v1/todos', item.id, err);
+            });
+        }
+    }
+
+    return Array.from(mergedMap.values());
+}
+
 export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
     privateKey: null,
     publicKey: null,
@@ -148,6 +278,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     apiFetch(`/api/v1/files`),
                     apiFetch(`/api/v1/files?type=event`),
                     apiFetch(`/api/v1/tasks`),
+                    apiFetch('/api/v1/todos?limit=500&include_archived=true').catch(() => null),
                 ]);
 
                 const rootFiles: RawFileItem[] = [];
@@ -177,10 +308,25 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     console.error('[STATE-AUDIT ERROR] fetchDirectory | Failed to fetch root events');
                 }
 
-                if (results[2].status === 'fulfilled' && results[2].value.ok) {
-                    tasksList.push(...(await parseSafeJson<Array<{ id: string; encrypted_vault?: string }>>(results[2].value)));
-                    const loadedTasks = await decryptTasks(tasksList, state.privateKey);
-                    finalMergedTasks = reconcileTasksWithLocal(loadedTasks, get().tasks, deletedTaskIds);
+                const tasksRes = results[2].status === 'fulfilled' ? results[2].value : null;
+                const tasksOk = Boolean(tasksRes && tasksRes.ok);
+                const todosRes = results[3].status === 'fulfilled' ? results[3].value : null;
+
+                if (tasksRes && tasksRes.ok) {
+                    const parsedTasks = await parseSafeJson<Array<{ id: string; encrypted_vault?: string }>>(tasksRes);
+                    if (Array.isArray(parsedTasks)) {
+                        tasksList.push(...parsedTasks);
+                    }
+                }
+
+                const { ok: todosOk, items: apiTodos } = await parseTodosResponse(todosRes);
+
+                if (tasksOk || todosOk) {
+                    const decryptedTasks = tasksOk
+                        ? await decryptTasks(tasksList, state.privateKey)
+                        : [];
+                    const mergedRemoteTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk);
+                    finalMergedTasks = reconcileTasksWithLocal(mergedRemoteTasks, get().tasks, deletedTaskIds);
                 }
 
                 const seen = new Set<string>();
@@ -213,18 +359,23 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             const newMetaCache: Record<string, unknown> = { ...get().metadataCache };
             const existingAll = [...get().notes, ...get().events];
 
-            for (const f of allFiles) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    forceRefresh,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2' : 'lazy',
-                });
+            const decryptedResults = await Promise.all(
+                allFiles.map(async (f) => ({
+                    id: f.id,
+                    res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                        existingItems: existingAll,
+                        cachedMetadata: newMetaCache,
+                        forceRefresh,
+                        cachePrefix: f.version && f.version >= 2 ? 'v2' : 'lazy',
+                    }),
+                }))
+            );
 
+            for (const { id, res } of decryptedResults) {
                 if (res.skipped) continue;
 
                 if (res.metadata) {
-                    newMetaCache[f.id] = res.metadata;
+                    newMetaCache[id] = res.metadata;
                 }
 
                 if (res.item) {
@@ -352,6 +503,8 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             const allFiles: RawFileItem[] = [];
             const allEvents: RawFileItem[] = [];
             let allTasks: Array<{ id: string; encrypted_vault?: string }> = [];
+            let apiTodos: TaskItem[] = [];
+            let todosOk = false;
 
             if (results[0].status === 'fulfilled' && results[0].value.ok) {
                 allFiles.push(...(await parseSafeJson<RawFileItem[]>(results[0].value)));
@@ -360,8 +513,21 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                 allEvents.push(...(await parseSafeJson<RawFileItem[]>(results[1].value)));
             }
             try {
-                const tasksRes = await apiFetch(`/api/v1/tasks`);
-                if (tasksRes.ok) allTasks = await parseSafeJson<Array<{ id: string; encrypted_vault?: string }>>(tasksRes);
+                const [tasksResult, todosResult] = await Promise.allSettled([
+                    apiFetch(`/api/v1/tasks`),
+                    apiFetch('/api/v1/todos?limit=500&include_archived=true').catch(() => null),
+                ]);
+                if (tasksResult.status === 'fulfilled' && tasksResult.value.ok) {
+                    const parsedTasks = await parseSafeJson<Array<{ id: string; encrypted_vault?: string }>>(tasksResult.value);
+                    if (Array.isArray(parsedTasks)) {
+                        allTasks = parsedTasks;
+                    }
+                }
+                const parsedTodos = await parseTodosResponse(
+                    todosResult.status === 'fulfilled' ? todosResult.value : null
+                );
+                todosOk = parsedTodos.ok;
+                apiTodos = parsedTodos.items;
             } catch (e) {
                 console.error('Failed to fetch tasks', e);
             }
@@ -371,25 +537,38 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             const newMetaCache: Record<string, unknown> = { ...get().metadataCache };
             const existingAll = [...get().notes, ...get().events];
 
-            for (const f of allFiles) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
-                });
+            const [fileResults, eventResults] = await Promise.all([
+                Promise.all(
+                    allFiles.map(async (f) => ({
+                        id: f.id,
+                        res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                            existingItems: existingAll,
+                            cachedMetadata: newMetaCache,
+                            cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                        }),
+                    }))
+                ),
+                Promise.all(
+                    allEvents.map(async (f) => ({
+                        id: f.id,
+                        res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                            existingItems: existingAll,
+                            cachedMetadata: newMetaCache,
+                            cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                        }),
+                    }))
+                ),
+            ]);
+
+            for (const { id, res } of fileResults) {
                 if (res.skipped) continue;
-                if (res.metadata) newMetaCache[f.id] = res.metadata;
+                if (res.metadata) newMetaCache[id] = res.metadata;
                 if (res.item) decryptedNotes.push(res.item);
             }
 
-            for (const f of allEvents) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
-                });
+            for (const { id, res } of eventResults) {
                 if (res.skipped) continue;
-                if (res.metadata) newMetaCache[f.id] = res.metadata;
+                if (res.metadata) newMetaCache[id] = res.metadata;
                 if (res.item) decryptedEvents.push(res.item);
             }
 
@@ -446,7 +625,8 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                 };
             });
 
-            const loadedTasks = await decryptTasks(allTasks, state.privateKey);
+            const decryptedTasks = await decryptTasks(allTasks, state.privateKey);
+            const loadedTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk);
             set(s => {
                 if (loadedTasks.length === 0 && s.tasks.length > 0) return {};
                 const finalTasks = reconcileTasksWithLocal(loadedTasks, s.tasks, deletedTaskIds);

@@ -416,7 +416,19 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 			file.Visibility = *req.Visibility
 		}
 	}
+	var oldUnencrypted, newUnencrypted bool
 	if req.Metadata != nil {
+		var oldMeta, newMeta struct {
+			Unencrypted bool `json:"unencrypted"`
+		}
+		if len(file.Metadata) > 0 {
+			_ = json.Unmarshal(file.Metadata, &oldMeta)
+		}
+		if len(req.Metadata) > 0 {
+			_ = json.Unmarshal(req.Metadata, &newMeta)
+		}
+		oldUnencrypted = oldMeta.Unencrypted
+		newUnencrypted = newMeta.Unencrypted
 		file.Metadata = req.Metadata
 	}
 	if req.AccessKeys != nil && file.OwnerID == requesterID {
@@ -469,6 +481,17 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	if updateErr != nil {
 		http.Error(w, "Failed to update file", http.StatusInternalServerError)
 		return
+	}
+
+	// Wipe stale CRDT snapshots & WAL entries when a note transitions between encrypted and unencrypted
+	if file.Type == db.FileTypeNote && oldUnencrypted != newUnencrypted {
+		if resetter, ok := interface{}(h.Store).(interface {
+			ResetFileCRDTState(context.Context, string, bool) error
+		}); ok {
+			if err := resetter.ResetFileCRDTState(r.Context(), file.ID, true); err != nil {
+				log.Printf("UpdateFile: ResetFileCRDTState failed for file %s: %v", file.ID, err)
+			}
+		}
 	}
 
 	// Broadcast event

@@ -85,21 +85,31 @@ type Task struct {
 
 // Todo represents a todo item for external and REST API access.
 type Todo struct {
-	ID            string     `json:"id" db:"id"`
-	UserID        string     `json:"user_id" db:"user_id"`
-	Title         string     `json:"title" db:"title"`
-	Description   string     `json:"description" db:"description"`
-	Status        string     `json:"status" db:"status"`
-	Priority      string     `json:"priority" db:"priority"`
-	DueDate       string     `json:"due_date" db:"due_date"`
-	ScheduledDate string     `json:"scheduled_date" db:"scheduled_date"`
-	Tags          []string   `json:"tags" db:"tags"`
-	Color         string     `json:"color" db:"color"`
-	IsCompleted   bool       `json:"is_completed" db:"is_completed"`
-	CompletedAt   *time.Time `json:"completed_at,omitempty" db:"completed_at"`
-	IsOverdue     bool       `json:"is_overdue"`
-	CreatedAt     time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at" db:"updated_at"`
+	ID             string     `json:"id" db:"id"`
+	UserID         string     `json:"user_id" db:"user_id"`
+	Title          string     `json:"title" db:"title"`
+	Description    string     `json:"description" db:"description"`
+	Status         string     `json:"status" db:"status"`
+	Priority       string     `json:"priority" db:"priority"`
+	DueDate        string     `json:"due_date" db:"due_date"`
+	ScheduledDate  string     `json:"scheduled_date" db:"scheduled_date"`
+	Tags           []string   `json:"tags" db:"tags"`
+	Color          string     `json:"color" db:"color"`
+	IsCompleted    bool       `json:"is_completed" db:"is_completed"`
+	CompletedAt    *time.Time `json:"completed_at,omitempty" db:"completed_at"`
+	IsOverdue      bool       `json:"is_overdue"`
+	Folder         string     `json:"folder,omitempty"`
+	LinkedNoteID   string     `json:"linked_note_id,omitempty"`
+	Recurrence     string     `json:"recurrence,omitempty"`
+	RecurrenceRule string     `json:"recurrence_rule,omitempty"`
+	RecurrenceEnd  string     `json:"recurrence_end,omitempty"`
+	CompletedDates []string   `json:"completed_dates"`
+	ShowInCalendar bool       `json:"show_in_calendar"`
+	IsArchived     bool       `json:"is_archived"`
+	ParentID       string     `json:"parent_id,omitempty"`
+	SortOrder      int        `json:"order"`
+	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // DB defines the interface for database operations.
@@ -176,35 +186,102 @@ type APIToken struct {
 
 // ExternalEvent represents a calendar event returned to external API consumers.
 type ExternalEvent struct {
-	ID          string    `json:"id"`
-	Title       string    `json:"title"`
-	Start       string    `json:"start"`
-	End         string    `json:"end"`
-	AllDay      bool      `json:"all_day"`
-	Color       string    `json:"color,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Location    string    `json:"location,omitempty"`
-	ParentID    *string   `json:"parent_id,omitempty"`
-	Source      string    `json:"source"`
-	CreatedAt   time.Time `json:"created_at"`
-	UpdatedAt   time.Time `json:"updated_at"`
+	ID             string    `json:"id"`
+	Title          string    `json:"title"`
+	Start          string    `json:"start"`
+	End            string    `json:"end"`
+	AllDay         bool      `json:"all_day"`
+	Color          string    `json:"color,omitempty"`
+	Description    string    `json:"description,omitempty"`
+	Location       string    `json:"location,omitempty"`
+	ParentID       *string   `json:"parent_id,omitempty"`
+	GroupIDs       []string  `json:"group_ids,omitempty"`
+	Tags           []string  `json:"tags,omitempty"`
+	RecurrenceRule string    `json:"recurrence_rule,omitempty"`
+	RecurrenceEnd  string    `json:"recurrence_end,omitempty"`
+	Exdates        []string  `json:"exdates,omitempty"`
+	CompletedDates []string  `json:"completed_dates,omitempty"`
+	IsTask         bool      `json:"is_task,omitempty"`
+	IsCompleted    bool      `json:"is_completed,omitempty"`
+	IsCancelled    bool      `json:"is_cancelled,omitempty"`
+	IsImportant    bool      `json:"is_important,omitempty"`
+	Effect         string    `json:"effect,omitempty"`
+	Version        int       `json:"version,omitempty"`
+	Source         string    `json:"source"`
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 // ExternalNoteListItem represents a note item returned in external list API.
 type ExternalNoteListItem struct {
-	ID        string    `json:"id"`
-	Title     string    `json:"title"`
-	ParentID  *string   `json:"parent_id"`
-	UpdatedAt time.Time `json:"updated_at"`
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	ParentID    *string   `json:"parent_id"`
+	Safe        string    `json:"safe,omitempty"`
+	LinkedSafes []string  `json:"linked_safes,omitempty"`
+	TagIDs      []string  `json:"tag_ids,omitempty"`
+	Icon        string    `json:"icon,omitempty"`
+	Color       string    `json:"color,omitempty"`
+	Encrypted   bool      `json:"encrypted"`
+	Version     int       `json:"version,omitempty"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 // ExternalNote represents a single note returned in external API with content.
 type ExternalNote struct {
+	ID          string    `json:"id"`
+	Title       string    `json:"title"`
+	Content     string    `json:"content"`
+	ParentID    *string   `json:"parent_id"`
+	Safe        string    `json:"safe,omitempty"`
+	LinkedSafes []string  `json:"linked_safes,omitempty"`
+	TagIDs      []string  `json:"tag_ids,omitempty"`
+	Icon        string    `json:"icon,omitempty"`
+	Color       string    `json:"color,omitempty"`
+	Encrypted   bool      `json:"encrypted"`
+	Version     int       `json:"version,omitempty"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
+}
+
+// ExternalFolder represents a folder returned to external API consumers.
+type ExternalFolder struct {
 	ID        string    `json:"id"`
 	Title     string    `json:"title"`
-	Content   string    `json:"content"`
 	ParentID  *string   `json:"parent_id"`
+	Color     string    `json:"color,omitempty"`
+	Safe      string    `json:"safe,omitempty"`
+	Icon      string    `json:"icon,omitempty"`
+	Version   int       `json:"version,omitempty"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ExternalTag represents a tag returned to external API consumers.
+type ExternalTag struct {
+	ID        string    `json:"id"`
+	Title     string    `json:"title"`
+	Color     string    `json:"color,omitempty"`
+	Effect    string    `json:"effect,omitempty"`
+	Version   int       `json:"version,omitempty"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+// ExternalWorkspace represents a workspace/safe summary returned to external API consumers.
+type ExternalWorkspace struct {
+	Name      string `json:"name"`
+	IsDefault bool   `json:"is_default"`
+	IsActive  bool   `json:"is_active"`
+	FileCount int    `json:"file_count"`
+}
+
+// UserSettingsRecord represents a user's workspace and preference settings.
+type UserSettingsRecord struct {
+	UserID           string                 `json:"user_id" db:"user_id"`
+	Workspaces       []string               `json:"workspaces" db:"workspaces"`
+	ActiveWorkspaces []string               `json:"active_workspaces" db:"active_workspaces"`
+	Preferences      map[string]interface{} `json:"preferences" db:"preferences"`
+	UpdatedAt        time.Time              `json:"updated_at" db:"updated_at"`
 }
 

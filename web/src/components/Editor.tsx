@@ -26,6 +26,8 @@ import { PencilInkLayer } from './Canvas/PencilInkLayer';
 import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
+import { apiFetch } from '../lib/api';
+import { parseUnencryptedNoteContent } from '../hooks/autoSaveHelpers';
 
 /** How long a loaded note stays hidden before it fades in. */
 const REVEAL_DELAY_MS = 500;
@@ -105,8 +107,10 @@ function CollaborativeEditor(props: EditorProps) {
         }
     }, [activeTabId]);
 
+    // Owned imperatively (set where a provider is created/destroyed), NOT mirrored from state during
+    // render: under StrictMode the effect re-runs before state commits and a render-time mirror would
+    // read null, orphaning the first provider (live socket + focus/visibility listeners).
     const providerRef = useRef<YjsE2EEProvider | null>(null);
-    providerRef.current = provider;
     const ydocRef = useRef<Y.Doc>(ydoc);
     ydocRef.current = ydoc;
 
@@ -185,8 +189,13 @@ function CollaborativeEditor(props: EditorProps) {
 
         if (!providerRef.current) {
             const newProvider = createProvider(activeDek, ydocRef.current);
-            if (newProvider && !isCancelled) {
-                setProvider(newProvider);
+            if (newProvider) {
+                if (isCancelled) {
+                    newProvider.destroy();
+                } else {
+                    providerRef.current = newProvider;
+                    setProvider(newProvider);
+                }
             }
         } else {
             providerRef.current.updateDEK(activeDek, activeEpoch);
@@ -284,6 +293,9 @@ function CollaborativeEditor(props: EditorProps) {
         }
     }, [cleanInitial, initialContent, editor]);
 
+    const propsRef = useRef(props);
+    propsRef.current = props;
+
     // Handle restore-content custom event
     useEffect(() => {
         if (!editor) return;
@@ -320,7 +332,7 @@ function CollaborativeEditor(props: EditorProps) {
                 setEditorInkStrokes(editor, restoredStrokes);
                 userHasTypedRef.current = true;
                 onChange?.(cleanJson);
-                (props as any)?.onContentChange?.(cleanJson);
+                (propsRef.current as any)?.onContentChange?.(cleanJson);
             } catch (err) {
                 console.error('Failed to restore via Yjs/setContent:', err);
                 try {
@@ -331,7 +343,7 @@ function CollaborativeEditor(props: EditorProps) {
                     setEditorInkStrokes(editor, fallbackStrokes);
                     userHasTypedRef.current = true;
                     onChange?.(parsedFallback);
-                    (props as any)?.onContentChange?.(parsedFallback);
+                    (propsRef.current as any)?.onContentChange?.(parsedFallback);
                 } catch (fallbackErr) {
                     console.error('Fallback setContent failed:', fallbackErr);
                 }
@@ -339,7 +351,40 @@ function CollaborativeEditor(props: EditorProps) {
         };
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
-    }, [editor, ydoc, provider, onChange, props]);
+    }, [editor, ydoc, provider, onChange]);
+
+    // Refresh editor content when an external note update arrives
+    useEffect(() => {
+        if (!editor || !activeTabId) return;
+        let cancelled = false;
+
+        const handleExternalNoteUpdated = (event: Event) => {
+            if ((event as CustomEvent<{ fileId?: string }>).detail?.fileId !== activeTabId) return;
+            if (!editor || editor.isDestroyed || !activeTabId) return;
+
+            void (async () => {
+                try {
+                    const res = await apiFetch(`/api/v1/files/${activeTabId}/download`);
+                    if (cancelled || !res.ok || !editor || editor.isDestroyed) return;
+                    const rawText = await res.text();
+                    if (cancelled || !editor || editor.isDestroyed) return;
+                    const parsedStr = parseUnencryptedNoteContent(rawText);
+                    const doc = JSON.parse(parsedStr) as Parameters<typeof editor.commands.setContent>[0];
+                    if (!cancelled && editor && !editor.isDestroyed) {
+                        editor.commands.setContent(doc);
+                    }
+                } catch (err) {
+                    console.warn('[Editor] Failed to refresh external note update:', err);
+                }
+            })();
+        };
+
+        window.addEventListener('tide:external_note_updated', handleExternalNoteUpdated);
+        return () => {
+            cancelled = true;
+            window.removeEventListener('tide:external_note_updated', handleExternalNoteUpdated);
+        };
+    }, [editor, activeTabId]);
 
     // Resize image & mention click hooks
     useEffect(() => {

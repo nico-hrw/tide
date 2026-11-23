@@ -236,8 +236,8 @@ func main() {
 
 	tabsHandler := api.NewTabsHandler(sqliteStore)
 	apiTokenHandler := api.NewAPITokenHandler(sqliteStore)
-	externalHandler := api.NewExternalHandler(sqliteStore, blobStore)
-	todosHandler := api.NewTodosHandler(sqliteStore)
+	externalHandler := api.NewExternalHandler(sqliteStore, blobStore).WithBroker(broker)
+	todosHandler := api.NewTodosHandler(sqliteStore).WithBroker(broker)
 
 	// 3. Setup Router
 	trustedProxies := parseTrustedProxies(os.Getenv("TRUSTED_PROXIES"))
@@ -247,6 +247,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(trustedProxyRealIP(trustedProxies))
 	r.Use(middleware.RedirectSlashes)
+	r.Use(middleware.Compress(5))
 
 	// Global Security Headers Middleware
 	r.Use(func(next http.Handler) http.Handler {
@@ -385,6 +386,18 @@ func main() {
 		r.Route("/user/extensions", extensionsHandler.RegisterRoutes)
 		r.With(api.AuthMiddleware).Put("/user/status", presenceHandler.UpdateStatus)
 		r.With(api.AuthMiddleware).Post("/user/heartbeat", presenceHandler.Heartbeat)
+		r.Group(func(r chi.Router) {
+			r.Use(api.AuthMiddleware)
+			r.Get("/user/settings", externalHandler.GetSettings)
+			r.Put("/user/settings", externalHandler.UpdateSettings)
+			r.Patch("/user/settings", externalHandler.UpdateSettings)
+			r.Get("/user/workspaces", externalHandler.ListWorkspaces)
+			r.Post("/user/workspaces", externalHandler.CreateWorkspace)
+			r.Put("/user/workspaces/active", externalHandler.SetActiveWorkspaces)
+			r.Put("/user/workspaces/{name}", externalHandler.UpdateWorkspace)
+			r.Patch("/user/workspaces/{name}", externalHandler.UpdateWorkspace)
+			r.Delete("/user/workspaces/{name}", externalHandler.DeleteWorkspace)
+		})
 		r.Route("/tabs", tabsHandler.RegisterRoutes)
 		r.Route("/tasks", taskHandler.RegisterRoutes)
 		r.Route("/todos", func(r chi.Router) {

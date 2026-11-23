@@ -253,12 +253,15 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                         const stateData = await stateRes.json().catch(() => null);
                         const wal = stateData?.wal;
                         if (Array.isArray(wal) && wal.length > 0) {
-                            const maxSeq = wal[wal.length - 1]?.seqId;
+                            const maxSeq = wal[wal.length - 1]?.seq_id ?? wal[wal.length - 1]?.seqId;
                             if (typeof maxSeq === "number" && maxSeq > upToSeqId) {
                                 upToSeqId = maxSeq;
                             }
-                        } else if (typeof stateData?.snapshotSeqId === "number" && stateData.snapshotSeqId > upToSeqId) {
-                            upToSeqId = stateData.snapshotSeqId;
+                        } else {
+                            const snapSeq = stateData?.snapshot_seq_id ?? stateData?.snapshotSeqId;
+                            if (typeof snapSeq === "number" && snapSeq > upToSeqId) {
+                                upToSeqId = snapSeq;
+                            }
                         }
                     }
                 } catch (_) {}
@@ -349,16 +352,16 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
                     const content = (activeEditor && !activeEditor.isDestroyed)
                         ? activeEditor.getJSON()
                         : (editorContentRef.current ?? canvasNoteDataRef.current);
-                    let md = "";
+                    let md: string | null = null;
                     if (typeof content === "string") {
                         md = content;
-                    } else if (content && typeof content === "object") {
-                        md = tipTapToMarkdown(content);
+                    } else if (content && typeof content === "object" && (content as { type?: unknown }).type === "doc") {
+                        md = tipTapToMarkdown(content) ?? "";
                     }
-                    if (md && md.trim().length > 0) {
+                    if (md !== null) {
                         await apiFetch(`/api/v1/files/${noteId}/upload`, {
                             method: "POST",
-                            body: new Blob([md], { type: "text/markdown;charset=utf-8" }),
+                            body: new Blob([md ?? ""], { type: "text/markdown;charset=utf-8" }),
                         });
                     }
                 } catch (err) {
@@ -534,27 +537,33 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
     // Checkpoint Compaction triggers:
     // 1) Server COMPACT_REQUEST control frame / event
     // 2) Component unmount or visibilityState === 'hidden'
+    // triggerCompaction changes identity whenever its deps change (e.g. an unstable switchTab).
+    // Listener registration and the unmount cleanup below must not re-run for that, otherwise the
+    // cleanup would fire a full compaction + backup cascade on every keystroke.
+    const triggerCompactionRef = useRef(triggerCompaction);
+    triggerCompactionRef.current = triggerCompaction;
+
     useEffect(() => {
         const handleServerCompact = (e: Event) => {
             const detail = (e as CustomEvent)?.detail;
             const targetId = detail?.noteId || detail?.fileId || detail?.fileID || activeNoteIdRef.current;
             const seqId = detail?.upToSeqId || detail?.seqId;
             if (targetId) {
-                triggerCompaction(targetId, seqId);
+                triggerCompactionRef.current(targetId, seqId);
             }
         };
 
         const handleVisChange = () => {
             if (document.visibilityState === "hidden" && activeNoteIdRef.current) {
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
         };
 
         const handleBeforeUnload = () => {
             if (activeNoteIdRef.current) {
                 if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
         };
 
@@ -571,11 +580,11 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
             // On unmount:
             if (activeNoteIdRef.current && unsavedNotesRef.current.has(activeNoteIdRef.current)) {
-                triggerCompaction(activeNoteIdRef.current);
+                triggerCompactionRef.current(activeNoteIdRef.current);
             }
             useActiveNoteStore.getState().setActiveDEK(null);
         };
-    }, [triggerCompaction]);
+    }, []);
 
     // Note switch compaction
     useEffect(() => {
@@ -592,7 +601,23 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
     const loadNoteContent = useCallback(async (fileId: string, titleFn: string, passedFile?: any) => {
         const effPrivKey = options.privateKey || useDataStore.getState().privateKey;
-        if (!effPrivKey) {
+        const storeNotes = useDataStore.getState().notes;
+        const storeEvs = useDataStore.getState().events;
+        let target = passedFile
+            || storeNotes.find((f: { id?: string }) => f.id === fileId)
+            || storeEvs.find((e: { id?: string }) => e.id === fileId)
+            || options.files?.find(f => f.id === fileId)
+            || options.events?.find(e => e.id === fileId);
+
+        const parsedTargetMeta = typeof target?.metadata === "string"
+            ? (() => { try { return JSON.parse(target.metadata) as Record<string, unknown>; } catch { return {}; } })()
+            : ((target?.metadata as Record<string, unknown> | undefined) || {});
+        const isExplicitlyUnencrypted = parsedTargetMeta?.unencrypted === true
+            || target?.unencrypted === true
+            || target?.is_unencrypted === true
+            || target?.visibility === "public";
+
+        if (!effPrivKey && !isExplicitlyUnencrypted) {
             setTimeout(() => {
                 if (useDataStore.getState().privateKey) loadNoteContent(fileId, titleFn, passedFile);
             }, 300);
@@ -610,14 +635,6 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
         setSaveStatus("saved");
 
         try {
-            const storeNotes = useDataStore.getState().notes;
-            const storeEvs = useDataStore.getState().events;
-            let target = passedFile
-                || storeNotes.find((f: any) => f.id === fileId)
-                || storeEvs.find((e: any) => e.id === fileId)
-                || options.files?.find(f => f.id === fileId)
-                || options.events?.find(e => e.id === fileId) as any;
-
             if (!target) {
                 let res = await apiFetch(`/api/v1/files/${fileId}`);
                 if (res.status === 404) {
@@ -632,7 +649,7 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
             if (!target) throw new Error("File not found");
 
             const { contentText, fileKeyToUse, title } = await decryptNotePayload({
-                target, fileId, effectivePrivKey: effPrivKey, effectiveMyId: effMyId, onNotFound: () => handleFileNotFound(fileId)
+                target, fileId, effectivePrivKey: effPrivKey as CryptoKey, effectiveMyId: effMyId, onNotFound: () => handleFileNotFound(fileId)
             });
 
             if (fileKeyToUse) {

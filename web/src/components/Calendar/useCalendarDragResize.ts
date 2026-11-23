@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { startOfDay } from "date-fns";
 import { occurrenceTimestamp } from "@/lib/recurrence";
 import type { CalendarEvent, CalendarViewProps } from "./types";
@@ -108,13 +108,53 @@ export function useCalendarDragResize({
         commitEventDrop,
     } = s;
 
+    const hasActiveDrag = Boolean(draggingId || creationDrag || resizingId);
+
+    const latestRef = useRef({
+        draggingId,
+        dragState,
+        creationDrag,
+        resizingId,
+        resizeDragState,
+        events,
+        onEventUpdate,
+        onEventCreate,
+        onEventClick,
+        hourHeight,
+        commitEventDrop,
+    });
+    latestRef.current = {
+        draggingId,
+        dragState,
+        creationDrag,
+        resizingId,
+        resizeDragState,
+        events,
+        onEventUpdate,
+        onEventCreate,
+        onEventClick,
+        hourHeight,
+        commitEventDrop,
+    };
+
     // --- Global Mouse Handlers for DnD ---
     useEffect(() => {
-        // ALWAYS attach listeners to ensure we catch mouseup even if state update lags.
-        // We filter actions inside the handlers based on state.
+        // Attach global listeners across the lifetime of the calendar view (and re-sync only when
+        // active drag mode changes) while reading latest frame state from latestRef so listeners
+        // are not torn down and re-attached on every single mousemove frame.
 
         const handleMouseMove = (e: MouseEvent) => {
             if (commitLockRef.current) return;
+            const {
+                draggingId,
+                dragState,
+                creationDrag,
+                resizingId,
+                resizeDragState,
+                events,
+                hourHeight,
+            } = latestRef.current;
+
             physicalMouseRef.current = { x: e.clientX, y: e.clientY };
 
             if (isPreciseModeRef.current && preciseAnchorRef.current) {
@@ -267,6 +307,14 @@ export function useCalendarDragResize({
 
         const handleMouseUp = async (e: MouseEvent) => {
             if (commitLockRef.current) return;
+            const {
+                draggingId,
+                creationDrag,
+                resizingId,
+                events,
+                onEventClick,
+            } = latestRef.current;
+
             // Clear pending drag if any (was just a click)
             if (pendingDragRef.current) {
                 // If we haven't moved enough to drag, treat this as a CLICK.
@@ -355,7 +403,7 @@ export function useCalendarDragResize({
             window.removeEventListener("mouseup", handleMouseUp);
             window.removeEventListener("dragend", handleDragEnd);
         };
-    }, [draggingId, dragState, creationDrag, resizingId, resizeDragState, events]);
+    }, [hasActiveDrag]);
 
     const handleGlobalMouseUp = async (e: MouseEvent) => {
         commitLockRef.current = true;
@@ -366,7 +414,20 @@ export function useCalendarDragResize({
         }
     };
 
-    const runGlobalMouseUp = async (e: MouseEvent) => {
+    const runGlobalMouseUp = async (_e: MouseEvent) => {
+        const {
+            draggingId,
+            dragState,
+            creationDrag,
+            resizingId,
+            resizeDragState,
+            events,
+            onEventCreate,
+            onEventUpdate,
+            hourHeight,
+            commitEventDrop,
+        } = latestRef.current;
+
         if (creationDrag && onEventCreate) {
             const cDrag = creationDrag;
             setCreationDrag(null);
