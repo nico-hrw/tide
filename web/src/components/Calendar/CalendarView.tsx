@@ -118,6 +118,7 @@ export default function CalendarView({
         resizingId,
         resizeDragState,
         resizeHeightMV,
+        resizeTopMV,
         creationEndYMV,
         cursorX,
         cursorY,
@@ -283,6 +284,7 @@ export default function CalendarView({
                             resizingId={resizingId}
                             resizeDragState={resizeDragState}
                             resizeHeightMV={resizeHeightMV}
+                            resizeTopMV={resizeTopMV}
                             creationEndYMV={creationEndYMV}
                             cursorX={cursorX}
                             cursorY={cursorY}
@@ -319,6 +321,7 @@ export default function CalendarView({
                             resizingId={resizingId}
                             resizeDragState={resizeDragState}
                             resizeHeightMV={resizeHeightMV}
+                            resizeTopMV={resizeTopMV}
                             creationEndYMV={creationEndYMV}
                             cursorX={cursorX}
                             cursorY={cursorY}

@@ -62,6 +62,8 @@ export function useCalendarDragState({
     const dragOverlayH = useMotionValue(0);
     // Resize visual height
     const resizeHeightMV = useMotionValue(0);
+    // Start minute while the top edge is resized (the card's top follows it)
+    const resizeTopMV = useMotionValue(0);
     // Creation preview ending Y (absolute screen coords → converted back in DayColumn)
     const creationEndYMV = useMotionValue(0);
 
@@ -187,6 +189,7 @@ export function useCalendarDragState({
     const handleEventMouseDown = (e: React.MouseEvent, id: string, start: Date) => {
         if (e.button !== 0) return;
         e.stopPropagation(); // Prevent grid creation trigger
+        syncPointerTo(e);
 
         const startMinutes = getHours(start) * 60 + getMinutes(start);
 
@@ -248,9 +251,22 @@ export function useCalendarDragState({
         // Do NOT set isDraggingRef.current = true here. Wait for move.
     };
 
-    const handleResizeMouseDown = (e: React.MouseEvent, id: string, eStart: string, eEnd: string) => {
+    /** Screen Y of minute 0 of the day grid (the day columns start with a 50px sticky header). Null if no grid is mounted. */
+    const getGridOriginY = (): number | null => {
+        const col = document.querySelector('[data-day-col]');
+        return col ? col.getBoundingClientRect().top + 50 : null;
+    };
+
+    /** Brings the cached pointer in line with the event that starts a gesture (it may be stale after a scroll or touch). */
+    const syncPointerTo = (e: React.MouseEvent) => {
+        physicalMouseRef.current = { x: e.clientX, y: e.clientY };
+        if (!isPreciseModeRef.current) gearedMouseRef.current = { x: e.clientX, y: e.clientY };
+    };
+
+    const handleResizeMouseDown = (e: React.MouseEvent, id: string, eStart: string, eEnd: string, edge: 'start' | 'end' = 'end') => {
         e.stopPropagation();
         e.preventDefault(); // Prevent text selection
+        syncPointerTo(e);
 
         const scrollContainer = scrollContainerRef.current;
         if (!scrollContainer) return;
@@ -259,13 +275,23 @@ export function useCalendarDragState({
         const end = new Date(eEnd);
         const startMinutes = start.getHours() * 60 + start.getMinutes();
 
+        // Pointer-to-edge offset (minutes) on the absolute grid, so the edge stays where it is until the pointer moves.
+        const originY = getGridOriginY();
+        const edgeMinutes = edge === 'start' ? startMinutes : startMinutes + (end.getTime() - start.getTime()) / 60000;
+        const grabOffsetMins = originY === null ? 0 : (e.clientY - originY) / (hourHeight / 60) - edgeMinutes;
+
         setResizingId(id);
+        resizeHeightMV.set((end.getTime() - start.getTime()) / 60000);
+        resizeTopMV.set(startMinutes);
         setResizeDragState({
             startY: gearedMouseRef.current.y,
             originalTop: startMinutes,
             originalHeight: (end.getTime() - start.getTime()) / 60000,
             currentHeight: (end.getTime() - start.getTime()) / 60000,
-            initialScrollTop: scrollContainer.scrollTop
+            initialScrollTop: scrollContainer.scrollTop,
+            edge,
+            grabOffsetMins,
+            currentTop: startMinutes,
         });
         // Do NOT set isDraggingRef.current = true here. Wait for move.
     };
@@ -295,6 +321,7 @@ export function useCalendarDragState({
         dragOverlayW,
         dragOverlayH,
         resizeHeightMV,
+        resizeTopMV,
         creationEndYMV,
         physicalMouseRef,
         gearedMouseRef,

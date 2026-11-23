@@ -107,12 +107,13 @@ interface CalendarEventItemProps {
     dayIndexOffset?: number;
     isMagnified?: boolean;
     resizeHeightMV?: MotionValue<number>;
+    resizeTopMV?: MotionValue<number>;
     fallbackMV: MotionValue<number>;
     onEventClick?: (event: CalendarEvent, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
     onEventDelete?: (id: string) => void;
     onEventMouseDown?: (e: React.MouseEvent, id: string, start: Date) => void;
-    onResizeMouseDown?: (e: React.MouseEvent, id: string, start: string, end: string) => void;
+    onResizeMouseDown?: (e: React.MouseEvent, id: string, start: string, end: string, edge?: 'start' | 'end') => void;
     onTaskToggle?: (id: string, currentIsCompleted: boolean) => void;
     onEventRename?: (id: string, title: string) => Promise<void>;
     cursorX: MotionValue<number>;
@@ -172,6 +173,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     dayIndexOffset,
     isMagnified,
     resizeHeightMV,
+    resizeTopMV,
     fallbackMV,
     onEventClick,
     onEventShare,
@@ -373,6 +375,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const isShortEvent = !isTimePoint && durationMinutes < 40;
     const minRenderedMinutes = isTimePoint ? 0 : Math.max(durationMinutes, 5);
 
+    // resizeHeightMV holds MINUTES; the card needs a CSS length (a bare number would be read as px).
+    const resizeHeightCss = useTransform(resizeHeightMV || fallbackMV, (m) => `calc(var(--hour-height, 48px) / 60 * ${m} - 4px)`);
+
+    const resizeTopCss = useTransform(resizeTopMV || fallbackMV, (m) => `calc(var(--hour-height, 48px) / 60 * ${m} + 2px)`);
+
     let style: any;
     if (isDragging) {
         style = {
@@ -389,8 +396,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
         };
     } else if (isResizing) {
         style = {
-            top: `calc(var(--hour-height, 48px) / 60 * ${startMinutes} + 2px)`,
-            height: resizeHeightMV,
+            top: resizeTopCss,
+            height: resizeHeightCss,
             minHeight: isTimePoint ? '6px' : '22px',
             left: `calc(${pos.left}% + 3px)`,
             width: `calc(${pos.width}% - 6px)`,
@@ -504,7 +511,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             data-event-id={event.id}
             data-event-start={event.start}
             initial={false}
-            animate={{ opacity: isCancelled ? 0.4 : 1, scale: 1 }}
+            // While the card is dragged it is hidden completely (only the snapped silhouette is shown); `animate` would otherwise win over style.opacity.
+            animate={{ opacity: isDragging ? 0 : isCancelled ? 0.4 : 1, scale: 1 }}
             style={{
                 ...style, ...borderRadiusStyle,
                 borderLeft: 'none',
@@ -824,10 +832,19 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             </div>
             )} {/* end isTimePoint conditional */}
 
-            {/* Resize Handle */}
+            {/* Resize handles: top edge changes the start, bottom edge the end (the card body moves the whole event) */}
             {!isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
-                    className="absolute bottom-0 left-0 right-0 h-1.5 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
+                    className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle-top"
+                    onMouseDown={(e) => {
+                        e.stopPropagation(); // Prevents the parent move-drag
+                        if (onResizeMouseDown) onResizeMouseDown(e, event.id, event.start, event.end, 'start');
+                    }}
+                />
+            )}
+            {!isDragging && !isCancelled && durationMinutes >= 15 && (
+                <div
+                    className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
                     onMouseDown={(e) => {
                         e.stopPropagation(); // CRITICAL: Prevents parent drag logic
                         if (onResizeMouseDown) onResizeMouseDown(e, event.id, event.start, event.end);
@@ -911,7 +928,7 @@ const areEventPropsEqual = (prev: CalendarEventItemProps, next: CalendarEventIte
 
     // 8. Callbacks & motion values
     if (prev.cursorX !== next.cursorX || prev.cursorY !== next.cursorY) return false;
-    if (prev.resizeHeightMV !== next.resizeHeightMV || prev.fallbackMV !== next.fallbackMV) return false;
+    if (prev.resizeTopMV !== next.resizeTopMV || prev.resizeHeightMV !== next.resizeHeightMV || prev.fallbackMV !== next.fallbackMV) return false;
     if (prev.onEventClick !== next.onEventClick) return false;
     if (prev.onEventShare !== next.onEventShare) return false;
     if (prev.onEventDelete !== next.onEventDelete) return false;

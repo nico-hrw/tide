@@ -199,7 +199,8 @@ export function useCalendarTouch(
                 const draggingEvent = eventsRef.current.find(ev => ev.id === dId || (dId && dId.startsWith(ev.id + "_")));
                 const durationMins = draggingEvent ? (new Date(draggingEvent.end).getTime() - new Date(draggingEvent.start).getTime()) / 60000 : 15;
 
-                let newTop = dState.originalTop + deltaY + scrollDelta;
+                // originalTop is in minutes, the touch delta in px (the grid is 48px per hour).
+                let newTop = dState.originalTop + (deltaY + scrollDelta) / (48 / 60);
                 if (newTop < 0) newTop = 0;
                 if (newTop > 1440 - durationMins) newTop = 1440 - durationMins;
 

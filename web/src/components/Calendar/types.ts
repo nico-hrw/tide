@@ -94,6 +94,12 @@ export interface ResizeDragState {
     originalHeight: number;
     currentHeight: number;
     initialScrollTop: number;
+    /** Which edge is dragged: the bottom (end, default) or the top (start) edge. */
+    edge?: 'start' | 'end';
+    /** Minutes between the pointer and the dragged edge at mousedown, so the edge does not jump to the pointer. */
+    grabOffsetMins?: number;
+    /** Live start minute (changes while the top edge is dragged). */
+    currentTop?: number;
 }
 
 export interface ActivePopover {

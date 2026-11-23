@@ -69,3 +69,12 @@ describe('removing matched text', () => {
         expect(applyImportRules({ title: 'V:' }, [rule({ removeMatch: true })]).title).toBe('V:');
     });
 });
+
+describe('buildSecuredEventMeta', () => {
+    it('keeps the RSA payload under the OAEP limit even for long titles', async () => {
+        const { buildSecuredEventMeta, MAX_SECURED_META_BYTES } = await import('../securedEventMeta');
+        const meta = buildSecuredEventMeta({ title: 'T'.repeat(400), start: '2026-10-05T07:45:00.000Z', end: '2026-10-05T09:15:00.000Z', allDay: false });
+        expect(new TextEncoder().encode(JSON.stringify(meta)).length).toBeLessThanOrEqual(MAX_SECURED_META_BYTES);
+        expect(String(meta.title).length).toBeGreaterThan(10);
+    });
+});

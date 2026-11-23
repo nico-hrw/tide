@@ -32,6 +32,7 @@ interface DesktopDayViewProps {
     resizingId: string | null;
     resizeDragState: ResizeDragState | null;
     resizeHeightMV: MotionValue<number>;
+    resizeTopMV: MotionValue<number>;
     creationEndYMV: MotionValue<number>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
@@ -61,6 +62,7 @@ export default function DesktopDayView({
     resizingId,
     resizeDragState,
     resizeHeightMV,
+    resizeTopMV,
     creationEndYMV,
     cursorX,
     cursorY,
@@ -205,6 +207,7 @@ export default function DesktopDayView({
                         resizingId={resizingId}
                         resizeDragState={resizeDragState}
                         resizeHeightMV={resizeHeightMV}
+                        resizeTopMV={resizeTopMV}
                         creationEndYMV={creationEndYMV}
                         onHeaderClick={(clickedDay) => {
                             const start = new Date(clickedDay);

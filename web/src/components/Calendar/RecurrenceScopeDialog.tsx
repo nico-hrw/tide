@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { registerScopePromptHost, type ScopeRequest } from '@/lib/recurrenceScopePrompt';
 
 const COPY = {
-    move: { heading: 'Wiederholenden Termin verschieben', this: 'Nur dieser Termin', all: 'Alle Wiederholungen' },
+    move: { heading: 'Wiederholenden Termin ändern', this: 'Nur dieser Termin', all: 'Alle Wiederholungen' },
     delete: { heading: 'Wiederholenden Termin absagen', this: 'Nur dieser Termin', all: 'Alle Wiederholungen löschen' },
 } as const;
 

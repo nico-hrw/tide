@@ -3,6 +3,7 @@ import { apiFetch } from '@/lib/api';
 import { useDataStore, type DataItem } from '@/store/useDataStore';
 import { encryptFileV2 } from '@/lib/cryptoV2';
 import * as cryptoLib from '@/lib/crypto';
+import { buildSecuredEventMeta } from '@/lib/securedEventMeta';
 
 export interface ImportProgress {
     current: number;
@@ -26,23 +27,6 @@ export interface ImportResult {
 }
 
 const CHUNK_SIZE = 5;
-
-/** Max plaintext bytes for RSA-OAEP (2048-bit key, SHA-256): 256 - 2*32 - 2 = 190. Keep a margin. */
-const MAX_SECURED_META_BYTES = 180;
-
-/** Builds a secured_meta payload guaranteed to fit into a single RSA-OAEP block. */
-function buildSecuredMeta(event: ParsedIcsEvent): Record<string, unknown> {
-    const byteLength = (o: unknown) => new TextEncoder().encode(JSON.stringify(o)).length;
-    const base = { start: event.start, end: event.end, allDay: event.allDay };
-    let title = event.title;
-    let candidate: Record<string, unknown> = { title, ...base };
-    while (byteLength(candidate) > MAX_SECURED_META_BYTES && title.length > 1) {
-        title = title.slice(0, Math.max(1, title.length - 8));
-        candidate = { title, ...base };
-    }
-    if (byteLength(candidate) > MAX_SECURED_META_BYTES) candidate = { title };
-    return candidate;
-}
 
 /**
  * Batch imports parsed calendar events into Tide's encrypted backend
@@ -105,10 +89,7 @@ export async function importCalendarEvents(
 
                     // RSA-OAEP can only encrypt ~190 bytes, so secured_meta carries just the essentials.
                     // Full details live in `metadata` and the AES-encrypted content blob.
-                    const securedMeta = await cryptoLib.encryptMetadata(
-                        buildSecuredMeta(event),
-                        publicKey
-                    );
+                    const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta(event), publicKey);
 
                     const contentString = JSON.stringify({
                         title: event.title,

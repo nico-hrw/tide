@@ -37,7 +37,7 @@ interface DayColumnProps {
     onGridMouseDown?: (e: React.MouseEvent, day: Date) => void;
     onGridDoubleClick?: (e: React.MouseEvent, day: Date) => void;
     onEventMouseDown?: (e: React.MouseEvent, id: string, start: Date) => void;
-    onResizeMouseDown?: (e: React.MouseEvent, id: string, start: string, end: string) => void;
+    onResizeMouseDown?: (e: React.MouseEvent, id: string, start: string, end: string, edge?: 'start' | 'end') => void;
     hoveredHour?: number | null;
     onHourHover?: (hour: number | null) => void;
     draggingId?: string | null;
@@ -46,6 +46,7 @@ interface DayColumnProps {
     resizingId?: string | null;
     resizeDragState?: any;
     resizeHeightMV?: MotionValue<number>;
+    resizeTopMV?: MotionValue<number>;
     creationEndYMV?: MotionValue<number>;
     onHeaderClick?: (day: Date) => void;
     onTaskToggle?: (id: string, currentIsCompleted: boolean) => void;
@@ -253,6 +254,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     resizingId,
     resizeDragState,
     resizeHeightMV,
+    resizeTopMV,
     creationEndYMV,
     onHeaderClick,
     onTaskToggle,
@@ -989,6 +991,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         dayIndexOffset={dayIndexOffset}
                         isMagnified={isMagnified}
                         resizeHeightMV={resizeHeightMV}
+                        resizeTopMV={resizeTopMV}
                         fallbackMV={fallbackMV}
                         onEventClick={onEventClick}
                         onEventShare={onEventShare}

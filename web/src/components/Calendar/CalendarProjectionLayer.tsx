@@ -92,9 +92,10 @@ export function CalendarProjectionLayer({
         eventObj = events.find(e => e.id === resizingId || (resizingId && resizingId.startsWith(e.id + "_"))) || null;
         if (eventObj) {
             const snapInterval = 1;
-            targetStartMins = resizeDragState.originalTop;
+            targetStartMins = resizeDragState.currentTop ?? resizeDragState.originalTop;
             targetDuration = Math.max(10, Math.round(resizeDragState.currentHeight / snapInterval) * snapInterval);
-            activeMins = targetStartMins + targetDuration; // Focus Bottom Edge
+            // Focus the edge that is being dragged: top edge -> start, bottom edge -> end
+            activeMins = resizeDragState.edge === 'start' ? targetStartMins : targetStartMins + targetDuration;
             actionType = 'resize';
         }
     }

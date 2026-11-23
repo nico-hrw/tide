@@ -1,5 +1,6 @@
 import React, { useEffect } from "react";
 import { startOfDay } from "date-fns";
+import { occurrenceTimestamp } from "@/lib/recurrence";
 import type { CalendarEvent, CalendarViewProps } from "./types";
 import { useCalendarDragState } from "./useCalendarDragState";
 import { useCalendarTouch } from "./useCalendarTouch";
@@ -11,6 +12,46 @@ interface UseCalendarDragResizeParams {
     onEventClick: CalendarViewProps["onEventClick"];
     scrollContainerRef: React.RefObject<HTMLDivElement | null>;
     hourHeight?: number;
+}
+
+/** Screen Y of minute 0 of the day grid (day columns start with a 50px sticky header), or null without a grid. */
+export function gridOriginY(): number | null {
+    if (typeof document === 'undefined') return null;
+    const col = document.querySelector('[data-day-col]');
+    return col ? col.getBoundingClientRect().top + 50 : null;
+}
+
+/**
+ * New start minute and duration for a resize. The pointer is mapped to a time on the absolute grid (so the edge sits
+ * where the pointer is and snaps to fixed times, e.g. :00/:10/:20, not to steps relative to the old value). Dragging the
+ * bottom edge keeps the start, dragging the top edge keeps the end; both stay inside the day.
+ * Without a grid (originY null) it falls back to the pointer delta since the gesture started.
+ */
+export function computeResize(
+    rState: {
+        startY: number; originalTop: number; originalHeight: number; initialScrollTop: number;
+        edge?: 'start' | 'end'; grabOffsetMins?: number;
+    },
+    mouseY: number,
+    scrollTop: number,
+    snapInterval: number,
+    hourHeight: number,
+    originY: number | null = null,
+): { startMin: number; duration: number } {
+    const minH = hourHeight / 60;
+    const minDuration = Math.max(10, snapInterval);
+    const endMin0 = rState.originalTop + rState.originalHeight;
+    const edge0 = rState.edge === 'start' ? rState.originalTop : endMin0;
+    const edgeRaw = originY !== null
+        ? (mouseY - originY) / minH - (rState.grabOffsetMins ?? 0)
+        : edge0 + (mouseY - rState.startY + (scrollTop - rState.initialScrollTop)) / minH;
+    const snapped = Math.round(edgeRaw / snapInterval) * snapInterval;
+    if (rState.edge === 'start') {
+        const startMin = Math.max(0, Math.min(snapped, endMin0 - minDuration));
+        return { startMin, duration: endMin0 - startMin };
+    }
+    const endMin = Math.max(rState.originalTop + minDuration, Math.min(snapped, 1440));
+    return { startMin: rState.originalTop, duration: endMin - rState.originalTop };
 }
 
 /**
@@ -55,6 +96,7 @@ export function useCalendarDragResize({
         setResizeDragState,
         creationEndYMV,
         resizeHeightMV,
+        resizeTopMV,
         setDropBounds,
         commitEventDrop,
     } = s;
@@ -139,7 +181,8 @@ export function useCalendarDragResize({
                     const draggingEvent = events.find(e => e.id === draggingId || draggingId?.startsWith(e.id + "_"));
                     const durationMins = draggingEvent ? (new Date(draggingEvent.end).getTime() - new Date(draggingEvent.start).getTime()) / 60000 : 15;
 
-                    let newTop = dragState.originalTop + deltaY + scrollDelta;
+                    // originalTop is in minutes, the mouse delta in pixels: convert before adding.
+                    let newTop = dragState.originalTop + (deltaY + scrollDelta) / (hourHeight / 60);
                     if (newTop < 0) newTop = 0;
                     if (newTop > 1440 - durationMins) newTop = 1440 - durationMins;
 
@@ -196,24 +239,22 @@ export function useCalendarDragResize({
                 creationEndYMV.set(clampedY);
             } else if (resizingId && resizeDragState) {
                 const deltaY = gY - resizeDragState.startY;
-                if (!isDraggingRef.current && Math.abs(deltaY) > 10) {
+                if (!isDraggingRef.current && Math.abs(deltaY) > 3) {
                     isDraggingRef.current = true;
                 }
                 if (isDraggingRef.current) {
-                    const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - resizeDragState.initialScrollTop;
-                    const deltaMins = (deltaY + scrollDelta) / (hourHeight / 60);
-                    let newHeight = resizeDragState.originalHeight + deltaMins;
-                    let maxAllowedHeight = 1440 - resizeDragState.originalTop;
-                    if (newHeight < 15) newHeight = 15;
-                    if (newHeight > maxAllowedHeight) newHeight = maxAllowedHeight;
-                    // Keep Loupe anchored to event's BOTTOM edge
-                    activeEventEdgeRef.current = resizeDragState.originalTop + newHeight;
+                    // Same snapped value the commit uses, so the card never jumps on release.
+                    const { startMin, duration } = computeResize(resizeDragState, gY, scrollContainerRef.current?.scrollTop || 0,
+                        isPreciseModeRef.current ? 1 : 10, hourHeight, gridOriginY());
+                    // Keep the Loupe anchored to the edge that is being dragged
+                    activeEventEdgeRef.current = resizeDragState.edge === 'start' ? startMin : startMin + duration;
 
                     // Also update the state for the ruler
-                    setResizeDragState(prev => prev ? { ...prev, currentHeight: newHeight } : prev);
+                    setResizeDragState(prev => prev ? { ...prev, currentHeight: duration, currentTop: startMin } : prev);
 
-                    // ✅ Drive resize via MotionValue
-                    resizeHeightMV.set(newHeight);
+                    // ✅ Drive resize via MotionValues
+                    resizeHeightMV.set(duration);
+                    resizeTopMV.set(startMin);
                 }
             }
         };
@@ -384,16 +425,20 @@ export function useCalendarDragResize({
 
             const event = events.find(e => e.id === rId || (rId && rId.startsWith(e.id + '_')));
             if (event) {
-                const scrollDelta = (scrollContainerRef.current?.scrollTop || 0) - rState.initialScrollTop;
                 const snapInterval = isPreciseModeRef.current ? 1 : 10;
-                const minDuration = 10;
-                const newHeight = Math.max(minDuration, rState.currentHeight + scrollDelta / (hourHeight / 60));
-                const snappedHeight = Math.max(minDuration, Math.round(newHeight / snapInterval) * snapInterval);
+                const { startMin, duration } = computeResize(rState, gearedMouseRef.current.y,
+                    scrollContainerRef.current?.scrollTop || 0, snapInterval, hourHeight, gridOriginY());
 
-                const start = new Date(event.start);
+                // A repetition keeps ITS start (encoded in the id); `event` is the series master with the first start.
+                const occTs = occurrenceTimestamp(rId);
+                const baseStart = new Date(occTs !== null ? occTs : event.start);
+                // Top edge: new start on the same day, the end stays. Bottom edge: the start stays exactly as it is.
+                const start = rState.edge === 'start'
+                    ? new Date(baseStart.getFullYear(), baseStart.getMonth(), baseStart.getDate(), Math.floor(startMin / 60), startMin % 60, 0, 0)
+                    : baseStart;
                 // MIDNIGHT SWAP FIX: ensure end can never exceed midnight
                 const maxEndMs = startOfDay(start).getTime() + 24 * 60 * 60 * 1000;
-                const rawEnd = new Date(start.getTime() + snappedHeight * 60000);
+                const rawEnd = new Date(start.getTime() + duration * 60000);
                 const end = rawEnd.getTime() > maxEndMs ? new Date(maxEndMs) : rawEnd;
 
                 await onEventUpdate(rId, start, end);

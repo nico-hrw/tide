@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { Eye, EyeOff, Lock, Palette, Plus, Share2, Trash2 } from 'lucide-react';
+import { CalendarX2, Eye, EyeOff, Lock, Palette, Pipette, Plus, Share2, Trash2 } from 'lucide-react';
 import { SettingsCard, SettingsEmpty, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
-import { Button, IconButton, TextField, Toggle } from '../ui/Controls';
+import { Button, IconButton, TextField } from '../ui/Controls';
 import { cx } from '../ui/cx';
 import { useT } from '../useT';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
@@ -63,6 +63,18 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                 <IconButton label={t('cal.style')} pressed={styleOpen} onClick={() => setStyleOpen((v) => !v)}>
                     <Palette className="h-[15px] w-[15px]" />
                 </IconButton>
+                <IconButton
+                    label={t('cal.colorOverrideOf', { name: group.title })}
+                    pressed={colorOverride}
+                    onClick={() => onToggleColorOverride?.(group.id)}
+                >
+                    <Pipette className="h-[15px] w-[15px]" />
+                </IconButton>
+                {onDeleteEvents && (
+                    <IconButton label={t('cal.deleteEventsOf', { name: group.title })} tone="danger" onClick={() => onDeleteEvents(group.id)}>
+                        <CalendarX2 className="h-[15px] w-[15px]" />
+                    </IconButton>
+                )}
                 <IconButton label={t('cal.share', { name: group.title })} onClick={(e) => onShare?.(e, group.id)}>
                     <Share2 className="h-[15px] w-[15px]" />
                 </IconButton>
@@ -118,22 +130,6 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                             })}
                         </div>
                     </div>
-                    <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0">
-                            <div className="text-[13px] font-medium text-t2-ink">{t('cal.colorOverride')}</div>
-                            <div className="text-[12px] text-t2-ink-3">{t('cal.colorOverrideDesc')}</div>
-                        </div>
-                        <Toggle checked={colorOverride} onChange={() => onToggleColorOverride?.(group.id)} label={t('cal.colorOverride')} />
-                    </div>
-                    {onDeleteEvents && (
-                        <div className="flex items-center justify-between gap-3">
-                            <div className="min-w-0">
-                                <div className="text-[13px] font-medium text-t2-ink">{t('cal.deleteEvents')}</div>
-                                <div className="text-[12px] text-t2-ink-3">{t('cal.deleteEventsDesc')}</div>
-                            </div>
-                            <Button onClick={() => onDeleteEvents(group.id)}>{t('cal.deleteEventsAction')}</Button>
-                        </div>
-                    )}
                 </div>
             )}
         </div>

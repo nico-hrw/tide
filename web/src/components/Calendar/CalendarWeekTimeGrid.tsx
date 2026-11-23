@@ -35,6 +35,7 @@ interface CalendarWeekTimeGridProps {
     resizingId: string | null;
     resizeDragState: ResizeDragState | null;
     resizeHeightMV: MotionValue<number>;
+    resizeTopMV: MotionValue<number>;
     creationEndYMV: MotionValue<number>;
     cursorX: MotionValue<number>;
     cursorY: MotionValue<number>;
@@ -72,6 +73,7 @@ export function CalendarWeekTimeGrid({
     resizingId,
     resizeDragState,
     resizeHeightMV,
+    resizeTopMV,
     creationEndYMV,
     cursorX,
     cursorY,
@@ -246,6 +248,7 @@ export function CalendarWeekTimeGrid({
                                 resizeDragState={resizeDragState}
                                 // Performance MotionValues
                                 resizeHeightMV={resizeHeightMV}
+                                resizeTopMV={resizeTopMV}
                                 creationEndYMV={creationEndYMV}
                                 onHeaderClick={handleHeaderClick}
                                 onTaskToggle={handleTaskToggle}
@@ -273,7 +276,7 @@ export function CalendarWeekTimeGrid({
                     ))}
 
                     {/* Custom-drag ghost - 60fps via MotionValues, no React re-renders */}
-                    {draggingId && dragState && (
+                    {draggingId && dragState && !isPreciseMode && (
                         <DragGhost
                             draggingId={draggingId}
                             dragState={dragState}

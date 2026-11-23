@@ -10,6 +10,7 @@ import {
     changesOccurrenceTime, isRecurringEvent, occurrenceKey, occurrenceTimestamp, shiftSeriesForMove, type RecurrenceScope,
 } from "@/lib/recurrence";
 import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
+import { buildSecuredEventMeta } from "@/lib/securedEventMeta";
 
 export interface CalendarEventExtraMeta {
     title?: string;
@@ -182,7 +183,8 @@ export function useCalendarActions({
             const title = extraMeta.title || "New Event";
             try {
                 const meta: Record<string, unknown> = { ...extraMeta, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
-                const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+                // RSA-OAEP only fits ~190 bytes: keep secured_meta small, the rest goes to `metadata` / the AES blob.
+                const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta({ title, start: meta.start as string, end: meta.end as string, allDay: isAllDay }), publicKey);
                 const bodyPayload: Record<string, unknown> = { type: "event", parent_id: null, public_meta: {} };
 
                 try {
