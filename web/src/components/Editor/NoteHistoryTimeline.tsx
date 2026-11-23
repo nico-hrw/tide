@@ -45,6 +45,8 @@ export function timelinePlacementClasses({ open }: { open: boolean }): { wrapper
 const MIN_GAP = 88;
 const TOP_PAD = 12;
 const BOTTOM_PAD = 96;
+const PANEL_TOP_OFFSET_PX = 80;
+const PANEL_BOTTOM_MARGIN_PX = 16;
 
 function formatWhen(iso: string): string {
     const d = new Date(iso);
@@ -92,12 +94,14 @@ export default function NoteHistoryTimeline({
         return () => ro.disconnect();
     }, []);
 
+    const panelHeight = Math.max(240, height - PANEL_TOP_OFFSET_PX - PANEL_BOTTOM_MARGIN_PX);
+
     const tops = useMemo(() => {
         const times = points.map((p) => new Date(p.updatedAt || p.timestamp || "").getTime());
         const newest = Math.max(...times.filter((t) => !isNaN(t)), 0);
         const oldest = Math.min(...times.filter((t) => !isNaN(t)), newest);
         const span = Math.max(newest - oldest, 1);
-        const usable = Math.max(height - TOP_PAD - BOTTOM_PAD, MIN_GAP);
+        const usable = Math.max(panelHeight - TOP_PAD - BOTTOM_PAD, MIN_GAP);
         const out: number[] = [];
         points.forEach((_, i) => {
             const t = isNaN(times[i]) ? oldest : times[i];
@@ -106,9 +110,9 @@ export default function NoteHistoryTimeline({
             out.push(top);
         });
         return out;
-    }, [points, height]);
+    }, [points, panelHeight]);
 
-    const trackHeight = Math.max(height, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
+    const trackHeight = Math.max(panelHeight - 52, (tops[tops.length - 1] ?? 0) + BOTTOM_PAD);
 
     const cls = timelinePlacementClasses({ open });
     return (
@@ -116,7 +120,7 @@ export default function NoteHistoryTimeline({
             <div
                 ref={wrapRef}
                 className={cls.panel}
-                style={{ height }}
+                style={{ height: panelHeight }}
                 role="region"
                 aria-label="Versionsverlauf"
                 aria-hidden={!open}

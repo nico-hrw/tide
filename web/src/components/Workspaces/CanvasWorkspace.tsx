@@ -286,10 +286,16 @@ export function CanvasWorkspace(props: CanvasWorkspaceProps) {
                 onRestoreBackup(selectedContent);
             } else {
                 window.dispatchEvent(new CustomEvent('editor:restore-content', { detail: selectedContent }));
-                if (activeNoteId && performSave) {
-                    const currentFile = files.find(f => f.id === activeNoteId);
-                    performSave(selectedContent, activeNoteId, activeFileKey, currentFile?.visibility);
-                }
+            }
+            if (activeNoteId && performSave) {
+                const currentFile = files.find(f => f.id === activeNoteId);
+                const restoredContent = selectedContent;
+                const targetNoteId = activeNoteId;
+                const targetKey = activeFileKey;
+                const targetVisibility = currentFile?.visibility;
+                setTimeout(() => {
+                    performSave(restoredContent, targetNoteId, targetKey, targetVisibility);
+                }, 50);
             }
         }
     }, [selectedContent, onRestoreBackup, activeNoteId, performSave, files, activeFileKey, setShowBackups, setActiveIndex]);

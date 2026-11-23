@@ -3,7 +3,15 @@ import { useDataStore } from "@/store/useDataStore";
 import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
 import { derivePublicNoteDEK } from "@/lib/cryptoV2";
-import { createLinePatch, applyLinePatch } from "@/lib/diff";
+import { applyLinePatch, type LinePatchOp } from "@/lib/diff";
+import {
+    BACKUP_TIERS,
+    isBackupSlotName,
+    chooseArchiveCandidate,
+    planBackupCascade,
+    type BackupSlotMeta,
+    type BackupSlotName,
+} from "@/lib/noteBackupCascade";
 
 interface ProseMirrorNodeLike {
     type?: string;
@@ -126,6 +134,8 @@ export async function decryptBackupSlot(
 export interface RunClientBackupCascadeParams {
     fileId: string;
     contentString: string;
+    previousContentString?: string | null;
+    previousTimestampMs?: number | null;
     dek: CryptoKey | null;
     accessKeysMap?: Record<string, { wrapped_key: string }> | null;
     currentFile: any;
@@ -134,48 +144,98 @@ export interface RunClientBackupCascadeParams {
     publicKey?: CryptoKey | null;
 }
 
+type ServerBackupSlot = { slot_name: string; updated_at: string; encrypted_blob?: string; version?: number; access_keys?: unknown; secured_meta?: string };
+
+const parsePatchArray = (raw: string): LinePatchOp[] | null => {
+    try { const p: unknown = JSON.parse(raw); return Array.isArray(p) ? (p as LinePatchOp[]) : null; } catch { return null; }
+};
+
+async function fetchDecryptedBackupSlot(
+    fileId: string, slotName: string, privKey: CryptoKey, myId: string, slotMap?: Partial<Record<BackupSlotName, ServerBackupSlot>>
+): Promise<string | null> {
+    let slotData = isBackupSlotName(slotName) ? slotMap?.[slotName] : undefined;
+    if (!slotData?.encrypted_blob) {
+        try {
+            const res = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slotName)}`);
+            if (!res.ok) return null;
+            slotData = (await res.json()) as ServerBackupSlot;
+            if (slotMap && isBackupSlotName(slotName) && slotData) slotMap[slotName] = slotData;
+        } catch { return null; }
+    }
+    if (!slotData?.encrypted_blob) return null;
+    try { return (await decryptBackupSlot(slotData, decodeB64ToBytes(slotData.encrypted_blob), privKey, myId, fileId)) || null; } catch { return null; }
+}
+
+async function derivePublicKeyFromPrivate(privateKey: CryptoKey): Promise<CryptoKey | null> {
+    try {
+        const jwk = await window.crypto.subtle.exportKey("jwk", privateKey);
+        if (!jwk.n || !jwk.e) return null;
+        return await window.crypto.subtle.importKey(
+            "jwk", { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RSA-OAEP-256", ext: true, key_ops: ["encrypt"] },
+            { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
+        );
+    } catch { return null; }
+}
+
 export async function runClientBackupCascade(params: RunClientBackupCascadeParams): Promise<void> {
-    const { fileId, contentString, dek, accessKeysMap, currentFile, myId, privateKey, publicKey } = params;
+    const { fileId, contentString, previousContentString, previousTimestampMs, dek, accessKeysMap, currentFile, myId, privateKey, publicKey } = params;
     try {
         const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
         if (!bListRes.ok) return;
-        const backups = await bListRes.json();
-        const slotMap: Record<string, any> = {};
+        const backups: unknown = await bListRes.json();
+        const slotMap: Partial<Record<BackupSlotName, ServerBackupSlot>> = {};
+        const existingSlots: Partial<Record<BackupSlotName, BackupSlotMeta>> = {};
         if (Array.isArray(backups)) {
-            for (const b of backups) slotMap[b.slot_name.trim()] = b;
+            for (const raw of backups) {
+                if (!raw || typeof raw !== "object") continue;
+                const b = raw as Partial<ServerBackupSlot>;
+                const trimmed = typeof b.slot_name === "string" ? b.slot_name.trim() : "";
+                const updatedAtMs = typeof b.updated_at === "string" ? Date.parse(b.updated_at) : Number.NaN;
+                if (!isBackupSlotName(trimmed) || !Number.isFinite(updatedAtMs)) continue;
+                slotMap[trimmed] = { ...b, slot_name: trimmed, updated_at: b.updated_at as string };
+                existingSlots[trimmed] = { slotName: trimmed, updatedAtMs };
+            }
         }
 
-        let effectivePubKey = publicKey || null;
-        if (!effectivePubKey && privateKey) {
-            try {
-                const jwk = await window.crypto.subtle.exportKey("jwk", privateKey);
-                if (jwk.n && jwk.e) {
-                    effectivePubKey = await window.crypto.subtle.importKey(
-                        "jwk", { kty: "RSA", n: jwk.n, e: jwk.e, alg: "RSA-OAEP-256", ext: true, key_ops: ["encrypt"] },
-                        { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
-                    );
-                }
-            } catch (_) {}
-        }
+        const nowMs = Date.now();
+        const candidate = chooseArchiveCandidate({
+            previousContent: previousContentString ?? null, previousCapturedAtMs: previousTimestampMs ?? null,
+            currentContent: contentString, hasExistingBackups: Object.keys(existingSlots).length > 0, nowMs,
+        });
+        if (!candidate) return;
 
+        const fetchAndMaterializeSlot = async (slotName: BackupSlotName, cachedBaseRef: { value: string | null }): Promise<string | null> => {
+            const decrypted = await fetchDecryptedBackupSlot(fileId, slotName, privateKey, myId, slotMap);
+            if (!decrypted) return null;
+            const patch = parsePatchArray(decrypted);
+            if (!patch) return decrypted;
+            if (slotName === "1 week") return null;
+            if (cachedBaseRef.value === null) cachedBaseRef.value = await fetchDecryptedBackupSlot(fileId, "1 week", privateKey, myId, slotMap);
+            if (!cachedBaseRef.value) return null;
+            try { return applyLinePatch(cachedBaseRef.value, patch); } catch { return null; }
+        };
+
+        const cachedBaseRef: { value: string | null } = { value: null };
+        const newestSlotName = (Object.entries(existingSlots) as [BackupSlotName, BackupSlotMeta][]).reduce<BackupSlotName | null>(
+            (best, [name, meta]) => (!best || meta.updatedAtMs > (existingSlots[best]?.updatedAtMs ?? -Infinity) ? name : best), null
+        );
+        const newestSlotContent = newestSlotName ? await fetchAndMaterializeSlot(newestSlotName, cachedBaseRef) : null;
+        const actions = planBackupCascade({ existingSlots, newestSlotContent, incomingContent: candidate.contentString, incomingCapturedAtMs: candidate.capturedAtMs, nowMs });
+        if (actions.length === 0) return;
+
+        const effectivePubKey = publicKey || (privateKey ? await derivePublicKeyFromPrivate(privateKey) : null);
         const isV2 = (currentFile?.version ?? 1) >= 2 || Boolean(currentFile?.access_keys);
-        let effectiveAccessKeys: Record<string, { wrapped_key: string }> = accessKeysMap && Object.keys(accessKeysMap).length > 0
+        const effectiveAccessKeys: Record<string, { wrapped_key: string }> = accessKeysMap && Object.keys(accessKeysMap).length > 0
             ? { ...accessKeysMap }
             : (typeof currentFile?.access_keys === 'string'
                 ? (() => { try { return JSON.parse(currentFile.access_keys); } catch { return {}; } })()
                 : { ...(currentFile?.access_keys || {}) });
 
-        if (!effectiveAccessKeys[myId]?.wrapped_key && dek && effectivePubKey) {
+        if (myId && !effectiveAccessKeys[myId]?.wrapped_key && dek && effectivePubKey) {
             try {
                 const rawDek = await window.crypto.subtle.exportKey('raw', dek);
                 effectiveAccessKeys[myId] = { wrapped_key: (await cryptoV2.wrapDEKData(rawDek, effectivePubKey)).ciphertext };
-            } catch (e) {
-                console.warn("[Backup Cascade] Could not wrap DEK for user", e);
-            }
-        }
-        if (myId && !effectiveAccessKeys[myId]?.wrapped_key) {
-            const firstAccess = Object.values(effectiveAccessKeys)[0];
-            if (firstAccess?.wrapped_key) effectiveAccessKeys[myId] = firstAccess;
+            } catch (e) { console.warn("[Backup Cascade] Could not wrap DEK for user", e); }
         }
 
         let v1Key: CryptoKey | null = dek;
@@ -186,143 +246,77 @@ export async function runClientBackupCascade(params: RunClientBackupCascadeParam
             } catch (_) {}
         }
 
-        const encryptSlotPayload = async (text: string) => {
-            if (isV2 && dek) {
-                const cipher = await encryptContentV2(text, dek);
-                return { version: 2, encrypted_blob: btoa(cipher), access_keys: effectiveAccessKeys };
-            }
+        const encryptSlotPayload = async (text: string, updatedAtMs?: number) => {
+            const tsField = typeof updatedAtMs === "number" && Number.isFinite(updatedAtMs) ? { updated_at: new Date(updatedAtMs).toISOString() } : {};
+            if (isV2 && dek) return { version: 2, encrypted_blob: btoa(await encryptContentV2(text, dek)), access_keys: effectiveAccessKeys, ...tsField };
             if (v1Key && effectivePubKey) {
                 const enc = await cryptoLib.encryptFile(new Blob([text]), v1Key, fileId);
                 const jwk = await window.crypto.subtle.exportKey("jwk", v1Key);
-                const metaPayload = { fileKey: jwk, iv: enc.iv };
-                const secured_meta = await cryptoLib.encryptMetadata(metaPayload, effectivePubKey, `backup-${fileId}`);
-                const encrypted_blob = cryptoLib.arrayBufferToBase64(await enc.ciphertext.arrayBuffer());
-                return { version: 1, encrypted_blob, secured_meta };
+                const secured_meta = await cryptoLib.encryptMetadata({ fileKey: jwk, iv: enc.iv }, effectivePubKey, `backup-${fileId}`);
+                return { version: 1, encrypted_blob: cryptoLib.arrayBufferToBase64(await enc.ciphertext.arrayBuffer()), secured_meta, ...tsField };
             }
             return null;
         };
 
-        if (!slotMap["1 week"]) {
-            const payload = await encryptSlotPayload(contentString);
-            if (!payload) return;
-            await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+        const putSlot = async (slotName: BackupSlotName, text: string, updatedAtMs?: number): Promise<boolean> => {
+            const payload = await encryptSlotPayload(text, updatedAtMs);
+            if (!payload) return false;
+            const res = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slotName)}`, {
+                method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
             });
-            return;
-        }
+            if (res.ok) delete slotMap[slotName];
+            return res.ok;
+        };
 
-        let basePlainJson = "";
-        let baseSlot = slotMap["1 week"];
-        if (baseSlot && !baseSlot.encrypted_blob) {
-            try {
-                const fullBaseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent("1 week")}`);
-                if (fullBaseRes.ok) baseSlot = await fullBaseRes.json();
-            } catch (err) {
-                console.warn("[Backup Cascade] Failed to fetch full 1 week base backup slot", err);
+        const overwrittenTargets = new Set<BackupSlotName>(actions.map(a => a.toSlot));
+        if (overwrittenTargets.has("1 week") && existingSlots["1 week"]) {
+            if (cachedBaseRef.value === null) cachedBaseRef.value = await fetchDecryptedBackupSlot(fileId, "1 week", privateKey, myId, slotMap);
+            for (const tier of BACKUP_TIERS) {
+                const slotName = tier.name;
+                if (slotName === "1 week" || overwrittenTargets.has(slotName) || !existingSlots[slotName]) continue;
+                const rawText = await fetchDecryptedBackupSlot(fileId, slotName, privateKey, myId, slotMap);
+                const patch = rawText ? parsePatchArray(rawText) : null;
+                if (!patch) continue;
+                if (!cachedBaseRef.value) return;
+                let materialized: string;
+                try { materialized = applyLinePatch(cachedBaseRef.value, patch); } catch { return; }
+                if (!(await putSlot(slotName, materialized, existingSlots[slotName]!.updatedAtMs))) return;
             }
         }
 
-        if (baseSlot && baseSlot.encrypted_blob) {
-            try {
-                basePlainJson = await decryptBackupSlot(baseSlot, decodeB64ToBytes(baseSlot.encrypted_blob), privateKey, myId, fileId);
-            } catch (e) {
-                console.warn("[Backup Cascade] Failed to decrypt base slot", e);
-            }
+        for (const action of actions) {
+            if (action.type === "promote") {
+                const materialized = await fetchAndMaterializeSlot(action.fromSlot, cachedBaseRef);
+                if (!materialized || !(await putSlot(action.toSlot, materialized, action.updatedAtMs))) return;
+            } else if (!(await putSlot(action.toSlot, action.contentString, action.updatedAtMs))) { return; }
         }
-
-        if (!basePlainJson) return;
-
-        const now = new Date();
-        const deltaSlots = [
-            { name: "10 minutes", dur: 10 * 60 * 1000 },
-            { name: "30 minutes", dur: 30 * 60 * 1000 },
-            { name: "1 hour", dur: 60 * 60 * 1000 },
-            { name: "1 day", dur: 24 * 60 * 60 * 1000 },
-            { name: "2 days", dur: 2 * 24 * 60 * 60 * 1000 },
-        ];
-
-        for (const slot of deltaSlots) {
-            const b = slotMap[slot.name];
-            if (!b || (now.getTime() - new Date(b.updated_at).getTime()) > slot.dur) {
-                const patch = createLinePatch(basePlainJson, contentString);
-                const payload = await encryptSlotPayload(JSON.stringify(patch));
-                if (payload) {
-                    await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.name)}`, {
-                        method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(payload)
-                    });
-                }
-            }
-        }
-    } catch (bErr) {
-        console.error("[Backup Cascade Error]", bErr);
-    }
+    } catch (bErr) { console.error("[Backup Cascade Error]", bErr); }
 }
 
-export async function restoreFromBackupHistory(
-    fileId: string,
-    effectivePrivKey: CryptoKey,
-    effectiveMyId: string
-): Promise<any | null> {
+export async function restoreFromBackupHistory(fileId: string, effectivePrivKey: CryptoKey, effectiveMyId: string): Promise<any | null> {
     try {
         const bListRes = await apiFetch(`/api/v1/files/${fileId}/backups`);
         if (!bListRes.ok) return null;
         const backups = await bListRes.json();
         if (!Array.isArray(backups) || backups.length === 0) return null;
-
-        const sortedSlots = [...backups].sort((a, b) => {
-            const aIsBase = a.slot_name?.trim() === '1 week' ? -1 : 0;
-            const bIsBase = b.slot_name?.trim() === '1 week' ? -1 : 0;
-            if (aIsBase !== bIsBase) return aIsBase - bIsBase;
-            return new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime();
-        });
-
+        const sortedSlots = [...backups].sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime());
         let basePlainText = "";
         const baseSlotEntry = backups.find(s => s.slot_name?.trim() === '1 week');
-
         for (const slot of sortedSlots) {
             if (!effectivePrivKey) break;
-            const bRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(slot.slot_name)}`);
-            if (bRes.ok) {
-                const backupData = await bRes.json();
-                if (backupData.encrypted_blob) {
-                    const decryptedText = await decryptBackupSlot(backupData, decodeB64ToBytes(backupData.encrypted_blob), effectivePrivKey, effectiveMyId, fileId);
-                    if (decryptedText) {
-                        if (slot.slot_name.trim() === '1 week') basePlainText = decryptedText;
-                        let parsedDecrypted: any = null;
-                        try { parsedDecrypted = JSON.parse(decryptedText); } catch { parsedDecrypted = decryptedText; }
-
-                        if (Array.isArray(parsedDecrypted)) {
-                            if (!basePlainText && baseSlotEntry) {
-                                try {
-                                    const baseRes = await apiFetch(`/api/v1/files/${fileId}/backups/${encodeURIComponent(baseSlotEntry.slot_name)}`);
-                                    if (baseRes.ok) {
-                                        const bData = await baseRes.json();
-                                        if (bData.encrypted_blob) {
-                                            basePlainText = await decryptBackupSlot(bData, decodeB64ToBytes(bData.encrypted_blob), effectivePrivKey, effectiveMyId, fileId);
-                                        }
-                                    }
-                                } catch (baseErr) {
-                                    console.warn("[RECOVERY] Failed to decrypt base for delta reconstruction", baseErr);
-                                }
-                            }
-                            if (basePlainText) {
-                                try { parsedDecrypted = JSON.parse(applyLinePatch(basePlainText, parsedDecrypted)); } catch { continue; }
-                            } else {
-                                continue;
-                            }
-                        }
-                        if (!isDocEmpty(parsedDecrypted)) return parsedDecrypted;
-                    }
-                }
+            const decryptedText = await fetchDecryptedBackupSlot(fileId, slot.slot_name, effectivePrivKey, effectiveMyId);
+            if (!decryptedText) continue;
+            if (slot.slot_name.trim() === '1 week') basePlainText = decryptedText;
+            let parsedDecrypted: any = null;
+            try { parsedDecrypted = JSON.parse(decryptedText); } catch { parsedDecrypted = decryptedText; }
+            if (Array.isArray(parsedDecrypted)) {
+                if (!basePlainText && baseSlotEntry) basePlainText = (await fetchDecryptedBackupSlot(fileId, baseSlotEntry.slot_name, effectivePrivKey, effectiveMyId)) || "";
+                if (!basePlainText) continue;
+                try { parsedDecrypted = JSON.parse(applyLinePatch(basePlainText, parsedDecrypted)); } catch { continue; }
             }
+            if (!isDocEmpty(parsedDecrypted)) return parsedDecrypted;
         }
-    } catch (recoveryErr) {
-        console.error("[RECOVERY] Error during auto-restore:", recoveryErr);
-    }
+    } catch (recoveryErr) { console.error("[RECOVERY] Error during auto-restore:", recoveryErr); }
     return null;
 }
 
@@ -398,23 +392,16 @@ export async function decryptNotePayload(params: {
             const sessionPin = getSessionPin(fileId);
             const pwdSalt = (parsedTargetMeta?.pwd_salt || target.metadata?.pwd_salt) as string | undefined;
             if (myAccess.pwd_iv || rawDek.byteLength !== 32) {
-                if (!sessionPin || !pwdSalt) {
-                    throw new Error('PIN_REQUIRED');
-                }
+                if (!sessionPin || !pwdSalt) throw new Error('PIN_REQUIRED');
                 try {
                     const pwdKey = await cryptoLib.deriveKeyFromPassword(sessionPin, cryptoLib.base64ToArrayBuffer(pwdSalt));
                     rawDek = await cryptoV2.unwrapDEKData(cryptoLib.arrayBufferToBase64(rawDek), pwdKey, myAccess.pwd_iv);
-                } catch (pwdErr) {
-                    throw new Error('PIN_REQUIRED', { cause: pwdErr });
-                }
+                } catch (pwdErr) { throw new Error('PIN_REQUIRED', { cause: pwdErr }); }
             } else {
                 const pinHash = (parsedTargetMeta?.pin_hash || target.metadata?.pin_hash) as string | undefined;
                 const secSettings = parsedTargetMeta?.security_settings || (hasCustomPassword ? parsedTargetMeta : null);
                 if (sessionPin && pwdSalt && pinHash) {
-                    const isValid = await verifyPin(sessionPin, pwdSalt, pinHash);
-                    if (!isValid) {
-                        throw new Error('PIN_REQUIRED');
-                    }
+                    if (!(await verifyPin(sessionPin, pwdSalt, pinHash))) throw new Error('PIN_REQUIRED');
                 } else if (!sessionPin && (!secSettings || !isItemUnlocked(fileId, secSettings))) {
                     throw new Error('PIN_REQUIRED');
                 }
@@ -453,9 +440,7 @@ export async function decryptNotePayload(params: {
         const rawText = resBlob.ok ? await resBlob.text() : "";
         return { contentText: ensureTipTapContent(rawText), fileKeyToUse: await derivePublicNoteDEK(fileId), title: (meta.title || target?.title) as string };
     }
-    if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) {
-        throw new Error("Invalid or missing FileKey structure.");
-    }
+    if (!meta.fileKey || typeof meta.fileKey !== 'object' || !(meta.fileKey as any).kty) throw new Error("Invalid or missing FileKey structure.");
     const importedFileKey = await window.crypto.subtle.importKey("jwk", meta.fileKey as JsonWebKey, { name: "AES-GCM" }, true, ["encrypt", "decrypt"]);
 
     const resBlob = await fetchDownload();
@@ -463,12 +448,7 @@ export async function decryptNotePayload(params: {
     if (resBlob.ok) {
         const blob = await resBlob.blob();
         if (blob.size > 0) {
-            try {
-                const decBlob = await cryptoLib.decryptFile(blob, meta.iv as string, importedFileKey, fileId);
-                contentText = await decBlob.text();
-            } catch (_) {
-                contentText = makeDecErrorDoc("V1");
-            }
+            try { contentText = await (await cryptoLib.decryptFile(blob, meta.iv as string, importedFileKey, fileId)).text(); } catch (_) { contentText = makeDecErrorDoc("V1"); }
         }
     }
     return { contentText, fileKeyToUse: importedFileKey, title: meta.title as string };
@@ -506,11 +486,7 @@ export async function uploadPublicFile(fileId: string, contentString: string, fa
     await apiFetch(`/api/v1/files/${fileId}/upload`, { method: 'POST', body: new Blob([contentString], { type: 'application/json' }) });
     const allPublic = [...useDataStore.getState().notes, ...useDataStore.getState().events] as any[];
     const title = allPublic.find((f: any) => f.id === fileId)?.title || fallbackTitle || 'Untitled';
-    const putRes = await apiFetch(`/api/v1/files/${fileId}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ public_meta: { title } })
-    });
+    const putRes = await apiFetch(`/api/v1/files/${fileId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ public_meta: { title } }) });
     if (putRes.status === 404) { onNotFound(); return; }
     useDataStore.getState().updateFileRaw(fileId, { public_meta: { title }, title });
     try { localStorage.removeItem(`tide_backup_${fileId}`); } catch (_) {}

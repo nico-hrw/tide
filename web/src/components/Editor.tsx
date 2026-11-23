@@ -292,6 +292,7 @@ function CollaborativeEditor(props: EditorProps) {
                 const cleanJson = (jsonContent && jsonContent.__yjs) ? (({ __yjs, ...rest }) => rest)(jsonContent) : jsonContent;
                 if (ydoc) {
                     const xmlFragment = ydoc.getXmlFragment('prosemirror');
+                    let syncedViaYjs = false;
                     ydoc.transact(() => {
                         while (xmlFragment.length > 0) xmlFragment.delete(0, 1);
                         try {
@@ -299,11 +300,14 @@ function CollaborativeEditor(props: EditorProps) {
                             const { prosemirrorToYXmlFragment } = require('@tiptap/y-tiptap');
                             // BUG-10 fix: NEVER mutate client ID to a static value!
                             prosemirrorToYXmlFragment(doc, xmlFragment);
+                            syncedViaYjs = true;
                         } catch (_) {
                             // Fallback handled by setContent below
                         }
                     });
-                    editor.commands.setContent(cleanJson, { emitUpdate: false });
+                    if (!syncedViaYjs) {
+                        editor.commands.setContent(cleanJson, { emitUpdate: false });
+                    }
                 } else {
                     editor.commands.setContent(cleanJson);
                 }
