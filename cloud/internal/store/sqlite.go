@@ -34,7 +34,7 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	}
 
 	dbPath := filepath.Join(dataDir, "tide.db")
-	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)", dbPath)
+	dsn := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-16000)", dbPath)
 
 	conn, err := sql.Open("sqlite", dsn)
 	if err != nil {
@@ -56,7 +56,7 @@ func NewSQLiteStore(dataDir string) (*SQLiteStore, error) {
 	if maxReaders < 4 {
 		maxReaders = 4
 	}
-	readerDSN := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=query_only(true)&_pragma=foreign_keys(ON)", dbPath)
+	readerDSN := fmt.Sprintf("file:%s?_pragma=busy_timeout(5000)&_pragma=journal_mode(WAL)&_pragma=synchronous(NORMAL)&_pragma=query_only(true)&_pragma=foreign_keys(ON)&_pragma=temp_store(MEMORY)&_pragma=cache_size(-16000)", dbPath)
 	readerConn, err := sql.Open("sqlite", readerDSN)
 	if err != nil {
 		conn.Close()
@@ -352,6 +352,9 @@ func (s *SQLiteStore) migrate() error {
 	CREATE INDEX IF NOT EXISTS idx_todos_status ON todos(status);
 	CREATE INDEX IF NOT EXISTS idx_todos_priority ON todos(priority);
 	CREATE INDEX IF NOT EXISTS idx_todos_created ON todos(created_at);
+	CREATE INDEX IF NOT EXISTS idx_files_owner_type_updated ON files(owner_id, type, updated_at DESC);
+	CREATE INDEX IF NOT EXISTS idx_files_owner_parent ON files(owner_id, parent_id);
+	CREATE INDEX IF NOT EXISTS idx_todos_user_completed_due ON todos(user_id, is_completed, due_date);
 	`
 	if _, err := s.DB.Exec(indices); err != nil {
 		return err

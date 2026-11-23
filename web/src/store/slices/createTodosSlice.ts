@@ -1,32 +1,9 @@
 import { apiFetch } from '@/lib/api';
-import { generateSecureId, saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
+import { generateSecureId } from '@/lib/offlineCacheCrypto';
 import type { DataStoreSlice, TaskItem, TodosSlice } from './types';
-import { deletedTaskIds, recordDeletedTaskId } from './fsHelpers';
+import { deletedTaskIds, recordDeletedTaskId, loadCachedTasks, saveTasksToOfflineCache } from './fsHelpers';
 
-export { deletedTaskIds, recordDeletedTaskId };
-
-export function loadCachedTasks(): TaskItem[] {
-    if (typeof window !== 'undefined') {
-        try {
-            localStorage.removeItem('tide_offline_tasks');
-        } catch {
-            // Ignore storage errors
-        }
-    }
-    return [];
-}
-
-export function saveTasksToOfflineCache(tasks: TaskItem[]): void {
-    if (typeof window === 'undefined') return;
-    try {
-        localStorage.removeItem('tide_offline_tasks');
-    } catch {
-        // Ignore storage errors
-    }
-    void saveEncryptedOfflineCache('tasks', tasks).catch((e) => {
-        console.warn('Failed to save tasks to offline cache', e);
-    });
-}
+export { deletedTaskIds, recordDeletedTaskId, loadCachedTasks, saveTasksToOfflineCache };
 
 function taskToServerTodoPayload(task: TaskItem, includeId: boolean): Record<string, unknown> {
     const payload: Record<string, unknown> = {

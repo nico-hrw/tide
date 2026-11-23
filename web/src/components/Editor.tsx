@@ -186,8 +186,12 @@ function CollaborativeEditor(props: EditorProps) {
         if (!providerRef.current) {
             const newProvider = createProvider(activeDek, ydocRef.current);
             if (newProvider) {
-                providerRef.current = newProvider;
-                if (!isCancelled) setProvider(newProvider);
+                if (isCancelled) {
+                    newProvider.destroy();
+                } else {
+                    providerRef.current = newProvider;
+                    setProvider(newProvider);
+                }
             }
         } else {
             providerRef.current.updateDEK(activeDek, activeEpoch);
@@ -285,6 +289,9 @@ function CollaborativeEditor(props: EditorProps) {
         }
     }, [cleanInitial, initialContent, editor]);
 
+    const propsRef = useRef(props);
+    propsRef.current = props;
+
     // Handle restore-content custom event
     useEffect(() => {
         if (!editor) return;
@@ -321,7 +328,7 @@ function CollaborativeEditor(props: EditorProps) {
                 setEditorInkStrokes(editor, restoredStrokes);
                 userHasTypedRef.current = true;
                 onChange?.(cleanJson);
-                (props as any)?.onContentChange?.(cleanJson);
+                (propsRef.current as any)?.onContentChange?.(cleanJson);
             } catch (err) {
                 console.error('Failed to restore via Yjs/setContent:', err);
                 try {
@@ -332,7 +339,7 @@ function CollaborativeEditor(props: EditorProps) {
                     setEditorInkStrokes(editor, fallbackStrokes);
                     userHasTypedRef.current = true;
                     onChange?.(parsedFallback);
-                    (props as any)?.onContentChange?.(parsedFallback);
+                    (propsRef.current as any)?.onContentChange?.(parsedFallback);
                 } catch (fallbackErr) {
                     console.error('Fallback setContent failed:', fallbackErr);
                 }
@@ -340,7 +347,7 @@ function CollaborativeEditor(props: EditorProps) {
         };
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
-    }, [editor, ydoc, provider, onChange, props]);
+    }, [editor, ydoc, provider, onChange]);
 
     // Refresh editor content when an external note update arrives
     useEffect(() => {

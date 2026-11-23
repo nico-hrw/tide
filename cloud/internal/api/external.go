@@ -218,9 +218,13 @@ func DualAuthMiddleware(s *store.SQLiteStore, requiredScopes ...string) func(htt
 					next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), "user_id", userID)))
 					return
 				}
-				if authedReq, ok := authenticatePAT(w, r, s, bearerVal, requiredScopes); ok {
-					next.ServeHTTP(w, authedReq)
+				if !(strings.Count(bearerVal, ".") == 2 && !strings.HasPrefix(bearerVal, "tide_pat_")) {
+					if authedReq, ok := authenticatePAT(w, r, s, bearerVal, requiredScopes); ok {
+						next.ServeHTTP(w, authedReq)
+					}
+					return
 				}
+				writeExternalError(w, http.StatusUnauthorized, "Unauthorized", "Missing or invalid authentication token")
 				return
 			}
 			if cookie, err := r.Cookie("tide_session"); err == nil && cookie.Value != "" {

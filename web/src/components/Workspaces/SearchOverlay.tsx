@@ -6,6 +6,7 @@ import { Search, FileText, Calendar, CheckSquare, X, Loader2 } from 'lucide-reac
 import Fuse from 'fuse.js';
 import { loadSearchIndex, SearchIndexEntry } from '@/lib/searchIndex';
 import { useDataStore } from '@/store/useDataStore';
+import { useShallow } from 'zustand/react/shallow';
 import { DT } from '@/lib/designTokens';
 
 export interface SearchOverlayProps {
@@ -40,12 +41,12 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
     const [loadingIndex, setLoadingIndex] = useState(false);
     const inputRef = useRef<HTMLInputElement>(null);
 
-    const { notes, events, tasks, theme } = useDataStore((s) => ({
+    const { notes, events, tasks, theme } = useDataStore(useShallow((s) => ({
         notes: s.notes,
         events: s.events,
         tasks: s.tasks,
         theme: s.theme,
-    }));
+    })));
     const isDark = theme === 'dark';
 
     // Global shortcut: Cmd+K / Ctrl+K
@@ -89,6 +90,7 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
 
     // Aggregate items across eager search index and local data store
     const allItems = useMemo<SearchItem[]>(() => {
+        if (!isOpen) return [];
         const map = new Map<string, SearchItem>();
         for (const item of indexEntries) {
             if (item?.id) map.set(item.id, { id: item.id, title: item.title || 'Untitled', type: item.type || 'note', date: item.date });
@@ -104,13 +106,17 @@ export const SearchOverlay: React.FC<SearchOverlayProps> = ({
             if (t?.id) map.set(t.id, { id: t.id, title: t.title || 'Untitled Task', type: 'task', date: t.dueDate });
         }
         return Array.from(map.values());
-    }, [indexEntries, notes, events, tasks]);
+    }, [isOpen, indexEntries, notes, events, tasks]);
 
-    const fuse = useMemo(() => new Fuse(allItems, { keys: ['title', 'type'], threshold: 0.35, ignoreLocation: true }), [allItems]);
+    const fuse = useMemo(
+        () => (isOpen ? new Fuse(allItems, { keys: ['title', 'type'], threshold: 0.35, ignoreLocation: true }) : null),
+        [isOpen, allItems]
+    );
     const results = useMemo(() => {
+        if (!isOpen) return [];
         const trimmed = query.trim();
-        return trimmed ? fuse.search(trimmed).map((r) => r.item).slice(0, 20) : allItems.slice(0, 10);
-    }, [query, allItems, fuse]);
+        return trimmed && fuse ? fuse.search(trimmed).map((r) => r.item).slice(0, 20) : allItems.slice(0, 10);
+    }, [isOpen, query, allItems, fuse]);
 
     useEffect(() => { setSelectedIndex(0); }, [query]);
 

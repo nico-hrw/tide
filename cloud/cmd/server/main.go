@@ -248,6 +248,7 @@ func main() {
 	r.Use(middleware.RequestID)
 	r.Use(trustedProxyRealIP(trustedProxies))
 	r.Use(middleware.RedirectSlashes)
+	r.Use(middleware.Compress(5))
 
 	// Global Security Headers Middleware
 	r.Use(func(next http.Handler) http.Handler {

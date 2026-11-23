@@ -24,7 +24,6 @@ import { useSplitViewDrag } from "@/hooks/useSplitViewDrag";
 import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
 import Sidebar from "@/components/Layout/Sidebar";
 import MobileLayout from "@/components/Layout/MobileLayout";
-import SocialHub from "@/components/Social/SocialHub";
 import { filterFilesBySafe } from "@/components/Layout/sidebar/SidebarFiles";
 import { DashboardDesktopContent, type DashboardCollaborator, type DashboardDesktopContentProps } from "@/components/Dashboard/DashboardDesktopContent";
 import { DashboardModals } from "@/components/Dashboard/DashboardModals";
@@ -46,6 +45,7 @@ const Editor = dynamic(() => import("@/components/Editor"), {
     ssr: false, loading: () => <div className="min-h-[500px] w-full animate-pulse bg-t2-sub rounded-lg" />,
 });
 const CanvasNoteEditor = dynamic(() => import("@/components/Canvas/CanvasNoteEditor"), { ssr: false });
+const SocialHub = dynamic(() => import("@/components/Social/SocialHub"), { ssr: false });
 const SUMMARY_STATS: SummaryStats = { events: 0, tasks: 0 };
 
 interface ExtendedDecryptedFile extends DecryptedFile {
@@ -163,6 +163,7 @@ export default function Dashboard() {
         setTimeout(() => setEditorInstance(ed as TipTapEditor | null), 0);
     }, []);
     const switchTabRef = useRef<SwitchTabFn | null>(null);
+    const handleAutoSaveSwitchTab = useCallback((...args: Parameters<SwitchTabFn>) => switchTabRef.current?.(...args), []);
 
     const {
         saveStatus, setSaveStatus, isLoadingContent, activeFileKey, setActiveFileKey,
@@ -170,7 +171,7 @@ export default function Dashboard() {
         userHasTypedRef, initialContentRef, handleEditorChange, triggerSave, performSave, loadNoteContent,
     } = useAutoSaveSync({
         activeNoteId, openTabs, setOpenTabs, setEditorVersion, privateKey, publicKey, myId,
-        files, events, switchTab: (...args) => switchTabRef.current?.(...args),
+        files, events, switchTab: handleAutoSaveSwitchTab,
     });
     editorActionsRef.current = {
         setEditorContent, setActiveFileKey, setFileName,

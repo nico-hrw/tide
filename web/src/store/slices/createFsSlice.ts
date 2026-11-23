@@ -347,18 +347,23 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             const newMetaCache: Record<string, unknown> = { ...get().metadataCache };
             const existingAll = [...get().notes, ...get().events];
 
-            for (const f of allFiles) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    forceRefresh,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2' : 'lazy',
-                });
+            const decryptedResults = await Promise.all(
+                allFiles.map(async (f) => ({
+                    id: f.id,
+                    res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                        existingItems: existingAll,
+                        cachedMetadata: newMetaCache,
+                        forceRefresh,
+                        cachePrefix: f.version && f.version >= 2 ? 'v2' : 'lazy',
+                    }),
+                }))
+            );
 
+            for (const { id, res } of decryptedResults) {
                 if (res.skipped) continue;
 
                 if (res.metadata) {
-                    newMetaCache[f.id] = res.metadata;
+                    newMetaCache[id] = res.metadata;
                 }
 
                 if (res.item) {
@@ -505,25 +510,38 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             const newMetaCache: Record<string, unknown> = { ...get().metadataCache };
             const existingAll = [...get().notes, ...get().events];
 
-            for (const f of allFiles) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
-                });
+            const [fileResults, eventResults] = await Promise.all([
+                Promise.all(
+                    allFiles.map(async (f) => ({
+                        id: f.id,
+                        res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                            existingItems: existingAll,
+                            cachedMetadata: newMetaCache,
+                            cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                        }),
+                    }))
+                ),
+                Promise.all(
+                    allEvents.map(async (f) => ({
+                        id: f.id,
+                        res: await decryptAndNormalizeFileItem(f, state.privateKey, {
+                            existingItems: existingAll,
+                            cachedMetadata: newMetaCache,
+                            cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                        }),
+                    }))
+                ),
+            ]);
+
+            for (const { id, res } of fileResults) {
                 if (res.skipped) continue;
-                if (res.metadata) newMetaCache[f.id] = res.metadata;
+                if (res.metadata) newMetaCache[id] = res.metadata;
                 if (res.item) decryptedNotes.push(res.item);
             }
 
-            for (const f of allEvents) {
-                const res = await decryptAndNormalizeFileItem(f, state.privateKey, {
-                    existingItems: existingAll,
-                    cachedMetadata: newMetaCache,
-                    cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
-                });
+            for (const { id, res } of eventResults) {
                 if (res.skipped) continue;
-                if (res.metadata) newMetaCache[f.id] = res.metadata;
+                if (res.metadata) newMetaCache[id] = res.metadata;
                 if (res.item) decryptedEvents.push(res.item);
             }
 
