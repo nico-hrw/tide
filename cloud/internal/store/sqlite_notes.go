@@ -40,6 +40,8 @@ func ParseNoteTitle(metadataStr, publicMetaStr string) string {
 func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string, search string, limit int) ([]*db.ExternalNoteListItem, error) {
 	query := `
 		SELECT f.id, f.parent_id, f.updated_at,
+		       COALESCE(f.visibility, 'private') as visibility,
+		       COALESCE(f.version, 1) as version,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
 		FROM files f
@@ -62,9 +64,11 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 		var id string
 		var parentID *string
 		var updatedAt time.Time
+		var visibility string
+		var version int
 		var md, pm string
 
-		if err := rows.Scan(&id, &parentID, &updatedAt, &md, &pm); err != nil {
+		if err := rows.Scan(&id, &parentID, &updatedAt, &visibility, &version, &md, &pm); err != nil {
 			return nil, err
 		}
 
@@ -75,11 +79,35 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 			}
 		}
 
+		var meta struct {
+			Safe        string   `json:"safe"`
+			LinkedSafes []string `json:"linkedSafes"`
+			TagIDs      []string `json:"tagIds"`
+			Icon        string   `json:"icon"`
+			Color       string   `json:"color"`
+			Unencrypted bool     `json:"unencrypted"`
+		}
+		if md != "" && md != "{}" {
+			_ = json.Unmarshal([]byte(md), &meta)
+		}
+
+		safe := meta.Safe
+		if safe == "" || safe == "Standard" {
+			safe = "main"
+		}
+
 		notes = append(notes, &db.ExternalNoteListItem{
-			ID:        id,
-			Title:     title,
-			ParentID:  parentID,
-			UpdatedAt: updatedAt,
+			ID:          id,
+			Title:       title,
+			ParentID:    parentID,
+			Safe:        safe,
+			LinkedSafes: meta.LinkedSafes,
+			TagIDs:      meta.TagIDs,
+			Icon:        meta.Icon,
+			Color:       meta.Color,
+			Encrypted:   !(visibility == "public" || meta.Unencrypted),
+			Version:     version,
+			UpdatedAt:   updatedAt,
 		})
 	}
 

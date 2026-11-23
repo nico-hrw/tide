@@ -102,6 +102,20 @@ export function useWorkspaceTabs({
         }
     }, [activeTabId, openTabs]);
 
+    useEffect(() => {
+        const handleExternalNoteUpdated = (event: Event) => {
+            const fileId = (event as CustomEvent<{ fileId?: string }>).detail?.fileId;
+            if (!fileId) return;
+            setOpenTabs((prev) =>
+                prev.some((t) => t.id === fileId)
+                    ? prev.map((t) => (t.id === fileId ? { ...t, content: undefined } : t))
+                    : prev
+            );
+        };
+        window.addEventListener("tide:external_note_updated", handleExternalNoteUpdated);
+        return () => window.removeEventListener("tide:external_note_updated", handleExternalNoteUpdated);
+    }, [setOpenTabs]);
+
     const switchTab: SwitchTabFn = async (
         newId, type, forcedTitle, fallbackData, currentOverride
     ) => {

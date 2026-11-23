@@ -14,16 +14,113 @@ import (
 
 // TodoFilter encapsulates options for querying and filtering todos.
 type TodoFilter struct {
-	Date        string // matches due_date or scheduled_date
-	Priority    string // low, medium, high
-	Tag         string // JSON array search
-	Description string // substring in title or description
-	Search      string // alias for Description
-	Overdue     *bool  // is_completed = 0 AND due_date != '' AND due_date < current date
-	Status      string // todo, in_progress, completed
-	IsCompleted *bool
-	Limit       int
-	Offset      int
+	Date            string // matches due_date or scheduled_date
+	Priority        string // low, medium, high
+	Tag             string // JSON array search
+	Description     string // substring in title or description
+	Search          string // alias for Description
+	Overdue         *bool  // is_completed = 0 AND due_date != '' AND due_date < current date
+	Status          string // todo, in_progress, completed
+	IsCompleted     *bool
+	Folder          string
+	IncludeArchived *bool
+	Limit           int
+	Offset          int
+}
+
+const todoSelectColumns = `
+	id, user_id, title, description, status, priority,
+	due_date, scheduled_date, tags, color, is_completed,
+	completed_at,
+	COALESCE(folder, ''), COALESCE(linked_note_id, ''),
+	COALESCE(recurrence, 'none'), COALESCE(recurrence_rule, ''), COALESCE(recurrence_end, ''),
+	COALESCE(completed_dates, '[]'), COALESCE(show_in_calendar, 0), COALESCE(is_archived, 0),
+	COALESCE(parent_id, ''), COALESCE(sort_order, 0),
+	created_at, updated_at`
+
+func boolToInt(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
+}
+
+func marshalStringSlice(items []string) ([]string, string) {
+	if items == nil {
+		items = []string{}
+	}
+	b, err := json.Marshal(items)
+	if err != nil {
+		return items, "[]"
+	}
+	return items, string(b)
+}
+
+func unmarshalStringSlice(raw string) []string {
+	var out []string
+	if raw != "" {
+		_ = json.Unmarshal([]byte(raw), &out)
+	}
+	if out == nil {
+		out = []string{}
+	}
+	return out
+}
+
+func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr string) (*db.Todo, error) {
+	var (
+		todo               db.Todo
+		tagsJSON           string
+		completedDatesJSON string
+		isCompInt          int
+		showInCalendarInt  int
+		isArchivedInt      int
+		completedAt        sql.NullTime
+	)
+
+	err := scanner.Scan(
+		&todo.ID,
+		&todo.UserID,
+		&todo.Title,
+		&todo.Description,
+		&todo.Status,
+		&todo.Priority,
+		&todo.DueDate,
+		&todo.ScheduledDate,
+		&tagsJSON,
+		&todo.Color,
+		&isCompInt,
+		&completedAt,
+		&todo.Folder,
+		&todo.LinkedNoteID,
+		&todo.Recurrence,
+		&todo.RecurrenceRule,
+		&todo.RecurrenceEnd,
+		&completedDatesJSON,
+		&showInCalendarInt,
+		&isArchivedInt,
+		&todo.ParentID,
+		&todo.SortOrder,
+		&todo.CreatedAt,
+		&todo.UpdatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	todo.IsCompleted = (isCompInt == 1)
+	todo.ShowInCalendar = (showInCalendarInt == 1)
+	todo.IsArchived = (isArchivedInt == 1)
+	if completedAt.Valid {
+		t := completedAt.Time
+		todo.CompletedAt = &t
+	}
+
+	todo.Tags = unmarshalStringSlice(tagsJSON)
+	todo.CompletedDates = unmarshalStringSlice(completedDatesJSON)
+	todo.IsOverdue = computeIsOverdue(&todo, todayStr)
+
+	return &todo, nil
 }
 
 func computeIsOverdue(todo *db.Todo, todayStr string) bool {
@@ -40,13 +137,9 @@ func computeIsOverdue(todo *db.Todo, todayStr string) bool {
 // GetTodos retrieves filtered todos for a user.
 func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFilter) ([]*db.Todo, error) {
 	queryBuilder := strings.Builder{}
-	queryBuilder.WriteString(`
-		SELECT id, user_id, title, description, status, priority,
-		       due_date, scheduled_date, tags, color, is_completed,
-		       completed_at, created_at, updated_at
-		FROM todos
-		WHERE user_id = ?
-	`)
+	queryBuilder.WriteString("SELECT ")
+	queryBuilder.WriteString(todoSelectColumns)
+	queryBuilder.WriteString("\n\t\tFROM todos\n\t\tWHERE user_id = ?\n\t")
 
 	args := []interface{}{userID}
 
@@ -89,12 +182,17 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 	}
 
 	if filter.IsCompleted != nil {
-		isCompInt := 0
-		if *filter.IsCompleted {
-			isCompInt = 1
-		}
 		queryBuilder.WriteString(" AND is_completed = ?")
-		args = append(args, isCompInt)
+		args = append(args, boolToInt(*filter.IsCompleted))
+	}
+
+	if filter.Folder != "" {
+		queryBuilder.WriteString(" AND folder = ?")
+		args = append(args, filter.Folder)
+	}
+
+	if filter.IncludeArchived != nil && !*filter.IncludeArchived {
+		queryBuilder.WriteString(" AND COALESCE(is_archived, 0) = 0")
 	}
 
 	queryBuilder.WriteString(" ORDER BY CASE WHEN due_date != '' THEN 0 ELSE 1 END, due_date ASC, priority DESC, created_at DESC")
@@ -121,48 +219,11 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 
 	todos := make([]*db.Todo, 0)
 	for rows.Next() {
-		var (
-			todo        db.Todo
-			tagsJSON    string
-			isCompInt   int
-			completedAt sql.NullTime
-		)
-
-		err := rows.Scan(
-			&todo.ID,
-			&todo.UserID,
-			&todo.Title,
-			&todo.Description,
-			&todo.Status,
-			&todo.Priority,
-			&todo.DueDate,
-			&todo.ScheduledDate,
-			&tagsJSON,
-			&todo.Color,
-			&isCompInt,
-			&completedAt,
-			&todo.CreatedAt,
-			&todo.UpdatedAt,
-		)
+		todo, err := scanTodo(rows, todayStr)
 		if err != nil {
 			return nil, err
 		}
-
-		todo.IsCompleted = (isCompInt == 1)
-		if completedAt.Valid {
-			t := completedAt.Time
-			todo.CompletedAt = &t
-		}
-
-		if tagsJSON != "" {
-			_ = json.Unmarshal([]byte(tagsJSON), &todo.Tags)
-		}
-		if todo.Tags == nil {
-			todo.Tags = []string{}
-		}
-
-		todo.IsOverdue = computeIsOverdue(&todo, todayStr)
-		todos = append(todos, &todo)
+		todos = append(todos, todo)
 	}
 
 	if err := rows.Err(); err != nil {
@@ -174,38 +235,11 @@ func (s *SQLiteStore) GetTodos(ctx context.Context, userID string, filter TodoFi
 
 // GetTodoByID fetches a single todo by ID belonging to userID.
 func (s *SQLiteStore) GetTodoByID(ctx context.Context, userID, todoID string) (*db.Todo, error) {
-	query := `
-		SELECT id, user_id, title, description, status, priority,
-		       due_date, scheduled_date, tags, color, is_completed,
-		       completed_at, created_at, updated_at
-		FROM todos
-		WHERE id = ? AND user_id = ?
-	`
+	query := "SELECT " + todoSelectColumns + "\n\t\tFROM todos\n\t\tWHERE id = ? AND user_id = ?\n\t"
 	row := s.readDB().QueryRowContext(ctx, query, todoID, userID)
 
-	var (
-		todo        db.Todo
-		tagsJSON    string
-		isCompInt   int
-		completedAt sql.NullTime
-	)
-
-	err := row.Scan(
-		&todo.ID,
-		&todo.UserID,
-		&todo.Title,
-		&todo.Description,
-		&todo.Status,
-		&todo.Priority,
-		&todo.DueDate,
-		&todo.ScheduledDate,
-		&tagsJSON,
-		&todo.Color,
-		&isCompInt,
-		&completedAt,
-		&todo.CreatedAt,
-		&todo.UpdatedAt,
-	)
+	todayStr := time.Now().UTC().Format("2006-01-02")
+	todo, err := scanTodo(row, todayStr)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
@@ -213,23 +247,7 @@ func (s *SQLiteStore) GetTodoByID(ctx context.Context, userID, todoID string) (*
 		return nil, err
 	}
 
-	todo.IsCompleted = (isCompInt == 1)
-	if completedAt.Valid {
-		t := completedAt.Time
-		todo.CompletedAt = &t
-	}
-
-	if tagsJSON != "" {
-		_ = json.Unmarshal([]byte(tagsJSON), &todo.Tags)
-	}
-	if todo.Tags == nil {
-		todo.Tags = []string{}
-	}
-
-	todayStr := time.Now().UTC().Format("2006-01-02")
-	todo.IsOverdue = computeIsOverdue(&todo, todayStr)
-
-	return &todo, nil
+	return todo, nil
 }
 
 // CreateTodo inserts a new todo for the given user.
@@ -245,9 +263,13 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 	if todo.Priority == "" {
 		todo.Priority = "medium"
 	}
-	if todo.Tags == nil {
-		todo.Tags = []string{}
+	if todo.Recurrence == "" {
+		todo.Recurrence = "none"
 	}
+
+	var tagsJSON, completedDatesJSON string
+	todo.Tags, tagsJSON = marshalStringSlice(todo.Tags)
+	todo.CompletedDates, completedDatesJSON = marshalStringSlice(todo.CompletedDates)
 
 	if todo.IsCompleted || todo.Status == "completed" {
 		todo.IsCompleted = true
@@ -265,25 +287,18 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 		todo.UpdatedAt = now
 	}
 
-	tagsBytes, err := json.Marshal(todo.Tags)
-	if err != nil {
-		tagsBytes = []byte("[]")
-	}
-
-	isCompInt := 0
-	if todo.IsCompleted {
-		isCompInt = 1
-	}
-
 	query := `
 		INSERT INTO todos (
 			id, user_id, title, description, status, priority,
 			due_date, scheduled_date, tags, color, is_completed,
-			completed_at, created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			completed_at, folder, linked_note_id, recurrence,
+			recurrence_rule, recurrence_end, completed_dates,
+			show_in_calendar, is_archived, parent_id, sort_order,
+			created_at, updated_at
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
-	_, err = s.DB.ExecContext(ctx, query,
+	_, err := s.DB.ExecContext(ctx, query,
 		todo.ID,
 		todo.UserID,
 		todo.Title,
@@ -292,10 +307,20 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 		todo.Priority,
 		todo.DueDate,
 		todo.ScheduledDate,
-		string(tagsBytes),
+		tagsJSON,
 		todo.Color,
-		isCompInt,
+		boolToInt(todo.IsCompleted),
 		todo.CompletedAt,
+		todo.Folder,
+		todo.LinkedNoteID,
+		todo.Recurrence,
+		todo.RecurrenceRule,
+		todo.RecurrenceEnd,
+		completedDatesJSON,
+		boolToInt(todo.ShowInCalendar),
+		boolToInt(todo.IsArchived),
+		todo.ParentID,
+		todo.SortOrder,
 		todo.CreatedAt,
 		todo.UpdatedAt,
 	)
@@ -323,18 +348,13 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 		todo.CompletedAt = nil
 	}
 
-	if todo.Tags == nil {
-		todo.Tags = []string{}
-	}
-	tagsBytes, err := json.Marshal(todo.Tags)
-	if err != nil {
-		tagsBytes = []byte("[]")
+	if todo.Recurrence == "" {
+		todo.Recurrence = "none"
 	}
 
-	isCompInt := 0
-	if todo.IsCompleted {
-		isCompInt = 1
-	}
+	var tagsJSON, completedDatesJSON string
+	todo.Tags, tagsJSON = marshalStringSlice(todo.Tags)
+	todo.CompletedDates, completedDatesJSON = marshalStringSlice(todo.CompletedDates)
 
 	query := `
 		UPDATE todos SET
@@ -348,6 +368,16 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 			color = ?,
 			is_completed = ?,
 			completed_at = ?,
+			folder = ?,
+			linked_note_id = ?,
+			recurrence = ?,
+			recurrence_rule = ?,
+			recurrence_end = ?,
+			completed_dates = ?,
+			show_in_calendar = ?,
+			is_archived = ?,
+			parent_id = ?,
+			sort_order = ?,
 			updated_at = ?
 		WHERE id = ? AND user_id = ?
 	`
@@ -359,10 +389,20 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 		todo.Priority,
 		todo.DueDate,
 		todo.ScheduledDate,
-		string(tagsBytes),
+		tagsJSON,
 		todo.Color,
-		isCompInt,
+		boolToInt(todo.IsCompleted),
 		todo.CompletedAt,
+		todo.Folder,
+		todo.LinkedNoteID,
+		todo.Recurrence,
+		todo.RecurrenceRule,
+		todo.RecurrenceEnd,
+		completedDatesJSON,
+		boolToInt(todo.ShowInCalendar),
+		boolToInt(todo.IsArchived),
+		todo.ParentID,
+		todo.SortOrder,
 		todo.UpdatedAt,
 		todo.ID,
 		todo.UserID,

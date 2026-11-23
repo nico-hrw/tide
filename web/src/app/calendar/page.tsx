@@ -36,6 +36,8 @@ interface DecryptedFile {
     title: string;
     type: string;
     color?: string;
+    isGroup?: boolean;
+    effect?: string;
 }
 
 export default function CalendarPage() {
@@ -169,13 +171,22 @@ export default function CalendarPage() {
             const decryptedFolders: DecryptedFile[] = [];
             for (const f of folderFiles) {
                 try {
-                    const meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
-                    decryptedFolders.push({
-                        id: f.id,
-                        title: (meta.title as string) || "Untitled Folder",
-                        type: "folder",
-                        color: (meta.color as string)
-                    });
+                    let meta: Record<string, unknown> | null = null;
+                    if (f.version >= 2 && f.metadata) {
+                        meta = typeof f.metadata === "string" ? JSON.parse(f.metadata) : f.metadata;
+                    } else if (f.secured_meta) {
+                        meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
+                    }
+                    if (meta) {
+                        decryptedFolders.push({
+                            id: f.id,
+                            title: (meta.title as string) || "Untitled Folder",
+                            type: "folder",
+                            color: (meta.color as string),
+                            isGroup: !!meta.isGroup,
+                            effect: (meta.effect as string)
+                        });
+                    }
                 } catch (e) {
                     console.error("Failed to decrypt folder:", f.id);
                 }
@@ -225,7 +236,17 @@ export default function CalendarPage() {
                     type: "event",
                     parent_id: null,
                     public_meta: {},
-                    secured_meta: securedMeta // Always include for title decryption on reload
+                    secured_meta: securedMeta, // Always include for title decryption on reload
+                    version: 2,
+                    metadata: {
+                        has_custom_password: false,
+                        title: meta.title || "New Event",
+                        start: meta.start,
+                        end: meta.end,
+                        allDay: meta.allDay ?? false,
+                        color: meta.color,
+                        description: meta.description ?? ''
+                    }
                 })
             });
 
@@ -235,7 +256,7 @@ export default function CalendarPage() {
             // Optimistic Update
             setEvents(prev => [...prev, {
                 id: newFile.id,
-                title,
+                title: meta.title || "New Event",
                 start: meta.start,
                 end: meta.end,
                 color: meta.color

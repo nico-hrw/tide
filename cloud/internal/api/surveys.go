@@ -2,17 +2,13 @@ package api
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/golang-jwt/jwt/v5"
 	"github.com/google/uuid"
 	"github.com/nicoh/tide/internal/db"
 	"github.com/nicoh/tide/internal/store"
@@ -54,197 +50,7 @@ func (h *SurveysHandler) RegisterRoutes(r chi.Router) {
 // RequireScopes validates incoming requests against API tokens or user session JWTs.
 func (h *SurveysHandler) RequireScopes(allowedScopes ...string) func(http.HandlerFunc) http.HandlerFunc {
 	return func(next http.HandlerFunc) http.HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) {
-			tokenString := ""
-
-			authHeader := r.Header.Get("Authorization")
-			if strings.HasPrefix(authHeader, "Bearer ") {
-				tokenString = strings.TrimSpace(strings.TrimPrefix(authHeader, "Bearer "))
-			}
-			if tokenString == "" {
-				tokenString = strings.TrimSpace(r.Header.Get("X-API-Key"))
-			}
-			if tokenString == "" {
-				tokenString = strings.TrimSpace(r.URL.Query().Get("api_token"))
-			}
-
-			// Case 1: An API Token is provided (starts with tide_pat_ or supplied via X-API-Key / api_token)
-			if strings.HasPrefix(tokenString, "tide_pat_") || r.Header.Get("X-API-Key") != "" || r.URL.Query().Get("api_token") != "" {
-				hashBytes := sha256.Sum256([]byte(tokenString))
-				tokenHash := hex.EncodeToString(hashBytes[:])
-
-				apiToken, err := h.Store.GetAPITokenByHash(r.Context(), tokenHash)
-				if err != nil {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusUnauthorized)
-					json.NewEncoder(w).Encode(map[string]string{
-						"error":   "Unauthorized",
-						"message": "Invalid API token",
-					})
-					return
-				}
-
-				if apiToken.ExpiresAt != nil && time.Now().After(*apiToken.ExpiresAt) {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusUnauthorized)
-					json.NewEncoder(w).Encode(map[string]string{
-						"error":   "Unauthorized",
-						"message": "API token has expired",
-					})
-					return
-				}
-
-				hasScope := false
-				for _, sc := range apiToken.Scopes {
-					if sc == "*" {
-						hasScope = true
-						break
-					}
-					for _, allowed := range allowedScopes {
-						if sc == allowed {
-							hasScope = true
-							break
-						}
-					}
-					if hasScope {
-						break
-					}
-				}
-
-				if !hasScope {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusForbidden)
-					json.NewEncoder(w).Encode(map[string]interface{}{
-						"error":           "Forbidden",
-						"message":         "Token lacks required scope",
-						"required_scopes": allowedScopes,
-						"token_scopes":    apiToken.Scopes,
-					})
-					return
-				}
-
-				// Asynchronously update last_used_at
-				go func(tokenID string) {
-					ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-					defer cancel()
-					_ = h.Store.UpdateAPITokenLastUsed(ctx, tokenID, time.Now())
-				}(apiToken.ID)
-
-				ctx := context.WithValue(r.Context(), "user_id", apiToken.UserID)
-				ctx = context.WithValue(ctx, "api_token_id", apiToken.ID)
-				next(w, r.WithContext(ctx))
-				return
-			}
-
-			// Case 2: Session cookie or generic Bearer JWT
-			jwtTokenString := tokenString
-			if jwtTokenString == "" {
-				if cookie, err := r.Cookie("tide_session"); err == nil {
-					jwtTokenString = cookie.Value
-				}
-			}
-
-			if jwtTokenString != "" {
-				// Also check if the raw token happens to match an API token in the database
-				hashBytes := sha256.Sum256([]byte(jwtTokenString))
-				tokenHash := hex.EncodeToString(hashBytes[:])
-				if apiToken, err := h.Store.GetAPITokenByHash(r.Context(), tokenHash); err == nil && apiToken != nil {
-					if apiToken.ExpiresAt != nil && time.Now().After(*apiToken.ExpiresAt) {
-						w.Header().Set("Content-Type", "application/json")
-						w.WriteHeader(http.StatusUnauthorized)
-						json.NewEncoder(w).Encode(map[string]string{
-							"error":   "Unauthorized",
-							"message": "API token has expired",
-						})
-						return
-					}
-					hasScope := false
-					for _, sc := range apiToken.Scopes {
-						if sc == "*" {
-							hasScope = true
-							break
-						}
-						for _, allowed := range allowedScopes {
-							if sc == allowed {
-								hasScope = true
-								break
-							}
-						}
-						if hasScope {
-							break
-						}
-					}
-					if !hasScope {
-						w.Header().Set("Content-Type", "application/json")
-						w.WriteHeader(http.StatusForbidden)
-						json.NewEncoder(w).Encode(map[string]interface{}{
-							"error":           "Forbidden",
-							"message":         "Token lacks required scope",
-							"required_scopes": allowedScopes,
-							"token_scopes":    apiToken.Scopes,
-						})
-						return
-					}
-
-					go func(tokenID string) {
-						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-						defer cancel()
-						_ = h.Store.UpdateAPITokenLastUsed(ctx, tokenID, time.Now())
-					}(apiToken.ID)
-
-					ctx := context.WithValue(r.Context(), "user_id", apiToken.UserID)
-					ctx = context.WithValue(ctx, "api_token_id", apiToken.ID)
-					next(w, r.WithContext(ctx))
-					return
-				}
-
-				jwtKeyStr := os.Getenv("JWT_SECRET")
-				if jwtKeyStr == "" {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusInternalServerError)
-					json.NewEncoder(w).Encode(map[string]string{
-						"error":   "Server Error",
-						"message": "JWT secret is not configured",
-					})
-					return
-				}
-
-				token, err := jwt.Parse(
-					jwtTokenString,
-					func(t *jwt.Token) (interface{}, error) {
-						if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
-							return nil, http.ErrAbortHandler
-						}
-						return []byte(jwtKeyStr), nil
-					},
-					jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
-					jwt.WithExpirationRequired(),
-				)
-
-				if err == nil && token != nil && token.Valid {
-					if claims, ok := token.Claims.(jwt.MapClaims); ok {
-						if userID, ok := claims["sub"].(string); ok && userID != "" {
-							ctx := context.WithValue(r.Context(), "user_id", userID)
-							next(w, r.WithContext(ctx))
-							return
-						}
-					}
-				}
-			}
-
-			// If already authenticated by outer middleware (e.g. AuthMiddleware)
-			if uid, ok := r.Context().Value("user_id").(string); ok && uid != "" {
-				next(w, r)
-				return
-			}
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusUnauthorized)
-			json.NewEncoder(w).Encode(map[string]string{
-				"error":   "Unauthorized",
-				"message": "Missing or invalid API token. Provide via 'Authorization: Bearer <token>' or 'X-API-Key: <token>' header.",
-			})
-		}
+		return DualAuthMiddleware(h.Store, allowedScopes...)(next).ServeHTTP
 	}
 }
 

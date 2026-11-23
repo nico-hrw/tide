@@ -17,6 +17,7 @@ import type { PriorityOption, StatusOption, DateFilterOption } from './mobile/Mo
 import type { SearchEventItem, SearchTodoItem, SearchNoteItem } from './mobile/MobileSearchOverlay';
 import type { MobileContextMenuTarget } from './mobile/MobileBottomSheets';
 import { MobileTopHeader, type MobileCalViewMode } from './mobile/MobileTopHeader';
+import { MobileAndroidBanner } from './mobile/MobileAndroidBanner';
 import { MobileSidebarDrawer } from './mobile/MobileSidebarDrawer';
 import { MobileCalendarTab, fromSavedMode } from './mobile/MobileCalendarTab';
 import type { CalendarViewMode } from '../Calendar/types';
@@ -306,6 +307,7 @@ export default function MobileLayout({
         setActiveDate={setActiveDate} onGoToToday={handleGoToToday} activeTab={activeTab} theme={theme}
         now={now} weekStartsOn={weekStartsOn} setDayViewDays={setDayViewDays}
       />
+      <MobileAndroidBanner />
       {activeTab === 'calendar' ? (
         <MobileCalendarTab
           activeDate={activeDate} setActiveDate={setActiveDate} calViewMode={calViewMode} expandedEvents={expandedEvents}

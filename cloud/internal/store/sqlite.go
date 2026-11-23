@@ -288,9 +288,27 @@ func (s *SQLiteStore) migrate() error {
 		color TEXT DEFAULT '',
 		is_completed INTEGER DEFAULT 0,
 		completed_at DATETIME,
+		folder TEXT DEFAULT '',
+		linked_note_id TEXT DEFAULT '',
+		recurrence TEXT DEFAULT 'none',
+		recurrence_rule TEXT DEFAULT '',
+		recurrence_end TEXT DEFAULT '',
+		completed_dates TEXT DEFAULT '[]',
+		show_in_calendar INTEGER DEFAULT 0,
+		is_archived INTEGER DEFAULT 0,
+		parent_id TEXT DEFAULT '',
+		sort_order INTEGER DEFAULT 0,
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id)
+	);
+
+	CREATE TABLE IF NOT EXISTS user_settings (
+		user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+		workspaces TEXT NOT NULL DEFAULT '["main","Archiv"]',
+		active_workspaces TEXT NOT NULL DEFAULT '["main"]',
+		preferences TEXT NOT NULL DEFAULT '{}',
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);
 	`
 	if _, err := s.DB.Exec(tables); err != nil {
@@ -670,6 +688,29 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				);`,
 				"CREATE INDEX IF NOT EXISTS idx_quicknote_access_requests_slug_status ON quicknote_access_requests(slug, status);",
 				"DROP TABLE IF EXISTS tokens;",
+			},
+		},
+		{
+			version: 14,
+			name:    "external_api_settings_workspaces_todos",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS user_settings (
+					user_id TEXT PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+					workspaces TEXT NOT NULL DEFAULT '["main","Archiv"]',
+					active_workspaces TEXT NOT NULL DEFAULT '["main"]',
+					preferences TEXT NOT NULL DEFAULT '{}',
+					updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+				);`,
+				"ALTER TABLE todos ADD COLUMN folder TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN linked_note_id TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN recurrence TEXT DEFAULT 'none';",
+				"ALTER TABLE todos ADD COLUMN recurrence_rule TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN recurrence_end TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN completed_dates TEXT DEFAULT '[]';",
+				"ALTER TABLE todos ADD COLUMN show_in_calendar INTEGER DEFAULT 0;",
+				"ALTER TABLE todos ADD COLUMN is_archived INTEGER DEFAULT 0;",
+				"ALTER TABLE todos ADD COLUMN parent_id TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN sort_order INTEGER DEFAULT 0;",
 			},
 		},
 	}
@@ -1806,18 +1847,29 @@ func (s *SQLiteStore) UpdateAPITokenLastUsed(ctx context.Context, tokenID string
 // --- External API Event Operations ---
 
 type rawEventMeta struct {
-	Title       string `json:"title"`
-	Start       string `json:"start"`
-	End         string `json:"end"`
-	AllDay      bool   `json:"allDay"`
-	AllDayAlt   bool   `json:"all_day"`
-	Color       string `json:"color"`
-	Description string `json:"description"`
-	Location    string `json:"location"`
-	GCalID      string `json:"gcal_id"`
+	Title          string   `json:"title"`
+	Start          string   `json:"start"`
+	End            string   `json:"end"`
+	AllDay         bool     `json:"allDay"`
+	AllDayAlt      bool     `json:"all_day"`
+	Color          string   `json:"color"`
+	Description    string   `json:"description"`
+	Location       string   `json:"location"`
+	GCalID         string   `json:"gcal_id"`
+	GroupIDs       []string `json:"groupIds"`
+	Tags           []string `json:"tags"`
+	RecurrenceRule string   `json:"recurrence_rule"`
+	RecurrenceEnd  string   `json:"recurrence_end"`
+	Exdates        []string `json:"exdates"`
+	CompletedDates []string `json:"completed_dates"`
+	IsTask         bool     `json:"is_task"`
+	IsCompleted    bool     `json:"is_completed"`
+	IsCancelled    bool     `json:"is_cancelled"`
+	IsImportant    bool     `json:"is_important"`
+	Effect         string   `json:"effect"`
 }
 
-func parseExternalEvent(id string, parentID *string, createdAt, updatedAt time.Time, metadataStr, publicMetaStr string) *db.ExternalEvent {
+func parseExternalEvent(id string, parentID *string, version int, createdAt, updatedAt time.Time, metadataStr, publicMetaStr string) *db.ExternalEvent {
 	var meta rawEventMeta
 	var pub rawEventMeta
 
@@ -1828,39 +1880,22 @@ func parseExternalEvent(id string, parentID *string, createdAt, updatedAt time.T
 		_ = json.Unmarshal([]byte(publicMetaStr), &pub)
 	}
 
-	title := meta.Title
-	if title == "" {
-		title = pub.Title
+	firstStr := func(a, b string) string {
+		if a != "" {
+			return a
+		}
+		return b
 	}
+	firstSlice := func(a, b []string) []string {
+		if len(a) > 0 {
+			return a
+		}
+		return b
+	}
+
+	title := firstStr(meta.Title, pub.Title)
 	if title == "" {
 		title = "Untitled Event"
-	}
-
-	start := meta.Start
-	if start == "" {
-		start = pub.Start
-	}
-
-	end := meta.End
-	if end == "" {
-		end = pub.End
-	}
-
-	allDay := meta.AllDay || meta.AllDayAlt || pub.AllDay || pub.AllDayAlt
-
-	color := meta.Color
-	if color == "" {
-		color = pub.Color
-	}
-
-	desc := meta.Description
-	if desc == "" {
-		desc = pub.Description
-	}
-
-	loc := meta.Location
-	if loc == "" {
-		loc = pub.Location
 	}
 
 	source := "tide"
@@ -1869,18 +1904,30 @@ func parseExternalEvent(id string, parentID *string, createdAt, updatedAt time.T
 	}
 
 	return &db.ExternalEvent{
-		ID:          id,
-		Title:       title,
-		Start:       start,
-		End:         end,
-		AllDay:      allDay,
-		Color:       color,
-		Description: desc,
-		Location:    loc,
-		ParentID:    parentID,
-		Source:      source,
-		CreatedAt:   createdAt,
-		UpdatedAt:   updatedAt,
+		ID:             id,
+		Title:          title,
+		Start:          firstStr(meta.Start, pub.Start),
+		End:            firstStr(meta.End, pub.End),
+		AllDay:         meta.AllDay || meta.AllDayAlt || pub.AllDay || pub.AllDayAlt,
+		Color:          firstStr(meta.Color, pub.Color),
+		Description:    firstStr(meta.Description, pub.Description),
+		Location:       firstStr(meta.Location, pub.Location),
+		ParentID:       parentID,
+		GroupIDs:       firstSlice(meta.GroupIDs, pub.GroupIDs),
+		Tags:           firstSlice(meta.Tags, pub.Tags),
+		RecurrenceRule: firstStr(meta.RecurrenceRule, pub.RecurrenceRule),
+		RecurrenceEnd:  firstStr(meta.RecurrenceEnd, pub.RecurrenceEnd),
+		Exdates:        firstSlice(meta.Exdates, pub.Exdates),
+		CompletedDates: firstSlice(meta.CompletedDates, pub.CompletedDates),
+		IsTask:         meta.IsTask || pub.IsTask,
+		IsCompleted:    meta.IsCompleted || pub.IsCompleted,
+		IsCancelled:    meta.IsCancelled || pub.IsCancelled,
+		IsImportant:    meta.IsImportant || pub.IsImportant,
+		Effect:         firstStr(meta.Effect, pub.Effect),
+		Version:        version,
+		Source:         source,
+		CreatedAt:      createdAt,
+		UpdatedAt:      updatedAt,
 	}
 }
 
@@ -1906,7 +1953,7 @@ func parseDateFlexible(s string) (time.Time, bool) {
 
 func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID string, startTime, endTime *time.Time, search string, limit int) ([]*db.ExternalEvent, error) {
 	query := `
-		SELECT f.id, f.parent_id, f.created_at, f.updated_at,
+		SELECT f.id, f.parent_id, f.version, f.created_at, f.updated_at,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
 		FROM files f
@@ -1928,14 +1975,15 @@ func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID strin
 	for rows.Next() {
 		var id string
 		var parentID *string
+		var version int
 		var createdAt, updatedAt time.Time
 		var md, pm string
 
-		if err := rows.Scan(&id, &parentID, &createdAt, &updatedAt, &md, &pm); err != nil {
+		if err := rows.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm); err != nil {
 			return nil, err
 		}
 
-		ev := parseExternalEvent(id, parentID, createdAt, updatedAt, md, pm)
+		ev := parseExternalEvent(id, parentID, version, createdAt, updatedAt, md, pm)
 
 		// Search filter
 		if searchLower != "" {
@@ -1952,6 +2000,10 @@ func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID strin
 		evEnd, hasEnd := parseDateFlexible(ev.End)
 		if !hasEnd && hasStart {
 			evEnd = evStart
+		}
+
+		if (startTime != nil || endTime != nil) && !hasStart {
+			continue
 		}
 
 		if startTime != nil && hasStart {
@@ -2006,7 +2058,7 @@ func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID strin
 
 func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventID string) (*db.ExternalEvent, error) {
 	query := `
-		SELECT f.id, f.parent_id, f.created_at, f.updated_at,
+		SELECT f.id, f.parent_id, f.version, f.created_at, f.updated_at,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
 		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
 		FROM files f
@@ -2020,17 +2072,18 @@ func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventI
 
 	var id string
 	var parentID *string
+	var version int
 	var createdAt, updatedAt time.Time
 	var md, pm string
 
-	if err := row.Scan(&id, &parentID, &createdAt, &updatedAt, &md, &pm); err != nil {
+	if err := row.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
 	}
 
-	return parseExternalEvent(id, parentID, createdAt, updatedAt, md, pm), nil
+	return parseExternalEvent(id, parentID, version, createdAt, updatedAt, md, pm), nil
 }
 
 // --- Link Operations ---
@@ -2778,6 +2831,39 @@ func (s *SQLiteStore) CompactYjsWAL(ctx context.Context, fileID string, upToSeqI
 
 	if _, err := tx.ExecContext(ctx, "DELETE FROM yjs_wal WHERE file_id = ? AND seq_id <= ?", fileID, upToSeqID); err != nil {
 		return err
+	}
+
+	return tx.Commit()
+}
+
+// ResetFileCRDTState atomically clears the WAL and resets the snapshot state for a file.
+func (s *SQLiteStore) ResetFileCRDTState(ctx context.Context, fileID string, clearContent bool) error {
+	tx, err := s.DB.BeginTx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	if _, err := tx.ExecContext(ctx, "DELETE FROM yjs_wal WHERE file_id = ?", fileID); err != nil {
+		return err
+	}
+
+	var query string
+	if clearContent {
+		query = `UPDATE files SET snapshot_seq_id = 0, snapshot_iv = NULL, content = NULL, updated_at = ? WHERE id = ?`
+	} else {
+		query = `UPDATE files SET snapshot_seq_id = 0, snapshot_iv = NULL, updated_at = ? WHERE id = ?`
+	}
+	res, err := tx.ExecContext(ctx, query, time.Now(), fileID)
+	if err != nil {
+		return err
+	}
+	n, err := res.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		return ErrNotFound
 	}
 
 	return tx.Commit()

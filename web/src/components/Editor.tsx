@@ -25,6 +25,8 @@ import { PencilInkLayer } from './Canvas/PencilInkLayer';
 import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
+import { apiFetch } from '../lib/api';
+import { parseUnencryptedNoteContent } from '../hooks/autoSaveHelpers';
 
 export default function Editor(props: EditorProps) {
     const [mounted, setMounted] = useState(false);
@@ -336,6 +338,39 @@ function CollaborativeEditor(props: EditorProps) {
         window.addEventListener('editor:restore-content', handleRestore);
         return () => window.removeEventListener('editor:restore-content', handleRestore);
     }, [editor, ydoc, provider, onChange, props]);
+
+    // Refresh editor content when an external note update arrives
+    useEffect(() => {
+        if (!editor || !activeTabId) return;
+        let cancelled = false;
+
+        const handleExternalNoteUpdated = (event: Event) => {
+            if ((event as CustomEvent<{ fileId?: string }>).detail?.fileId !== activeTabId) return;
+            if (!editor || editor.isDestroyed || !activeTabId) return;
+
+            void (async () => {
+                try {
+                    const res = await apiFetch(`/api/v1/files/${activeTabId}/download`);
+                    if (cancelled || !res.ok || !editor || editor.isDestroyed) return;
+                    const rawText = await res.text();
+                    if (cancelled || !editor || editor.isDestroyed) return;
+                    const parsedStr = parseUnencryptedNoteContent(rawText);
+                    const doc = JSON.parse(parsedStr) as Parameters<typeof editor.commands.setContent>[0];
+                    if (!cancelled && editor && !editor.isDestroyed) {
+                        editor.commands.setContent(doc);
+                    }
+                } catch (err) {
+                    console.warn('[Editor] Failed to refresh external note update:', err);
+                }
+            })();
+        };
+
+        window.addEventListener('tide:external_note_updated', handleExternalNoteUpdated);
+        return () => {
+            cancelled = true;
+            window.removeEventListener('tide:external_note_updated', handleExternalNoteUpdated);
+        };
+    }, [editor, activeTabId]);
 
     // Resize image & mention click hooks
     useEffect(() => {

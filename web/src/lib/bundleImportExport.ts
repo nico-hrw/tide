@@ -652,6 +652,27 @@ export function tipTapToMarkdown(arg1: any, arg2?: any): string {
             return `$${node.attrs?.latex || ''}$`;
         }
 
+        if (node.type === 'hardBreak') {
+            return '  \n';
+        }
+
+        if (node.type === 'horizontalRule') {
+            return '\n---\n\n';
+        }
+
+        if (node.type === 'orderedList') {
+            const start = typeof node.attrs?.start === 'number' ? node.attrs.start : 1;
+            const items: unknown[] = Array.isArray(node.content) ? node.content : [];
+            const rendered = items
+                .map((item, idx) => {
+                    const itemContent = isPlainRecord(item) && Array.isArray(item.content) ? item.content : [];
+                    const itemInner = itemContent.map(renderNode).join('');
+                    return `${start + idx}. ${itemInner}`;
+                })
+                .join('');
+            return `${rendered}\n`;
+        }
+
         const inner = Array.isArray(node.content) ? node.content.map(renderNode).join('') : '';
 
         if (node.type === 'heading') {
@@ -694,68 +715,431 @@ export function tipTapToMarkdown(arg1: any, arg2?: any): string {
     return lines.join('');
 }
 
+export type TipTapMark = {
+    type: string;
+    attrs?: Record<string, string>;
+};
+
+export type TipTapInlineNode = {
+    type: 'text';
+    text: string;
+    marks?: TipTapMark[];
+};
+
+export type TipTapBlockNode = {
+    type: string;
+    attrs?: Record<string, string | number | boolean>;
+    content?: Array<TipTapBlockNode | TipTapInlineNode>;
+};
+
+export type TipTapDoc = {
+    type: 'doc';
+    content: TipTapBlockNode[];
+};
+
+const HORIZONTAL_RULE_RE = /^(?:(?:\*\s*){3,}|(?:-\s*){3,}|(?:_\s*){3,})$/;
+const TASK_LIST_ITEM_RE = /^[-*+]\s+\[([ xX])\](?:\s+(.*))?$/;
+const BULLET_LIST_ITEM_RE = /^[-*+]\s+(.*)$/;
+const ORDERED_LIST_ITEM_RE = /^(\d+)\.\s+(.*)$/;
+const HEADING_RE = /^(#{1,6})\s+(.*)$/;
+const FENCE_OPEN_RE = /^```(.*)$/;
+const FENCE_CLOSE_RE = /^```\s*$/;
+const BLOCKQUOTE_RE = /^>(?:\s?(.*))?$/;
+
+function marksEqual(a?: TipTapMark[], b?: TipTapMark[]): boolean {
+    const lenA = a?.length ?? 0;
+    const lenB = b?.length ?? 0;
+    if (lenA !== lenB) return false;
+    for (let i = 0; i < lenA; i++) {
+        const ma = a![i];
+        const mb = b![i];
+        if (ma.type !== mb.type) return false;
+        if (ma.attrs?.href !== mb.attrs?.href) return false;
+    }
+    return true;
+}
+
+function appendTextNode(nodes: TipTapInlineNode[], text: string, marks: TipTapMark[]): void {
+    if (!text) return;
+    const last = nodes[nodes.length - 1];
+    if (last && marksEqual(last.marks, marks)) {
+        last.text += text;
+        return;
+    }
+    nodes.push(marks.length > 0 ? { type: 'text', text, marks: [...marks] } : { type: 'text', text });
+}
+
+function withMark(marks: TipTapMark[], next: TipTapMark): TipTapMark[] {
+    if (marks.some((m) => m.type === next.type && m.attrs?.href === next.attrs?.href)) {
+        return marks;
+    }
+    return [...marks, next];
+}
+
+function findClosingParen(input: string, start: number): number {
+    let depth = 1;
+    for (let j = start; j < input.length; j++) {
+        const ch = input[j];
+        if (ch === '\n' || ch === '\r') return -1;
+        if (ch === '(') depth++;
+        else if (ch === ')') {
+            depth--;
+            if (depth === 0) return j;
+        }
+    }
+    return -1;
+}
+
+function findClosingDelimiter(
+    input: string,
+    start: number,
+    delim: string,
+    checkWordBoundary: boolean
+): number {
+    const ch = delim[0];
+    const len = delim.length;
+    for (let j = start; j < input.length; j++) {
+        if (input[j] === '`') {
+            const codeEnd = input.indexOf('`', j + 1);
+            if (codeEnd !== -1) {
+                j = codeEnd;
+                continue;
+            }
+        }
+        if (len === 1) {
+            if (input[j] !== ch) continue;
+            if (input[j + 1] === ch) {
+                j++;
+                continue;
+            }
+        } else {
+            if (!input.startsWith(delim, j)) continue;
+            while (input[j + len] === ch) {
+                j++;
+            }
+        }
+        if (j === start || /\s/.test(input[j - 1])) continue;
+        if (checkWordBoundary && j + len < input.length && /[a-zA-Z0-9]/.test(input[j + len])) {
+            continue;
+        }
+        return j;
+    }
+    return -1;
+}
+
+function parseInlineWithMarks(input: string, activeMarks: TipTapMark[]): TipTapInlineNode[] {
+    const result: TipTapInlineNode[] = [];
+    let plainStart = 0;
+    let i = 0;
+
+    const flushPlain = (end: number): void => {
+        if (end > plainStart) {
+            appendTextNode(result, input.slice(plainStart, end), activeMarks);
+        }
+    };
+
+    while (i < input.length) {
+        const ch = input[i];
+
+        if (ch === '\\' && i + 1 < input.length && /[*_`~[\]\\]/.test(input[i + 1])) {
+            flushPlain(i);
+            appendTextNode(result, input[i + 1], activeMarks);
+            i += 2;
+            plainStart = i;
+            continue;
+        }
+
+        if (ch === '`') {
+            const closeIdx = input.indexOf('`', i + 1);
+            if (closeIdx > i + 1) {
+                flushPlain(i);
+                appendTextNode(result, input.slice(i + 1, closeIdx), withMark(activeMarks, { type: 'code' }));
+                i = closeIdx + 1;
+                plainStart = i;
+                continue;
+            }
+        }
+
+        if (ch === '[') {
+            const closeBracket = input.indexOf(']', i + 1);
+            if (closeBracket > i + 1 && input[closeBracket + 1] === '(') {
+                const closeParen = findClosingParen(input, closeBracket + 2);
+                if (closeParen !== -1) {
+                    const label = input.slice(i + 1, closeBracket);
+                    const rawHref = input.slice(closeBracket + 2, closeParen).trim();
+                    if (label && isSafeLinkHref(rawHref)) {
+                        flushPlain(i);
+                        const linkMarks = withMark(activeMarks, { type: 'link', attrs: { href: rawHref } });
+                        for (const child of parseInlineWithMarks(label, linkMarks)) {
+                            appendTextNode(result, child.text, child.marks ?? []);
+                        }
+                        i = closeParen + 1;
+                        plainStart = i;
+                        continue;
+                    }
+                }
+            }
+        }
+
+        if (input.startsWith('~~', i) && i + 2 < input.length && !/\s/.test(input[i + 2])) {
+            const closeIdx = input.indexOf('~~', i + 2);
+            if (closeIdx > i + 2 && !/\s/.test(input[closeIdx - 1])) {
+                flushPlain(i);
+                const strikeMarks = withMark(activeMarks, { type: 'strike' });
+                for (const child of parseInlineWithMarks(input.slice(i + 2, closeIdx), strikeMarks)) {
+                    appendTextNode(result, child.text, child.marks ?? []);
+                }
+                i = closeIdx + 2;
+                plainStart = i;
+                continue;
+            }
+        }
+
+        const isTripleStar = input.startsWith('***', i);
+        const isTripleUnder = input.startsWith('___', i) && (i === 0 || !/[a-zA-Z0-9]/.test(input[i - 1]));
+        if ((isTripleStar || isTripleUnder) && i + 3 < input.length && !/\s/.test(input[i + 3])) {
+            const delim = input.slice(i, i + 3);
+            const closeIdx = findClosingDelimiter(input, i + 3, delim, isTripleUnder);
+            if (closeIdx !== -1) {
+                flushPlain(i);
+                const bothMarks = withMark(withMark(activeMarks, { type: 'bold' }), { type: 'italic' });
+                for (const child of parseInlineWithMarks(input.slice(i + 3, closeIdx), bothMarks)) {
+                    appendTextNode(result, child.text, child.marks ?? []);
+                }
+                i = closeIdx + 3;
+                plainStart = i;
+                continue;
+            }
+        }
+
+        const isDoubleStar = input.startsWith('**', i);
+        const isDoubleUnder = input.startsWith('__', i) && (i === 0 || !/[a-zA-Z0-9]/.test(input[i - 1]));
+        if ((isDoubleStar || isDoubleUnder) && i + 2 < input.length && !/\s/.test(input[i + 2])) {
+            const delim = input.slice(i, i + 2);
+            const closeIdx = findClosingDelimiter(input, i + 2, delim, isDoubleUnder);
+            if (closeIdx !== -1) {
+                flushPlain(i);
+                const boldMarks = withMark(activeMarks, { type: 'bold' });
+                for (const child of parseInlineWithMarks(input.slice(i + 2, closeIdx), boldMarks)) {
+                    appendTextNode(result, child.text, child.marks ?? []);
+                }
+                i = closeIdx + 2;
+                plainStart = i;
+                continue;
+            }
+        }
+
+        const isSingleStar = ch === '*' && input[i + 1] !== '*';
+        const isSingleUnder = ch === '_' && input[i + 1] !== '_' && (i === 0 || !/[a-zA-Z0-9]/.test(input[i - 1]));
+        if ((isSingleStar || isSingleUnder) && i + 1 < input.length && !/\s/.test(input[i + 1])) {
+            const closeIdx = findClosingDelimiter(input, i + 1, ch, isSingleUnder);
+            if (closeIdx !== -1) {
+                flushPlain(i);
+                const italicMarks = withMark(activeMarks, { type: 'italic' });
+                for (const child of parseInlineWithMarks(input.slice(i + 1, closeIdx), italicMarks)) {
+                    appendTextNode(result, child.text, child.marks ?? []);
+                }
+                i = closeIdx + 1;
+                plainStart = i;
+                continue;
+            }
+        }
+
+        i++;
+    }
+
+    flushPlain(input.length);
+    return result;
+}
+
 /**
- * Converts basic Markdown text into a TipTap ProseMirror document structure.
+ * Parses inline Markdown formatting (`**bold**`, `*italic*`, `` `code` ``,
+ * `~~strike~~`, and safe `[label](href)` links) into TipTap text nodes.
  */
-export function markdownToTipTap(md: string): any {
+export function parseInlineMarkdown(text: string): TipTapInlineNode[] {
+    if (!text) return [];
+    return parseInlineWithMarks(text, []);
+}
+
+/**
+ * Converts Markdown text into a rich TipTap ProseMirror document structure.
+ */
+export function markdownToTipTap(md: string): TipTapDoc {
     const lines = md.split(/\r?\n/);
-    const content: any[] = [];
+    const content: TipTapBlockNode[] = [];
+    let i = 0;
 
-    for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed) continue;
+    while (i < lines.length) {
+        const rawLine = lines[i];
+        const trimmed = rawLine.trim();
 
-        if (trimmed.startsWith('# ')) {
+        if (!trimmed) {
+            i++;
+            continue;
+        }
+
+        const fenceMatch = trimmed.match(FENCE_OPEN_RE);
+        if (fenceMatch) {
+            const language = fenceMatch[1].trim();
+            const codeLines: string[] = [];
+            i++;
+            while (i < lines.length && !FENCE_CLOSE_RE.test(lines[i].trim())) {
+                codeLines.push(lines[i]);
+                i++;
+            }
+            if (i < lines.length) i++;
+            const codeText = codeLines.join('\n');
+            content.push({
+                type: 'codeBlock',
+                attrs: { language, blockId: crypto.randomUUID() },
+                content: codeText ? [{ type: 'text', text: codeText }] : []
+            });
+            continue;
+        }
+
+        if (HORIZONTAL_RULE_RE.test(trimmed)) {
+            content.push({
+                type: 'horizontalRule',
+                attrs: { blockId: crypto.randomUUID() }
+            });
+            i++;
+            continue;
+        }
+
+        const headingMatch = trimmed.match(HEADING_RE);
+        if (headingMatch) {
             content.push({
                 type: 'heading',
-                attrs: { level: 1, blockId: crypto.randomUUID() },
-                content: [{ type: 'text', text: trimmed.slice(2).trim() }]
+                attrs: { level: headingMatch[1].length, blockId: crypto.randomUUID() },
+                content: parseInlineMarkdown(headingMatch[2].trim())
             });
-        } else if (trimmed.startsWith('## ')) {
+            i++;
+            continue;
+        }
+
+        if (BLOCKQUOTE_RE.test(trimmed)) {
+            const quoteParagraphs: TipTapBlockNode[] = [];
+            let currentParaLines: string[] = [];
+
+            const flushQuoteParagraph = (): void => {
+                if (currentParaLines.length === 0) return;
+                quoteParagraphs.push({
+                    type: 'paragraph',
+                    attrs: { blockId: crypto.randomUUID() },
+                    content: parseInlineMarkdown(currentParaLines.join(' '))
+                });
+                currentParaLines = [];
+            };
+
+            while (i < lines.length) {
+                const quoteMatch = lines[i].trim().match(BLOCKQUOTE_RE);
+                if (!quoteMatch) break;
+                const innerLine = (quoteMatch[1] ?? '').trim();
+                if (!innerLine) {
+                    flushQuoteParagraph();
+                } else {
+                    currentParaLines.push(innerLine);
+                }
+                i++;
+            }
+            flushQuoteParagraph();
+
+            if (quoteParagraphs.length === 0) {
+                quoteParagraphs.push({
+                    type: 'paragraph',
+                    attrs: { blockId: crypto.randomUUID() },
+                    content: []
+                });
+            }
+
             content.push({
-                type: 'heading',
-                attrs: { level: 2, blockId: crypto.randomUUID() },
-                content: [{ type: 'text', text: trimmed.slice(3).trim() }]
+                type: 'blockquote',
+                attrs: { blockId: crypto.randomUUID() },
+                content: quoteParagraphs
             });
-        } else if (trimmed.startsWith('### ')) {
-            content.push({
-                type: 'heading',
-                attrs: { level: 3, blockId: crypto.randomUUID() },
-                content: [{ type: 'text', text: trimmed.slice(4).trim() }]
-            });
-        } else if (trimmed.startsWith('- [ ] ') || trimmed.startsWith('- [x] ')) {
-            const isChecked = trimmed.startsWith('- [x] ');
-            content.push({
-                type: 'taskList',
-                content: [{
+            continue;
+        }
+
+        if (TASK_LIST_ITEM_RE.test(trimmed)) {
+            const taskItems: TipTapBlockNode[] = [];
+            while (i < lines.length) {
+                const match = lines[i].trim().match(TASK_LIST_ITEM_RE);
+                if (!match) break;
+                taskItems.push({
                     type: 'taskItem',
-                    attrs: { checked: isChecked },
+                    attrs: { checked: match[1].toLowerCase() === 'x' },
                     content: [{
                         type: 'paragraph',
                         attrs: { blockId: crypto.randomUUID() },
-                        content: [{ type: 'text', text: trimmed.slice(6).trim() }]
+                        content: parseInlineMarkdown((match[2] ?? '').trim())
                     }]
-                }]
-            });
-        } else if (trimmed.startsWith('- ') || trimmed.startsWith('* ')) {
+                });
+                i++;
+            }
             content.push({
-                type: 'bulletList',
-                content: [{
+                type: 'taskList',
+                content: taskItems
+            });
+            continue;
+        }
+
+        if (BULLET_LIST_ITEM_RE.test(trimmed)) {
+            const listItems: TipTapBlockNode[] = [];
+            while (i < lines.length) {
+                const lineTrimmed = lines[i].trim();
+                if (HORIZONTAL_RULE_RE.test(lineTrimmed) || TASK_LIST_ITEM_RE.test(lineTrimmed)) break;
+                const match = lineTrimmed.match(BULLET_LIST_ITEM_RE);
+                if (!match) break;
+                listItems.push({
                     type: 'listItem',
                     content: [{
                         type: 'paragraph',
                         attrs: { blockId: crypto.randomUUID() },
-                        content: [{ type: 'text', text: trimmed.slice(2).trim() }]
+                        content: parseInlineMarkdown(match[1].trim())
                     }]
-                }]
-            });
-        } else {
+                });
+                i++;
+            }
             content.push({
-                type: 'paragraph',
-                attrs: { blockId: crypto.randomUUID() },
-                content: [{ type: 'text', text: trimmed }]
+                type: 'bulletList',
+                content: listItems
             });
+            continue;
         }
+
+        if (ORDERED_LIST_ITEM_RE.test(trimmed)) {
+            const orderedItems: TipTapBlockNode[] = [];
+            let firstNum = 1;
+            while (i < lines.length) {
+                const match = lines[i].trim().match(ORDERED_LIST_ITEM_RE);
+                if (!match) break;
+                if (orderedItems.length === 0) {
+                    firstNum = parseInt(match[1], 10) || 1;
+                }
+                orderedItems.push({
+                    type: 'listItem',
+                    content: [{
+                        type: 'paragraph',
+                        attrs: { blockId: crypto.randomUUID() },
+                        content: parseInlineMarkdown(match[2].trim())
+                    }]
+                });
+                i++;
+            }
+            content.push({
+                type: 'orderedList',
+                ...(firstNum !== 1 ? { attrs: { start: firstNum } } : {}),
+                content: orderedItems
+            });
+            continue;
+        }
+
+        content.push({
+            type: 'paragraph',
+            attrs: { blockId: crypto.randomUUID() },
+            content: parseInlineMarkdown(trimmed)
+        });
+        i++;
     }
 
     if (content.length === 0) {

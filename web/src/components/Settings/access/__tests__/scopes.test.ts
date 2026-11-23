@@ -55,13 +55,19 @@ describe('Rechte-Definitionen', () => {
     it('behalten die technischen Namen für das Backend', () => {
         expect(SCOPE_DEFINITIONS.map((d) => d.key)).toEqual([
             'events:read', 'events:write', 'notes:read', 'notes:write',
-            'todos:read', 'todos:create', 'todos:edit', 'todos:delete', 'todos:write', 'storage:expand',
+            'todos:read', 'todos:create', 'todos:edit', 'todos:delete', 'todos:write',
+            'folders:read', 'folders:write', 'tags:read', 'tags:write',
+            'workspaces:read', 'workspaces:write', 'settings:read', 'settings:write',
+            'surveys:read', 'surveys:write', 'storage:expand', '*',
         ]);
+        expect(SCOPE_DEFINITIONS.find((d) => d.key === 'events:write')?.implemented).toBe(true);
     });
 
     it('gruppiert in fester Reihenfolge ohne Rechte zu verlieren', () => {
         const groups = groupScopes();
-        expect(groups.map((g) => g.id)).toEqual(['events', 'notes', 'todos', 'storage']);
+        expect(groups.map((g) => g.id)).toEqual([
+            'events', 'notes', 'todos', 'organization', 'settings', 'surveys', 'storage', 'full',
+        ]);
         expect(groups.flatMap((g) => g.scopes)).toHaveLength(SCOPE_DEFINITIONS.length);
     });
 });

@@ -9,6 +9,7 @@ import { useIslandStore } from '@/store/useIslandStore';
 import { useIslandSettingsStore } from '@/store/useIslandSettingsStore';
 import { useSocialStore } from '@/store/useSocialStore';
 import { decryptChatMessage, isE2EEMessage } from '@/lib/chatCrypto';
+import { applyServerSettings, applyServerWorkspaces, type ServerSettings } from '../lib/settingsSync';
 
 export const handledIslandMessageIds = new Set<string>();
 
@@ -195,22 +196,52 @@ export function useRealtimeSync({
                         }
                     }
 
+                    if (data.type === 'settings_updated') {
+                        if (data.settings) {
+                            applyServerSettings(data.settings as ServerSettings);
+                        }
+                        return;
+                    }
+
+                    if (data.type === 'workspaces_updated') {
+                        if (Array.isArray(data.workspaces) && Array.isArray(data.active_workspaces)) {
+                            applyServerWorkspaces(data.workspaces as string[], data.active_workspaces as string[]);
+                        }
+                        if (Number(data.files_updated) > 0 || Number(data.files_reassigned) > 0) {
+                            useDataStore.setState({ loadedDirectories: new Set() });
+                            void useDataStore.getState().fetchDirectory(null, true);
+                        }
+                        return;
+                    }
+
+                    if (data.type === 'todo_created' || data.type === 'todo_updated' || data.type === 'todo_deleted') {
+                        useDataStore.setState({ loadedDirectories: new Set() });
+                        void useDataStore.getState().fetchDirectory(null, true);
+                        return;
+                    }
+
                     if (['file_created', 'file_updated', 'file_deleted', 'file_shared', 'NOTE_WAL_APPENDED', 'NOTE_META_UPDATED'].includes(data.type)) {
                         const targetFileId = data.file_id || data.fileId || data.id;
                         const currentActiveId = useActiveNoteStore.getState().activeNoteId || useDataStore.getState().activeNoteId || activeNoteId || null;
+                        const isExternalApi = data.source === 'external_api' || data.content_updated === true;
 
                         // BUG-12: When receiving SSE events for the currently active note:
                         // NEVER trigger reload_note, reloadFromRemote, or window reload!
-                        // Drop or ignore reload because CRDT Y.Doc over WebSocket handles live sync.
+                        // Drop or ignore reload because CRDT Y.Doc over WebSocket handles live sync,
+                        // UNLESS the update came from the external API.
                         if (targetFileId && currentActiveId && targetFileId === currentActiveId) {
-                            if (data.type === 'file_updated' || data.type === 'NOTE_WAL_APPENDED') {
+                            if (data.type === 'NOTE_WAL_APPENDED' || (data.type === 'file_updated' && !isExternalApi)) {
                                 console.log(`[SSE] Ignored ${data.type} reload for active note ${targetFileId} (handled by CRDT Y.Doc)`);
                                 return;
                             }
                         }
 
+                        if (data.type === 'file_updated' && isExternalApi && targetFileId) {
+                            window.dispatchEvent(new CustomEvent('tide:external_note_updated', { detail: { fileId: targetFileId } }));
+                        }
+
                         const msSinceOwnSave = Date.now() - lastOwnSaveTime;
-                        if (data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
+                        if (!isExternalApi && data.type === 'file_updated' && msSinceOwnSave < OWN_SAVE_COOLDOWN_MS) {
                             console.log(`[SSE] Suppressing own file_updated refetch (${msSinceOwnSave}ms since last save)`);
                             setTimeout(() => {
                                 // Use metadataCache (no forceRefresh) so optimistic updates survive
@@ -221,8 +252,13 @@ export function useRealtimeSync({
                             return;
                         }
 
-                        // Optimistic metadata update for inactive notes without full reload
-                        if ((data.type === 'NOTE_META_UPDATED' || data.type === 'file_updated') && targetFileId && targetFileId !== currentActiveId) {
+                        // Optimistic metadata update without full reload
+                        const shouldApplyMeta =
+                            Boolean(targetFileId) &&
+                            ((data.type === 'NOTE_META_UPDATED' && targetFileId !== currentActiveId) ||
+                                (data.type === 'file_updated' && (targetFileId !== currentActiveId || isExternalApi)));
+
+                        if (shouldApplyMeta) {
                             const rawMeta: Record<string, unknown> = {
                                 ...((data.metadata as Record<string, unknown>) || (data.meta as Record<string, unknown>) || {})
                             };
@@ -232,7 +268,7 @@ export function useRealtimeSync({
                                 useDataStore.getState().updateSpecificMetadataCache(targetFileId, rawMeta);
                             }
 
-                            if (data.secured_meta) {
+                            if (data.secured_meta && targetFileId !== currentActiveId) {
                                 const effectiveKey = privateKeyRef.current || useDataStore.getState().privateKey || null;
                                 if (effectiveKey) {
                                     import('@/lib/crypto').then(async ({ decryptMetadata }) => {
@@ -253,7 +289,7 @@ export function useRealtimeSync({
                             }
                         }
 
-                        // No forceRefresh: the metadataCache protects in-flight optimistic updates
+                        // No forceRefresh (unless external_api): the metadataCache protects in-flight optimistic updates
                         // from being overwritten by server data that hasn't caught up yet.
                         useDataStore.setState({ loadedDirectories: new Set() });
                         import('@/lib/searchIndex').then(({ clearSearchIndexCache }) => clearSearchIndexCache());
@@ -284,7 +320,7 @@ export function useRealtimeSync({
                             });
                         }
 
-                        void useDataStore.getState().fetchDirectory(null);
+                        void useDataStore.getState().fetchDirectory(null, data.type === 'file_updated' && isExternalApi);
                     }
                 } catch (e) { console.error("SSE Parse Error", e); }
             };

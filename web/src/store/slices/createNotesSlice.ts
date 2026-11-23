@@ -1,5 +1,6 @@
 import { apiFetch } from '@/lib/api';
 import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
+import { pushSettingsPatch } from '../../lib/settingsSync';
 import type { DataItem, DataStoreSlice, NoteLayout, NoteMargin, NotesSlice } from './types';
 
 export function loadCachedNotes(): DataItem[] {
@@ -88,6 +89,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             if (typeof window !== 'undefined') {
                 localStorage.setItem('tide_note_layout', next);
             }
+            pushSettingsPatch({ notes: { note_layout: next } });
             return { noteLayout: next };
         }),
 
@@ -95,6 +97,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
         if (typeof window !== 'undefined') {
             localStorage.setItem('tide_note_margin', margin);
         }
+        pushSettingsPatch({ notes: { note_margin: margin } });
         set({ noteMargin: margin });
     },
 
