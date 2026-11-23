@@ -34,6 +34,7 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
   let host: HTMLDivElement;
   let onDraftAt: ReturnType<typeof vi.fn<OnDraftAt>>;
   let onQuickEdit: ReturnType<typeof vi.fn<OnQuickEdit>>;
+  let onMoveEvent: ReturnType<typeof vi.fn<NonNullable<DbTimelineDayProps['onMoveEvent']>>>;
 
   beforeEach(() => {
     vi.useFakeTimers();
@@ -43,6 +44,7 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     root = createRoot(host);
     onDraftAt = vi.fn<OnDraftAt>();
     onQuickEdit = vi.fn<OnQuickEdit>();
+    onMoveEvent = vi.fn<NonNullable<DbTimelineDayProps['onMoveEvent']>>();
   });
 
   afterEach(() => {
@@ -51,11 +53,11 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     vi.useRealTimers();
   });
 
-  function render(opts: { proportional?: boolean; dayEvs?: unknown[]; isToday?: boolean; now?: Date } = {}) {
+  function render(opts: { proportional?: boolean; dayEvs?: unknown[]; isToday?: boolean; now?: Date; move?: boolean } = {}) {
     act(() => {
       root.render(React.createElement(DbTimelineDay, {
         day: DAY, dayEvs: (opts.dayEvs ?? EVENTS) as never[], allDayEvs: [], isToday: opts.isToday ?? false, now: opts.now ?? at(11),
-        theme: 'light', proportional: opts.proportional ?? true, onDraftAt, onQuickEdit, onDeleteEvent: () => {},
+        theme: 'light', proportional: opts.proportional ?? true, onDraftAt, onQuickEdit, onMoveEvent: opts.move ? onMoveEvent : undefined, onDeleteEvent: () => {},
       }));
     });
     const rootEl = host.firstElementChild as HTMLElement;
@@ -101,6 +103,41 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     act(() => { (body as HTMLElement).click(); });
     expect(host.querySelector('[aria-label="Löschen"]')).toBeNull();
     expect(onDraftAt).not.toHaveBeenCalled();
+  });
+
+  it('moves a card inside the list: feedback while pressed, others faded, commit on release', () => {
+    render({ move: true });
+    const cardA = host.querySelector<HTMLElement>('#ev-a')!;
+    const cardB = host.querySelector<HTMLElement>('#ev-b')!;
+    const body = cardA.querySelector('button')!;
+    touch(body, 'touchstart', 50, 120);
+    act(() => { vi.advanceTimersByTime(100); });
+    expect(cardA.style.transform).toContain('scale(1.015)'); // light lift soon after touching
+    act(() => { vi.advanceTimersByTime(250); });
+    expect(cardA.style.transform).toContain('scale(1.04)'); // armed after the hold
+    expect(cardB.style.pointerEvents).toBe('none'); // others cannot be grabbed
+    expect(onQuickEdit).not.toHaveBeenCalled();
+    touch(body, 'touchmove', 50, 120 + 48); // 48 px = 60 min at 0.8 px/min
+    act(() => { vi.advanceTimersByTime(50); });
+    touch(body, 'touchend', 50, 168);
+    expect(onMoveEvent).toHaveBeenCalledTimes(1);
+    const [moved, start, end] = onMoveEvent.mock.calls[0] as [{ id: string }, Date, Date];
+    expect(moved.id).toBe('a');
+    expect(start).toEqual(at(10));
+    expect(end).toEqual(at(11));
+    expect(cardB.style.pointerEvents).toBe('');
+  });
+
+  it('shows the light lift on a short press and removes it on release', () => {
+    render({ move: true });
+    const cardA = host.querySelector<HTMLElement>('#ev-a')!;
+    const body = cardA.querySelector('button')!;
+    touch(body, 'touchstart', 50, 120);
+    act(() => { vi.advanceTimersByTime(120); });
+    expect(cardA.style.transform).toContain('scale(1.015)');
+    touch(body, 'touchend', 50, 120);
+    expect(cardA.style.transform).toBe('');
+    expect(onMoveEvent).not.toHaveBeenCalled();
   });
 
   it('does not open quick edit on a hold on an occurrence of a recurring event', () => {

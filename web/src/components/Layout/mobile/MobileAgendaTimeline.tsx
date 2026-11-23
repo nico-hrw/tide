@@ -134,9 +134,9 @@ function TimelineEventItem({
   isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties; proportional?: boolean;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
-  // Der laufende Termin ist invertiert: Hintergrund in der Textfarbe, Text in der Hintergrundfarbe.
+  // Der laufende Termin ist dunkler als die übrigen: die eigene Farbe nachgedunkelt, mit heller Schrift (nie weiß).
   const basePal = paletteFor(ev.color);
-  const pal = info.isActive ? { bg: basePal.ink, ink: basePal.bg } : basePal;
+  const pal = info.isActive ? { bg: `color-mix(in srgb, ${basePal.bg} 52%, #000)`, ink: '#FFFFFF' } : basePal;
   // Legacy height by duration; in the proportional day view the card fills its segment instead.
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
   const fill = proportional ? (isExpanded ? '' : 'h-full') : 'my-1';
@@ -286,11 +286,13 @@ export interface DbTimelineDayProps {
   /** Day view only: proportional heights, growing active gap, positioned now-line. Off = legacy list. */
   proportional?: boolean;
   /** Day view gestures (only with `proportional`): hold a card = quick edit, double tap = draft at that time. */
-  onQuickEdit?: (ev: DbTimelineDayProps['dayEvs'][number]) => void; onDraftAt?: (start: Date, end: Date) => void;
+  onQuickEdit?: (ev: DbTimelineDayProps['dayEvs'][number]) => void;
+  /** Hold a card and drag it inside the list; called with the new time on release. */
+  onMoveEvent?: (ev: DbTimelineDayProps['dayEvs'][number], start: Date, end: Date) => void; onDraftAt?: (start: Date, end: Date) => void;
 }
 
 export const DbTimelineDay = React.memo(function DbTimelineDay({
-  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, proportional = false, onQuickEdit, onDraftAt,
+  day, dayEvs, allDayEvs, isToday, now, theme, onNewEvent, onDeleteEvent, onEditEvent, onTaskComplete, proportional = false, onQuickEdit, onMoveEvent, onDraftAt,
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const tasks = useDataStore(state => state.tasks);
@@ -320,7 +322,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
   }, [realEvs, isToday, now]);
 
   const clusters = useMemo(() => buildClusters(realEvs), [realEvs]);
-  const gestureProps = useDayListGestures({ enabled: proportional && !!(onQuickEdit || onDraftAt), day, now, events: realEvs, expandedEventId, setExpandedEventId, onQuickEdit, onDraftAt });
+  const gestureProps = useDayListGestures({ enabled: proportional && !!(onQuickEdit || onMoveEvent || onDraftAt), day, now, events: realEvs, expandedEventId, setExpandedEventId, onQuickEdit, onMoveEvent, onDraftAt });
 
   if (dayEvs.length === 0 && allDayEvs.length === 0) {
     return (

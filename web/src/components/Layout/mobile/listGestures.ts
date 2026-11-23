@@ -7,6 +7,11 @@ import { DEFAULT_DURATION_MIN } from './timelineMath';
  */
 export interface GestureOptions {
   holdMs?: number; doubleTapMs?: number; moveTolerancePx?: number;
+  /** A finger rests on something for `pressMs`: early, light feedback before the hold fires. */
+  pressMs?: number;
+  onPress?: (x: number, y: number, target: EventTarget | null) => void;
+  /** The press ended (released or moved) without turning into a hold. */
+  onPressCancel?: () => void;
   onHold: (x: number, y: number, target: EventTarget | null) => void;
   onDoubleTap: (x: number, y: number, target: EventTarget | null) => void;
 }
@@ -21,8 +26,11 @@ export function createListGestures(o: GestureOptions): {
   const holdMs = o.holdMs ?? 450;
   const doubleTapMs = o.doubleTapMs ?? 300;
   const tol = o.moveTolerancePx ?? 10;
+  const pressMs = o.pressMs ?? 90;
 
   let timer: ReturnType<typeof setTimeout> | null = null;
+  let pressTimer: ReturnType<typeof setTimeout> | null = null;
+  let pressShown = false;
   let active = false;
   let spoiled = false; // moved too far or held: this touch is no tap
   let sx = 0, sy = 0, startT = 0;
@@ -30,14 +38,23 @@ export function createListGestures(o: GestureOptions): {
   let lastTap: { x: number; y: number; t: number } | null = null;
 
   const clearTimer = () => { if (timer !== null) { clearTimeout(timer); timer = null; } };
+  const releasePress = () => {
+    if (pressTimer !== null) { clearTimeout(pressTimer); pressTimer = null; }
+    if (pressShown) { pressShown = false; o.onPressCancel?.(); }
+  };
 
   return {
     start(x, y, t) {
       clearTimer();
       active = true; spoiled = false;
       sx = x; sy = y; startT = Date.now(); target = t;
+      releasePress();
+      if (o.onPress) {
+        pressTimer = setTimeout(() => { pressTimer = null; pressShown = true; o.onPress!(sx, sy, target); }, pressMs);
+      }
       timer = setTimeout(() => {
         timer = null;
+        pressShown = false; // the hold takes over the feedback
         spoiled = true;
         lastTap = null;
         o.onHold(sx, sy, target);
@@ -49,12 +66,14 @@ export function createListGestures(o: GestureOptions): {
         spoiled = true;
         lastTap = null;
         clearTimer();
+        releasePress();
       }
     },
     end() {
       if (!active) return;
       active = false;
       clearTimer();
+      releasePress();
       if (spoiled) { lastTap = null; return; }
       const prev = lastTap;
       if (prev && startT - prev.t <= doubleTapMs && Math.hypot(sx - prev.x, sy - prev.y) <= DOUBLE_TAP_SLOP_PX) {
@@ -66,6 +85,7 @@ export function createListGestures(o: GestureOptions): {
     },
     cancel() {
       clearTimer();
+      releasePress();
       active = false;
       lastTap = null;
     },

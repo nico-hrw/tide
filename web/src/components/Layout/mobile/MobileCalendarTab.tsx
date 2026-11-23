@@ -17,7 +17,7 @@ import { CalendarViewsMenu } from '../../Calendar/CalendarViewsMenu';
 import type { CalendarViewMode } from '../../Calendar/types';
 import { QuickEditGrid } from './QuickEditGrid';
 import type { NewEventMeta } from './MobileOverlaysAndModals';
-import { confirmQuickEdit, quickEditContext, quickEditForDraft, quickEditForEvent, type QuickEditState } from './quickEditState';
+import { confirmQuickEdit, quickEditContext, quickEditForDraft, type QuickEditState } from './quickEditState';
 
 export interface MobileCalendarTabProps {
   activeDate: Date;
@@ -174,7 +174,11 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
     () => (quickEdit ? quickEditContext(dayEvs, quickEdit.target.id) : []),
     [quickEdit, dayEvs],
   );
-  const handleQuickEdit = useCallback((ev: CalendarEvent) => setQuickEdit(quickEditForEvent(ev)), []);
+  // Moving happens in the open list (hold, then drag); the grid only serves new drafts.
+  const handleMoveEvent = useCallback(
+    (ev: CalendarEvent, start: Date, end: Date) => { onEventUpdate?.(ev.id, start, end); },
+    [onEventUpdate],
+  );
   const handleDraftAt = useCallback((start: Date, end: Date) => setQuickEdit(quickEditForDraft(start, end)), []);
   const handleQuickEditConfirm = useCallback(
     (start: Date, end: Date) => {
@@ -373,7 +377,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
               onEditEvent={onEditEvent}
               onTaskComplete={onTaskComplete}
               proportional
-              onQuickEdit={handleQuickEdit}
+              onMoveEvent={handleMoveEvent}
               onDraftAt={handleDraftAt}
             />
           </div>

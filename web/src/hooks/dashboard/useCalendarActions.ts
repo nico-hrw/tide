@@ -479,7 +479,7 @@ export function useCalendarActions({
 
     const handleDeleteEvent = useCallback(
         async (id: string): Promise<void> => {
-            if (!myId) return;
+            if (!myId) { notifyError("Löschen nicht möglich: nicht angemeldet"); return; }
             const baseId = id.includes("_") ? id.split("_")[0] : id;
             const seriesEvt = useDataStore.getState().events.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
             let targetId = id;
@@ -497,34 +497,45 @@ export function useCalendarActions({
                 }
                 targetId = baseId; // the whole series; the dialog already was the question
             }
+            const storeState = useDataStore.getState();
+            const targetEvt = storeState.events.find((e) => e.id === targetId) as CalendarEventRecord | undefined;
+            const writeEvents = setEvents ?? storeState.setEvents;
+            const putBack = () => {
+                // Failed delete: the event must not stay hidden while it still exists on the server
+                const now = useDataStore.getState();
+                if (targetEvt && !now.events.some((e) => e.id === targetId)) writeEvents([...now.events, targetEvt]);
+            };
+            // Optimistic: the card disappears at once instead of after the round trip (slow mobile networks
+            // otherwise look like "nothing happened" and the event gets tapped again).
+            writeEvents(storeState.events.filter((e) => e.id !== targetId));
             try {
-                const storeState = useDataStore.getState();
-                const currentEvents = storeState.events;
-                const targetEvt = currentEvents.find((e) => e.id === targetId) as CalendarEventRecord | undefined;
                 if (targetEvt?.linkedTaskId) {
-                    const remainingLinkedEvents = currentEvents.filter(
-                        (e) => e.id !== targetId && (e as CalendarEventRecord).linkedTaskId === targetEvt.linkedTaskId
+                    const remainingLinkedEvents = useDataStore.getState().events.filter(
+                        (e) => (e as CalendarEventRecord).linkedTaskId === targetEvt.linkedTaskId
                     );
                     if (remainingLinkedEvents.length === 0) {
                         void (updateTask ?? storeState.updateTask)(targetEvt.linkedTaskId, { dueDate: undefined, scheduledDate: undefined });
                     }
                 }
                 const res = await apiFetch(`/api/v1/files/${targetId}`, { method: "DELETE" });
-                if (res.ok) {
-                    const latestState = useDataStore.getState();
-                    (setEvents ?? latestState.setEvents)(latestState.events.filter((e) => e.id !== targetId));
-                    if (targetEvt) {
-                        // Deleted events sit in the trash, so "undo" simply restores them
-                        notifyUndo(isRecurringEvent(targetEvt) ? "Serie gelöscht" : "Termin gelöscht", async () => {
-                            const back = await apiFetch(`/api/v1/files/${targetId}/restore`, { method: "POST" });
-                            if (!back.ok) { notifyError("Wiederherstellen fehlgeschlagen"); return; }
-                            const now = useDataStore.getState();
-                            if (!now.events.some((e) => e.id === targetId)) (setEvents ?? now.setEvents)([...now.events, targetEvt]);
-                        });
-                    }
+                // 404/410: already gone on the server, which is what was wanted
+                if (!res.ok && res.status !== 404 && res.status !== 410) {
+                    putBack();
+                    notifyError("Termin konnte nicht gelöscht werden");
+                    return;
+                }
+                if (targetEvt) {
+                    // Deleted events sit in the trash, so "undo" simply restores them
+                    notifyUndo(isRecurringEvent(targetEvt) ? "Serie gelöscht" : "Termin gelöscht", async () => {
+                        const back = await apiFetch(`/api/v1/files/${targetId}/restore`, { method: "POST" });
+                        if (!back.ok) { notifyError("Wiederherstellen fehlgeschlagen"); return; }
+                        putBack();
+                    });
                 }
             } catch (e) {
                 console.error(e);
+                putBack();
+                notifyError("Termin konnte nicht gelöscht werden");
             }
         },
         [myId, handleEventSave, updateTask, setEvents]
