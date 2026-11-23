@@ -1345,7 +1345,9 @@ span.task-mention-pill,
   .wco-drag button,
   .wco-drag a,
   .wco-drag input,
-  .wco-drag [role="tab"] {
+  .wco-drag [role="tab"],
+  .wco-drag [role="tab"] *,
+  .wco-drag li {
     -webkit-app-region: no-drag;
     app-region: no-drag;
   }

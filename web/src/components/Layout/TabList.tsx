@@ -246,6 +246,8 @@ export default function TabList({
                                         className="list-none shrink-0"
                                     >
                                         <div
+                                            role="tab"
+                                            aria-selected={isActive}
                                             onClick={(e) => {
                                                 if (highlight.isSelectingLink && highlight.onLinkSelect) {
                                                     highlight.onLinkSelect({ 
