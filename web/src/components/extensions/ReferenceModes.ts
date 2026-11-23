@@ -240,9 +240,10 @@ export const ReferenceAutopilotMode = Extension.create({
             const { state } = currentView;
             const doc = state.doc;
             const docSize = doc.content.size;
-            if (docSize === 0) {
+            if (docSize <= 2) {
+                // Content not loaded yet: keep the full scan pending, it is triggered when content arrives
                 dirtyRange = null;
-                isFullScanScheduled = false;
+                isFullScanScheduled = true;
                 return;
             }
 
@@ -307,6 +308,13 @@ export const ReferenceAutopilotMode = Extension.create({
 
                     // Own edits only: remote (collaboration) changes and the autopilot's own marks don't count,
                     // otherwise every collaborator keystroke would trigger scans (and write marks back to everyone)
+                    // Content arriving into an empty editor (note opened, sync finished) is scanned completely
+                    if (_oldState.doc.content.size <= 2 && newState.doc.content.size > 2
+                        && transactions.some((tr) => tr.docChanged && !tr.getMeta('isReferenceAutopilot'))) {
+                        isFullScanScheduled = true;
+                        scheduleDebouncedScan();
+                    }
+
                     const userTrs = transactions.filter((tr) => {
                         if (!tr.docChanged || tr.getMeta('isReferenceAutopilot')) return false;
                         const meta = (tr as unknown as { meta?: Record<string, unknown> }).meta;
