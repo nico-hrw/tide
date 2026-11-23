@@ -72,17 +72,17 @@ describe('typography', () => {
     }
   });
 
-  it('layout loads Inter via next/font/google and attaches the variable to <html>', () => {
+  it('layout loads Manrope via next/font/google and attaches the variable to <html>', () => {
     const layout = readSrc('app/layout.tsx');
     expect(layout).toMatch(/from\s+["']next\/font\/google["']/);
-    expect(layout).toMatch(/Inter\s*\(/);
-    expect(layout).toMatch(/variable:\s*["']--font-inter["']/);
+    expect(layout).toMatch(/Manrope\s*\(/);
+    expect(layout).toMatch(/variable:\s*["']--font-manrope["']/);
     expect(layout).toMatch(/<html[^>]*className=\{[^}]*\.variable/);
   });
 
-  it('--font-sans starts with the loaded Inter variable and body smooths fonts', () => {
+  it('--font-sans starts with the loaded Manrope variable and body smooths fonts', () => {
     const css = readSrc('app/globals.css');
-    expect(css).toMatch(/--font-sans:\s*var\(--font-inter\)/);
+    expect(css).toMatch(/--font-sans:\s*var\(--font-manrope\)/);
     expect(css).toMatch(/-webkit-font-smoothing:\s*antialiased/);
     expect(css).toMatch(/text-rendering:\s*optimizeLegibility/);
   });

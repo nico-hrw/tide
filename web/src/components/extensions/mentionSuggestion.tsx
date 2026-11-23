@@ -1,4 +1,5 @@
 import { ReactRenderer } from '@tiptap/react';
+import NoteIcon from '@/components/Icons/NoteIcon';
 import type { Range } from '@tiptap/core';
 import type { EditorState } from '@tiptap/pm/state';
 import tippy from 'tippy.js';
@@ -557,14 +558,14 @@ const MentionList = forwardRef((props: any, ref) => {
                                             </span>
                                             <span className="font-medium truncate">{item.title || item.label}</span>
                                         </div>
-                                        <FileText size={14} className="text-t2-ink-3  shrink-0" />
+                                        <NoteIcon size={14} className="text-t2-ink-3  shrink-0" />
                                     </>
                                 ) : (
                                     <>
                                         <div className="font-medium truncate flex-1">{item.label || item.title}</div>
                                         {item.type && (
                                             <div className="flex-shrink-0 text-t2-ink-3 ">
-                                                {item.type === 'note' && <FileText size={14} />}
+                                                {item.type === 'note' && <NoteIcon size={14} />}
                                                 {item.type === 'file' && <Paperclip size={14} />}
                                                 {item.type === 'action' && <Plus size={14} />}
                                             </div>

@@ -315,7 +315,7 @@ export default function Sidebar({
             }}
         >
             {setIsAvatarMenuOpen && avatarMenuRef && (
-                <div className="flex items-center gap-2.5 px-3 pt-3 pb-1">
+                <div className="flex items-center gap-2.5 px-3 pt-5 pb-1">
                     <AvatarMenu
                         userProfile={userProfile}
                         myId={myId}

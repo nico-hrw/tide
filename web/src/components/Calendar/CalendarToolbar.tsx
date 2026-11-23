@@ -3,7 +3,7 @@ import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
 import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
-import { CalendarTagPills } from "./CalendarTagPills";
+import { CalendarTagFilter } from "./CalendarTagFilter";
 import { CalendarViewsMenu } from "./CalendarViewsMenu";
 import type { CalendarViewProps, CalendarViewMode } from "./types";
 
@@ -134,7 +134,7 @@ export function CalendarToolbar({
             {/* Row 2: tag filter */}
             <div className="flex items-center gap-2 border-t border-t2-line px-4 py-2">
                 <CalendarViewsMenu tags={themes} viewMode={viewMode} onViewModeChange={onViewModeChange} onOpenTodos={openTodos} />
-                <CalendarTagPills tags={themes} className="min-w-0 flex-1" />
+                <CalendarTagFilter tags={themes} className="min-w-0 flex-1" />
             </div>
         </div>
     );

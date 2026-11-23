@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import NoteIcon from '@/components/Icons/NoteIcon';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/core';
 import {
@@ -408,7 +409,7 @@ export function EditorInlineSearch({ editor }: EditorInlineSearchProps) {
                                         <Sparkles size={13} className="text-amber-500 dark:text-amber-400 flex-shrink-0" />
                                     )}
                                     {item.type === 'note' && (
-                                        <FileText size={13} className="text-t2-ink-2  flex-shrink-0" />
+                                        <NoteIcon size={13} className="text-t2-ink-2  flex-shrink-0" />
                                     )}
                                     {item.type === 'event' && (
                                         <CalendarIcon size={13} className="text-t2-accent  flex-shrink-0" />

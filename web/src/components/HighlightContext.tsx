@@ -71,7 +71,7 @@ export function HighlightProvider({ children }: { children: ReactNode }) {
                         start: { x: startCoords.x, y: startCoords.y - 10 },
                         end: { x: target.rect.left + target.rect.width / 2, y: target.rect.top + target.rect.height / 2 }
                     });
-                    setTimeout(() => setConnectionLine(null), 1200);
+                    setTimeout(() => setConnectionLine(null), 1100);
                 }
                 callback(target);
                 cancelLinkSelection();
@@ -102,40 +102,51 @@ export function HighlightProvider({ children }: { children: ReactNode }) {
         }}>
             {children}
             <AnimatePresence>
-                {connectionLine && (
-                    <motion.svg
-                        initial={{ opacity: 1 }}
-                        exit={{ opacity: 0 }}
-                        transition={{ duration: 0.5, delay: 0.6 }}
-                        className="fixed inset-0 pointer-events-none z-[9999] w-full h-full"
-                    >
-                        <motion.path
-                            d={`M ${connectionLine.start.x} ${connectionLine.start.y} 
-                                C ${connectionLine.start.x - 250} ${connectionLine.start.y - 50}, 
-                                  ${connectionLine.start.x - 50} ${connectionLine.start.y + 200}, 
-                                  ${connectionLine.start.x + (connectionLine.end.x - connectionLine.start.x) * 0.5} ${connectionLine.start.y + (connectionLine.end.y - connectionLine.start.y) * 0.5}
-                                S ${connectionLine.end.x - 150} ${connectionLine.end.y - 150}, 
-                                  ${connectionLine.end.x} ${connectionLine.end.y}`}
-                            fill="none"
-                            stroke="url(#purpleGlow)"
-                            strokeWidth="2.5"
-                            strokeDasharray="8 8"
-                            strokeLinecap="round"
-                            initial={{ pathLength: 0, opacity: 0 }}
-                            animate={{ pathLength: 1, opacity: 1 }}
-                            transition={{
-                                pathLength: { duration: 1.5, ease: "easeOut" },
-                                opacity: { duration: 0.3 }
-                            }}
-                        />
-                        <defs>
-                            <linearGradient id="purpleGlow" x1="0%" y1="0%" x2="100%" y2="0%">
-                                <stop offset="0%" stopColor="#d8b4fe" stopOpacity="0.4" />
-                                <stop offset="100%" stopColor="#a855f7" stopOpacity="1" />
-                            </linearGradient>
-                        </defs>
-                    </motion.svg>
-                )}
+                {connectionLine && (() => {
+                    const { start, end } = connectionLine;
+                    // One smooth S-curve: leaves the start horizontally and arrives horizontally (no stray control points)
+                    const dx = end.x - start.x;
+                    const bend = Math.max(60, Math.abs(dx) * 0.5);
+                    const dir = dx >= 0 ? 1 : -1;
+                    const d = `M ${start.x} ${start.y} C ${start.x + bend * dir} ${start.y}, ${end.x - bend * dir} ${end.y}, ${end.x} ${end.y}`;
+                    return (
+                        <motion.svg
+                            key="link-line"
+                            initial={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.35 }}
+                            className="fixed inset-0 pointer-events-none z-[9999] w-full h-full"
+                        >
+                            <defs>
+                                {/* userSpaceOnUse: an objectBoundingBox gradient collapses on (almost) straight lines */}
+                                <linearGradient id="linkLineGradient" gradientUnits="userSpaceOnUse" x1={start.x} y1={start.y} x2={end.x} y2={end.y}>
+                                    <stop offset="0%" stopColor="var(--t2-ink-3)" stopOpacity="0.35" />
+                                    <stop offset="100%" stopColor="var(--t2-ink)" stopOpacity="0.95" />
+                                </linearGradient>
+                            </defs>
+                            <motion.path
+                                d={d}
+                                fill="none"
+                                stroke="url(#linkLineGradient)"
+                                strokeWidth={2.5}
+                                strokeLinecap="round"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+                            />
+                            <motion.circle
+                                cx={end.x}
+                                cy={end.y}
+                                r={4.5}
+                                fill="var(--t2-ink)"
+                                initial={{ scale: 0, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                transition={{ delay: 0.4, duration: 0.2 }}
+                                style={{ transformOrigin: `${end.x}px ${end.y}px` }}
+                            />
+                        </motion.svg>
+                    );
+                })()}
             </AnimatePresence>
         </HighlightContext.Provider>
     );

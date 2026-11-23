@@ -1,15 +1,16 @@
 'use client';
 
 import React, { useEffect, useRef } from 'react';
+import NoteIcon from '@/components/Icons/NoteIcon';
 import { Calendar, FileText, SquareCheck } from 'lucide-react';
 import type { CaptureKind } from './islandLogic';
 import type { IslandModel } from './useIslandModel';
 import type { IslandText } from './islandText';
 import { CardLabel, CloseButton } from './IslandViews';
 
-const KINDS: { kind: CaptureKind; labelKey: string; Icon: typeof Calendar }[] = [
+const KINDS: { kind: CaptureKind; labelKey: string; Icon: React.ComponentType<{ size?: number; strokeWidth?: number; className?: string }> }[] = [
     { kind: 'event', labelKey: 'kindEvent', Icon: Calendar },
-    { kind: 'note', labelKey: 'kindNote', Icon: FileText },
+    { kind: 'note', labelKey: 'kindNote', Icon: NoteIcon },
     { kind: 'todo', labelKey: 'kindTodo', Icon: SquareCheck },
 ];
 
@@ -44,7 +45,13 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
     const skipFocus = capture.fromSuggestion;
     useEffect(() => {
         if (skipFocus) return;
-        const id = requestAnimationFrame(() => inputRef.current?.focus());
+        const id = requestAnimationFrame(() => {
+            const el = inputRef.current;
+            if (!el) return;
+            el.focus();
+            // Text typed before the field existed (type-anywhere capture) is already in it: continue after it
+            el.setSelectionRange(el.value.length, el.value.length);
+        });
         return () => cancelAnimationFrame(id);
     }, [skipFocus]);
 

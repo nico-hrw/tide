@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Manrope } from "next/font/google";
 import AuthGuard from "@/components/AuthGuard";
 import { HighlightProvider } from "@/components/HighlightContext";
 import { IslandProvider } from "@/components/extensions/smart_island/useIslandStore";
@@ -8,10 +8,10 @@ import { PALETTE_BOOT_SCRIPT } from "@/lib/palette";
 import "./globals.css";
 import "./palettes.css";
 
-const inter = Inter({
+const inter = Manrope({
   subsets: ["latin", "latin-ext"],
   display: "swap",
-  variable: "--font-inter",
+  variable: "--font-manrope",
 });
 
 export const viewport: Viewport = {

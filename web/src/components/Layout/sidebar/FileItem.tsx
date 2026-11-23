@@ -1,4 +1,5 @@
 import { Plus, Folder, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Lock, Pin, Users, Puzzle, Globe, Check, Loader2, X, FileText, Layout } from "lucide-react";
+import NoteIcon from '@/components/Icons/NoteIcon';
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { Tab } from '@/components/Layout/TabList';
@@ -30,28 +31,10 @@ export interface FileItemProps {
     openTabs?: Tab[];
 }
 
-export const AnimatedLinkingText = ({ text, index = 0 }: { text: string, index?: number }) => {
-    return (
-        <motion.span
-            initial={{ color: 'inherit', textShadow: 'none', fontWeight: 500 }}
-            animate={{
-                color: ['inherit', '#a855f7', '#a855f7', 'inherit'],
-                textShadow: ['none', '0 0 12px rgba(168,85,247,0.7)', '0 0 12px rgba(168,85,247,0.7)', 'none'],
-                fontWeight: [500, 700, 700, 500]
-            }}
-            transition={{
-                duration: 2.5,
-                repeat: 3, // Don't animate continuously
-                delay: (index * 0.15), // Wave effect
-                ease: "easeInOut",
-                times: [0, 0.3, 0.7, 1]
-            }}
-            className="inline-block truncate w-full"
-        >
-            {text}
-        </motion.span>
-    );
-};
+/** Title while a link target is being chosen: plain text (no glow or weight change, so the row never changes width). */
+export const AnimatedLinkingText = ({ text }: { text: string; index?: number }) => (
+    <span className="inline-block truncate w-full">{text}</span>
+);
 
 export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibility, onShare, editingId, onRenameSubmit, onDragStart, onContextMenu, enabledExtensions, myId, index, activeTabId, openTabs }: FileItemProps) => {
     const { isHighlighted, highlight } = useHighlight();
@@ -244,6 +227,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
             }}
             className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150
                 ${isCalendarDropTarget ? 'ring-2 ring-t2-accent bg-t2-sub ' : ''}
+                ${highlight.isSelectingLink ? 'cursor-crosshair bg-t2-sub shadow-[inset_0_0_0_1px_var(--t2-line)] hover:bg-t2-hover hover:shadow-[inset_0_0_0_1.5px_var(--t2-ink)]' : ''}
                 ${isActive
                     ? 'bg-t2-stage  text-t2-ink  font-semibold ring-1 ring-t2-line '
                     : isOpen
@@ -266,7 +250,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                             style={!isActive && !isOpen ? { color: safeColor } : undefined}
                         />
                     ) : (
-                        <FileText
+                        <NoteIcon
                             size={15}
                             className={`shrink-0 ${
                                 isActive

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useRef, useState, useEffect } from 'react';
+import NoteIcon from '@/components/Icons/NoteIcon';
 import { 
     X, 
     Calendar, 
@@ -29,6 +30,7 @@ import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
 import TabHoverPreview, { type TabPreviewTarget } from './TabHoverPreview';
+import PluginsMenu from './PluginsMenu';
 
 /** Delay before the hover preview of a tab appears. */
 const PREVIEW_DELAY_MS = 450;
@@ -100,8 +102,6 @@ export default function TabList({
     const navigationMode = useDataStore(s => s.navigationMode);
     const enabledExtensions = useDataStore(s => s.enabledExtensions);
     const scrollRef = useRef<HTMLDivElement>(null);
-    const [isPluginMenuOpen, setIsPluginMenuOpen] = useState(false);
-    const pluginMenuRef = useRef<HTMLDivElement>(null);
     const [preview, setPreview] = useState<TabPreviewTarget | null>(null);
     const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -119,17 +119,6 @@ export default function TabList({
     useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current); }, []);
     // A tab that closes or changes under the pointer never sends mouseleave, which would leave the card stuck
     useEffect(() => { hidePreview(); }, [tabs.length, activeTabId]); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        if (!isPluginMenuOpen) return;
-        const handleClickOutside = (e: MouseEvent) => {
-            if (pluginMenuRef.current && !pluginMenuRef.current.contains(e.target as Node)) {
-                setIsPluginMenuOpen(false);
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => document.removeEventListener('mousedown', handleClickOutside);
-    }, [isPluginMenuOpen]);
 
     const getTabIcon = (type: Tab['type']) => {
         switch (type) {
@@ -155,7 +144,7 @@ export default function TabList({
                 return <Folder size={13} />;
             case 'file':
             default:
-                return <FileText size={13} />;
+                return <NoteIcon size={14} />;
         }
     };
 
@@ -182,7 +171,7 @@ export default function TabList({
 
     return (
         <div 
-            className="wco-drag w-full flex-shrink-0 min-h-[calc(3.25rem+env(safe-area-inset-top,0px))] bg-t2-bg border-b border-t2-line-soft flex items-center justify-between px-3 gap-2 select-none z-30 pt-[env(safe-area-inset-top,0px)]"
+            className="wco-drag w-full flex-shrink-0 min-h-[calc(4rem+env(safe-area-inset-top,0px))] bg-t2-bg border-b border-t2-line-soft flex items-center justify-between px-4 gap-3 select-none z-30 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] pb-2"
         >
             {/* Zone 1: Left balanced zone (Sidebar toggle) */}
             <div className={`flex items-center justify-start gap-2 min-w-0 shrink-0 ${navigationMode === 'folders' ? 'hidden' : 'flex-1'}`}>
@@ -330,154 +319,14 @@ export default function TabList({
                 {/* Optional external plugin slot */}
                 {pluginSlot}
 
-                {/* Compact plugin toolbar slot / dropdown button */}
-                <div ref={pluginMenuRef} className="relative shrink-0 flex items-center">
-                    <button
-                        type="button"
-                        onClick={() => setIsPluginMenuOpen(prev => !prev)}
-                        style={{ borderRadius: DT.radius }}
-                        title="Plugins & Erweiterungen"
-                        aria-label="Plugins"
-                        className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium transition-all active:scale-95 cursor-pointer border ${
-                            isPluginMenuOpen 
-                                ? 'bg-t2-surface  text-t2-accent  border-t2-line  shadow-xs' 
-                                : 'text-t2-ink-2 hover:text-t2-ink   hover:bg-t2-stage  border-transparent'
-                        }`}
-                    >
-                        <Puzzle size={14} className={isPluginMenuOpen ? 'text-t2-accent' : 'text-t2-ink-2 '} />
-                        <span className="hidden sm:inline text-xs font-medium">Plugins</span>
-                        <ChevronDown size={11} className={`text-t2-ink-3 transition-transform duration-200 ${isPluginMenuOpen ? 'rotate-180' : ''}`} />
-                    </button>
-
-                    {/* Plugin Dropdown Menu */}
-                    {isPluginMenuOpen && (
-                        <div 
-                            style={{ 
-                                borderRadius: DT.radiusLg,
-                                boxShadow: DT.shadowFloat,
-                            }}
-                            className="absolute right-0 top-10 w-56 bg-t2-surface  border border-t2-line  py-1.5 px-1 z-[150] animate-in fade-in zoom-in-95 duration-100"
-                        >
-                            <div className="px-3 py-1.5 text-[11px] font-semibold text-t2-ink-3  uppercase tracking-wider">
-                                Plugins & Tools
-                            </div>
-                            
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsPluginMenuOpen(false);
-                                    onTabSelect('job_planner', 'job_planner');
-                                }}
-                                style={{ borderRadius: DT.radius }}
-                                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                            >
-                                <GraduationCap size={15} className="text-t2-accent shrink-0" />
-                                <div className="truncate">
-                                    <div className="font-medium">Job & Uni Planner</div>
-                                    <div className="text-[11px] text-t2-ink-3 font-normal">Vorlesungen, Prüfungen & Jobs</div>
-                                </div>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsPluginMenuOpen(false);
-                                    onTabSelect('calendar', 'calendar');
-                                }}
-                                style={{ borderRadius: DT.radius }}
-                                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                            >
-                                <Calendar size={15} className="text-t2-accent shrink-0" />
-                                <div className="truncate">
-                                    <div className="font-medium">Kalender</div>
-                                    <div className="text-[11px] text-t2-ink-3 font-normal">Termine & Wochenansicht</div>
-                                </div>
-                            </button>
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsPluginMenuOpen(false);
-                                    onTabSelect('todos', 'todos');
-                                }}
-                                style={{ borderRadius: DT.radius }}
-                                className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                            >
-                                <ListTodo size={15} className="text-emerald-500 shrink-0" />
-                                <div className="truncate">
-                                    <div className="font-medium">Aufgaben & Todos</div>
-                                    <div className="text-[11px] text-t2-ink-3 font-normal">Task Management</div>
-                                </div>
-                            </button>
-
-                            {enabledExtensions?.includes('surveys') && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsPluginMenuOpen(false);
-                                        onTabSelect('surveys', 'surveys');
-                                    }}
-                                    style={{ borderRadius: DT.radius }}
-                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                                >
-                                    <Smile size={15} className="text-amber-500 shrink-0" />
-                                    <div className="truncate">
-                                        <div className="font-medium">Umfragen & Mood</div>
-                                        <div className="text-[11px] text-t2-ink-3 font-normal">Stimmungsbild & Umfragen</div>
-                                    </div>
-                                </button>
-                            )}
-
-                            {onOpenSocial && (
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsPluginMenuOpen(false);
-                                        onOpenSocial();
-                                    }}
-                                    style={{ borderRadius: DT.radius }}
-                                    className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                                >
-                                    <Users size={15} className="text-t2-accent shrink-0" />
-                                    <div className="truncate">
-                                        <div className="font-medium">Social Hub</div>
-                                        <div className="text-[11px] text-t2-ink-3 font-normal">Chat & Kontakte</div>
-                                    </div>
-                                </button>
-                            )}
-
-                            {onOpenSettings && (
-                                <>
-                                    <div className="h-px bg-t2-hover  my-1" />
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsPluginMenuOpen(false);
-                                            onOpenSettings();
-                                        }}
-                                        style={{ borderRadius: DT.radius }}
-                                        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 text-xs font-medium text-t2-ink  hover:bg-t2-hover  transition-colors text-left cursor-pointer"
-                                    >
-                                        <Settings size={15} className="text-t2-ink-3  shrink-0" />
-                                        <span>Plugin-Einstellungen</span>
-                                    </button>
-                                </>
-                            )}
-
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    setIsPluginMenuOpen(false);
-                                    useDataStore.getState().setVariablesModalOpen(true);
-                                }}
-                                className="w-full flex items-center gap-2.5 px-3 py-2 text-[13px] text-t2-ink hover:bg-t2-hover rounded-ui transition-colors text-left"
-                            >
-                                <Variable size={15} className="text-t2-ink-2" />
-                                <span>Variablen</span>
-                            </button>
-                        </div>
-                    )}
-                </div>
+                <PluginsMenu
+                    activeTabId={activeTabId}
+                    enabledExtensions={enabledExtensions}
+                    onTabSelect={onTabSelect}
+                    onOpenSocial={onOpenSocial}
+                    onOpenSettings={onOpenSettings}
+                    onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
+                />
 
                 {/* Profile lives in the sidebar; it only shows here while the sidebar is hidden */}
                 {setIsAvatarMenuOpen && avatarMenuRef && !(isSidebarOpen && navigationMode !== 'folders') && (

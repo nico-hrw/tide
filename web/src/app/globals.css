@@ -101,7 +101,7 @@
   --muted-text: var(--t2-ink-2);
 
   /* Typography */
-  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-manrope), system-ui, -apple-system, sans-serif;
 
   /* Surfaces & Boxes */
   --surface-card: var(--sidebar-bg);
@@ -341,7 +341,7 @@ html {
 body {
   color: var(--foreground);
   background-color: var(--background);
-  font-family: var(--font-sans, 'Inter', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+  font-family: var(--font-sans, 'Manrope', system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
   min-height: 100vh;
   min-height: 100dvh;
   overscroll-behavior-x: none;
