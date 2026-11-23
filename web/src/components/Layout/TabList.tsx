@@ -113,7 +113,7 @@ export default function TabList({
     const schedulePreview = (tab: Tab, el: HTMLElement) => {
         hidePreview();
         previewTimer.current = setTimeout(() => {
-            setPreview({ id: tab.id, title: getTabLabel(tab), isNote: tab.type === 'file', rect: el.getBoundingClientRect() });
+            setPreview({ id: tab.id, title: getTabLabel(tab), isNote: tab.type === 'file', isActive: tab.id === activeTabId, content: tab.content, rect: el.getBoundingClientRect() });
         }, PREVIEW_DELAY_MS);
     };
     useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current); }, []);

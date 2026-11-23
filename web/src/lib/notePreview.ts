@@ -135,8 +135,14 @@ export async function preloadNotePreviews(files: Array<Record<string, unknown>>)
         onNotFound: () => {},
       });
       const text = DECRYPT_ERROR.test(contentText || '') ? '' : docToPlainText(contentText || '');
-      previews.set(item.id, text.slice(0, MAX_CHARS));
-      seenStamp.set(item.id, item.stamp);
+      // An empty result is not remembered: the note may have been edited since without its timestamp changing
+      if (text) {
+        previews.set(item.id, text.slice(0, MAX_CHARS));
+        seenStamp.set(item.id, item.stamp);
+      } else {
+        previews.delete(item.id);
+        seenStamp.delete(item.id);
+      }
       changed = true;
       listeners.forEach((cb) => cb());
     } catch {
