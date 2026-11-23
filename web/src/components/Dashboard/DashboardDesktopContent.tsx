@@ -4,7 +4,6 @@ import React from "react";
 import dynamic from "next/dynamic";
 import type { JSONContent } from "@tiptap/react";
 import TabList from "@/components/Layout/TabList";
-import DesktopIsland from "@/components/island/DesktopIsland";
 import CalendarView from "@/components/Calendar/CalendarView";
 import type { CalendarViewProps } from "@/components/Calendar/types";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
@@ -232,15 +231,6 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                     window.location.reload();
                 }}
             />
-
-            {/* Tablet: Island als schwebendes Quadrat unten links (Seitenleiste eingeklappt) */}
-            {navigationMode === "folders" && (
-                <DesktopIsland
-                    slotClassName="fixed bottom-5 left-4 z-40 block h-[200px] w-[200px]"
-                    selectedDate={calendarDate}
-                    onSelectDate={handleDateSelect}
-                />
-            )}
 
             {/* Main Workspace Body */}
             <div className="flex-1 min-h-0 relative overflow-hidden flex flex-col">

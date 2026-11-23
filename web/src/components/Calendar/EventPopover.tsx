@@ -315,20 +315,22 @@ export default function EventPopover({
                     onClick={() => setShowColorPicker(!showColorPicker)}
                     title="Farbe wählen"
                 />
-                <input
+                {/* Wraps instead of scrolling, so the whole title is readable here (cards show one line only). */}
+                <textarea
                     autoFocus
+                    rows={1}
                     value={title}
-                    onChange={(e) => setTitle(e.target.value)}
+                    onChange={(e) => setTitle(e.target.value.replace(/\n/g, ' '))}
                     onBlur={() => handleSave()}
                     onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); e.currentTarget.blur(); } }}
-                    className={`flex-1 text-sm font-bold bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-t2-ink-3 transition-all ${isCancelled ? 'line-through text-t2-ink-3 ' : 'text-t2-ink '}`}
+                    className={`flex-1 min-w-0 max-h-24 resize-none [field-sizing:content] break-words text-sm font-bold leading-snug bg-transparent border-none focus:ring-0 p-0 outline-none placeholder:text-t2-ink-3 transition-all ${isCancelled ? 'line-through text-t2-ink-3 ' : 'text-t2-ink '}`}
                     placeholder="Was passiert?"
                 />
                 {/* Wichtig Toggle (Icon only) */}
                 <button
                     type="button"
                     onClick={() => setIsImportant(!isImportant)}
-                    className={`p-1.5 rounded-full transition-all ${
+                    className={`shrink-0 p-1.5 rounded-full transition-all ${
                         isImportant
                             ? 'text-t2-accent bg-t2-sub'
                             : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
@@ -341,7 +343,7 @@ export default function EventPopover({
                 <button
                     type="button"
                     onClick={handleToggleCancel}
-                    className={`p-1.5 rounded-full transition-all ${
+                    className={`shrink-0 p-1.5 rounded-full transition-all ${
                         isCancelled
                             ? 'text-t2-now bg-t2-sub font-bold'
                             : 'text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover'
@@ -354,7 +356,7 @@ export default function EventPopover({
                 <button
                     type="button"
                     onClick={() => { onEventDelete?.(event.id); }}
-                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-t2-now hover:bg-t2-hover transition-all"
+                    className="shrink-0 p-1.5 rounded-full text-t2-ink-3 hover:text-t2-now hover:bg-t2-hover transition-all"
                     title="Löschen"
                 >
                     <Trash2 size={14} />
@@ -363,7 +365,7 @@ export default function EventPopover({
                 <button 
                     type="button"
                     onClick={handleClose} 
-                    className="p-1.5 rounded-full text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-all"
+                    className="shrink-0 p-1.5 rounded-full text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover  transition-all"
                     title="Schließen"
                 >
                     <X size={14} />
@@ -396,7 +398,7 @@ export default function EventPopover({
             )}
 
             {/* Time & Date */}
-            <div className="flex items-center justify-between bg-t2-sub  rounded-xl px-3 py-2 border border-t2-line-soft ">
+            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-t2-sub  rounded-xl px-3 py-2 border border-t2-line-soft ">
                 <div className="flex items-center gap-1.5">
                     <span className="text-xs font-semibold text-t2-ink ">
                         {(() => {
@@ -418,7 +420,7 @@ export default function EventPopover({
                         <span className="font-bold uppercase tracking-wider text-[11px] bg-t2-stage  px-2 py-0.5 rounded-full">Ganztägig</span>
                     ) : (
                         <>
-                            <Clock size={12} className="text-t2-ink-3 " />
+                            <Clock size={12} className="text-t2-ink-3 shrink-0" />
                             <span className="font-medium">{format(new Date(event.start), "HH:mm")}</span>
                             <span className="text-t2-ink-3 ">→</span>
                             <span className="font-medium">{format(new Date(event.end), "HH:mm")}</span>
@@ -507,7 +509,7 @@ export default function EventPopover({
                             <button
                                 type="button"
                                 onClick={() => { setRecurrenceEnd(''); handleSave(); }}
-                                className="absolute right-2 text-t2-ink-3 hover:text-t2-ink-2  p-0.5 rounded-full"
+                                className="absolute right-9 text-t2-ink-3 hover:text-t2-ink-2  p-0.5 rounded-full"
                                 title="Datum löschen"
                             >
                                 <X size={12} />

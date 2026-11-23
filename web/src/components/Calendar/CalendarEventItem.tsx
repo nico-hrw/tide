@@ -751,11 +751,15 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             <Users size={11} />
                         </div>
                     )}
-                    <div className={`text-[11px] font-bold leading-tight break-words pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
+                    {/* One line only: the full title is in the popover. A wrapped title pushed the tag row out of the card. */}
+                    <div
+                        title={event.title || undefined}
+                        className={`text-[11px] font-bold leading-[16px] truncate min-w-0 flex-1 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}
+                    >
                         {event.title || 'Untitled'}
                     </div>
                     {!isDragging && !isResizing && (
-                        <span className="text-[11px] opacity-30 font-bold ml-auto select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
+                        <span className="text-[11px] leading-[16px] opacity-30 font-bold ml-auto shrink-0 select-none pointer-events-none group-hover:opacity-75 transition-opacity">···</span>
                     )}
                 </div>
 
@@ -773,8 +777,12 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                 )}
 
                 {/* Sub-titles (Tags) - Feature Requirement */}
-                {displayBadges.length > 0 && durationMinutes > 40 && (
-                    <div className="flex flex-wrap gap-1 mt-1 mb-1 relative z-[90]">
+                {displayBadges.length > 0 && durationMinutes >= 50 && (
+                    // A single, never-wrapping row that fades out on the right when there are more tags than space.
+                    <div
+                        className="flex flex-nowrap gap-1 mt-0.5 mb-0.5 relative z-[90] shrink-0 overflow-hidden"
+                        style={{ WebkitMaskImage: 'linear-gradient(to right, #000 calc(100% - 18px), transparent)', maskImage: 'linear-gradient(to right, #000 calc(100% - 18px), transparent)' }}
+                    >
                         {displayBadges.map((badge, idx) => {
                             // Badge colours come from the same five calendar colours as the event itself
                             const badgeCat = resolveCategory(badge.color ?? event.color);
@@ -783,7 +791,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             return (
                             <div
                                 key={badge.id || idx}
-                                className={`px-2 py-0.5 rounded-full text-[11px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
+                                className={`shrink-0 whitespace-nowrap px-2 py-px rounded-full text-[10.5px] leading-[14px] font-black ${isCancelled ? 'line-through opacity-60' : ''}`}
                                 style={{
                                     backgroundColor: sameAsCard ? 'color-mix(in srgb, currentColor 16%, transparent)' : badgeCat.bg,
                                     color: sameAsCard ? 'inherit' : badgeCat.ink,
@@ -799,7 +807,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 
                 {/* Description - shown if there's space and text exists */}
                 {event.description && durationMinutes > 60 && (
-                    <div className={`text-[11px] opacity-80 leading-tight mt-0.5 overflow-hidden line-clamp-2 pointer-events-none font-medium ${isCancelled ? 'line-through opacity-60' : ''}`}>
+                    // Takes the remaining height and fades out at the bottom instead of being cut off.
+                    <div
+                        className={`text-[11px] opacity-80 leading-tight mt-0.5 flex-1 min-h-0 overflow-hidden pointer-events-none font-medium ${isCancelled ? 'line-through opacity-60' : ''}`}
+                        style={{ WebkitMaskImage: 'linear-gradient(to bottom, #000 calc(100% - 14px), transparent)', maskImage: 'linear-gradient(to bottom, #000 calc(100% - 14px), transparent)' }}
+                    >
                         {event.description?.split(';').map((part, index, array) => (
                             <React.Fragment key={index}>
                                 {part}
