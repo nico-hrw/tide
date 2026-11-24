@@ -10,7 +10,7 @@ import { useDragGhost } from "@/store/useDragGhost";
 import type { IslandView } from "@/components/extensions/smart_island/useIslandStore";
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
-import { SESSION_STATE_KEY, isTabStale, serializePersistedSession } from "@/lib/sessionState";
+import { isFileListComplete, isTabStale, serializePersistedSession, sessionStateKey } from "@/lib/sessionState";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
 import { handleViewMentionClick, type ViewMentionClickDetail } from "./viewMentionClick";
 import { selectTags } from "@/lib/tags";
@@ -64,7 +64,7 @@ export interface UseDashboardListenersOptions {
     noteLayout: NoteLayout;
     calendarDate: Date;
     setCalendarDate: React.Dispatch<React.SetStateAction<Date>>;
-    calendarViewMode?: CalendarViewMode;
+    calendarViewMode: CalendarViewMode;
     setCalendarViewMode: (mode: CalendarViewMode) => void;
     setActiveEventId: React.Dispatch<React.SetStateAction<string | null>>;
     storeFiles: readonly DashboardListenerFile[];
@@ -153,6 +153,7 @@ export function useDashboardListeners({
     islandPush,
     setIdlePayload,
 }: UseDashboardListenersOptions): UseDashboardListenersReturn {
+    const loadedDirectories = useDataStore((s) => s.loadedDirectories);
     const remindedEventsRef = useRef<Set<string>>(new Set());
     const deletedBlocksTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -291,7 +292,9 @@ export function useDashboardListeners({
     // 5. Cleanup orphaned tabs when access is revoked or file is deleted
     useEffect(() => {
         if (!isRestored || !files || files.length === 0) return;
-        const knownFileIds = new Set(files.map((f) => f.id));
+        // Folders and shared files load lazily: only prune once the list is known complete.
+        const complete = isFileListComplete(useDataStore.getState().notes, loadedDirectories);
+        const knownFileIds = complete ? new Set(files.map((f) => f.id)) : null;
         setOpenTabs((prev) => {
             const next = prev.filter((tab) => {
                 if (
@@ -309,6 +312,19 @@ export function useDashboardListeners({
             });
             return next.length !== prev.length ? next : prev;
         });
+    }, [files, isRestored, setOpenTabs, loadedDirectories]);
+
+    // 5b. Restored file tabs carry no title: fill it in once the note is known.
+    useEffect(() => {
+        if (!isRestored || !files || files.length === 0) return;
+        setOpenTabs((prev) => {
+            if (!prev.some((t) => t.type === "file" && !t.title)) return prev;
+            return prev.map((t) => {
+                if (t.type !== "file" || t.title) return t;
+                const f = files.find((x) => x.id === t.id);
+                return f?.title ? { ...t, title: f.title } : t;
+            });
+        });
     }, [files, isRestored, setOpenTabs]);
 
     // 6. Tab & layout storage persistence
@@ -324,15 +340,17 @@ export function useDashboardListeners({
 
     // 6b. Durable session record (survives app restart): ids/types/order/active tab/calendar view mode.
     const persistSession = useCallback(() => {
+        const key = sessionStateKey(myId);
+        if (!key) return;
         try {
             localStorage.setItem(
-                SESSION_STATE_KEY,
+                key,
                 serializePersistedSession({ tabs: openTabs, activeTabId, calendarViewMode })
             );
         } catch {
             // Ignore quota or private-browsing errors
         }
-    }, [openTabs, activeTabId, calendarViewMode]);
+    }, [openTabs, activeTabId, calendarViewMode, myId]);
     useEffect(() => {
         if (!isRestored) return;
         const timer = window.setTimeout(persistSession, 250);

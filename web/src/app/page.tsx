@@ -54,6 +54,8 @@ interface ExtendedDecryptedFile extends DecryptedFile {
     permission?: string;
 }
 
+import { clearPersistedSessions } from "@/lib/sessionState";
+
 function getInitialTabs(): Tab[] {
     const initial: Tab[] = [{ id: "calendar", title: "Calendar", type: "calendar" }];
     if (typeof window !== "undefined") {
@@ -402,6 +404,7 @@ export default function Dashboard() {
     const handleAvatarLogout = () => {
         setIsAvatarMenuOpen(false);
         sessionStorage.clear();
+        clearPersistedSessions();
         localStorage.removeItem("tide_user_email");
         localStorage.removeItem("tide_user_id");
         localStorage.removeItem("tide_session_token");

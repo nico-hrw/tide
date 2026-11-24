@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+    SESSION_STATE_KEY,
     SESSION_STATE_VERSION,
+    isFileListComplete,
+    sessionStateKey,
     isTabStale,
     parsePersistedSession,
     resolveRestoredActive,
@@ -121,5 +124,42 @@ describe('resolveRestoredActive', () => {
 
     it('returns an empty list untouched', () => {
         expect(resolveRestoredActive([], 'x')).toEqual({ tabs: [], activeTabId: '' });
+    });
+});
+
+describe('sessionStateKey', () => {
+    it('scopes the key per user and refuses an unknown user', () => {
+        expect(sessionStateKey('u1')).toBe(`${SESSION_STATE_KEY}:u1`);
+        expect(sessionStateKey('u1')).not.toBe(sessionStateKey('u2'));
+        expect(sessionStateKey('')).toBeNull();
+        expect(sessionStateKey(null)).toBeNull();
+    });
+
+    it('a record stored for another user is not read under this users key', () => {
+        const store = new Map<string, string>();
+        store.set(sessionStateKey('u1') as string, serializePersistedSession({ tabs: [cal, note], activeTabId: 'n1' }));
+        expect(parsePersistedSession(store.get(sessionStateKey('u2') as string) ?? null)).toBeNull();
+        expect(parsePersistedSession(store.get(sessionStateKey('u1') as string) ?? null)?.tabs).toHaveLength(2);
+    });
+});
+
+describe('isFileListComplete (stale pruning gate)', () => {
+    it('is false until the root directory is loaded', () => {
+        expect(isFileListComplete([], new Set())).toBe(false);
+    });
+    it('is true when root and every known folder are loaded', () => {
+        const notes = [{ id: 'f1', type: 'folder' }, { id: 'n1', type: 'file' }];
+        expect(isFileListComplete(notes, new Set(['root', 'f1']))).toBe(true);
+    });
+    it('is false while a known folder has not been loaded', () => {
+        const notes = [{ id: 'f1', type: 'folder' }];
+        expect(isFileListComplete(notes, new Set(['root']))).toBe(false);
+    });
+    it('not loaded -> nothing pruned; loaded + missing id -> pruned', () => {
+        const tab = { id: 'gone', type: 'file' };
+        const incomplete = isFileListComplete([], new Set());
+        expect(isTabStale(tab, incomplete ? new Set<string>() : null)).toBe(false);
+        const complete = isFileListComplete([], new Set(['root']));
+        expect(isTabStale(tab, complete ? new Set<string>() : null)).toBe(true);
     });
 });

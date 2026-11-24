@@ -7,6 +7,37 @@
 export const SESSION_STATE_KEY = 'tide_session_v1';
 export const SESSION_STATE_VERSION = 1;
 
+/** Per-user storage key; null while the user is unknown (nothing may be read or written then). */
+export function sessionStateKey(userId: string | null | undefined): string | null {
+    return userId ? `${SESSION_STATE_KEY}:${userId}` : null;
+}
+
+/** Removes the session records of every user (logout). */
+export function clearPersistedSessions(): void {
+    try {
+        const doomed: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(SESSION_STATE_KEY)) doomed.push(k);
+        }
+        doomed.forEach((k) => localStorage.removeItem(k));
+    } catch {
+        // Ignore restricted storage errors
+    }
+}
+
+/**
+ * The file list is complete once the root directory and every known folder have been loaded
+ * (folders load lazily), so a missing file id really means deleted or unshared.
+ */
+export function isFileListComplete(
+    notes: ReadonlyArray<{ id: string; type?: string }>,
+    loadedDirectories: ReadonlySet<string>
+): boolean {
+    if (!loadedDirectories.has('root')) return false;
+    return notes.every((n) => n.type !== 'folder' || loadedDirectories.has(n.id));
+}
+
 const TAB_TYPES = [
     'file', 'calendar', 'todos', 'messages', 'ext_finance', 'profile',
     'social', 'exams', 'job_planner', 'trash', 'folders',
