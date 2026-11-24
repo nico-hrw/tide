@@ -291,5 +291,7 @@ export const settingsMiscDe = {
     'share.shareTileDesc': "Weiter teilen",
     'share.newPermission': "Berechtigung für neue Freigabe",
     'share.canReshareDesc': "Empfänger darf diese Notiz mit gleichen oder geringeren Rechten weiterleiten",
+    'share.reshareSetAtInvite': "Wurde beim Einladen festgelegt",
+    'share.legacyFull': "Vollzugriff",
     'share.done': "Fertig",
 } as const;

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React from 'react';
 import { Loader2, UserMinus } from 'lucide-react';
 import Avatar from '@/components/Profile/Avatar';
 import { useT } from '@/components/Settings/useT';
@@ -56,7 +56,7 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
             {shares.map((share) => {
                 const name = share.username || share.email || t('share.unknownUser');
                 const busy = updatingUserId === share.user_id || revokingUserId === share.user_id;
-                const level = share.permission === 'view' ? 'view' : 'edit';
+                const level = share.permission; // 'share' only for legacy rows
                 return (
                     <li key={share.user_id} className="p-3 rounded-[12px] bg-t2-surface border border-t2-line">
                         <div className="flex items-center justify-between gap-2">
@@ -76,11 +76,12 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                                         value={level}
                                         disabled={busy}
                                         aria-label={t('share.rightsFor', { name })}
-                                        onChange={(e) => onRoleChange(share.user_id, e.target.value === 'view' ? 'view' : share.permission === 'share' ? 'share' : 'edit')}
+                                        onChange={(e) => onRoleChange(share.user_id, e.target.value as SharePermissionValue)}
                                         className="text-xs bg-t2-sub hover:bg-t2-hover text-t2-ink font-medium rounded-[8px] px-2.5 py-1.5 border border-t2-line cursor-pointer outline-none focus:ring-1 focus:ring-t2-accent transition-colors"
                                     >
                                         <option value="view">{t('share.view')}</option>
                                         <option value="edit">{t('share.edit')}</option>
+                                        {share.permission === 'share' && <option value="share">{t('share.legacyFull')}</option>}
                                     </select>
                                     <button
                                         type="button"
@@ -94,16 +95,10 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                                     </button>
                                 </div>
                             ) : (
-                                <span className="text-xs text-t2-ink-2 shrink-0">{t(level === 'view' ? 'share.view' : 'share.edit')}</span>
+                                <span className="text-xs text-t2-ink-2 shrink-0">{t(level === 'view' ? 'share.view' : level === 'share' ? 'share.legacyFull' : 'share.edit')}</span>
                             )}
                         </div>
-                        {isOwner && level === 'edit' && (
-                            <ReshareMore
-                                share={share}
-                                busy={busy}
-                                onChange={(on) => onRoleChange(share.user_id, on ? 'share' : 'edit')}
-                            />
-                        )}
+                        {isOwner && share.can_reshare === true && <ReshareState />}
                     </li>
                 );
             })}
@@ -118,38 +113,17 @@ function ShareOriginSeparated(props: { fileId: string; userId: string; groupIds:
 }
 
 /**
- * "Mehr" disclosure with "Darf weiterteilen". Checked = the share row has can_reshare (invite with the
- * box ticked) or the legacy permission 'share'. The server PATCH only accepts `permission`, so toggling
- * on an editable row sends permission 'share' (and off sends 'edit'); a row whose can_reshare flag was
- * set at invite time cannot be cleared from here and is shown checked and disabled.
+ * Read-only: "Darf weiterteilen" was set when the person was invited (can_reshare on the share row).
+ * The server can't change it afterwards (PATCH only takes `permission`), and re-sharing is decided by
+ * `can_reshare` alone, so rows without the flag show nothing here.
  */
-function ReshareMore({ share, busy, onChange }: { share: SharePerson; busy: boolean; onChange: (on: boolean) => void }) {
+function ReshareState() {
     const t = useT();
-    const [open, setOpen] = useState(false);
-    const legacy = share.permission === 'share';
-    const flagOnly = share.can_reshare === true && !legacy;
     return (
-        <div className="mt-2 ml-[42px]">
-            <button
-                type="button"
-                aria-expanded={open}
-                onClick={() => setOpen((v) => !v)}
-                className="text-[11px] text-t2-ink-2 cursor-pointer select-none"
-            >
-                {t('share.more')} {open ? '▴' : '▾'}
-            </button>
-            {open && (
-                <label className="mt-1.5 flex items-center gap-2 text-xs text-t2-ink cursor-pointer">
-                    <input
-                        type="checkbox"
-                        checked={legacy || share.can_reshare === true}
-                        disabled={busy || flagOnly}
-                        onChange={(e) => onChange(e.target.checked)}
-                        className="w-4 h-4 rounded border-t2-line accent-t2-accent"
-                    />
-                    {t('share.canReshare')}
-                </label>
-            )}
-        </div>
+        <label className="mt-2 ml-[42px] flex items-center gap-2 text-xs text-t2-ink">
+            <input type="checkbox" checked disabled readOnly className="w-4 h-4 rounded border-t2-line accent-t2-accent" />
+            <span>{t('share.canReshare')}</span>
+            <span className="text-[11px] text-t2-ink-2">· {t('share.reshareSetAtInvite')}</span>
+        </label>
     );
 }

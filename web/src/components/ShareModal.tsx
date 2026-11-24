@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, Loader2, ShieldCheck, Variable } from "lucide-react";
+import { ChevronDown, X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, Loader2, ShieldCheck, Variable } from "lucide-react";
 import { askConfirm, notifyError } from '@/lib/feedback';
 import { useState, useEffect, useCallback } from "react";
 import * as Y from "yjs";
@@ -734,7 +734,7 @@ export default function ShareModal({
                         {/* Re-sharing checkbox for owners only */}
                         {callerPermission === 'owner' && (
                             <div className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
-                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')} {showMore ? '▴' : '▾'}</button>
+                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')}<ChevronDown size={12} aria-hidden="true" className={`inline ml-1 transition-transform ${showMore ? 'rotate-180' : ''}`} /></button>
                                 {showMore && <label className="mt-2 flex items-start gap-3 cursor-pointer">
                                     <input
                                         type="checkbox"

@@ -293,5 +293,7 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'share.shareTileDesc': "Can share further",
     'share.newPermission': "Permission for new share",
     'share.canReshareDesc': "The recipient may forward this note with equal or lower rights",
+    'share.reshareSetAtInvite': "Set when invited",
+    'share.legacyFull': "Full access",
     'share.done': "Done",
 };
