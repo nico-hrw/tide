@@ -139,7 +139,7 @@ export default function Dashboard() {
     } | null>(null);
 
     const { myId, privateKey, publicKey, userProfile, isRestored, status } = useSessionRestore({
-        setKeys, fetchDirectory, setOpenTabs, setActiveTabId, setCalendarDate,
+        setKeys, fetchDirectory, setOpenTabs, setActiveTabId, setCalendarDate, setCalendarViewMode,
         setEditorContent: (content) => editorActionsRef.current?.setEditorContent(content),
         setActiveFileKey: (key) => editorActionsRef.current?.setActiveFileKey(key),
         setFileName: (name) => editorActionsRef.current?.setFileName(name),
@@ -226,7 +226,7 @@ export default function Dashboard() {
     const { handleBlocksDeleted } = useDashboardListeners({
         privateKey, publicKey, myId, isRestored, activeNoteId, fileName, setFileName, openTabs,
         setOpenTabs, activeTabId, setActiveTabId, noteLayout, calendarDate, setCalendarDate,
-        setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
+        calendarViewMode, setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
         setDraggedText, setCalendarDropActive, setDeletedBlockIds, setPendingBindBlockId, setKeys,
         fetchDirectory, loadNoteContent, handleFileSelect, switchTab, switchTabRef, handleNewNote,
         islandPush, setIdlePayload,

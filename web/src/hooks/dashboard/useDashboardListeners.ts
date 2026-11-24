@@ -10,6 +10,7 @@ import { useDragGhost } from "@/store/useDragGhost";
 import type { IslandView } from "@/components/extensions/smart_island/useIslandStore";
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
+import { SESSION_STATE_KEY, isTabStale, serializePersistedSession } from "@/lib/sessionState";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
 import { handleViewMentionClick, type ViewMentionClickDetail } from "./viewMentionClick";
 import { selectTags } from "@/lib/tags";
@@ -63,6 +64,7 @@ export interface UseDashboardListenersOptions {
     noteLayout: NoteLayout;
     calendarDate: Date;
     setCalendarDate: React.Dispatch<React.SetStateAction<Date>>;
+    calendarViewMode?: CalendarViewMode;
     setCalendarViewMode: (mode: CalendarViewMode) => void;
     setActiveEventId: React.Dispatch<React.SetStateAction<string | null>>;
     storeFiles: readonly DashboardListenerFile[];
@@ -129,7 +131,7 @@ export function useDashboardListeners({
     noteLayout,
     calendarDate,
     setCalendarDate,
-    setCalendarViewMode,
+    calendarViewMode, setCalendarViewMode,
     setActiveEventId,
     storeFiles,
     files,
@@ -289,6 +291,7 @@ export function useDashboardListeners({
     // 5. Cleanup orphaned tabs when access is revoked or file is deleted
     useEffect(() => {
         if (!isRestored || !files || files.length === 0) return;
+        const knownFileIds = new Set(files.map((f) => f.id));
         setOpenTabs((prev) => {
             const next = prev.filter((tab) => {
                 if (
@@ -298,12 +301,11 @@ export function useDashboardListeners({
                     tab.id === "messages" ||
                     tab.id.startsWith("ext_") ||
                     tab.id.startsWith("chat-") ||
-                    tab.id.startsWith("profile:") ||
-                    tab.type !== "file"
+                    tab.id.startsWith("profile:")
                 ) {
                     return true;
                 }
-                return files.some((f) => f.id === tab.id);
+                return !isTabStale(tab, knownFileIds);
             });
             return next.length !== prev.length ? next : prev;
         });
@@ -319,6 +321,27 @@ export function useDashboardListeners({
         sessionStorage.setItem("tide_active_tab_id", activeTabId);
         localStorage.setItem("tide_note_layout", noteLayout);
     }, [openTabs, activeTabId, noteLayout, isRestored]);
+
+    // 6b. Durable session record (survives app restart): ids/types/order/active tab/calendar view mode.
+    const persistSession = useCallback(() => {
+        try {
+            localStorage.setItem(
+                SESSION_STATE_KEY,
+                serializePersistedSession({ tabs: openTabs, activeTabId, calendarViewMode })
+            );
+        } catch {
+            // Ignore quota or private-browsing errors
+        }
+    }, [openTabs, activeTabId, calendarViewMode]);
+    useEffect(() => {
+        if (!isRestored) return;
+        const timer = window.setTimeout(persistSession, 250);
+        window.addEventListener("pagehide", persistSession);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener("pagehide", persistSession);
+        };
+    }, [isRestored, persistSession]);
 
     // 7. Calendar date persistence
     useEffect(() => {

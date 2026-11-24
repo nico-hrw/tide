@@ -15,6 +15,8 @@ import {
     parseStoredCalendarDate,
 } from "@/lib/calendarWeeks";
 import { sanitizeRestoredTabs } from "@/lib/tabStorage";
+import { SESSION_STATE_KEY, parsePersistedSession, resolveRestoredActive } from "@/lib/sessionState";
+import type { CalendarViewMode } from "@/components/Calendar/types";
 import { loadEncryptedOfflineCache } from "@/lib/offlineCacheCrypto";
 import { hydrateSettingsFromServer, hydrateWorkspacesFromServer } from "../../lib/settingsSync";
 import { useDataStore, type DataItem, type DataStoreState, type TaskItem } from "@/store/useDataStore";
@@ -42,6 +44,7 @@ export interface UseSessionRestoreOptions {
     setOpenTabs?: React.Dispatch<React.SetStateAction<Tab[]>>;
     setActiveTabId?: React.Dispatch<React.SetStateAction<string>>;
     setCalendarDate?: React.Dispatch<React.SetStateAction<Date>>;
+    setCalendarViewMode?: (mode: CalendarViewMode) => void;
     setEditorContent?: (content: unknown) => void;
     setActiveFileKey?: (key: CryptoKey | null) => void;
     setFileName?: (name: string) => void;
@@ -287,8 +290,22 @@ export function useSessionRestore(options: UseSessionRestoreOptions = {}): UseSe
                     });
 
                 // Persistence: Restore tabs (from sessionStorage — per-window)
-                const savedTabs = sessionStorage.getItem("tide_open_tabs");
-                const savedActiveId = sessionStorage.getItem("tide_active_tab_id");
+                // Window-level record (reload) first; durable record (app restart) as fallback.
+                const persisted = parsePersistedSession(localStorage.getItem(SESSION_STATE_KEY));
+                let savedTabs = sessionStorage.getItem("tide_open_tabs");
+                let savedActiveId = sessionStorage.getItem("tide_active_tab_id");
+                if (!savedTabs && persisted && persisted.tabs.length > 0) {
+                    const notes = useDataStore.getState().notes;
+                    savedTabs = JSON.stringify(
+                        persisted.tabs.map((t) => ({
+                            id: t.id,
+                            type: t.type,
+                            title: t.title ?? notes.find((n) => n.id === t.id)?.title ?? "",
+                        }))
+                    );
+                    savedActiveId = persisted.activeTabId;
+                }
+                if (persisted?.calendarViewMode) optionsRef.current.setCalendarViewMode?.(persisted.calendarViewMode);
 
                 if (savedTabs) {
                     try {
@@ -310,9 +327,12 @@ export function useSessionRestore(options: UseSessionRestoreOptions = {}): UseSe
                                 }
                             }
 
+                            // No "open calendar on start" setting exists yet: restored active tab wins.
+                            const resolved = resolveRestoredActive(parsed, savedActiveId, { startOnCalendar: false });
+                            parsed = resolved.tabs;
                             optionsRef.current.setOpenTabs?.(parsed);
-                            const validActive = parsed.find((t) => t.id === savedActiveId);
-                            const activeIdToSet = validActive ? validActive.id : parsed[0].id;
+                            const validActive = parsed.find((t) => t.id === resolved.activeTabId);
+                            const activeIdToSet = resolved.activeTabId;
                             const activeTypeToSet = validActive ? validActive.type : parsed[0].type;
                             optionsRef.current.setActiveTabId?.(activeIdToSet);
 
