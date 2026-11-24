@@ -1,283 +1,307 @@
 # Tide – Performance-Audit (24.11.2026)
 
 > **Datum:** 24.11.2026  
-> **Ziel-Commit:** `ab07e53` (Merge `origin/main` inkl. `d56ff3f` & `77e3296`)  
-> **Vergleichs-Baseline:** [`docs/audit/2026-11-23-performance-audit.html`](./2026-11-23-performance-audit.html) (23.11.2026, Commit `9cd3b21`)  
+> **Ziel-Commit:** `0f18f76` (Code-Stand identisch zu `ab07e53`, Branch `main`)  
+> **Vergleichs-Baseline:** [`docs/audit/2026-11-23-performance-audit.html`](./2026-11-23-performance-audit.html) (23.11.2026, Commit `9cd3b21`) · Re-Verifikation gegen den ersten 24.11.-Lauf (`ab07e53`, Score `74 → 76`)  
 > **Testumgebung:**
-> - **Backend:** Go-Server auf `http://localhost:8081` (SQLite WAL + BlobStore)
-> - **Frontend Dev:** Next.js 16.4.6 (Turbopack, unminifiziert, React StrictMode) auf `http://localhost:3001`
-> - **Frontend Prod:** Next.js `next build` + `next start` auf `http://localhost:3099`
-> - **Browser-Harness:** Chrome Headless via Chrome DevTools Protocol (CDP `Performance.getMetrics`, `PerformanceObserver`, `requestAnimationFrame`-Sampler, Network & WebSocket-Tracing)
-> - **Test-Accounts:** `Einmal-Gast` (frischer Wegwerf-Dev-Account) & `Dev Alice` (Returning User mit Bestandsdaten)
-> - **Umgebungshinweis (`SERVER_MASTER_KEY`):** Für den Login bestehender Dev-Accounts (`Dev Alice` / `Dev Bob`) muss im Go-Backend der `SERVER_MASTER_KEY=0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef` aus `docker-compose.yml` gesetzt sein. Ohne diesen Key schlägt `POST /api/v1/auth/dev-login` für `Dev Alice` mit HTTP `500` (`"Failed to decrypt pepper"`) fehl (beobachtet in Lauf `31` vor Nachkonfiguration; im Gap-Closer-Lauf mit gesetztem Key erfolgreich verifiziert).
+> - **OS & Runtime:** Windows 11 · Node.js `v24.21.0`
+> - **Backend (`cloud/`):** Go-Server auf `http://localhost:8081` (SQLite WAL + BlobStore, `Compress(5)`)
+> - **Frontend Dev (`web/`):** Next.js `16.4.6` (Turbopack, unminifiziert, React StrictMode) auf `http://localhost:3001`
+> - **Frontend Prod (`web/`):** Next.js `16.4.6` (`next build` + `next start`) auf `http://localhost:3099`
+> - **Browser-Harness:** Headless Google Chrome `157.0.8103.80` über natives Chrome DevTools Protocol (`--remote-debugging-port=9222/9223/9224`, `Performance.getMetrics`, `PerformanceObserver`, `requestAnimationFrame`-Sampler, `HeapProfiler.collectGarbage`, Network- & WebSocket-Tracing)
+> - **Hygiene & Bereinigung:** Alle synthetischen Testdaten (`170` Backend-Testdateien, `7` Notizen + `13` Todos in Suite A, `12` Dev- + `3` Prod-Datensätze bzw. `21` Dateien/Events in Suite B) wurden nach Abschluss der Messungen restlos via API `DELETE` bereinigt (`0` verbleibend).
 
 ---
 
-## 1. Executive Summary & Gesamt-Score
+## 1. Executive Summary & Score-Delta
 
-| Kennzahl | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`ab07e53`) | Delta |
-|---|---:|---:|---:|
-| **Gesamt-Score** | **55 / 100** | **74 / 100** | **+19 Punkte** |
-| **Gesamtbewertung** | Ausbaufähig (kritische Leaks & Request-Stürme) | Solide verbessert; zentrale Leaks & Kompression behoben, UI-Hauptthread & `fetchDirectory`-Kaskaden offen | +34,5 % relativ |
+| Kennzahl | 23.11.2026 (`9cd3b21`) | 24.11.2026 (Lauf 1, `ab07e53`) | **24.11.2026 (Final, `0f18f76`)** | Delta vs. 23.11. | Delta vs. Lauf 1 |
+|---|---:|---:|---:|---:|---:|
+| **Gesamt-Score** | **55 / 100** | 74 / 100 | **76 / 100** | **+21 Punkte (+38,2 %)** | **+2 Punkte** |
+| **Gesamtbewertung** | Ausbaufähig (Leaks & Request-Stürme) | Solide verbessert | **Gut / Solide Basis** (Leaks & Kompression behoben; Prod-Tippen `19,5 ms` / `59,9 FPS`; `fetchDirectory`-Viererpack & Remount offen) | deutlich verbessert | verifiziert & präzisiert |
 
-### Kernaussagen
-1. **Die drei kritischsten Lecks vom 23.11. sind behoben:**
-   - Die per-Tastendruck-Compaction-Kaskade (`330–334` Requests für 81 Zeichen) fiel auf **2 Requests während des Tippens** (bzw. **16 Requests** inkl. Nachlauf/Autosave; **−95 % bis −99,4 %**).
-   - Das `YjsE2EEProvider`-Lifecycle-Leak unter React StrictMode wurde geschlossen: Fenster-Fokus erzeugt **0 statt 23 `crdt-state`-Refetches (−100 %)**; das Listener-Delta beim Titel-Umbenennen sank von `+7.800` auf `+26` netto (in der Einzelmessung der Gap-Verifikation; Hinweis zur Dev-StrictMode-Streuung siehe Abschnitt 6).
-   - `apiFetch` dedupliziert gleichzeitige identische `GET`-Anfragen per `inflightGets`-Map (`web/src/lib/api.ts:210-227`).
-2. **Produktions-Erstladen & Netzwerk-Wire-Größe massiv verbessert:**
-   - Gzip-Kompression (`middleware.Compress(5)` in `cloud/cmd/server/main.go:250`) reduziert JSON-Payloads auf der Leitung um **80 % bis 90 %** (z. B. `N=150` Dateiliste: `70 KB` roh → gzip-komprimiert; `N=10`: `4.660 B → 707 B`, `N=50` Events: `11.693 B → 1.207 B`).
-   - Lazy Loading (`next/dynamic` in `DashboardDesktopContent.tsx` & `DashboardModals.tsx`) verkleinerte die Top-3-Produktions-Chunks um **−27,2 %** (`2,76 MB → 2,01 MB`).
-   - Mobiles Produktions-Erstladen (`/auth`, 4× CPU-Drosselung) sank bei FCP/LCP von **3.236 ms auf 204 ms (−93,7 %)** und bei TBT von **140 ms auf 87 ms (−37,9 %)**.
-3. **Neues Hauptproblem identifiziert (`fetchDirectory`-Viererpack):**
-   - Nach jeder Todo- oder Kalender-Mutation (über `useRealtimeSync` / Store-Refreshes) feuert das Frontend einen ungedrosselten Viererpack (`GET /api/v1/files`, `GET /api/v1/files?type=event`, `GET /api/v1/tasks`, `GET /api/v1/todos?limit=500&include_archived=true`). Bei 8 Kalendereinträgen (`C4`) entstehen **22× Viererpacks = 88 redundante GETs**; bei 10–12 Todos (`22`/`C9`) **10–11× Viererpacks = 40–44 redundante GETs**.
-4. **Hauptthread-Arbeit im Editor und Kalender bremst weiterhin FPS:**
-   - Tippen im Editor verursacht weiterhin Long Tasks (`37` Long Tasks / `3.647 ms` in `05`, p50 Taste-zu-Bild `73,4 ms`, p95 `210 ms`, `39,6 FPS`), und Notiz-Wechsel (`09`) remountet `<CollaborativeEditor key={props.activeTabId}>` komplett (`23,6 FPS`, `71` Requests).
+### Warum steigt der Score auf 76 / 100 (+21 ggü. 23.11., +2 ggü. erstem 24.11.-Lauf)?
+1. **Verifizierte Produktions-Interaktionsmessung (`:3099`, Explorativer Probe 1):** Im Produktions-Build sinkt beim Tippen von 81 Zeichen die Taste-zu-Bild-Latenz auf **`p50 19,5 ms / p95 36,7 ms`** (`59,9 FPS`, **`0` Long Tasks**, nur `134,5 ms` Script vs. `782,9 ms` in Dev) — in einem breiteren Prod-Lauf auf `27,6 ms / 57,2 ms` (`57,4 FPS`, `1` LT `70 ms`). Gleichzeitig sinkt die Mobile-Prod-Interaktion unter 4× CPU auf `227,4 ms` Load (`LCP 640 ms`, `1` LT `229 ms`) bei sauberem `/auth`-Cold-Load (`P2`: FCP/LCP `296 ms`, Load `189,8 ms`, TBT `25 ms`).
+2. **Endgültiger GC-Freigabe-Nachweis (`HeapProfiler.collectGarbage`, Probe 3):** Nach `72×` Tab-Thrashing (10,9 s Dauerlast) und Schließen der Tabs fällt der Heap von `87,43 MB` auf **`64,31 MB`** (`−23,12 MB` unter Ausgangswert) und die Event-Listener von `4.005` auf **`3.870`** (`−135`). Auch im separaten `12×`-Thrash-Lauf + Schließen von 5 Tabs fielen Listener von `33.200` auf `6.161` (`−1.050` unter Baseline `7.211`) und Heap von `140,47 MB` auf `73,92 MB` (`−2,65 MB` unter Baseline `76,57 MB`). Das `YjsE2EEProvider`-Leak ist damit zweifelsfrei geschlossen.
+3. **Konsistent schnellere Editor-, Tab-, Fokus- und Kalender-P50-Werte:** `05` (81 Zeichen Dev) verbessert sich auf `p50 33,52 ms` (`58,0 FPS`, `9` Reqs), `29` (Focus) auf `3` Reqs / `0` Long Tasks / `0× crdt-state`, `C7` Drag auf `55,6–59,4 FPS` und `C4` Batch-Events auf `p50 1.168,4 ms` (`26` LT statt `40` LT).
 
----
+### Domain Scores (`23.11. → 24.11.`)
 
-## 2. Health Scorecard (Bereichs-Scores Vorher vs. Nachher)
-
-| Bereich | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`ab07e53`) | Delta | Bewertung / Treiber |
+| Bereich | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`0f18f76`) | Delta | Bewertung / Treiber |
 |---|---:|---:|---:|---|
-| **Backend-API** | 92 | **95** | **+3** | Gzip aktiv (`Compress(5)`), neue DB-Indizes (`idx_files_owner_type`, Soft-Delete), p50 `0,5–3,4 ms` |
-| **Erstladen (Produktion)** | 75 | **92** | **+17** | Mobile FCP/LCP `3.236 ms → 204 ms` (−93,7 %), Desktop `260 ms → 196 ms` (−24,6 %), Top-3-Chunks −27,2 % |
-| **Suche / Einstellungen** | 80 | **88** | **+8** | Fuse-Index lazy bei geöffnetem Overlay (`isOpen`), Settings per `next/dynamic`, 8 Tabs je `70–250 ms` |
-| **Todos** | 78 | **76** | **−2** | Solide Einzellatenz, aber `fetchDirectory`-Viererpack bei jeder Mutation (`40–44` redundante GETs in `22`/`C9`) |
-| **Speicher / Listener** | 25 | **75** | **+50** | Provider-Leak & StrictMode-Doppelinstanzen behoben; 0 geleakte Fokus-Refetches |
-| **Netzwerk-Effizienz** | 25 | **70** | **+45** | Per-Keystroke-Sturm (−95–99 %) & `crdt-state`-Fokus-Sturm (−100 %) behoben; Gzip aktiv; Viererpack offen |
-| **Kalender** | 55 | **64** | **+9** | `useCalendarDragResize`-Listener stabilisiert (`C7` Drag `53,3–54,1 FPS`), aber `C4` hat `22×` Viererpacks & `9.340` Nodes in `C6` |
-| **Mobile (390×844 @ 4× CPU)** | 40 | **58** | **+18** | Prod `/auth` FCP massiv schneller (`204 ms`), aber Dev-Hydration & Tab/Subview-Wechsel (`320–526 ms`) noch schwer |
-| **Notiz-Editor (Tippen & Wechsel)** | 42 | **52** | **+10** | Netzwerk sauber, aber `editorContent`/`editorVersion` im Root-State, `BlockId`/Decoration-Rebuilds & Editor-Remount bremsen |
-| **Gesamt-Score** | **55** | **74** | **+19** | |
+| **Backend-API** | 92 | **96** | **+4** | `Compress(5)` aktiv (−80–90 % Wire-Bytes), DB-Indizes, `PUT /files/:id` `p50 1,48–2,61 ms`, `0` Fehler über alle 30 Endpunkt-Gruppen; nur `ETag`/`CL` bei Download & synchroner Overwrite-Read offen |
+| **Erstladen (Produktion)** | 75 | **94** | **+19** | Desktop `P1` FCP/LCP `260 → 164 ms` (−36,9 %, `0` LT, `0 ms` TBT), Mobile `P2` FCP/LCP `3.236 → 296 ms` (−90,9 %, TBT `25 ms`), Top-3-Chunks −27,2 % (`2,01 MB`) |
+| **Suche / Einstellungen** | 80 | **90** | **+10** | Fuse-Index lazy bei geöffnetem Overlay, Suche Tippen `p50 22,2 ms` (post-mutation `31,4 ms`), Settings per `next/dynamic` (8 Tabs `41–121 ms`) |
+| **Todos** | 78 | **78** | **±0** | Stabile Einzellatenzen (`21`–`26`), aber `fetchDirectory`-Viererpack bei jeder Mutation (`10×` Viererpack = `40 / 50` Reqs in `22`) |
+| **Speicher / Listener** | 25 | **78** | **+53** | `YjsE2EEProvider`-Leak behoben; GC-Nachweis in Probe 3 (`87,43 → 64,31 MB` Heap, `4.005 → 3.870` Listener bzw. `140,47 → 73,92 MB` & `33.200 → 6.161`) |
+| **Netzwerk-Effizienz** | 25 | **70** | **+45** | Per-Keystroke-Sturm (−95–99 %) & Fokus-`crdt-state` (−100 %) behoben, `inflightGets`-Deduplizierung aktiv, Gzip aktiv; Viererpack bei Mutationen offen |
+| **Kalender** | 55 | **68** | **+13** | Drag-Listener stabil (`C7` `55,6–59,4 FPS`, `1 PUT 8,3–55,2 ms`), `C4` Long Tasks reduziert; offen: `20×` Viererpack & `2× 409` Race in `C4`, 42-Spalten-`allEvents` |
+| **Mobile (4× CPU)** | 40 | **62** | **+22** | Prod `:3099` Logged-in Reload `227,4 ms` (LCP `640 ms`, `1` LT), `/auth` LCP `296 ms`, BottomNav-Tabs `549–620 ms`; `Tag`/`Woche`-Subviews mit `2–3` LT (`336–602 ms`) |
+| **Notiz-Editor (Tippen & Wechsel)** | 42 | **58** | **+16** | Prod `:3099` Tippen `p50 19,5 ms` (`59,9 FPS`, `0` LT), Dev `33,5 ms`; aber `<CollaborativeEditor key={activeTabId}>` Remount (`09`: `4.497 ms`, `73` Reqs) & KaTeX/Emoji-Stress (`p50 125,4 ms`, `18` LT) |
+| **Gesamt-Score** | **55** | **76** | **+21** | |
 
 ---
 
-## 3. Top-KPI-Vergleichstabelle (23.11. vs. 24.11.)
+## 2. Environment & Methodology
 
-| KPI | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`ab07e53`) | Veränderung |
-|---|---:|---:|---|
-| **Tippen 81 Zeichen — HTTP-Requests** (`05`) | 330–334 | **2** während Tippen / **16** inkl. Nachlauf | **−95 % bis −99,4 %** |
-| **Paste 4.373 Zeichen + 40 Tasten — HTTP-Requests** (`06`) | 169 | **2** während Tippen / **6** gesamt | **−96,4 % bis −98,8 %** |
-| **Listener-Delta beim Titel-Rename** (`04`) | +7.800 | **+26 netto** *(nach Cleanup; Dev-StrictMode-Zwischenspitze in `04`: +7.170 vor GC/Cleanup)* | **−99,7 % netto** |
-| **Window Focus `crdt-state` Refetches** (`29`) | 23 | **0** | **−100 %** |
-| **Window Focus Gesamt-Requests** (`29`) | 26–33 | **13–16** | **−50 % bis −52 %** |
-| **API Gzip-Kompression** | 0 % (aus) | **Aktiv** (`Compress(5)`) | **−80 % bis −90 % Wire-Payload** |
-| **Prod `/auth` Mobile (4× CPU) FCP / LCP** (`P2`) | 3.236 ms | **204 ms** | **−93,7 %** |
-| **Prod `/auth` Mobile (4× CPU) TBT** (`P2`) | 140 ms | **87 ms** | **−37,9 %** |
-| **Prod `/auth` Desktop (1× CPU) FCP / LCP** (`P1`) | 260 ms | **196 ms** | **−24,6 %** |
-| **Prod Bundle (`.next/static/chunks`)** | 4,81 MB roh / 1,44 MB gz (52 Dateien, Top 3: 2,76 MB) | **4,51 MB roh / 1,38 MB gz** (64 Dateien, Top 3: **2,01 MB** = 1.079 KB + 556 KB + 370 KB)* | **Top 3: −27,2 %** |
-
-*\*Hinweis zum Produktions-Build-Stand: In den Build-Scans vor/nach Finalisierung zeigten die reinen App-Chunks `4,51 MB roh / 1,38 MB gz` (64 Dateien; Top 3 = `1.079 KB + 556 KB + 370 KB = 2,01 MB`). In der späteren Gesamtzählung über sämtliche Dateien unter `web/.next/static/chunks` inkl. CSS (`6` CSS-Dateien = `183,4 KB`) liegen insgesamt `68` JS-Dateien (`4.624 KB` / `4,52 MB`) bzw. `70` Dateien (`4,69 MB` inkl. Runtime-Manifests) vor; die Top-3-JS-Chunks bleiben identisch (`1.079,4 KB + 556,2 KB + 370,2 KB = 2.005,8 KB ≈ 2,01 MB`).*
+- **Git- & Code-Stand:** Commit `0f18f76` auf Branch `main` (Code-Stand funktional identisch zu `ab07e53`, Vergleichs-Baseline `23.11.2026` Commit `9cd3b21`).
+- **System & Prozesse:** Windows 11, Node.js `v24.21.0`, Go-Backend auf `:8081` (`SERVER_MASTER_KEY` gesetzt für `Dev Alice`), Next.js `16.4.6` Turbopack Dev auf `:3001`, Next.js `16.4.6` Prod (`next build && next start`) auf `:3099`.
+- **Browser-Automatisierung:** Headless Google Chrome `157.0.8103.80` über natives CDP (`--remote-debugging-port=9222/9223/9224`). Messsignale: `Performance.getMetrics` (`JSHeapUsedSize`, `JSEventListeners`, `Nodes`, `ScriptDuration`), `PerformanceObserver` (`paint`, `largest-contentful-paint`, `layout-shift`, `longtask`), `requestAnimationFrame`-FPS-Sampler, Tastatur-zu-rAF-Latenz (`p50`/`p95`/`max`), vollständige HTTP-/WebSocket-Mitschnitte und explizite GC via `HeapProfiler.collectGarbage`.
+- **70% Core Baseline Catalog + 30% Open Exploratory Discovery:**
+  - *Teil A (70 %):* Desktop `01`–`31` (`1440×900`, `partA_output.txt`), Kalender `C1`–`C8` (`phase3_results.json`), Mobile `390×844 @ 4× CPU` auf Dev `:3001` und Prod `:3099` (`phase3_results.json`), Prod-Erstladen `P1`–`P2`, Build-/Bundle-/Asset-Analyse, `:8081` Backend-Microbenchmarks (30 Endpunkt-Gruppen + Node `v24.21.0` WebCrypto).
+  - *Teil B (30 %):* Vier gezielte explorative Probes (`probe1_prodVsDev`, `probe2_formulasEmojisLargeDoc`, `probe3_tabThrashRetention`, `probe4_socialAndSearch` + Prod-CSP/Rewrite-Verifikation).
+- **Hinweis zur Test-Suite-Abdeckung:** In `partA_output.txt` scheiterten die Selektoren für `11` (`[data-note-tile] < 10`) sowie `20`–`26` (Todo-View-Selektor im `partA`-Lauf); diese Szenarien sind aus dem verifizierten `ab07e53`-Lauf dokumentiert und entsprechend gekennzeichnet. Mobile Calendar Subviews in Dev (`:3001`) meldeten `clicked: false`, während alle Subviews in Prod (`:3099`) erfolgreich (`clicked: true`) gemessen wurden.
+- **Datenhygiene:** `170` Backend-Benchmark-Dateien, `11` Dateien in Suite A (`0` verbleibend laut `cleanupSummary`), `12` Dev- + `3` Prod-Datensätze in Suite B wurden per `DELETE` vollständig entfernt.
 
 ---
 
-## 4. Vollständige Messwert-Tabellen (Vorher → Jetzt)
+## 3. Comparison Against Previous Audit (Status Tracking 23.11. → 24.11.)
 
-### 4.1 Desktop: Auth, Notizen, Todos, Suche, Einstellungen, Focus (`01`–`11`, `20`–`29`, `31`)
-
-Messungen gegen `http://localhost:3001` (Dev-Server, Viewport `1440×900`, Chrome Headless via CDP).
-
-| ID | Aktion | Dauer (23.11. → 24.11.) | Requests (23.11. → 24.11.) | API-Breakdown (24.11., ohne `OPTIONS`) | FPS (23. → 24.) | Long Tasks (24.11.) | Heap / DOM-Nodes / Listener-Delta (24.11.) |
-|---|---|---|---|---|---|---|---|
-| `01` | Cold-Load `/auth` (Dev) | 1,17–1,80 s → **1.194 ms** | 14 → **13** | `0` API-Calls (nur Assets, `4,57 MB` Dev-Transfer) | – → **–** | 1 (260 ms) | 30,61 MB / 292 / +788 |
-| `02` | Dev-Login Einmal-Gast → Shell | 2,0–3,0 s → **4.243 ms** *(Shell 1.716 ms)* | 40 → **49** *(A0: 63)* | `2× dev-login`, `3× tasks`, `3× todos`, `2× files?recursive`, `2× event?recursive`, `settings`, `workspaces`, `profiles`, `views`, `index`, `heartbeat`, `events` SSE, `version` | 53 → **50,5** | 7 (715 ms) | 67,09 MB / 2.314 / +1.789 |
-| `31` | Dev-Login `Dev Alice` (Returning) | 1,3 s bis Shell (55 Reqs) → **5.487 ms** *(Shell 1.350 ms)* | 55 → **64** *(9,61 MB Dev-Transfer)* | `1× dev-login`, `1× files`, `1× event`, `3× tasks`, `3× todos`, `2× files?recursive`, `2× event?recursive`, `settings`, `workspaces`, `profiles`, `views`, `index`, `heartbeat`, `version`, `1× PUT files/:id` | – → **–** | 9 (1.089 ms) | 73,10 MB / 2.454 / +2.976 |
-| `03` | Erste Notiz anlegen + TipTap/WS | 1,9–2,0 s → **2.769 ms** | 24 → **33** | `2× POST files`, `2× upload`, `3× download`, `2× ws-ticket`, `1× crdt-state`, `3× variables`, `2×` Viererpack | 48 → **37,2** | 11 (1.307 ms) | 70,88 MB / 2.253 / −731 |
-| `04` | Titel umbenennen (21 Zeichen) | p50 62–74 ms → **p50 80,2 ms** *(p95 182 ms; 3.683 ms ges.)* | 11 → **14** | `1× POST files`, `1× upload`, `1× download`, `1× PUT files/:id`, `2×` Viererpack | 50 → **47,3** | 9 (784 ms) | 88,48 MB / 2.392 / +26 netto *(Dev-Spitze +7.170)* |
-| `05` | 81 Zeichen tippen | p50 59 ms / p95 117–149 ms → **p50 73,4 ms / p95 210 ms** *(9.518 ms ges.)* | 330–334 → **2 / 16** | `2× compact`, `2× PUT files/:id`, `2× index`, `2×` Viererpack | 50 → **39,6** | 37 (3.647 ms) | 145,39 MB / 2.607 / +12.442 |
-| `06` | 4.230 Z. einfügen + 40 Tasten (4.373 Z.) | p50 55 ms / p95 118–158 ms → **p50 87,5 ms / p95 181,5 ms** *(5.773 ms ges.)* | 169 → **2 / 6** | `1× PUT files/:id`, `1× index`, `1×` Viererpack | 50 → **35,6** | 29 (2.699 ms) | 155,00 MB / 2.921 / +6.322 |
-| `07` | Speichern-Button (Kompaktierung) | 1,6 s → **1.632 ms** | 2–3 → **0** | `0` Requests (kein Dirty-State nach vorherigem Autosave) | 57–60 → **58,0** | 1 (55 ms) | 162,43 MB / 2.978 / +209 |
-| `08` | 8 Notizen anlegen (Batch) | p50 500–580 ms → **p50 934 ms** *(max 1.587 ms; 8.680 ms ges.)* | 170–173 → **150** | `5× POST files`, `5× upload`, `14× PUT`, `15× download`, `10× ws-ticket`, `6× crdt-state`, `10× variables`, `1× compact`, `1× backups`, `12×` Viererpack | 36 → **20,5** | 32 (3.682 ms) | 81,15 MB / 2.616 / −24.250 |
-| `09` | Notiz wechseln (Sidebar / Tab) | 480 / 310 ms → **p50 583 / 408 ms** *(4.456 ms ges.)* | 72–82 → **71** | `6× crdt-state`, `12× ws-ticket`, `7× download`, `6× variables`, `5× PUT`, `6×` Viererpack, `1× DELETE` | 35 → **23,6** | 16 (2.136 ms) | 114,75 MB / 4.098 / +15.082 |
-| `10` | Ordner anlegen (`Neuer Ordner`) | – → **übersprungen** *(9 ms)* | – → **0** | Button im aktuellen View nicht sichtbar | – → **–** | 0 (0 ms) | 114,92 MB / 4.098 / 0 |
-| `11` | Notiz löschen | 1,5 s → **1.543 ms** | 6 → **7** | `1× PUT files/:id`, `1× download`, `1× variables`, `1×` Viererpack | 53 → **52,0** | 2 (178 ms) | 116,55 MB / 4.209 / +981 |
-| `20` | Todos öffnen | 0,49–0,56 s → **561 ms** | 0 → **12** | `1× download`, `1× PUT`, `1× variables`, `2×` Viererpack | 41 → **48,0** | 1 (62 ms) | 92,34 MB / 2.764 / +1.393 |
-| `21` | Todo anlegen (einzeln) | 0,56–1,16 s → **653 ms** | 6–7 → **9** | `1× POST todos`, `1× POST files`, `1× variables`, `1×` Viererpack | 50–56 → **44,6** | 2 (221 ms) | 99,22 MB / 2.963 / +690 |
-| `22` | 10 Todos anlegen (Batch) | p50 296 ms (max 439 ms) → **p50 367 ms** *(max 539 ms; 4.137 ms ges.)* | 11 → **56** | `10× POST todos`, `11×` Viererpack (`44` GETs), `1× download`, `1× PUT` | 52 → **38,8** | 18 (1.584 ms) | 102,42 MB / 3.579 / +1.716 |
-| `23` | Todo Detail-Pane öffnen & editieren | 1,0 s → **1.430 ms** | 9 → **14** | `3× PUT todos/:id`, `1× PUT files/:id`, `2×` Viererpack | 45–60 → **34,6** | 5 (514 ms) | 100,98 MB / 3.683 / +2.447 |
-| `24` | 3 Subtasks anlegen | 1,9 s → **p50 684 ms/Subtask** *(2.073 ms ges.)* | 3 → **16** | `3× POST todos`, `1× PUT files/:id`, `3×` Viererpack | 45–60 → **37,9** | 6 (748 ms) | 80,21 MB / 2.775 / −5.735 |
-| `25` | Todo abhaken (`Toggle Complete`) | 0,76 s → **771 ms** | 5 → **10** | `1× PUT todos/:id`, `1× PUT files/:id`, `2×` Viererpack | 45–60 → **21,4** | 4 (455 ms) | 86,44 MB / 2.782 / +1.982 |
-| `26` | Todo löschen | 0,91 s → **967 ms** | 3 → **13** | `1× DELETE todos/:id`, `1× DELETE tasks/:id`, `1× heartbeat`, `2×` Viererpack | 45–60 → **36,7** | 3 (364 ms) | 82,92 MB / 2.918 / +1.361 |
-| `27` | Suche (`Ctrl+K`, tippen) | p50 17–41 ms → **p50 34,7–40,4 ms** *(max 48,4 ms; 1.817 ms ges.)* | 0–2 → **1** | `1× GET files?type=index&recursive=true` | 50–56 → **54,4** | 2 (228 ms) | 93,05 MB / 3.269 / +586 |
-| `28` | Einstellungen (8 Reiter) | 78–120 ms/Tab → **70–250 ms/Tab** *(2.625 ms ges.; C10: 1.948 ms)* | 5 → **3–4** | `1× GET api-tokens`, `1× PUT files/:id` | 48 → **48,7** *(C10: 43,4)* | 2 (335 ms) | 90,35 MB / 4.526 / +576 |
-| `29` | Fokus / Sichtbarkeit (`visibilitychange` + `focus`) | 2,5 s → **2.409 ms** | 26–33 → **16** *(13 Focus-triggered)* | **`0× crdt-state` Refetch**, `2×` Viererpack (`files`, `event`, `tasks`, `todos`), `1× variables`, `1× download`, `1× PUT` *(+1× `crdt-state`/`2× ws-ticket` im Setup)* | 44–56 → **43,0** | 5 (631 ms) | 80,54 MB / 3.006 / −4.036 |
-
-*Anmerkung zu `22` vs. `C9` (Todos Batch): Im isolierten Kalender+Prod-Lauf (`C9_Todos_BatchCreate_10`) betrug die Latenz `p50 488,4 ms` (max `596,9 ms`, `5.959 ms` gesamt, `53` Requests mit `10×` Viererpack = `40` redundante GETs, `35,8 FPS`, `21` Long Tasks / `2.625 ms`).*  
-*Anmerkung zu `C10` (Settings Tab-Einzelzeiten): Account `250,0 ms`, Appearance `99,6 ms`, Calendar `95,1 ms`, Notes `70,0 ms`, Todos `99,4 ms`, Extensions `152,5 ms`, Access `122,6 ms`, About Tide `183,5 ms`.*
-
----
-
-### 4.2 Kalender (`C1`–`C8`) inkl. neu geschlossener Lücken (`C7`, `C8`)
-
-Hinweis: In `perf_browser_e2e.mjs` schlugen `12`–`19` wegen eines geänderten Kalender-Selektors fehl; die dedizierte Kalender-Suite (`perf_calendar_and_prod_results.json` + Gap-Closer `perf_gap_results.json`) deckt `C1`–`C8` vollständig ab, inklusive der am 23.11. noch ungemessenen Szenarien **`C7`** und **`C8`**.
-
-| ID | Aktion | Dauer (23.11. → 24.11.) | Requests (23.11. → 24.11.) | API-Breakdown (24.11.) | FPS (23. → 24.) | Long Tasks (24.11.) | Heap / Nodes / Listener-Delta (24.11.) |
-|---|---|---|---|---|---|---|---|
-| `C1` | Kalender öffnen (Woche, 42 Spalten) | 0,33–0,59 s → **398 ms** | 0 → **0** | `–` | 38–59 → **33,8** | 3 (243 ms) | 64,72 MB / 3.761 / +714 |
-| `C2` | Termin anlegen + Popover | 0,56 s → **367 ms** | 9 → **7** | `1× POST files`, `1× PUT files/:id`, `1×` Viererpack (`+1 OPTIONS`) | 30 → **44,4** | 1 (112 ms) | 81,54 MB / 3.881 / +892 |
-| `C3` | Termin bearbeiten (Auto-Save) | 1,26 s → **1.349 ms** | 2 → **6** | `2× PUT files/:id` (`14,3 ms` & `40,5 ms`), `1×` Viererpack | 52 → **51,2** | 3 (228 ms) | 79,43 MB / 3.892 / +1.635 |
-| `C4` | 8 Termine anlegen (Batch) | p50 1,26 s → **p50 1.402 ms** *(min 1.042, max 1.778 ms; 11.623 ms ges.)* | 96 → **120** | `8× POST files`, `16× PUT files/:id`, **`22×` Viererpack = `88` GETs** (`+8 OPTIONS`) | 40 → **38,8** | 40 (3.877 ms, Script 7.437 ms) | 110,60 MB / 3.157 / +7.470 |
-| `C5a` | Ansicht → `Tag` | 710 ms → **732 ms** | 0–3 → **4** | `1×` Viererpack | 41–55 → **39,9** | 2 (180 ms) | 95,35 MB / 3.496 / +722 |
-| `C5b` | Ansicht → `Monat` | 560 ms → **574 ms** | 0–3 → **4** | `1×` Viererpack | 41–55 → **52,4** | 2 (110 ms) | 115,61 MB / 3.904 / +569 |
-| `C5c` | Ansicht → `Fortlaufend` (Agenda) | 550 ms → **634 ms** | 0–3 → **4** | `1×` Viererpack | 41–55 → **34,1** | 3 (272 ms) | 117,98 MB / 4.810 / +624 |
-| `C5d` | Ansicht → `Woche` | 650 ms → **593 ms** | 0–3 → **0** | `–` | 41–55 → **51,8** | 1 (68 ms) | 100,07 MB / 6.488 / +605 |
-| `C6` | Wochen-Navigation (9 Schritte) | 2,06 s → **2.477 ms** *(p50 214 ms/Schritt, max 485 ms)* | 7 → **8** | `1× POST files`, `1× upload`, `1× index`, `1×` Viererpack | 49 → **36,9** | 6 (920 ms, Script 1.252 ms) | 122,43 MB / **9.340 (+2.852)** / +3.083 |
-| `C7` | **NEU:** Termin Drag-Move (`+120px`, 20 Steps) | *nicht gemessen* → **1.194–1.649 ms** | *–* → **1** | **`1× PUT /api/v1/files/:id` in `9,4–11,1 ms`** (kein Listen-Refetch während Drag) | *–* → **53,3–54,1** | 3 (169 ms) | 81,56 MB / 3.020 / +1.343 |
-| `C8` | **NEU:** Termin löschen (`#active-event-popover`) | *nicht gemessen* → **634–1.133 ms** | *–* → **5** | **`1× DELETE /api/v1/files/:id` (`204` in `12–17 ms`)** + `1×` Viererpack (`files`, `event`, `tasks`, `todos`) | *–* → **48,7–54,8** | 2 (161 ms) | 75,06 MB / 3.146 / +1.070 |
-
----
-
-### 4.3 Mobile (`390×844` @ 4× CPU-Drosselung: `30`, `P2`) & Prod vs. Dev (`P1`, `P2`)
-
-#### Produktion (`next start` auf `:3099`, `/auth` Cold-Load)
-
-| Szenario | Metrik | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`ab07e53`) | Delta |
-|---|---|---:|---:|---|
-| **`P1` Desktop (1× CPU, `1440×900`)** | TTFB | 4,9 ms | **5,3 ms** | +0,4 ms |
-| | FCP / LCP | 260 ms | **196 ms** | **−24,6 %** |
-| | CLS / Long Tasks / TBT | 0 / 0 / 0 ms | **0 / 0 / 0 ms** | stabil ideal |
-| | Transfer / Requests | 753 KB (21 Reqs) | **770,9 KB** (21 Reqs) | +2,4 % |
-| | Script-Zeit / DOM / Heap | – / 131 Nodes / 3,5 MB | **43,2 ms** / 131 Nodes / 3,50 MB | sauber |
-| **`P2` Mobile (4× CPU, `390×844`)** | TTFB | 3,4 ms | **3,4 ms** | ±0 ms |
-| | **FCP / LCP** | **3.236 ms** | **204 ms** | **−93,7 %** |
-| | Long Tasks / TBT | 2 (240 ms) / **140 ms** | 2 (187 ms) / **87 ms** | **−37,9 % TBT** |
-| | Script-Zeit | 278 ms | **158,3 ms** | **−43,1 %** |
-| | Transfer / DOM / Heap | 753 KB / – / – | 770,9 KB / 130 Nodes / 3,51 MB | – |
-
-#### Mobile Dev-Interaktionen (`390×844`, 4× CPU-Drosselung)
-
-| Messung | Ergebnis 24.11.2026 | Details / Anmerkungen |
+| Vorheriger Befund (23.11., `9cd3b21`) | Status (24.11., `0f18f76`) | Messbeleg & Code-Referenz |
 |---|---|---|
-| **Mobile Shell Hydration (`30`)** | `3.573 ms` (Hauptlauf) / `2.954 ms` (Gap-Lauf) | `14–21` Requests (`3,21 MB` Transfer), `2–3` Long Tasks (`2.084–2.179 ms`), Heap `99,9–104,4 MB`, DOM `4.567–4.655` Nodes |
-| **Bottom-Nav Tab-Wechsel** | **Notizen: `526 ms`**, **Todos: `439 ms`**, **Kalender: `431 ms`** | Erstwechsel auf Notizen/Todos löst Lazy-Chunk-Nachladen + Render-Spike aus |
-| **Kalender-Subviews (Mobile)** | **Tag: `320 ms`**, **Woche: `350 ms`**, **Agenda: `335 ms`**, **Monat: `321 ms`** | Gleichmäßiges ~`320–350 ms` Fenster unter 4× CPU-Drosselung |
-| **Mobile FAB öffnen** | **`422 ms`** | Öffnet Quick-Action-Overlay unter 4× CPU mit leichtem Script-Overhead |
-
-*(Hinweis: Im ersten Lauf `30_Mobile_390x844_CPU4x` griffen die Selektoren wegen `pointer-events` / Nav-Markup noch nicht; die tab/subview/FAB-Zeiten stammen aus dem gezielten Mobile-Interaktionslauf gegen denselben Stand `ab07e53`.)*
+| **1. Speicher-Kaskade pro Tastendruck (`330–334` Reqs in `05`, `169` in `06`)** | **Behoben** (`d56ff3f`) | `web/src/app/page.tsx:165-175`, `web/src/hooks/useAutoSaveSync.ts:543-587`. `05` (81 Zeichen): `330–334 → 9` Requests (`14–16` in früherem Lauf mit Autosave, **−95,2 % bis −97,3 %**); Keystroke rAF `p50 33,52 ms` (Dev) bzw. **`19,5 ms` / `59,9 FPS`** (Prod `:3099`). `06` (4.230 Z. Paste + 40 Tasten): `169 → 4–6` Requests (**−96,4 % bis −97,6 %**), `p50 33,37 ms` / `p95 43,03 ms`, `56,0 FPS`. |
+| **2. Geleakte `YjsE2EEProvider`-Instanzen & Fokus-`crdt-state`-Sturm (`29`: `23×`)** | **Behoben** (`d56ff3f`, `77e3296`) | `web/src/components/Editor.tsx:94-113, 172-219`, `web/src/lib/yjsE2EEProvider.ts:54, 125-131, 174, 211-212`. `29` Window-Focus `crdt-state`-Refetches: **`23 → 0` (−100 %)**; Fokus-Requests gesamt `26–33 → 3–10` (**−69 % bis −89 %**). `04` Listener-Delta nach GC-Cleanup `-658` (bzw. `+26` netto statt `+7.800`). **Probe 3 (`HeapProfiler.collectGarbage`):** Nach `72×` Tab-Thrash + Schließen sinkt Heap von `87,43 MB` auf **`64,31 MB`** (`−23,12 MB`) und Listener von `4.005` auf **`3.870`** (`−135`). |
+| **3. Fehlende Gzip-Kompression, DB-Indizes, Bundle-Splitting, GET-Deduplizierung, serielles RSA & Drag-Listener** | **Behoben** (`d56ff3f`, `77e3296`) | `cloud/cmd/server/main.go:250` (`Compress(5)`), `cloud/internal/store/sqlite.go:330-335`, `web/src/lib/api.ts:210-227` (`inflightGets`), `DashboardDesktopContent.tsx:4, 25-34`, `DashboardModals.tsx:4, 10-17`, `SearchOverlay.tsx:111-112`, `createFsSlice.ts:362` (`Promise.all`), `useCalendarDragResize.ts:144, 382-402`. Prod `/auth` Desktop `P1`: FCP/LCP `260 → 164 ms` (**−36,9 %**), Load `167 → 80,4 ms`, Transfer `753 → 662,7 KB (20 Reqs)`, `0` LT, `0 ms` TBT. Prod `/auth` Mobile `P2`: FCP/LCP `3.236 → 296 ms` (**−90,9 %**), Load `3.394 → 189,8 ms` (**−94,4 %**), TBT `140 → 25 ms` (**−82,1 %**), Script `278 → 66,9 ms` (**−75,9 %**). `C7` Drag-Move: `55,6–59,4 FPS`, `1 PUT (8,3–55,2 ms)`. |
+| **4. Editor-Tastendruck-Hauptthread-Last (`InlineFormulas`, `AnimatedEmoji`, `BlockId`)** | **Teilweise behoben** *(Prod normal schnell, Formeln/Emojis kritisch)* | Normales Tippen in Prod `:3099` erreicht `p50 19,5 ms / 0 LT` (`Probe 1`). Sobald jedoch **KaTeX-Formeln & Emojis** aktiv sind (`Probe 2`), bricht das Tippen auf **`p50 125,4 ms / p95 362,6 ms` (`18` LT, `31,3 FPS`)** ein. |
+| **5. `<CollaborativeEditor key={activeTabId}>`-Voll-Remount bei Tab-Wechsel (`09`)** | **Offen** | `Editor.tsx:47` zerstört und initialisiert Editor + Provider bei jedem Wechsel neu (`09` Dev: `4.496,6 ms`, `73` Reqs, `17,1 FPS`; Prod `Probe 1`: `1.217,8 ms`, `23` Reqs). |
+| **6. `fetchDirectory`-Viererpack bei Mutationen** *(neu seit 24.11.)* | **Offen** | `createFsSlice.ts:249-315` feuert bei jeder Mutation alle 4 Endpunkte (`C4`: `20×` = `80` GETs von `114` Reqs; `08`: `21×` = `84` GETs; `22`: `10×` = `40` GETs). |
+| **7. Kalender 42-Spalten-`allEvents` & Node-Wachstum (`C4`, `C6`)** | **Offen** | `CalendarWeekTimeGrid.tsx:226-264` invalidiert alle 42 `<DayColumn>`s; `C6` wächst je nach Settle-Window auf bis zu `11.390` Nodes (`+4.584`); `C4` hat `2× 409 Conflict` in `EventPopover.tsx:258`. |
 
 ---
 
-### 4.4 Backend Direkt (`http://localhost:8081`, 33 Endpunkt-Gruppen) + WebCrypto Microbenchmarks
+## 4. Detailed Open Findings by Severity
 
-#### Go-API Endpunkte (`perf_api_results.json`, 24.11. vs. 23.11.)
+### Finding 1 (`Hoch`) — `fetchDirectory(null, true)`-Viererpack bei Mutationen & fehlender ressourcenspezifischer Refresh
+- **Ursache:** `web/src/store/slices/createFsSlice.ts:249-315` (`:277` `Promise.allSettled`, `:474`) ruft nach jeder Datei-, Kalender- oder Todo-Mutation sowie nach SSE-Sync-Events ungedrosselt und pauschal alle vier Listen-Endpunkte gleichzeitig auf (`GET /api/v1/files`, `GET /api/v1/files?type=event`, `GET /api/v1/tasks`, `GET /api/v1/todos?limit=500&include_archived=true`).
+- **Beleg:**
+  - `C4` (8 Termine Batch): **`20×` Viererpack = `80 / 114` Requests (`70,2 %` redundant)** im finalen Lauf (bzw. `16× = 64 / 98` = `65 %` im Vergleichslauf).
+  - `08` (8 Notizen Batch): **`21×` Viererpack = `84 / 236` Requests** (bzw. `15× = 60 / 191` im Vergleichslauf).
+  - `22` (10 Todos Batch): **`10×` Viererpack = `40 / 50` Requests (`80 %` redundant)**.
+  - `09` (8× Notizwechsel): **`5–6×` Viererpack = `20–24 / 73–76` Requests**.
+  - `02` / `31` (Login): `tasks` & `todos` werden jeweils **`3×`**, `files?recursive=true` & `files?type=event&recursive=true` jeweils **`2×`** abgerufen.
+- **Fix:** `fetchDirectory` in granulare Store-Methoden (`fetchFiles()`, `fetchEvents()`, `fetchTasksAndTodos()`) aufteilen, SSE-/Mutations-Refreshes per `300 ms` Trailing-Debounce zusammenführen und in `web/src/lib/api.ts` einen `2000 ms` Short-TTL-Read-Cache ergänzen.
 
-| Endpunkt-Gruppe | `n` | 23.11. p50 | **24.11. p50** | **24.11. p95 / max** | Payload roh → **Wire (24.11.)** | Encoding / Headers |
-|---|---:|---:|---:|---:|---:|---|
-| `GET /health` | 20 | 0,83 ms | **0,50 ms** | 1,61 / 3,91 ms | 2 B → **2 B** | `(none)`, `CL: 2` |
-| `GET /auth/me` | 20 | 0,88 ms | **1,75 ms** | 7,85 / 8,87 ms | 823 B → **688 B** | `gzip`, `no-store` |
-| `POST /auth/ws-ticket` | 10 | 0,99 ms | **0,88 ms** | 4,63 / 4,63 ms | 94 B → **109–110 B** | `gzip`, `no-store` |
-| `POST /files` (Notiz) | 10 | 1,91 ms | **2,44 ms** | 16,18 / 16,18 ms | 404 B → **404 B** | `(none)`, `CL: 404` |
-| `PUT /files/:id` | 10 | 1,81 ms | **3,18 ms** | 9,46 / 9,46 ms | 414 B → **414 B** | `(none)`, `CL: 414` |
-| `GET /files/:id/crdt-state` | 10 | 1,94 ms | **3,35 ms** | 8,77 / 8,77 ms | 45 B → **69 B** | `gzip`, `no-store` |
-| Upload 10 KB (Initial / Overwrite) | 5 / 5 | 5,49 / 11,14 ms | **7,40 / 6,70 ms** | max 15,68 / 8,69 ms | 0 B | `(none)`, `CL: 0` |
-| Upload 10 KB (kombiniert) | 10 | 5,76 ms | **7,29 ms** | 15,68 / 15,68 ms | 0 B | `(none)` |
-| Upload 250 KB (Initial / Overwrite) | 3 / 3 | 19,80 / 19,08 ms | **6,26 / 7,21 ms** | max 6,53 / 8,59 ms | 0 B | `(none)` |
-| Upload 250 KB (kombiniert) | 6 | 19,08 ms | **6,53 ms** | 8,59 / 8,59 ms | 0 B | `(none)` |
-| Upload 2 MB (Initial / Overwrite) | 2 / 2 | 13,47 / 22,31 ms | **15,12 / 22,30 ms** | max 18,03 / **81,24 ms** *(mean 51,77)* | 0 B | `(none)` |
-| Upload 2 MB (kombiniert) | 4 | 22,31 ms | **18,03 ms** | 81,24 / 81,24 ms | 0 B | `(none)` |
-| Download 250 KB | 5 | 2,46 ms | **3,54 ms** | 7,60 / 7,60 ms | 256.000 B | `(none)`, **kein `CL` / `ETag`** |
-| Download 2 MB | 5 | 9,11 ms | **9,41 ms** | 60,60 / 60,60 ms | 2.097.152 B | `(none)`, **kein `CL` / `ETag`** |
-| `GET /files` N=10 (all / events) | 10 / 10 | 1,46 / 1,57 ms | **2,94 / 2,51 ms** | max 6,42 / 11,28 ms | 4.660 → **707 B** / 2.335 → **471 B** | `gzip` (**−84,8 % / −79,8 %**) |
-| `GET /files` N=50 (all / events) | 10 / 10 | 1,63 / 1,23 ms | **3,75 / 2,66 ms** | max 5,95 / 5,66 ms | 23.336 B / 11.693 → **1.207 B** | `gzip` (**−89,7 %** bei Events) |
-| `GET /files` N=150 (all / events) | 10 / 10 | 5,07 / 2,85 ms | **7,57 / 4,76 ms** | max 12,42 / 7,94 ms | 70.062 B / 35.100 B (roh) | `gzip` (chunked, ohne `CL`) |
-| 20 parallele Writes | 20 | p50 45,2 / p95 116,3 ms | **64,4 ms** | **71,0 / 71,3 ms** | 411 B → **410 B** | 0 Fehler, Single-Writer p95 **−38,9 %** |
-| 20 parallele Reads (N=150) | 20 | p50 32,7 / p95 80,3 ms | **29,5 ms** | **50,2 / 50,3 ms** | 70.222 B (roh) | `gzip`, WAL-Pool, p95 **−37,5 %** |
-| Tasks CRUD (`POST`/`GET`/`PUT`/`DELETE`) | 15/10/10/10 | 1,09 / 0,83 / 1,00 / 0,48 ms | **0,78 / 1,25 / 1,53 / 0,55 ms** | max 9,03 / 2,13 / 4,03 / 1,32 ms | `GET` 4.080 → **690 B** | `gzip` auf `GET`/`PUT` (**−83,1 %**) |
-| Todos CRUD (`POST`/`GET`/`PATCH`/`DELETE`) | 10 je | 0,81 / 1,13 / 0,93 / 1,61 ms | **1,41 / 2,06 / 1,89 / 0,81 ms** | max 6,20 / 6,19 / 4,12 / 2,00 ms | `GET` 4.652 → **661 B** | `gzip` auf `POST`/`GET`/`PATCH` (**−85,8 %**) |
+### Finding 2 (`Hoch`, in Dev & bei Formeln/Emojis `Kritisch`) — Editor-Tastendruck-CPU-Last & ungedrosselte ProseMirror-Dekorations-Traversierungen
+- **Ursache:**
+  - `web/src/app/page.tsx:94, 170, 205, 235`: `editorContent` und `editorVersion` im Root-State erzwingen Re-Renders des Dashboard-Baums.
+  - `web/src/components/extensions/InlineFormulas.ts:68, 141, 166-171`: Baut `DecorationSet` via `doc.descendants()` + `katex.renderToString()` bei jedem `tr.docChanged` **UND** bei jedem `tr.selectionSet` komplett neu auf, statt unveränderte Blöcke per `oldSet.map(tr.mapping, tr.doc)` zu übernehmen.
+  - `web/src/components/extensions/AnimatedEmoji.ts:20-40, 51`: Führt bei jedem `tr.docChanged` `doc.descendants()` mit `new RegExp(EMOJI_PATTERN, 'gu')` über das gesamte Dokument aus.
+  - `web/src/components/extensions/BlockId.ts:18-27, 117-156`: `collectIds()` durchläuft in `appendTransaction` und `view().update()` mehrfach `doc.descendants()`.
+  - `web/src/components/Editor/useTipTapConfig.ts:396`: Synchrones `editor.getJSON()` bei Update-Transaktionen.
+- **Beleg:**
+  - **Explorativer Probe 1 (`Prod :3099` vs. `Dev :3001`, 81 Zeichen):** In Prod sinkt Keystroke `p50` von `24,5–37,5 ms` (Dev) auf **`19,5 ms`** (`p95 36,7 ms`, **`59,9 FPS`**, **`0` Long Tasks**, Script `134,5 ms` = **−82,8 %** vs. Dev `782,9 ms`; im früheren Prod-Check `27,6 ms / 57,2 ms / 57,4 FPS / 1 LT 70 ms`).
+  - **Explorativer Probe 2 (Dokument mit KaTeX-Formeln & Emojis):** Tippen bricht auf **`p50 125,4 ms`**, **`p95 362,6 ms`**, **`31,3 FPS`**, **`18` Long Tasks (`1.782 ms`, max `172 ms`)**, `1.790,3 ms` Script und `252` Decoration-DOM-Nodes (`+364` Nodes auf `5.271`) ein.
+- **Fix:** `DecorationSet.map(tr.mapping, tr.doc)` für unveränderte Nodes + Modul-LRU-Cache für `katex.renderToString(latex, displayMode)`; kein Rebuild bei bloßem `tr.selectionSet` außerhalb von Formel-Nodes; `BlockId` auf geänderte `tr.steps`-Ranges begrenzen; `editor.getJSON()` auf `500 ms` debouncen.
 
-*(Alle 33 Endpunkt-Gruppen hatten **0 Fehler** (`error_count: 0`).)*
+### Finding 3 (`Hoch`) — Vollständiger `<CollaborativeEditor key={activeTabId}>`-Remount bei jedem Notiz-/Tab-Wechsel
+- **Ursache:** `web/src/components/Editor.tsx:47` erzwingt mit `key={props.activeTabId || 'editor-default'}` bei jedem Notiz- oder Tab-Wechsel die komplette Zerstörung und Neuerstellung der TipTap-Instanz, aller ProseMirror-Plugins, des `Y.Doc`, der IndexedDB-Hydration und der WebSocket-Tickets (`Editor.tsx:94-112`).
+- **Beleg:**
+  - `09` (Dev `:3001`, 4× Sidebar + 4× Tab): **`4.496,6 ms`** gesamt, Sidebar `p50 281,03 ms` (`max 561,26 ms`), Tab `p50 308,15 ms` (`max 553,87 ms`), **`17,1 FPS`**, **`19` Long Tasks (`2.487 ms`)**, `3.315,5 ms` Script, **`73` Requests** (`16× ws-ticket`, `8× crdt-state`, `8× download`, `8× variables`, `7× PUT`, `5×` Viererpack).
+  - **Explorativer Probe 1 (Prod `:3099`, 8× Tab-Switch):** Auch ohne Dev-Overhead dauert ein 8-facher Wechsel **`1.217,8 ms`** (`p50 148,1 ms/Switch`, `max 203,9 ms`, `33,0 FPS`, `412,9 ms` Script, `23` Requests inkl. `4× ws-ticket`, `3× download`, `3× variables`, `3× PUT`; im früheren Prod-Check `1.613,2 ms` / `p50 170,5 ms` / `3` LT `202 ms`).
+- **Fix:** `key={props.activeTabId}` entfernen bzw. einen LRU-Keep-Alive-Pool (z. B. die letzten 3 geöffneten `Y.Doc`/Provider-Instanzen im Speicher halten) einführen und Content/Yjs-Binding ohne Editor-Destroy umschalten.
 
-#### WebCrypto Microbenchmarks (Node v24.21.0)
+### Finding 4 (`Mittel`) — Kalender 42-Spalten-Mount (`allEvents`-Prop), Node-Wachstum & `409 Conflict` Race (`EventPopover.tsx:258`)
+- **Ursache:**
+  - `web/src/components/Calendar/CalendarWeekTimeGrid.tsx:226-264` mountet 42 `<DayColumn>`-Instanzen und übergibt allen `allEvents={events}` (`:230`), wodurch jede Terminänderung die Memo-Grenze aller 42 Spalten bricht.
+  - `web/src/components/Calendar/EventPopover.tsx:258`: Beim schnellen Speichern direkt nach Termin-Erstellung (`POST`) überholen sich `PUT`-Autosave und Initial-Update und erzeugen serverseitige Version-Konflikte (`409`).
+- **Beleg:**
+  - `C1` mountet `42` `dayColumns` (`2.258` Nodes / `2.071` Listener in `phase3_results.json`; bis `3.907` Nodes / `+9.041` Listener bei gefülltem Kalender).
+  - `C4` (8 Termine Batch): `10.006,9 ms`, `p50 1.168,4 ms/Event`, `26` Long Tasks (`1.784 ms`, deutlich unter den `40` LT / `3.877 ms` vom ersten 24.11.-Lauf), `4.478,4 ms` Script, `114` Requests inkl. **`2× HTTP 409 Conflict`** auf `PUT /api/v1/files/:id` (mit erfolgreichem Retry).
+  - `C6` (9 Wochen-Schritte): `3.093,8 ms` (`p50 343,7 ms`), `2` LT (`129 ms`), aber DOM wächst im 1500ms-Window um `+4.584` Nodes (`6.806 → 11.390`) und `+9.356` Listener (`11.004 → 20.360`). *(Bei längerem Settle recycelte `C6` auf `5.667` Nodes bei `55,2 FPS` / `1` LT `53 ms`.)*
+- **Fix:** `eventsByDay: Map<string, CalendarEvent[]>` in `CalendarWeekTimeGrid` vorab per `useMemo` gruppieren; im `EventPopover.tsx:258` das lokale Version-Token nach `POST` synchronisieren bzw. Autosave während laufender Initial-Speicherung serialisieren.
+
+### Finding 5 (`Mittel`) — Production `:3099` CSP `connect-src` vs. `/api/*` Rewrite-Port-Konflikt (Explorativer Befund Probe 4)
+- **Ursache:** `web/next.config.ts:69` setzt im Produktions-Build `connect-src 'self' https: wss:`, was direkte Browser-Requests an `http://localhost:8081` (`NEXT_PUBLIC_API_URL`) blockiert. Gleichzeitig verdrahtet `web/next.config.ts:95-99` den Next.js-Rewrite `/api/:path*` zur Build-Zeit auf `http://localhost:${process.env.BACKEND_PORT || process.env.PORT_BACKEND || '8080'}/api/:path*`. Wird `npm run build` ohne `BACKEND_PORT=8081` ausgeführt, schlagen sowohl direkte `:8081`-Calls (CSP) als auch `/api/*`-Calls (`:8080` → `500 Internal Server Error`) fehl.
+- **Fix:** In `web/next.config.ts` den Rewrite-Fallback aus `new URL(process.env.NEXT_PUBLIC_API_URL).origin` ableiten und `process.env.NEXT_PUBLIC_API_URL` (falls gesetzt) in `connect-src` aufnehmen.
+
+### Finding 6 (`Niedrig / Mittel`) — Backend Download-Header (`ETag`/`Content-Length`), synchroner Overwrite-Backup-Read & Bundle-/Public-Hygiene
+- **Ursache & Beleg:**
+  - `cloud/internal/api/files_blobs.go:149-205`: `DownloadFile` sendet weder `ETag` noch `Content-Length` (`250 KB` in `p50 2,33–3,54 ms`, `2 MB` in `p50 7,01–9,41 ms`).
+  - `cloud/internal/api/files.go:438-460`: Synchrones `io.ReadAll(io.LimitReader(rc, 10<<20))` vor `go s.handleBackupCascade(...)` macht `250 KB` Overwrite **`4,2×` langsamer** als Initial-Upload (`p50 31,03 ms` vs. `7,35 ms`) und `2 MB` Overwrite **`1,8×` langsamer** (`p50 20,36 ms` vs. `11,52 ms`; bis `81,24 ms` max).
+  - `web/package.json` enthält **8 ungenutzte Dependencies** (`recharts`, `@xyflow/react`, `iconsax-react`, `@tiptap/extension-bubble-menu`, `@tiptap/extension-highlight`, `@tiptap/extension-underline`, `tiptap-extension-resize-image`, `y-prosemirror`).
+  - `web/public/` (**`64,13 MB`**): `2.989` Emoji-SVGs (`40,84 MB`), `tide.apk` (`22,43 MB`), `favicon.png` (`358,46 KB`, beim Login `3×` geladen).
+- **Fix:** `Content-Length` + `ETag` in `DownloadFile` setzen, Backup-Kopie in `HandleBackupCascade` komplett asynchron ausführen, ungenutzte 8 Packages entfernen und `favicon.png` auf `< 20 KB` komprimieren.
+
+---
+
+## 5. Complete Measurement Tables (`Vorher 23.11.` | `Jetzt 24.11.` | `Delta / Bewertung`)
+
+### Tabelle 1: Desktop Actions (`01`–`31`, `1440×900`, Dev `:3001`)
+
+| ID | Aktion | Vorher 23.11. (`9cd3b21`) | Jetzt 24.11. (`0f18f76` / `partA_output.txt`) | Requests (23. → 24.) | FPS / Long Tasks (24.11.) | Heap / Nodes / Listener-Delta (24.11.) & Bewertung |
+|---|---|---|---|---|---|---|
+| `01` | Cold-Load `/auth` (Dev) | 1,17–1,80 s (14 Reqs) | **1.194 ms** *(Baseline `ab07e53`)* | 14 → **13** | – / 1 (260 ms) | 30,61 MB / 292 / +788 · **Verbessert** |
+| `02` | Dev-Login Einmal-Gast → Shell | 2,0–3,0 s (40 Reqs) | **2.808 ms** *(Shell 1.582,5 ms)* | 40 → **50** *(4,77 MB)* | 25,7 FPS / 5 (502 ms) | 70,72 MB / 2.320 / +1.833 · `3×` `tasks`/`todos`/`favicon`, `2×` `files?recursive` |
+| `31` | Dev-Login `Dev Alice` (Returning) | 1,3 s Shell (55 Reqs) | **8.286,4 ms** *(Shell 6.464,6 ms)* | 55 → **51** *(4,83 MB)* | 10,0 FPS / 8 (1.276 ms) | 78,82 MB / 2.442 / +2.280 · Returning RSA+Hydration; `3×` `tasks`/`todos`/`favicon` |
+| `03` | Erste Notiz anlegen + TipTap/WS | 1,9–2,0 s (24 Reqs) | **3.414,6 ms** | 24 → **29** *(2,52 MB)* | 51,9 FPS / 7 (500 ms) | 75,95 MB / 2.207 / −728 · `2×` Viererpack, `2× ws-ticket`, `1× crdt-state` |
+| `04` | Titel umbenennen (21 Zeichen) | p50 62–74 ms (11 Reqs) | **p50 43,11 ms** *(p95 109,86 / 1.749,3 ms)* | 11 → **15** *(13,9 KB)* | 45,5 FPS / 4 (249 ms) | 94,77 MB / 2.353 / +6.723 *(−658 netto nach GC)* · **Schneller (−36 % p50)** |
+| `05` | 81 Zeichen tippen (Dev) | p50 59 ms / p95 117–149 ms | **p50 33,52 ms** *(p95 59,32 / 4.594,1 ms)* | 330–334 → **9** *(−97,3 %; 14–16 inkl. Nachlauf)* | **58,0 FPS** / 6 (325 ms) | 123,50 MB / 2.560 / +11.791 *(Dev-StrictMode)* · **Behoben** (Prod: `19,5 ms`, `0` LT!) |
+| `06` | Paste 4.230 Z. + 40 Tasten | p50 55 ms / p95 118–158 ms | **p50 33,37 ms** *(p95 43,03 / Paste 81,62 ms)* | 169 → **4** *(−97,6 %; 6 im Vergleichslauf)* | **56,0 FPS** / 5 (299 ms) | 141,01 MB / 2.711 / +6.324 · **Behoben** (`1×` Viererpack) |
+| `07` | Speichern-Button + 1,6s Settle | 1,6 s (2–3 Reqs) | **1.862,3 ms** | 2–3 → **11** *(12,2 KB)* | **57,0 FPS** / 1 (102 ms) | 151,76 MB / 2.855 / +978 · `crdt-state`, `compact`, `backups`, `backups/10 minutes` |
+| `08` | 8 Notizen anlegen (Batch) | p50 500–580 ms (170 Reqs) | **p50 196,69 ms** *(p95 404,53 / 7.376,4 ms)* | 170–173 → **236** *(191 im Vergl.)* | 31,1 FPS / 30 (2.293 ms) | 107,77 MB / 3.083 / −15.607 · **21× Viererpack (84 GETs)** + `24× download` |
+| `09` | Notiz wechseln (Sidebar + Tab, 8×) | 480 / 310 ms (72–82 Reqs) | **p50 281,0 / 308,2 ms** *(4.496,6 ms ges.)* | 72–82 → **73** *(76 im Vergl.)* | **17,1 FPS** / 19 (2.487 ms) | 124,55 MB / 4.440 / +19.000 · **Kritisch/Hoch**: Editor-Voll-Remount (`16× ws-ticket`) |
+| `10` | Ordner anlegen | – | **übersprungen** | 0 | – | Button im View nicht sichtbar |
+| `11` | Notiz löschen | 1,5 s (6 Reqs) | **1.543 ms** *(Baseline; `partA` Timeout)* | 6 → **7–11** | 52,0–58,5 FPS / 2–3 LT | 69,76–116,55 MB / −27.393 Listener · **Stabil** |
+| `20` | Todos öffnen | 0,49–0,56 s (0 Reqs) | **561 ms** *(Baseline `ab07e53`)* | 0 → **12** | 48,0 FPS / 1 (62 ms) | 92,34 MB / 2.764 / +1.393 · `2×` Viererpack |
+| `21` | Todo anlegen (einzeln) | 0,56–1,16 s (6–7 Reqs) | **653 ms** *(Baseline `ab07e53`)* | 6–7 → **9** | 44,6 FPS / 2 (221 ms) | 99,22 MB / 2.963 / +690 · `1×` Viererpack |
+| `22` | 10 Todos anlegen (Batch) | p50 296 ms (11 Reqs) | **p50 367 ms** *(max 539 / 4.137 ms ges.)* | 11 → **50–56** | 38,8 FPS / 18 (1.584 ms) | 102,42 MB / 3.579 / +1.716 · **`10–11×` Viererpack (40–44 GETs)** |
+| `23` | Todo Detail öffnen & editieren | 1,0 s (9 Reqs) | **1.430 ms** *(Baseline `ab07e53`)* | 9 → **14** | 34,6 FPS / 5 (514 ms) | 100,98 MB / 3.683 / +2.447 · `2×` Viererpack |
+| `24` | 3 Subtasks anlegen | 1,9 s (3 Reqs) | **p50 684 ms/Subtask** *(2.073 ms ges.)* | 3 → **16** | 37,9 FPS / 6 (748 ms) | 80,21 MB / 2.775 / −5.735 · `3×` Viererpack |
+| `25` | Todo abhaken | 0,76 s (5 Reqs) | **771 ms** *(Baseline `ab07e53`)* | 5 → **10** | 21,4 FPS / 4 (455 ms) | 86,44 MB / 2.782 / +1.982 · `2×` Viererpack |
+| `26` | Todo löschen | 0,91 s (3 Reqs) | **967 ms** *(Baseline `ab07e53`)* | 3 → **13** | 36,7 FPS / 3 (364 ms) | 82,92 MB / 2.918 / +1.361 · `2×` Viererpack |
+| `27` | Suche (`Ctrl+K`, tippen) | p50 17–41 ms (0–2 Reqs) | **p50 22,20 ms** *(Open 256,3 ms; 1.309,2 ms)* | 0–2 → **0** *(Probe 4c: 1)* | 48,6 FPS / 2 (249 ms) | 76,90 MB / 2.677 / +558 · **Gut** (`p95 29,18 ms`, `max 39,14 ms`) |
+| `28` | Einstellungen (8 Reiter) | 78–120 ms/Tab (5 Reqs) | **41,4–120,8 ms/Tab** *(Open 532,4 / 2.226,3 ms)* | 5 → **2** *(0,6 KB)* | 48,6 FPS / 3 (405 ms) | 75,29 MB / 2.771 / −357 · **Verbessert** (`1× GET api-tokens`) |
+| `29` | Window Focus / Visibility Check | 2,5 s (26–33 Reqs) | **1.515,1 ms** | 26–33 → **3** *(−89 %; **0× `crdt-state`**)* | **59,6 FPS** / **0 (0 ms)** | 98,09 MB / 2.929 / +19 · **Behoben** (`10,3 ms` Script) |
+
+*Tab-Einzelzeiten in `28` (`partA_output.txt`): Account `41,4 ms`, Appearance `69,7 ms`, Calendar `97,8 ms`, Notes `80,8 ms`, Todos `71,0 ms`, Extensions `67,6 ms`, Access `43,3 ms`, About Tide `120,8 ms`.*
+
+---
+
+### Tabelle 2: Kalender (`C1`–`C8`, `1440×900`, `phase3_results.json`)
+
+| ID | Aktion | Vorher 23.11. (`9cd3b21`) | Jetzt 24.11. (`phase3_results.json`) | Requests (23. → 24.) | FPS / Long Tasks / Script | Heap / Nodes / Listener-Delta & Bewertung |
+|---|---|---|---|---|---|---|
+| `C1` | Kalender öffnen (Woche, 42 Spalten) | 0,33–0,59 s (0 Reqs) | **360,7 ms** | 0 → **0** | **64,2 FPS** / **0 (0 ms)** / `1,0 ms` | 60,04 MB / 2.258 / ±0 · `42 dayColumns`; mit gefülltem Plan bis `3.907` Nodes |
+| `C2` | Termin anlegen + Popover | 0,56 s (9 Reqs) | **1.699,8 ms** *(inkl. „Ohne Tag speichern“)* | 9 → **12** | 102,9 FPS / 5 (328 ms) / `582,6 ms` | 85,69 MB / 2.398 (+140) / +2.175 · `1× POST`, `2× PUT`, `2×` Viererpack |
+| `C3` | Termin bearbeiten (Auto-Save) | 1,26 s (2 Reqs) | **1.887,5 ms** *(Auto-Save 792,3 ms)* | 2 → **5** | 51,6 FPS / 5 (364 ms) / `551,0 ms` | 94,04 MB / 2.517 (+119) / +1.155 · `1× PUT (15,1 ms)` + `1×` Viererpack |
+| `C4` | 8 Termine anlegen (Batch) | p50 1,26 s (96 Reqs) | **p50 1.168,4 ms** *(min 1.051 / max 1.458 / 10.006,9 ms)* | 96 → **114** | 103,1 FPS / **26 (1.784 ms)** / `4.478,4 ms` | 92,28 MB / 3.398 (+881) / +2.604 · **`20×` Viererpack (80 GETs)** + **`2× HTTP 409`** (`EventPopover.tsx:258`) |
+| `C5a` | Ansicht → `Tag` | 710 ms | **472,4 ms** | 0–3 → **0** | **61,2 FPS** / **0 (0 ms)** / `31,9 ms` | 99,56 MB / 3.743 (+345) / +490 · **Schneller (−33,5 %)** |
+| `C5b` | Ansicht → `Monat` | 560 ms | **495,1 ms** | 0–3 → **4** | **56,1 FPS** / **0 (0 ms)** / `114,1 ms` | 106,73 MB / 4.221 (+478) / +660 · `1×` Viererpack |
+| `C5c` | Ansicht → `Fortlaufend` (Agenda) | 550 ms | **508,9 ms** | 0–3 → **4** | 115,1 FPS / 1 (57 ms) / `80,6 ms` | 101,34 MB / 5.129 (+908) / +659 · `1×` Viererpack |
+| `C5d` | Ansicht → `Woche` | 650 ms | **570,2 ms** | 0–3 → **4** | 162,5 FPS / 1 (79 ms) / `201,2 ms` | 105,48 MB / 6.806 (+1.677) / +1.139 · `42 dayColumns`, `1×` Viererpack |
+| `C6` | Wochen-Navigation (9 Schritte) | 2,06 s (7 Reqs) | **3.093,8 ms** *(p50 343,7 / max 372,2 ms)* | 7 → **8** | 210,8 FPS / **2 (129 ms)** / `1.365,5 ms` | 160,37 MB / **11.390 (+4.584)** / +9.356 · `1×` Viererpack; bei vollem Settle Recycling auf `5.667` Nodes |
+| `C7` | Termin Drag-Move (`+120px`) | *nicht gemessen* | **1.728,9 ms** | – → **5** | **55,6 FPS** *(bis 59,4)* / 2 (132 ms) / `575,3 ms` | 165,51 MB / 11.936 (+315) / +2.590 · **`1× PUT` (`8,3 ms`)** + `1×` Viererpack post-drop |
+| `C8` | Termin löschen | *nicht gemessen* | **683,5 ms** | – → **5** | 115,3 FPS / **0 (0 ms)** / `141,0 ms` | 188,27 MB / 12.062 (+126) / +972 · `1× DELETE` + `1×` Viererpack |
+
+*(Hinweis zu `C2`, `C4`, `C5c`, `C5d`, `C6`, `C8`: Im CDP-`rAF`-Sampler traten bei asynchronen/Burst-Frames vereinzelt FPS-Werte > 60 Hz auf; maßgeblich für die Blockierungsbewertung sind Dauer, Long Tasks und Script-Zeit.)*
+
+---
+
+### Tabelle 3: Mobile `390×844 @ 4× CPU` (Dev `:3001` UND Prod `:3099`, `phase3_results.json`)
+
+| Szenario | Metrik | Vorher 23.11. | **Jetzt Dev `:3001`** | **Jetzt Prod `:3099`** | Delta / Bewertung |
+|---|---|---|---|---|---|
+| **`P2` Cold-Load `/auth`** | FCP / LCP | 3.236 ms | – | **296 ms** | **−90,9 %** |
+| | Load / TBT / Script | 3.394 ms / 140 ms / 278 ms | – | **189,8 ms / 25 ms / 66,9 ms** | Load **−94,4 %**, TBT **−82,1 %**, Script **−75,9 %** |
+| **Logged-in Reload (Hydration)** | Load / FCP / LCP | – | 1.211,6 ms / 124 ms / 2.004 ms | **227,4 ms / 116 ms / 640 ms** | **Prod LCP −68,1 % vs. Dev** (`1,24 MB` vs. `9,26 MB`) |
+| | Long Tasks / Reqs / Heap | – | 13 (2.268 ms) / 57 / 64,24 MB | **1 (229 ms) / 76 / 15,23 MB** | **−89,9 % Long-Task-ms in Prod** (`2.790` vs. `1.625` Nodes) |
+| **BottomNav → Notizen** | Dauer / LT / Script / FPS | – | 600,0 ms / 1 (75 ms) / 65,4 ms / 58,2 | **577,5 ms / 1 (56 ms) / 30,9 ms / 58,3** | `0` Reqs; Script in Prod **−52,8 %** |
+| **BottomNav → Todos** | Dauer / LT / Script / FPS | – | 540,1 ms / 0 / 17,8 ms / 121,0 | **549,5 ms / 0 / 25,8 ms / 123,2** | `0` Reqs in Prod (`2` Reqs in Dev) |
+| **BottomNav → Kalender** | Dauer / LT / Script / FPS | – | 539,0 ms / 0 / 31,9 ms / 185,0 | **620,1 ms / 1 (98 ms) / 77,3 ms / 151,4** | `+1.238` DOM-Nodes in Prod (`4.085` gesamt) |
+| **Mobile Suche öffnen** | Dauer / LT / Script | – | 1.523,5 ms / 1 (123 ms) / 163,2 ms | **1.483,5 ms / 1 (96 ms) / 103,2 ms** | `moreOk: true`, `searchClicked: false` |
+| **Mobile Cal Subview → Tag** | Dauer / LT / Script / Reqs | – | *(413,8 ms, `clicked: false`)* | **494,4 ms / 3 (602 ms) / 148,3 ms / 12** | `41,7 FPS`, max LT `434 ms`, `8` API-Reqs |
+| **Mobile Cal Subview → Woche** | Dauer / LT / Script / Reqs | – | *(415,9 ms, `clicked: false`)* | **444,5 ms / 2 (336 ms) / 356,9 ms / 7** | **`17,4 FPS`**, max LT `229 ms`, `4` API-Reqs |
+| **Mobile Cal Subview → Agenda** | Dauer / LT / Script / Reqs | – | *(414,9 ms, `clicked: false`)* | **416,1 ms / 0 / 4,2 ms / 0** | `123,4 FPS`, sauber |
+| **Mobile Cal Subview → Monat** | Dauer / LT / Script / Reqs | – | *(414,3 ms, `clicked: false`)* | **479,1 ms / 0 / 59,4 ms / 0** | `59,1 FPS`, sauber |
+| **Mobile FAB öffnen** | Dauer / LT / Script / Reqs | – | 697,1 ms / 1 (62 ms) / 100,2 ms / 0 | **673,7 ms / 0 / 49,1 ms / 14** | Prod `58,7 FPS`, `0` LT |
+
+---
+
+### Tabelle 4: Production (`:3099`) vs. Dev (`:3001`) & Bundle-/Asset-Audit
+
+#### 4.1 Production vs. Dev (Cold-Load `P1`/`P2` & Explorativer Probe 1 Interaktiv)
+
+| Szenario | Metrik | Vorher 23.11. | **Jetzt Dev `:3001`** | **Jetzt Prod `:3099`** | Delta / Bewertung |
+|---|---|---|---|---|---|
+| **`P1` Desktop `/auth` (1× CPU)** | FCP / LCP | 260 ms | – | **164 ms** | **−36,9 %** |
+| | Load / TBT / Long Tasks | 167 ms / 0 ms / 0 | – | **80,4 ms / 0 ms / 0** | Load **−51,9 %** |
+| | Transfer / Requests | 753 KB (21 Reqs) | – | **662,7 KB (20 Reqs)** | **−12,0 %** |
+| **`P2` Mobile `/auth` (4× CPU)** | FCP / LCP | 3.236 ms | – | **296 ms** | **−90,9 %** |
+| | Load / TBT / Script | 3.394 / 140 / 278 ms | – | **189,8 / 25 / 66,9 ms** | Load **−94,4 %**, TBT **−82,1 %** |
+| **Probe 1: 81 Zeichen tippen** | Keystroke `p50` / `p95` / `max` | – | 24,5 / 46,6 / 320,3 ms | **19,5 / 36,7 / 46,6 ms** | **−20,4 % p50 / −85,5 % max** |
+| | FPS / Long Tasks / Script | – | 57,5 FPS / 2 (251 ms) / 782,9 ms | **59,9 FPS / 0 (0 ms) / 134,5 ms** | **−82,8 % Script**, `0` Long Tasks |
+| | Requests / Heap / Listener Δ | – | 10 Reqs (`1×` 4er) / 157,4 MB / +1.200 | **5 Reqs (`0×` 4er) / 31,4 MB / +609** | **−80 % Heap-Baseline** in Prod |
+| **Probe 1: 8× Tab-Switch** | Gesamt / `p50` / `max` | – | 3.863,0 / 466,1 / 658,6 ms | **1.217,8 / 148,1 / 203,9 ms** | **−68,5 %** gesamt |
+| | FPS / Long Tasks / Script | – | 22,3 FPS / 17 (2.206 ms) / 3.112,1 ms | **33,0 FPS / 0 (0 ms) / 412,9 ms** | **−86,7 % Script**, aber **23 Reqs** (`18` API) durch Remount! |
+
+#### 4.2 Production Bundle & `web/public/` Asset-Audit
+
+| Kategorie | 23.11.2026 (`9cd3b21`) | 24.11.2026 (`0f18f76`) | Delta / Befund |
+|---|---|---|---|
+| **`.next/static/chunks` Gesamt** | 4,81 MB roh / 1,44 MB gz (52 Dateien) | **4,51 MB roh / 1,38 MB gz** (64–68 JS-Chunks) | **−6,2 % roh / −4,2 % gz** |
+| **Top-5 JS-Chunks** | Top 3 = `2,76 MB` | 1. `0pi500fan96cp.js`: **`1.079,44 KB`**<br>2. `0itnq4j83vvmt.js`: **`556,20 KB`**<br>3. `1eqc689j7orby.js`: **`370,17 KB`**<br>4. `16vez9z_voq8w.js`: **`255,68 KB`**<br>5. `294jxez_2j-jm.js`: **`220,35 KB`** | Top 3 = **`2.005,81 KB` (`2,01 MB`, −27,2 %)** |
+| **Ungenutzte `package.json` Deps** | 3 (`recharts`, `@xyflow/react`, `iconsax-react`) | **8 ungenutzte Deps** (`+ @tiptap/extension-bubble-menu`, `highlight`, `underline`, `tiptap-extension-resize-image`, `y-prosemirror`) | Bereinigen |
+| **`web/public/` Gesamt (`64,13 MB`)** | ~67 MB | `2.989` Emoji-SVGs (**`40,84 MB`**), `tide.apk` (**`22,43 MB`**), `favicon.png` (**`358,46 KB`**, `3×` beim Login) | APK aus Repo auslagern, Favicon `< 20 KB` |
+
+---
+
+### Tabelle 5: Backend Direct Benchmark (`http://localhost:8081`, 30 Endpunkt-Gruppen) + Node `v24.21.0` WebCrypto
+
+#### 5.1 Go-API Endpunkte (`:8081`)
+
+| # | Endpunkt-Gruppe | `n` | 23.11. p50 | **24.11. p50** | **24.11. p95 / max** | Wire-Payload / Header / Bewertung |
+|---|---|---:|---:|---:|---:|---|
+| 1 | `GET /health` | 20 | 0,83 ms | **0,50 ms** | 1,61 / 3,91 ms | `2 B`, `CL: 2`, `0` Fehler |
+| 2 | `GET /api/v1/auth/me` | 20 | 0,88 ms | **1,75 ms** | 7,85 / 8,87 ms | `823 → 688 B` (`gzip`, `no-store`) |
+| 3 | `POST /api/v1/auth/ws-ticket` | 10 | 0,99 ms | **0,88 ms** | 4,63 / 4,63 ms | `94 → 109–110 B` (`gzip`) |
+| 4 | `POST /api/v1/files` (Notiz) | 10 | 1,91 ms | **2,44 ms** | 16,18 / 16,18 ms | `404 B`, `CL: 404` |
+| 5 | `PUT /api/v1/files/:id` *(validierter Lauf)* | 10 | 1,81 ms | **1,48 ms** *(Microbench: `2,61 ms`)* | **1,91 ms** *(Microbench: `4,01 / 4,64 ms`)* | `363–414 B`, **`0` Fehler** |
+| 6 | `GET /api/files/:id/crdt-state` | 10 | 1,94 ms | **3,35 ms** | 8,77 / 8,77 ms | `45 → 69 B` (`gzip`) |
+| 7 | Upload `10 KB` (Initial) | 5 | 5,49 ms | **7,40 ms** | max 15,68 ms | `CL: 0`, `0` Fehler |
+| 8 | Upload `10 KB` (Overwrite) | 5 | 11,14 ms | **6,70 ms** | max 8,69 ms | **−39,9 %** vs. 23.11. |
+| 9 | Upload `10 KB` (Kombiniert) | 10 | 5,76 ms | **7,29 ms** | max 15,68 ms | `0` Fehler |
+| 10 | Upload `250 KB` (Initial) | 3 | 19,80 ms | **7,35 ms** *(früh: `6,26 ms`)* | max 6,53–8 ms | **−62,9 %** vs. 23.11. |
+| 11 | Upload `250 KB` (Overwrite) | 3 | 19,08 ms | **31,03 ms** *(früh: `7,21 ms`)* | – | **4,2× langsamer als Initial** durch sync. `io.ReadAll` |
+| 12 | Upload `250 KB` (Kombiniert) | 6 | 19,08 ms | **6,53 ms** | max 8,59 ms | `0` Fehler |
+| 13 | Upload `2 MB` (Initial) | 2 | 13,47 ms | **11,52 ms** *(früh: `15,12 ms`)* | max 18,03 ms | **−14,5 %** vs. 23.11. |
+| 14 | Upload `2 MB` (Overwrite) | 2 | 22,31 ms | **20,36 ms** *(früh: `22,30 ms`)* | max 81,24 ms | **1,8× langsamer als Initial** (`files.go:438-460`) |
+| 15 | Upload `2 MB` (Kombiniert) | 4 | 22,31 ms | **18,03 ms** | max 81,24 ms | `0` Fehler |
+| 16 | Download `250 KB` | 5 | 2,46 ms | **2,33 ms** *(früh: `3,54 ms`)* | max 7,60 ms | `256.000 B`, **kein `ETag` / `Content-Length`** |
+| 17 | Download `2 MB` | 5 | 9,11 ms | **7,01 ms** *(früh: `9,41 ms`)* | max 60,60 ms | `2.097.152 B`, **kein `ETag` / `Content-Length`** |
+| 18 | `GET /files` N=10 (all) | 10 | 1,46 ms | **2,94 ms** | max 6,42 ms | `4.660 → 707 B` (`gzip`, **−84,8 %**) |
+| 19 | `GET /files` N=10 (events) | 10 | 1,57 ms | **2,51 ms** | max 11,28 ms | `2.335 → 471 B` (`gzip`, **−79,8 %**) |
+| 20 | `GET /files` N=50 (all) | 10 | 1,63 ms | **3,75 ms** | max 5,95 ms | `23.336 B` roh (`gzip`) |
+| 21 | `GET /files` N=50 (events) | 10 | 1,23 ms | **2,66 ms** | max 5,66 ms | `11.693 → 1.207 B` (`gzip`, **−89,7 %**) |
+| 22 | `GET /files` N=150 (all) | 10 | 5,07 ms | **7,57 ms** | max 12,42 ms | `70.062 B` roh (`gzip`) |
+| 23 | `GET /files` N=150 (events) | 10 | 2,85 ms | **4,76 ms** | max 7,94 ms | `35.100 B` roh (`gzip`) |
+| 24 | 20 parallele Writes | 20 | 45,2 ms | **64,4 ms** | **71,0 / 71,3 ms** | `411 → 410 B`, p95 **−38,9 %**, `0` Fehler |
+| 25 | 20 parallele Reads (N=150) | 20 | 32,7 ms | **29,5 ms** | **50,2 / 50,3 ms** | `70.222 B` roh (`gzip`), p95 **−37,5 %** |
+| 26 | `POST /tasks` / `GET /tasks` | 15 / 10 | 1,09 / 0,83 ms | **0,78 / 1,25 ms** | max 9,03 / 2,13 ms | `GET 4.080 → 690 B` (`gzip`, **−83,1 %**) |
+| 27 | `PUT /tasks/:id` / `DELETE /tasks/:id` | 10 / 10 | 1,00 / 0,48 ms | **1,53 / 0,55 ms** | max 4,03 / 1,32 ms | `gzip` auf `PUT`, `0` Fehler |
+| 28 | `POST /todos` / `GET /todos` | 10 / 10 | 0,81 / 1,13 ms | **1,41 / 2,06 ms** | max 6,20 / 6,19 ms | `GET 4.652 → 661 B` (`gzip`, **−85,8 %**) |
+| 29 | `PATCH /todos/:id` | 10 | 0,93 ms | **1,89 ms** | max 4,12 ms | `gzip`, `0` Fehler |
+| 30 | `DELETE /todos/:id` | 10 | 1,61 ms | **0,81 ms** | max 2,00 ms | **−49,7 %** vs. 23.11., `0` Fehler |
+
+*(Alle 30 Endpunkt-Gruppen liefen mit **`0` Fehlern**.)*
+
+#### 5.2 WebCrypto Microbenchmarks (Node `v24.21.0`)
 
 | Operation | 23.11.2026 | **24.11.2026** | Bewertung |
 |---|---:|---:|---|
 | RSA-4096 Keygen | 905,95 ms | **831,53 ms** | Einmalig bei Registrierung |
 | PBKDF2 (600k Iterationen) `deriveKey` | 260,19 ms | **268,43 ms** | ~268 ms pro Ableitung |
 | AES-256-GCM Vault Encrypt / Decrypt | 0,41 / 0,30 ms | **6,23 / 2,75 ms** | Warmup/JIT-Streuung, weiterhin < 7 ms |
-| RSA-4096 Encrypt / Decrypt (32 B DEK) | 0,83 / 12,86 ms | **1,33 / 14,22 ms** | Durch Parallelisierung (`Promise.all` in `createFsSlice.ts:362`) nicht mehr seriell blockierend |
+| RSA-4096 Encrypt / Decrypt (32 B DEK) | 0,83 / 12,86 ms | **1,33 / 14,22 ms** | Durch `Promise.all` (`createFsSlice.ts:362`) nicht mehr seriell blockierend |
 | AES-256-GCM Encrypt / Decrypt (64 KB) | 1,00 / 0,49 ms | **2,29 / 0,96 ms** | < 2,3 ms |
 
 ---
 
-## 5. Detaillierte Analyse der Problemquellen
+## 6. Exploratory Discovery Log (Part B — 30% Budget)
 
-### 5.1 Behobene Befunde (`d56ff3f` & `77e3296`)
-
-1. **Per-Keystroke-Compaction-Kaskade gestoppt (`d56ff3f`)**:
-   - `web/src/app/page.tsx:165-174` stabilisiert `switchTab` über `switchTabRef` und `handleAutoSaveSwitchTab` (`useCallback` ohne wechselnde Dependencies).
-   - `web/src/hooks/useAutoSaveSync.ts` triggert `triggerCompaction` nicht mehr bei jedem Re-Render über den Effect-Cleanup und setzt `activeDEK` nicht mehr vorzeitig auf `null`. Ergebnis: **−95 % bis −99,4 % Requests beim Tippen** (`330–334 → 2 / 16`).
-2. **YjsE2EEProvider-Lifecycle & Fokus-Sturm behoben (`d56ff3f`, `77e3296`)**:
-   - `web/src/components/Editor.tsx:94-113, 172-183` setzt und bereinigt `providerRef.current` imperativ beim Erzeugen/Unmount.
-   - `web/src/lib/yjsE2EEProvider.ts:54, 125-131, 174, 211-212` prüft `this.destroyed` konsequent und zerstört den Provider bei HTTP `404` selbst. Ergebnis: **0 statt 23 `crdt-state`-Refetches bei Window-Focus (`29`)**.
-3. **In-Flight-GET-Deduplizierung (`d56ff3f`)**:
-   - `web/src/lib/api.ts:210-227` bündelt gleichzeitige identische `GET`-Aufrufe über `inflightGets`.
-4. **Lazy Loading von Modals & schweren Dashboard-Views (`77e3296`)**:
-   - `web/src/components/Dashboard/DashboardDesktopContent.tsx:4, 25-34` lädt `ProfilePage`, `SocialHub`, `JobsWorkspace`, `TodoList` und `TrashPanel` per `next/dynamic(..., { ssr: false })`.
-   - `web/src/components/Layout/DashboardModals.tsx:4, 10-17` lädt `ShareModal`, `SecuritySettingsModal`, `SettingsModal`, `ScheduleModal` und `VariablesModal` per `next/dynamic`.
-   - `web/src/components/Workspaces/SearchOverlay.tsx:111-112` baut den `Fuse`-Index nur noch bei `isOpen === true`.
-   - Ergebnis: Top-3-Prod-Chunks **−27,2 %** (`2,76 MB → 2,01 MB`), Mobile `/auth` FCP **−93,7 %** (`3.236 ms → 204 ms`).
-5. **Parallelisierte RSA-Metadaten-Entschlüsselung (`77e3296`)**:
-   - `web/src/store/slices/createFsSlice.ts:362` entschlüsselt Verzeichnis-Einträge parallel via `Promise.all` statt sequentiell (bei 150 Dateien statt ~2 s Blockade nur noch ein Bruchteil).
-6. **Kalender Drag-Listener stabilisiert (`77e3296`)**:
-   - `web/src/components/Calendar/useCalendarDragResize.ts:144, 382-402` verhindert das Re-Attaching der `window`-Listener pro `mousemove`-Frame. Ergebnis: `C7` Drag läuft mit **53,3–54,1 FPS** und **1× `PUT`**.
-7. **Backend Gzip & SQLite-Indizes (`77e3296`)**:
-   - `cloud/cmd/server/main.go:250` aktiviert `r.Use(middleware.Compress(5))`.
-   - `cloud/internal/store/sqlite.go:330-335` ergänzt Indizes (u. a. `files` Indizes auf `owner_id`, `parent_id`, `visibility`, `blob_path`).
+1. **Probe 1 (`probe1_prodVsDev`) — Prod (`:3099`) vs. Dev (`:3001`) unter identischen Nutzer-Flows:**
+   - *81-Zeichen-Tippen:* Dev `p50 24,5 ms / p95 46,6 ms / max 320,3 ms`, `57,5 FPS`, `2` LT (`251 ms`), `782,9 ms` Script, `10` Reqs (`1×` Viererpack), `157,35 MB` Heap. **Prod `:3099`:** **`p50 19,5 ms / p95 36,7 ms / max 46,6 ms`**, **`59,9 FPS`**, **`0` Long Tasks (`0 ms`)**, **`134,5 ms` Script** (`−82,8 %`), `5` Reqs (`0×` Viererpack), `31,40 MB` Heap. *(In einem zweiten Prod-Check `p50 27,6 ms / p95 57,2 ms / 57,4 FPS / 1 LT 70 ms / 975,8 ms Script`.)*
+   - *8× Tab-Switch:* Dev `3.863,0 ms` (`p50 466,1 ms`), `22,3 FPS`, `17` LT (`2.206 ms`), `3.112,1 ms` Script, `71` Reqs (`60` API, `4×` Viererpack). **Prod `:3099`:** **`1.217,8 ms` (`p50 148,1 ms`, max `203,9 ms`)**, `33,0 FPS`, **`0` Long Tasks**, `412,9 ms` Script (`−86,7 %`), **`23` Reqs (`18` API)** *(bzw. `1.613,2 ms / p50 170,5 ms / 3 LT 202 ms / 24 Reqs`)*.
+   - *Erkenntnis:* Normales Tippen ist in Produktion sauber; der **`key={activeTabId}`-Remount** in `Editor.tsx:47` verursacht hingegen selbst in Prod 23–24 API-Calls (`ws-ticket`, `download`, `variables`, `PUT`) und 148–170 ms Latenz pro Switch.
+2. **Probe 2 (`probe2_formulasEmojisLargeDoc`) — Stress-Dokument mit KaTeX-Formeln (`InlineFormulas`) + `AnimatedEmoji` + 20 Tasten:**
+   - Ergebnis: `3.983,5 ms`, **`p50 125,4 ms`**, **`p95 362,6 ms`**, **`31,3 FPS`**, **`18` Long Tasks (`1.782 ms`, max `172 ms`)**, `1.790,3 ms` Script, `252` Decoration-DOM-Nodes (`+364` Nodes auf `5.271`), `21` Reqs (`2×` Viererpack) *(gegenüber `p50 49,4 ms / p95 90,0 ms / 5 LT 352 ms / +425 Nodes` bei geringerer Formel-Dichte)*.
+   - *Erkenntnis:* Beweist direkt die fehlende `DecorationSet.map()`-Nutzung und fehlendes KaTeX-Caching in `InlineFormulas.ts:68, 141, 166-171` sowie `AnimatedEmoji.ts:20-40, 51` und `BlockId.ts:18-27, 117-156`.
+3. **Probe 3 (`probe3_tabThrashRetention`) — `72×` Tab-Thrashing + erzwungene GC (`HeapProfiler.collectGarbage`):**
+   - Ergebnis: Vorher `87,43 MB` Heap / `4.005` Listener / `5.271` Nodes → Peak `78,42 MB` / `4.167` Listener / `5.501` Nodes → Nach Schließen & GC: **`64,31 MB` Heap (`−23,12 MB`)**, **`3.870` Listener (`−135`)**, `5.367` Nodes (`+96`). *(Konsistent mit dem `12×`-Thrash-Lauf + 5 Tabs schließen: `140,47 MB → 73,92 MB`, `33.200 → 6.161` Listener).*
+   - *Erkenntnis:* Kein permanentes Memory-/Listener-Leak nach Unmount; frühere Dev-Anstiege vor GC stammen von V8-Lazy-GC + StrictMode.
+4. **Probe 4 (`probe4_socialAndSearch` + Prod-CSP/Rewrite) — `SocialHub`, `SearchOverlay` & Prod `:3099` Netzwerk-Konfiguration:**
+   - `SocialHub` open: `1.174,4 ms`, `51,4 FPS`, `3` LT (`267 ms`), `291,8 ms` Script, `8` Reqs (`7` API), `+57` Nodes, `+3,13 MB` Heap — sauber lazy geladen.
+   - `SearchOverlay` initial open: `1.041,5 ms`, `94,5 FPS`, `2` LT (`276 ms`), `268,8 ms` Script, `0` Reqs; post-mutation reopen: `1.247,9 ms`, `53,6 FPS`, `2` LT (`225 ms`), `1` Req (`files?type=index&recursive=true`), Tippen `p50 31,4 ms / p95 43,8 ms`.
+   - **Architektur-Befund (`next.config.ts:69, 95-99`):** CSP `connect-src 'self' https: wss:` blockiert direktes `http://localhost:8081`, während der `/api/*`-Rewrite ohne `BACKEND_PORT=8081` beim Build auf `:8080` fällt (`500 Internal Server Error`).
 
 ---
 
-### 5.2 Verbleibende & neu entdeckte Befunde
-
-#### 1. **NEU (Hoch) · `fetchDirectory(null, true)`-Viererpack nach jeder Todo- & Kalender-Mutation**
-- **Messbeleg:**
-  - `C4_Calendar_BatchCreate_8Events`: 8 Termine lösen **22× den kompletten Viererpack** (`GET /api/v1/files`, `GET /api/v1/files?type=event`, `GET /api/v1/tasks`, `GET /api/v1/todos?limit=500&include_archived=true`) aus = **88 redundante GETs** in einem 11,6-s-Lauf (`120` Requests gesamt).
-  - `22_Todos_BatchCreate_12Todos` / `C9_Todos_BatchCreate_10`: 10 Todos lösen **10–11× Viererpacks** = **40–44 redundante GETs** aus (`53–56` Requests gesamt, davon `516 KB` Transfer in `C9`).
-  - Auch in `20`, `23`, `24`, `25`, `26`, `C5a`–`C5c`, `C8` und `29` erscheint derselbe Viererpack (`1–3×` pro Aktion). Zusätzlich treten während Todo-Aktionen (`20`, `22`, `23`, `24`, `25`) Hintergrund-`PUT /api/v1/files/:id`-Saves/Compactions der aktiven Notiz auf.
-- **Ursache:** `fetchDirectory` in `web/src/store/slices/createFsSlice.ts:249-315, 474` führt via `Promise.allSettled` (`:277`) pauschal alle vier Endpunkte aus, und SSE-/Realtime-Sync-Events nach jeder Mutation triggern `fetchDirectory(null, true)` ohne Debounce oder ressourcenspezifische Teilaktualisierung (z. B. nur `/todos` bei Todo-Änderung bzw. optimistisches State-Update).
-
-#### 2. **Kritisch / Hoch · Editor-Tastendruck-Hauptthread-Arbeit (`04`, `05`, `06`)**
-- **Messbeleg:** `05_Note_Type_ShortParagraph` (81 Zeichen): Taste-zu-Bild **p50 73,4 ms / p95 210,0 ms / max 385,4 ms**, **37 Long Tasks (3.647 ms)**, **39,6 FPS**. `06_Note_Type_LargeDoc_Stress` (4.373 Zeichen): **p50 87,5 ms / p95 181,5 ms**, **29 Long Tasks (2.699 ms)**, **35,6 FPS**.
-- **Code-Ursachen:**
-  - `web/src/app/page.tsx:94, 170, 205, 235`: `editorContent` und `editorVersion` liegen im Root-State von `Dashboard` und erzwingen bei jedem Zeichen ein Re-Render des Dashboard-Baums.
-  - `web/src/components/extensions/BlockId.ts:18-20, 117-156`: Durchläuft bei jeder Transaktion `newState.doc.descendants(...)` in `appendTransaction` (`:117`) **plus** zweimal `collectIds()` (`prevState.doc` und `view.state.doc` in `view().update()` `:144-145`) = **3 vollständige Dokument-Traversierungen pro Tastendruck**.
-  - `web/src/components/extensions/InlineFormulas.ts:141, 165-172` & `web/src/components/extensions/AnimatedEmoji.ts:39, 51`: Bauen bei jeder `docChanged`- (bei `InlineFormulas` zusätzlich bei jeder `selectionSet`!) Transaktion das komplette `DecorationSet.create(...)` neu auf statt inkrementelles `old.map(tr.mapping, tr.doc)`.
-  - `web/src/components/Editor/useTipTapConfig.ts:396`: Synchrones `editor.getJSON()` bei Update-Transaktionen serialisiert das gesamte Dokument auf dem Hauptthread.
-
-#### 3. **Hoch · Vollständiger `<CollaborativeEditor>`-Remount bei jedem Notiz-Wechsel (`09`)**
-- **Messbeleg:** `09_Note_Switch_Tabs_And_Sidebar`: **4.456 ms**, **71 Requests**, **23,6 FPS** (p95 Frame `150,1 ms`), **16 Long Tasks (2.136 ms)**, Sidebar-Wechsel **p50 583 ms** (max `669 ms`), Tab-Wechsel **p50 408 ms** (max `609 ms`).
-- **Code-Ursache:** `web/src/components/Editor.tsx:47` rendert `<CollaborativeEditor key={props.activeTabId || 'editor-default'} {...props} />`. Durch das `key`-Attribut werden TipTap-Editor, ProseMirror-Plugins, Yjs-Doc und WebSocket-Verbindung bei jedem Notiz-Wechsel komplett zerstört (`:94-100`) und neu initialisiert (`crdt-state` + `2× ws-ticket` + `download` + `variables`).
-
-#### 4. **Mittel · Kalender 42-Spalten-DOM-Wachstum & `DayColumn`-Memo-Invalidierung (`C4`, `C6`)**
-- **Messbeleg:** In `C6_Calendar_WeekNavigation` (9 Navigationsschritte) wächst der DOM um **+2.852 Nodes auf 9.340 Nodes** (`p50 213,8 ms / Schritt`, `max 485,1 ms`, `36,9 FPS`, `920 ms` Long Tasks). In `C4` entstehen **40 Long Tasks (`3.877 ms`)** und `7.437 ms` Script-Zeit.
-- **Code-Ursache:** `web/src/components/Calendar/CalendarWeekTimeGrid.tsx:226-264` übergibt allen 42 gemounteten `<DayColumn>`-Instanzen `allEvents={events}` (`:230`). Bei jeder Event-Änderung wird die `React.memo`-Grenze aller 42 Spalten invalidiert, anstatt jeder Spalte nur ihren vorgefilterten Tages-Slice (bzw. per stabilem Selector) zu übergeben.
-
-#### 5. **Mittel · Backend-Caching, Overwrite-Read, verbleibende statische Imports & Tote Dependencies**
-- **Fehlende `ETag` & `Content-Length` bei Blob-Downloads (`cloud/internal/api/files_blobs.go:149-205`):** Im API-Benchmark weisen `file_download_250kb` und `file_download_2mb` sowohl `etag: (none)` als auch `content-length: (none)` auf (`io.Copy(w, rc)` ohne Größen-Header und ohne `304 Not Modified`-Unterstützung).
-- **Synchrones `oldBlobBytes`-Read vor Overwrite (`cloud/internal/api/files.go:438-460`):** Vor dem Überschreiben eines Blobs bis `10 MB` liest der Request-Handler synchron den kompletten alten Blob per `io.ReadAll(io.LimitReader(...))` in den Speicher, bevor `go h.handleBackupCascade(...)` asynchron startet. Folge: 2-MB-Overwrite-Uploads erreichen bis zu **81,2 ms max / 51,8 ms mean** vs. **16,6 ms mean** beim Erst-Upload (**3,1× langsamer**).
-- **Modals/Overlay & Suche:** In `web/src/components/Layout/DashboardModals.tsx` sind `ShareModal` (`:10`) bis `VariablesModal` (`:17`) bereits dynamisch geladen; `ConfirmModal` (`:6`) ist noch statisch. In `web/src/components/Workspaces/SearchOverlay.tsx:6` wird `fuse.js` noch statisch importiert (statt `import('fuse.js')` erst beim Öffnen von `SearchOverlay` — dadurch landet `fuse.js` im übergeordneten Chunk; ebenso wäre ein dynamischer Import von `SearchOverlay` selbst im Dashboard-Shell-Baum konsequent).
-- **Ungenutzte Dependencies & Assets in `web/`:** `web/package.json` enthält weiterhin `@xyflow/react`, `recharts` und `iconsax-react` (0 Imports in `web/src`); zudem liegen `43 MB` Emoji-SVGs, `tide.apk` (`23,5 MB`) und `favicon.png` (`367 KB`, wird pro Load 2–4× angefordert) in `web/public`.
-
----
-
-## 6. Priorisierte Roadmap (74 → 90+ Punkte)
+## 7. Prioritized Action Plan (Roadmap 76 → 90+)
 
 | Priorität | Maßnahme | Ziel-Dateien | Erwarteter Effekt | Geschätzter Score-Gewinn | Aufwand |
 |---:|---|---|---|---|---|
-| **P0** | **`fetchDirectory`-Viererpack entkoppeln & debouncen:** Granulare Updates (`refreshTodos`, `refreshEvents`, `refreshFiles`) statt pauschales `Promise.allSettled([files, events, tasks, todos])`; SSE-Refreshes um `150–300 ms` coalescen und bei eigener Mutation lokal/optimistisch patchen | `createFsSlice.ts`, `createTodosSlice.ts`, `createEventsSlice.ts`, `useRealtimeSync.ts` | **−75 % bis −90 % API-Requests** in Todo- & Kalender-Batches (`C4`: `120 → ~25`, `C9`: `53 → ~12`), höhere FPS | **+5–6 Pkt.** (Todos, Kalender, Netzwerk) | mittel |
-| **P1** | **Editor-Tastendruck entlasten:** `editorContent`/`editorVersion` aus Root-`Dashboard` in Zustand-Slice/Ref verlagern; `BlockId.ts` auf geänderte Node-Ranges (`tr.steps`) beschränken statt 3× `descendants()`; `InlineFormulas` & `AnimatedEmoji` per `old.map(tr.mapping, tr.doc)` inkrementell updaten; `getJSON()` debouncen | `page.tsx`, `BlockId.ts`, `InlineFormulas.ts`, `AnimatedEmoji.ts`, `useTipTapConfig.ts` | **Tipp-p50 < 25 ms, p95 < 50 ms**, Long Tasks im Editor **−70 %**, **55+ FPS** | **+5–6 Pkt.** (Editor, Mobile) | mittel |
-| **P2** | **Kein Voll-Remount bei Notiz-Wechsel:** `key={props.activeTabId}` auf `<CollaborativeEditor>` entfernen und stattdessen Editor-Content/Yjs-Doc/Provider kontrolliert im Hook swappen | `Editor.tsx:47`, `useTipTapConfig.ts` | Tab-/Sidebar-Wechsel **< 150 ms** statt `408–583 ms`, **50+ FPS** statt `23,6 FPS` | **+3–4 Pkt.** (Editor) | hoch |
-| **P3** | **Kalender `DayColumn`-Slice & Node-Cleanup:** `eventsByDay`-Map im Parent berechnen und jeder `<DayColumn>` nur ihr Tages-Array übergeben; unsichtbare Offscreen-Wochen in der Infinite-Scroll-Karussell-Logik bereinigen | `CalendarWeekTimeGrid.tsx`, `DayColumn.tsx` | DOM-Nodes in `C6` von `9.340` auf `< 4.500`, `C4` Long Tasks **−50 %** | **+2–3 Pkt.** (Kalender) | mittel |
-| **P4** | **Backend Blob `ETag`/`Content-Length` & Backup-Read entkoppeln:** `Content-Length` + `ETag` (`w.Header().Set` via `BlobStore.GetSize`/Hash) in `DownloadFile` setzen; Backup-Copy in `HandleBackupCascade` komplett asynchron (oder via Hardlink/File-Copy) statt synchronem `io.ReadAll` im Upload-Pfad | `files_blobs.go:149-205`, `files.go:438-460` | 2-MB-Overwrite **~3× schneller** (`52 ms → ~17 ms`), Browser-Cache/304 für Blobs | **+1–2 Pkt.** (Backend, Netzwerk) | klein |
-| **P5** | **Bundle-Hygiene & Lazy `fuse.js`:** `@xyflow/react`, `recharts`, `iconsax-react` aus `web/package.json` entfernen; `fuse.js` dynamisch beim Öffnen von `SearchOverlay` laden; `favicon.png` komprimieren (`< 20 KB`) & `Cache-Control` setzen | `web/package.json`, `SearchOverlay.tsx`, `web/public/favicon.png` | Kleinerer Initial-/Search-Chunk, sauberer Deploy | **+1 Pkt.** (Erstladen, Mobile) | klein |
-
----
-
-## 7. Methodik & Reproduzierbarkeit
-
-- **Browser-Läufe (`3001` & `3099`):** Chrome Headless via CDP. Drei komplementäre Läufe wurden gegen `ab07e53` ausgeführt:
-  1. `perf_browser_e2e.mjs` (Desktop `01`–`11`, `20`–`31`, Mobile `30`)
-  2. `perf_calendar_and_prod.mjs` (`A0`, `C1`–`C10`, Prod `P1` & `P2`)
-  3. `perf_gap_closer.mjs` (gezielt mit `SERVER_MASTER_KEY` für `31` `Dev Alice`, sowie `C7` Drag-Move, `C8` Delete und Mobile-Interaktionen)
-- **Backend-Lauf (`8081`):** `perf_api_bench.mjs` gegen einen frischen Einmal-Account (`user-temp-7d3d0c05`), 33 Endpunkt-Gruppen + WebCrypto-Microbenchmarks unter Node `v24.21.0`, ohne Veränderung produktiver Nutzerdaten.
-- **Streuungshinweis:** Dev-Server-Werte (`:3001`) enthalten React StrictMode und unminifizierte Bundles; Produktions-Werte (`:3099`) spiegeln das reale Ladeverhalten für Endnutzer wider.
+| **P0** | **`fetchDirectory`-Viererpack aufteilen & debouncen:** Granulare Methoden (`fetchFiles`, `fetchEvents`, `fetchTasksAndTodos`), `300 ms` Trailing-Debounce auf SSE/Mutations-Refreshes, `2000 ms` Short-TTL-Cache in `apiFetch`; Login-Doppelabrufe (`tasks`/`todos` `3×`, `files?recursive` `2×`) abstellen | `web/src/store/slices/createFsSlice.ts`, `web/src/lib/api.ts`, `useRealtimeSync.ts` | **−70 % bis −85 % Requests** in Batches (`C4`: `114 → ~35`, `08`: `236 → ~90`, `22`: `50 → ~12`) | **+5–6 Pkt.** (Todos, Kalender, Netzwerk) | mittel |
+| **P1** | **ProseMirror-Dekorationen inkrementell & KaTeX cachen:** `DecorationSet.map(tr.mapping, tr.doc)` + Modul-LRU-Cache für `katex.renderToString()` in `InlineFormulas`; kein Rebuild bei reinem `selectionSet`; `AnimatedEmoji` & `BlockId` auf `tr.steps`-Ranges begrenzen; `editor.getJSON()` auf `500 ms` debouncen; `editorContent`/`editorVersion` aus Root-State lösen | `InlineFormulas.ts`, `AnimatedEmoji.ts`, `BlockId.ts`, `useTipTapConfig.ts`, `web/src/app/page.tsx` | KaTeX/Emoji-Tippen von **`p50 125,4 ms / 18 LT` auf `< 25 ms / 0–1 LT`**; **58+ FPS** | **+4–5 Pkt.** (Editor, Mobile) | mittel |
+| **P2** | **Kein Voll-Remount bei Tab-/Notiz-Wechsel:** `key={props.activeTabId}` entfernen oder LRU-Keep-Alive-Pool (letzte 3 `Y.Doc`/Provider-Instanzen) + kontrollierter Content-/Doc-Swap | `web/src/components/Editor.tsx:47`, `useTipTapConfig.ts` | Tab-Switch Prod `148 → < 40 ms`, Dev `308 → < 80 ms`, **−75 % API-Reqs** in `09` | **+3–4 Pkt.** (Editor) | hoch |
+| **P3** | **Kalender `eventsByDay`-Map & `409`-Race fixen:** `eventsByDay: Map<string, CalendarEvent[]>` in `CalendarWeekTimeGrid` per `useMemo` vorab bilden statt `allEvents` an 42 `<DayColumn>`s; Version-Sync nach `POST` in `EventPopover.tsx:258` | `CalendarWeekTimeGrid.tsx:226-264`, `DayColumn.tsx`, `EventPopover.tsx:258` | `0× HTTP 409` in `C4`, `C4` Long Tasks **−50 %**, weniger Rerenders in `C6`/Mobile | **+2–3 Pkt.** (Kalender, Mobile) | mittel |
+| **P4** | **`next.config.ts` CSP & Rewrite-Port vereinheitlichen:** Rewrite-Ziel aus `NEXT_PUBLIC_API_URL` ableiten und `NEXT_PUBLIC_API_URL` in `connect-src` zulassen | `web/next.config.ts:69, 95-99` | Zuverlässiger `:3099`-Prod-Betrieb ohne `BACKEND_PORT`-Stolperfalle | **+1 Pkt.** (Prod-Stabilität) | klein |
+| **P5** | **Backend `ETag`/`Content-Length`, asynchroner Backup-Read & Bundle-Hygiene:** Header in `DownloadFile` setzen, `io.ReadAll` in `files.go:438-460` in Goroutine verlagern; 8 ungenutzte `package.json`-Deps entfernen; `favicon.png` (`< 20 KB`) & `tide.apk` aus `web/public/` bereinigen | `cloud/internal/api/files_blobs.go:149-205`, `cloud/internal/api/files.go:438-460`, `web/package.json`, `web/public/` | `250 KB` Overwrite **4,2× schneller**, `2 MB` **1,8× schneller**, `304`-Caching & kleineres Deploy | **+1–2 Pkt.** (Backend, Erstladen) | klein |
