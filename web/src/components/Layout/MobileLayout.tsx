@@ -41,6 +41,7 @@ export interface MobileLayoutProps {
   onEventClick?: (id: string) => void;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => void;
   onEventSave?: (id: string, updates: Record<string, unknown>) => void;
+  onSetEventPrivate?: (id: string, value: boolean) => Promise<void>;
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   socialHubElement?: React.ReactNode;
@@ -52,7 +53,7 @@ type WindowWithNoteCache = Window & { __mobileNoteCache?: Record<string, string>
 
 export default function MobileLayout({
   events, files, folders, onNoteSelect, onNewNote, onDeleteNote, onNewFolder, onNewFolderIn, onNoteRename,
-  editorElement, activeNoteId, activeNoteTitle, onNewEvent, onEventClick, onEventUpdate, onEventSave,
+  editorElement, activeNoteId, activeNoteTitle, onNewEvent, onEventClick, onEventUpdate, onEventSave, onSetEventPrivate,
   onEventDelete, onTaskComplete, userProfile, themes,
 }: MobileLayoutProps) {
   const weekStartsOn = useWeekStartsOn();
@@ -363,7 +364,7 @@ export default function MobileLayout({
         onDateFilterChange={(date) => setFilterState((p) => ({ ...p, date }))} allTags={allTags} selectedTag={filterState.tag}
         onTagChange={(tag) => setFilterState((p) => ({ ...p, tag }))} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent}
         editingEvent={editingEvent} onEditEvent={setEditingEvent} now={now} resolvedThemes={resolvedThemes}
-        onEventDelete={onEventDelete} onEventSave={onEventSave} onEventUpdate={onEventUpdate} onTaskComplete={onTaskComplete}
+        onEventDelete={onEventDelete} onEventSave={onEventSave} onSetEventPrivate={onSetEventPrivate} onEventUpdate={onEventUpdate} onTaskComplete={onTaskComplete}
         contextMenu={contextMenu} onCloseContextMenu={() => setContextMenu(null)} onNewNote={onNewNote}
         onStartEditingNote={() => setUi((p) => ({ ...p, editingNote: true }))} onNewFolderIn={onNewFolderIn}
         onStartRename={(id, value) => setRenameState({ id, value })} onDeleteNote={onDeleteNote} renamingId={renameState.id}

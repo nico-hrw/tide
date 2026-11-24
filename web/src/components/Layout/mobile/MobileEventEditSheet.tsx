@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 import { paletteFor } from './eventPalette';
 import { EventMentionField } from '@/components/Calendar/EventMentionField';
+import { EventPrivateToggle } from '@/components/Calendar/EventPrivateToggle';
 import { createMentionSession, discardMentionSession } from '@/lib/eventMentionShare';
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
@@ -55,6 +56,8 @@ export interface MobileEditEventSheetProps {
   ) => void;
   onDismiss: () => void;
   onDelete?: (id: string) => void;
+  /** Strict save of `private` (rejects on failure); the lock saves at once, independent of Fertig/Cancel. */
+  onSetPrivate?: (id: string, value: boolean) => Promise<void>;
   themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
@@ -81,6 +84,7 @@ export const MobileEditEventSheet = ({
   onSave,
   onDismiss,
   onDelete,
+  onSetPrivate,
   themes,
 }: MobileEditEventSheetProps) => {
   const initialStart = useMemo(() => {
@@ -106,6 +110,7 @@ export const MobileEditEventSheet = ({
     onDismiss();
   };
 
+  const [isPrivate, setIsPrivate] = useState(!!event.private);
   const [title, setTitle] = useState(event.title || '');
   const [dateStr, setDateStr] = useState(() => format(initialStart, 'yyyy-MM-dd'));
   const [startTime, setStartTime] = useState(() => hm(initialStart));
@@ -334,7 +339,7 @@ export const MobileEditEventSheet = ({
               eventId={isDraft ? '' : event.id}
               value={description}
               onChange={setDescription}
-              isPrivate={!!event.private}
+              isPrivate={isPrivate}
               toastZIndex={200}
               session={mentionSession}
               rows={3}
@@ -342,6 +347,16 @@ export const MobileEditEventSheet = ({
               className="w-full resize-none bg-transparent text-[14.5px] text-t2-ink-2 outline-none border-b border-t2-line-soft py-2"
             />
           </div>
+
+          {onSetPrivate && !isDraft && (
+            <div className="mt-4">
+              <EventPrivateToggle
+                eventId={event.id}
+                isPrivate={isPrivate}
+                onChange={async (next) => { await onSetPrivate(event.id, next); setIsPrivate(next); }}
+              />
+            </div>
+          )}
         </form>
 
         {onDelete && (

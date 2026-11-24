@@ -478,7 +478,8 @@ export default function Dashboard() {
                     onEventUpdate={(id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) =>
                         meta ? handleEventSave(id, { ...meta, start: newStart.toISOString(), end: newEnd.toISOString() })
                             : handleEventUpdate(id, newStart, newEnd)}
-                    onEventSave={handleEventSave} onEventDelete={(id: string) => handleDeleteEvent(id)}
+                    onEventSave={handleEventSave} onSetEventPrivate={(id: string, value: boolean) => handleEventSave(id, { private: value }, { strict: true })}
+                    onEventDelete={(id: string) => handleDeleteEvent(id)}
                     onTaskComplete={(id: string, completed: boolean) => handleEventSave(id, { is_completed: completed })}
                     socialHubElement={<SocialHub compact={true} onOpenProfile={(userId) => setMobileProfileId(userId)} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
