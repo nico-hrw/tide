@@ -28,18 +28,26 @@ function tr(key: SettingsKey, vars?: Record<string, string | number>): string {
     return formatMessage(getTranslation(lang, 'settings', key), vars);
 }
 
-/** true/false = listed or not, null = the list could not be read (non-owners get 403). */
-async function isListed(fileId: string, userId: string): Promise<boolean | null> {
+/** User ids the file is shared with, or null when the list could not be read (non-owners get 403). */
+export async function fetchShareUserIds(fileId: string): Promise<string[] | null> {
     try {
         const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares`);
         if (!res.ok) return null;
         const data: unknown = await res.json().catch(() => undefined);
-        if (data === null) return false; // Go encodes an empty share list as null
+        if (data === null) return []; // Go encodes an empty share list as null
         if (!Array.isArray(data)) return null;
-        return data.some((s) => !!s && typeof s === 'object' && (s as { user_id?: unknown }).user_id === userId);
+        return data
+            .map((s) => (!!s && typeof s === 'object' ? (s as { user_id?: unknown }).user_id : undefined))
+            .filter((id): id is string => typeof id === 'string');
     } catch {
         return null;
     }
+}
+
+/** true/false = listed or not, null = the list could not be read. */
+async function isListed(fileId: string, userId: string): Promise<boolean | null> {
+    const ids = await fetchShareUserIds(fileId);
+    return ids === null ? null : ids.includes(userId);
 }
 
 async function shareOnce({ file, contact }: MentionShareArgs, publicKeySpki: string): Promise<MentionShareResult> {

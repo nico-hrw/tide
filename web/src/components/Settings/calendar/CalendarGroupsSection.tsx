@@ -1,16 +1,22 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { CalendarX2, Eye, EyeOff, Lock, Palette, Pipette, Plus, Share2, Trash2 } from 'lucide-react';
 import { SettingsCard, SettingsEmpty, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { Button, IconButton, TextField } from '../ui/Controls';
 import { cx } from '../ui/cx';
 import { useT } from '../useT';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
+import type { CalendarShareRule } from '@/lib/calendarShare';
+import { useCalendarShareRules, useCalendarShareStore } from '@/store/useCalendarShareStore';
+import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
+import { CalendarShareDialog } from './CalendarShareDialog';
 
 export interface CalendarGroup {
     id: string;
     title: string;
     effect?: string;
     color?: string;
+    /** Calendar share rule (stored encrypted per user, see useCalendarShareStore). */
+    share?: CalendarShareRule;
 }
 
 /** Musterfuellungen der Termin-Karten pro Gruppe. Label-Schluessel: `cal.effect.<id>`. */
@@ -57,6 +63,9 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                     aria-label={t('cal.groupName')}
                     className={cx('min-w-0 flex-1 bg-transparent text-t2-ink outline-none placeholder:text-t2-ink-3', hidden && 'opacity-50')}
                 />
+                {group.share && group.share.recipients.length > 0 && (
+                    <VisibilityBadge kind="shared" count={group.share.recipients.length} size={12} className="text-t2-ink-3" />
+                )}
                 <IconButton label={hidden ? t('cal.show', { name: group.title }) : t('cal.hide', { name: group.title })} onClick={() => onToggleVisibility?.(group.id)}>
                     {hidden ? <EyeOff className="h-[15px] w-[15px]" /> : <Eye className="h-[15px] w-[15px]" />}
                 </IconButton>
@@ -144,6 +153,7 @@ export interface CalendarGroupsSectionProps {
     onToggleColorOverride?: (id: string) => void;
     onToggleGroupVisibility?: (id: string) => void;
     onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
+    /** No longer used here: the share button opens CalendarShareDialog. Kept for callers. */
     onShareGroup?: (e: React.MouseEvent, id: string) => void;
     onDeleteGroup?: (e: React.MouseEvent, id: string) => void;
     /** Deletes every event that carries the tag (the tag stays). */
@@ -151,9 +161,14 @@ export interface CalendarGroupsSectionProps {
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, colorOverrideIds = [], onToggleColorOverride, onToggleGroupVisibility, onUpdateGroup, onShareGroup, onDeleteGroup, onDeleteGroupEvents, onCreateGroup }: CalendarGroupsSectionProps) {
+export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, colorOverrideIds = [], onToggleColorOverride, onToggleGroupVisibility, onUpdateGroup, onDeleteGroup, onDeleteGroupEvents, onCreateGroup }: CalendarGroupsSectionProps) {
     const t = useT();
     const [newName, setNewName] = useState('');
+    const [shareGroupId, setShareGroupId] = useState<string | null>(null);
+    const rules = useCalendarShareRules();
+    useEffect(() => { void useCalendarShareStore.getState().load(); }, []);
+    const withShare = (g: CalendarGroup): CalendarGroup => ({ ...g, share: g.share ?? rules[g.id] });
+    const shareGroup = groups.find((g) => g.id === shareGroupId);
 
     const create = async () => {
         if (!newName.trim() || !onCreateGroup) return;
@@ -168,14 +183,14 @@ export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId
                 {groups.map((g) => (
                     <GroupRow
                         key={g.id}
-                        group={g}
+                        group={withShare(g)}
                         hidden={hiddenGroupIds.includes(g.id)}
                         isProtected={Boolean(protectedGroupId && g.id === protectedGroupId)}
                         colorOverride={colorOverrideIds.includes(g.id)}
                         onToggleColorOverride={onToggleColorOverride}
                         onToggleVisibility={onToggleGroupVisibility}
                         onUpdate={onUpdateGroup}
-                        onShare={onShareGroup}
+                        onShare={(_e, id) => setShareGroupId(id)}
                         onDelete={onDeleteGroup}
                         onDeleteEvents={onDeleteGroupEvents}
                     />
@@ -191,6 +206,13 @@ export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId
                     <Button onClick={create} disabled={!newName.trim()} icon={<Plus className="h-[15px] w-[15px]" />}>{t('cal.createGroup')}</Button>
                 </SettingsRow>
             </SettingsCard>
+            {shareGroup && (
+                <CalendarShareDialog
+                    group={{ id: shareGroup.id, title: shareGroup.title }}
+                    rule={withShare(shareGroup).share}
+                    onClose={() => setShareGroupId(null)}
+                />
+            )}
         </SettingsSection>
     );
 }

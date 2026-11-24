@@ -9,6 +9,7 @@ import { TagPicker } from "@/components/Tags/TagPicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
 import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
+import { EventPrivateToggle } from "./EventPrivateToggle";
 
 interface CustomDropdownOption {
     value: string;
@@ -115,6 +116,8 @@ export interface EventPopoverEvent {
     is_cancelled?: boolean;
     shading?: number;
     tags?: string[];
+    /** Event lock: excluded from calendar share rules. */
+    private?: boolean;
 }
 
 export interface EventPopoverProps {
@@ -603,6 +606,7 @@ export default function EventPopover({
                             </div>
                         )}
                     </div>
+                    <EventPrivateToggle eventId={event.id} isPrivate={!!event.private} onChange={(next) => onEventSave(event.id, { private: next })} />
                 </div>
             )}
         </div>,

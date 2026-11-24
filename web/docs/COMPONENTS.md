@@ -266,6 +266,9 @@
 | MentionShareToast | `web/src/components/Editor/MentionShareToast.tsx` | Hint next to a new @-contact chip: "Mit {Name} geteilt · Ansehen ▾ · Rückgängig", failed (retry) or blocked reason; mounted in `Editor.tsx` |
 | ContactMentionChip / ContactProfileCard | `web/src/components/Editor/ContactMentionChip.tsx`, `ContactProfileCard.tsx` | Chip for `@contact` mentions (avatar + live name, grey "nicht geteilt" when `shareable === false`); click opens a card with "Profil öffnen" which dispatches `tide:open-profile` (handled in `useDashboardListeners`). Rendered by `MentionNodeView` for `type === 'contact'` |
 | mentionShare (lib) | `web/src/lib/mentionShare.ts` | @-contact mention shares the note ("view", owner only), undo/revoke, chip-deletion revoke question; counts in `useMentionShareStore` (`localStorage` `tide_mention_shares`) |
+| CalendarShareDialog | `web/src/components/Settings/calendar/CalendarShareDialog.tsx` | "Kalender „X“ teilen": people with Ansehen/Bearbeiten, "@ Kontakt hinzufügen", "Neue Termine automatisch teilen", status/progress line with retry. Opened by the share button in `CalendarGroupsSection` (which shows a `VisibilityBadge` people count per shared group) |
+| EventPrivateToggle | `web/src/components/Calendar/EventPrivateToggle.tsx` | Event lock "Privat halten" (`private` on the event) in `EventPopover`'s expanded section; asks, then revokes group recipients' shares of that event. Own events only |
+| calendarShare / calendarShareActions (lib) | `web/src/lib/calendarShare.ts`, `calendarShareActions.ts` | Pure planner (`planGroupShares`, `applyGroupShares`, `shareNewEvent`, rule parsing) and the network side (owner-only, `performMessengerShare`, sequential with progress). Auto-share runs from `handleEventCreate` / `handleEventSave` when an event enters a group. Rules stored by `useCalendarShareStore` as one encrypted `calendar_shares` file per user |
 
 ## Extensions (lazy-loaded modules)
 

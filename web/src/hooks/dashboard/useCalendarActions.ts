@@ -12,6 +12,8 @@ import {
 } from "@/lib/recurrence";
 import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
 import { buildSecuredEventMeta } from "@/lib/securedEventMeta";
+import { getEventGroupIds } from "@/lib/calendarUtils";
+import { autoShareEventIntoGroups } from "@/lib/calendarShareActions";
 
 export interface CalendarEventExtraMeta {
     title?: string;
@@ -78,7 +80,7 @@ interface WindowWithTideSave {
 
 const FALLBACK_META_KEYS = [
     "title", "description", "allDay", "isGroup", "effect", "is_cancelled", "exdates", "removed_dates",
-    "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds",
+    "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds", "private",
 ] as const;
 
 const isSameTime = (d1?: string, d2?: string): boolean => {
@@ -215,6 +217,9 @@ export function useCalendarActions({
                         };
                         applySetEvents([...storeState.events, createdEvent]);
                         setActiveEventId?.(newFile.id);
+                        // Calendar share rule: only groups with "Neue Termine automatisch teilen", never private events.
+                        const createdGroupIds = getEventGroupIds(createdEvent);
+                        if (createdGroupIds.length > 0) void autoShareEventIntoGroups(newFile.id, createdGroupIds).catch(() => undefined);
                         return newFile.id;
                     }
                 }
@@ -303,6 +308,7 @@ export function useCalendarActions({
                     return;
                 }
 
+                const groupIdsBefore = getEventGroupIds(event);
                 let occurrenceDateKey: string | null = null;
                 if (isOccurrence) {
                     const timestamp = parseInt(id.split("_")[1], 10);
@@ -461,6 +467,13 @@ export function useCalendarActions({
 
                 await putEventWithConflictRetry(baseId, event, body, strict);
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
+
+                // The event entered a group: that group's auto-share rule applies (checks ownership and "privat").
+                if (effectiveUpdates.groupIds !== undefined || effectiveUpdates.parent_id !== undefined) {
+                    const nextGroupIds = effectiveUpdates.groupIds ?? (effectiveUpdates.parent_id ? [effectiveUpdates.parent_id] : []);
+                    const added = nextGroupIds.filter((g) => !groupIdsBefore.includes(g));
+                    if (added.length > 0) void autoShareEventIntoGroups(baseId, added).catch(() => undefined);
+                }
             } catch (e) {
                 console.error(e);
                 if (strict) throw e;
