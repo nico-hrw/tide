@@ -203,7 +203,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const visibilityKind = getVisibilityState({
         visibility: event.is_public ? 'public' : undefined,
         isOwner: !(event.owner_id && event.owner_id !== myId),
-        sharedWith: isShared ? [{ userId: '' }] : [],
+        isShared,
     }).kind;
     const ownerName = ownerPartnerUsername || 'Geteilt';
     const attributionText = ownerPartnerUsername ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
@@ -677,11 +677,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             )}
                         </button>
                     )}
-                    {(event.is_public || isShared) && (
-                        <div className="opacity-75 flex-shrink-0" title={event.is_public ? 'Public Event' : attributionText}>
-                            <VisibilityBadge kind={visibilityKind} size={12} />
-                        </div>
-                    )}
+                    <div className="opacity-75 flex-shrink-0" title={isShared && !event.is_public ? attributionText : undefined}>
+                        <VisibilityBadge kind={visibilityKind} size={12} />
+                    </div>
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
                     <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}

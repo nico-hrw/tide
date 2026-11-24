@@ -58,3 +58,17 @@ describe('SaveStatusMenu visibility badge', () => {
     expect(host.textContent).toContain('Geteilt mit dir');
   });
 });
+
+describe('badge colour and helper', () => {
+  it('inherits colour by default and accepts a class override', async () => {
+    const { VisibilityBadge } = await import('../VisibilityBadge');
+    act(() => root.render(<VisibilityBadge kind="private" />));
+    expect(host.querySelector('[aria-label]')?.className).toContain('text-current');
+    act(() => root.render(<VisibilityBadge kind="private" className="text-t2-ink-2" />));
+    expect(host.querySelector('[aria-label]')?.className).toContain('text-t2-ink-2');
+  });
+  it('isShared flag yields shared without a count', async () => {
+    const { getVisibilityState } = await import('../visibilityState');
+    expect(getVisibilityState({ isOwner: true, isShared: true })).toEqual({ kind: 'shared', count: 0 });
+  });
+});

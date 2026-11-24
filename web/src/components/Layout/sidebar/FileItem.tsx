@@ -57,7 +57,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
     const visibilityState = getVisibilityState({
         visibility: file.visibility,
         isOwner,
-        sharedWith: file.share_status === 'shared' ? [{ userId: '' }] : [],
+        isShared: file.share_status === 'shared',
     });
 
     // Touch long-press handling
@@ -301,7 +301,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                 )}
             </div>
             <span className="shrink-0 ml-1 flex items-center">
-                <VisibilityBadge kind={visibilityState.kind} size={12} />
+                <VisibilityBadge kind={visibilityState.kind} size={12} className="text-t2-ink-2" />
             </span>
         </motion.div>
     );

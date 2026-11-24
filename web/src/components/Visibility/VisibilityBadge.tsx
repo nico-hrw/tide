@@ -18,14 +18,16 @@ export interface VisibilityBadgeProps {
   kind: VisibilityKind;
   count?: number;
   size?: 12 | 14 | 16;
+  /** Extra classes; colour is inherited (text-current) unless overridden here. */
+  className?: string;
 }
 
-export function VisibilityBadge({ kind, count = 0, size = 14 }: VisibilityBadgeProps) {
+export function VisibilityBadge({ kind, count = 0, size = 14, className = '' }: VisibilityBadgeProps) {
   const t = useT();
   const Icon = ICONS[kind];
   const label = t(LABEL_KEYS[kind]);
   return (
-    <span aria-label={label} title={label} className="inline-flex items-center gap-0.5 text-t2-ink-2" style={{ fontSize: size }}>
+    <span aria-label={label} title={label} className={`inline-flex items-center gap-0.5 text-current ${className}`.trim()} style={{ fontSize: size }}>
       <Icon size={size} aria-hidden="true" />
       {kind === 'shared' && count > 0 ? <span>{count}</span> : null}
     </span>

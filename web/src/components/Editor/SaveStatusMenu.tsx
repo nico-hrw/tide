@@ -41,7 +41,7 @@ export default function SaveStatusMenu({
     const visibilityState = getVisibilityState({
         visibility,
         isOwner: !isRecipient,
-        sharedWith: isSharedByOwner ? [{ userId: '' }] : [],
+        isShared: isSharedByOwner,
     });
 
     useEffect(() => {
