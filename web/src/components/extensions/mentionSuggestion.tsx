@@ -5,13 +5,15 @@ import type { EditorState } from '@tiptap/pm/state';
 import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
-import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 'react';
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from 'react';
 import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
 import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 import { parseTagQuery } from './tagQuery';
+import { buildContactItems, ensureContactsLoaded, groupItems, groupKeyOf, type MentionFilter, type MentionGroupKey } from './mentionGroups';
+import { MentionContactRow, MentionMenuChrome, MentionMenuFooter, MentionSectionHeader } from './MentionMenuChrome';
 import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
 export function ensureSafeIsActive(safeName?: string | null) {
@@ -143,7 +145,24 @@ const MentionList = forwardRef((props: any, ref) => {
     const isCreatingRef = useRef(false);
     const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-    const currentList = activeGroup ? activeGroup.events : (props.items || []);
+    const [filter, setFilter] = useState<MentionFilter>('all');
+    const isQuicknoteMenu = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
+
+    // Displayed order == keyboard order: items flattened through the type groups.
+    const { displayList, counts } = useMemo(() => {
+        const raw: MentionSuggestionItem[] = ((props.items || []) as MentionSuggestionItem[]).map((i) => (i.id === 'NEW_TASK' ? { ...i, is_task: true } : i));
+        if (isQuicknoteMenu) return { displayList: raw, counts: {} as Partial<Record<MentionGroupKey, number>> };
+        const all = groupItems(raw, 'all');
+        const c: Partial<Record<MentionGroupKey, number>> = {};
+        all.forEach((g) => { c[g.key] = g.items.length; });
+        return { displayList: groupItems(raw, filter).flatMap((g) => g.items), counts: c };
+    }, [props.items, filter, isQuicknoteMenu]);
+
+    const currentList = activeGroup ? activeGroup.events : displayList;
+
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [filter]);
 
     useEffect(() => {
         setSelectedIndex(0);
@@ -162,6 +181,13 @@ const MentionList = forwardRef((props: any, ref) => {
             prevGroupIndexRef.current = index !== undefined ? index : selectedIndex;
             setActiveGroup(item as EventGroupItem);
             setSelectedIndex(0);
+            return;
+        }
+
+        if (item.type === 'contact') {
+            const contact = item as typeof item & { username?: string; shareable?: boolean };
+            props.command({ id: contact.id, label: contact.username || contact.label, type: 'contact', shareable: !!contact.shareable });
+            useLinkStore.getState().setPendingLinkSource(null);
             return;
         }
 
@@ -457,10 +483,14 @@ const MentionList = forwardRef((props: any, ref) => {
                 </>
             ) : (
                 <>
-                    {props.items.length ? (
-                        props.items.map((item: any, index: number) => (
+                    {!isQuicknoteMenu && <MentionMenuChrome filter={filter} onFilterChange={setFilter} counts={counts} />}
+                    {displayList.length ? (
+                        displayList.map((item: any, index: number) => (
+                            <Fragment key={item.id || index}>
+                            {!isQuicknoteMenu && (index === 0 || groupKeyOf(displayList[index - 1]) !== groupKeyOf(item)) && (
+                                <MentionSectionHeader group={groupKeyOf(item)} />
+                            )}
                             <button
-                                key={item.id || index}
                                 ref={(el) => { itemRefs.current[index] = el; }}
                                 className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors w-full ${
                                     index === selectedIndex
@@ -472,7 +502,9 @@ const MentionList = forwardRef((props: any, ref) => {
                                     selectItem(item, index);
                                 }}
                             >
-                                {item.isGroup ? (
+                                {item.type === 'contact' ? (
+                                    <MentionContactRow id={item.id} username={item.username} avatar={item.avatar || {}} shareable={!!item.shareable} />
+                                ) : item.isGroup ? (
                                     <>
                                         <span
                                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -573,10 +605,12 @@ const MentionList = forwardRef((props: any, ref) => {
                                     </>
                                 )}
                             </button>
+                            </Fragment>
                         ))
                     ) : (
                         <div className="px-2 py-2 text-t2-ink-2 text-xs">No results</div>
                     )}
+                    {!isQuicknoteMenu && <MentionMenuFooter />}
                 </>
             )}
         </div>
@@ -998,15 +1032,16 @@ export default {
 
         const actionQuery = tagMode ? cleanActionLabelQuery(parsed) : query;
 
-        // 5. Return formatted
-        return capSuggestionItems<MentionSuggestionItem>(
+        // 5. Return formatted (people first; not offered in tag-filter mode)
+        const contactItems = tagMode ? [] : buildContactItems(ensureContactsLoaded(), query);
+        return [...contactItems, ...capSuggestionItems<MentionSuggestionItem>(
             [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
             [
                 { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
                 { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
             ],
-        );
+        )];
     },
 
     command: ({ editor, range, props }: any) => {
@@ -1022,6 +1057,14 @@ export default {
         if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
 
         if (props.isGroup) {
+            return;
+        }
+
+        if (props.type === 'contact') {
+            editor.chain().focus().deleteRange(range).insertContent({
+                type: 'mention',
+                attrs: { id: props.id, label: props.label, type: 'contact', shareable: props.shareable, isGhost: false },
+            }).run();
             return;
         }
 

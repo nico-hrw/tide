@@ -247,6 +247,7 @@ export interface ContactItem {
     avatar_salt?: string;
     avatar_style?: string;
     status?: string;
+    public_key?: string;
 }
 
 export interface ContactsSlice {
