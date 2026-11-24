@@ -76,6 +76,19 @@ export default function Dashboard() {
     const [isMobile, setIsMobile] = useState(false);
     // Mobile has no profile tab: a contact chip / social hub opens the profile as a full-screen overlay
     const [mobileProfileId, setMobileProfileId] = useState<string | null>(null);
+    // Back gesture / hardware back closes the overlay: one history entry while it is open
+    useEffect(() => {
+        if (!mobileProfileId) return;
+        let popped = false;
+        window.history.pushState({ tideMobileProfile: true }, "");
+        const onPop = () => { popped = true; setMobileProfileId(null); };
+        window.addEventListener("popstate", onPop);
+        return () => {
+            window.removeEventListener("popstate", onPop);
+            // Closed by a button: drop our entry (only if it is still the current one)
+            if (!popped && (window.history.state as { tideMobileProfile?: boolean } | null)?.tideMobileProfile) window.history.back();
+        };
+    }, [mobileProfileId]);
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
@@ -507,7 +520,7 @@ export default function Dashboard() {
                 </>
             )}
             {isMobile && mobileProfileId && (
-                <div className="fixed inset-0 z-[400] bg-[var(--background)] overflow-y-auto" data-mobile-profile-overlay>
+                <div className="fixed inset-0 z-[400] bg-[var(--background)] overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" data-mobile-profile-overlay>
                     <ProfilePage
                         userId={mobileProfileId}
                         onBack={() => setMobileProfileId(null)}
