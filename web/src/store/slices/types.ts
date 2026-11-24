@@ -46,6 +46,8 @@ export interface SmartIslandState {
     show: boolean;
     parsedData?: any;
     text?: string;
+    /** Opened by typing anywhere: the island searches first, creating is secondary */
+    searchFirst?: boolean;
     sourceNodePos?: number;
     anchorElement?: HTMLElement | null;
 }

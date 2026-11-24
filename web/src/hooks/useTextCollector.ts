@@ -51,7 +51,7 @@ export function useTextCollector({ enabledExtensions }: UseTextCollectorOptions)
             e.preventDefault();
             bufferRef.current = e.key === 'Backspace' ? bufferRef.current.slice(0, -1) : bufferRef.current + e.key;
             // Keys that arrive before the capture field has the focus end up in the buffer and are handed over together.
-            if (bufferRef.current) useDataStore.getState().setSmartIsland({ show: true, text: bufferRef.current });
+            if (bufferRef.current) useDataStore.getState().setSmartIsland({ show: true, text: bufferRef.current, searchFirst: true });
             if (idleTimer.current) clearTimeout(idleTimer.current);
             idleTimer.current = setTimeout(reset, 1500);
         };

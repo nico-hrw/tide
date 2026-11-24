@@ -301,10 +301,13 @@ export default function Dashboard() {
 
     const handleEventCreateRef = useRef(handleEventCreate);
     handleEventCreateRef.current = handleEventCreate;
+    const handleMagicLinkClickRef = useRef(handleMagicLinkClick);
+    handleMagicLinkClickRef.current = handleMagicLinkClick;
     useEffect(() => {
         useIslandActionsStore.getState().register({
             createEvent: (start, end, title) => handleEventCreateRef.current(start, end, false, { title }),
             editEvent: (start) => { setScheduleInitialStart(start); setScheduleModalOpen(true); },
+            openItem: (target) => { void handleMagicLinkClickRef.current(target); },
         });
         const onCollectorCreate = (e: Event) => {
             const { title, start, end } = (e as CustomEvent<{ title: string; start: string; end: string }>).detail;

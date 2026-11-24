@@ -1,9 +1,12 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import NoteIcon from '@/components/Icons/NoteIcon';
 import { Calendar, FileText, SquareCheck } from 'lucide-react';
+import { useDataStore } from '@/store/useDataStore';
+import { useIslandActionsStore } from '@/store/useIslandActionsStore';
 import type { CaptureKind } from './islandLogic';
+import { buildIslandSearchItems, nextSelection, searchIslandItems, type IslandSearchItem, type IslandSearchKind } from './islandSearch';
 import type { IslandModel } from './useIslandModel';
 import type { IslandText } from './islandText';
 import { CardLabel, CloseButton } from './IslandViews';
@@ -13,6 +16,9 @@ const KINDS: { kind: CaptureKind; labelKey: string; Icon: React.ComponentType<{ 
     { kind: 'note', labelKey: 'kindNote', Icon: NoteIcon },
     { kind: 'todo', labelKey: 'kindTodo', Icon: SquareCheck },
 ];
+
+const RESULT_ICON: Record<IslandSearchKind, typeof Calendar> = { event: Calendar, note: FileText, todo: SquareCheck };
+const RESULT_TYPE: Record<IslandSearchKind, string> = { event: 'event', note: 'file', todo: 'task' };
 
 function hintAndChips(model: IslandModel, text: IslandText): { hint: string; chips: string[] } {
     const { capture } = model;
@@ -42,6 +48,27 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
     const { hint, chips } = hintAndChips(model, text);
     const canCreate = capture.text.trim().length > 0;
 
+    // Typing anywhere: search notes, events and todos first; creating is the last row
+    const notes = useDataStore((s) => s.notes);
+    const events = useDataStore((s) => s.events);
+    const tasks = useDataStore((s) => s.tasks);
+    const searching = capture.searchFirst && canCreate;
+    const items = useMemo(
+        () => (capture.searchFirst ? buildIslandSearchItems({ notes, events, tasks }) : []),
+        [capture.searchFirst, notes, events, tasks]
+    );
+    const results = useMemo(() => (searching ? searchIslandItems(items, capture.text) : []), [searching, items, capture.text]);
+    // The highlighted row belongs to the text it was chosen for: typing resets it to the first result
+    const [picked, setPicked] = useState({ text: '', idx: 0 });
+    const sel = picked.text === capture.text ? picked.idx : 0;
+    const setSel = (idx: number) => setPicked({ text: capture.text, idx });
+    const createRowActive = sel >= results.length;
+
+    const openResult = (r: IslandSearchItem) => {
+        useIslandActionsStore.getState().openItem?.({ id: r.id, type: RESULT_TYPE[r.kind], title: r.title });
+        model.close();
+    };
+
     const skipFocus = capture.fromSuggestion;
     useEffect(() => {
         if (skipFocus) return;
@@ -66,15 +93,53 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
                 rows={2}
                 onChange={(e) => capture.setText(e.target.value)}
                 onKeyDown={(e) => {
-                    if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) {
+                    if (e.nativeEvent.isComposing) return;
+                    if (searching && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                         e.preventDefault();
-                        if (canCreate) void capture.confirm();
+                        setSel(nextSelection(sel, results.length, e.key === 'ArrowDown' ? 1 : -1));
+                    } else if (e.key === 'Enter' && !e.shiftKey) {
+                        e.preventDefault();
+                        const open = searching && !createRowActive && !(e.metaKey || e.ctrlKey);
+                        if (open) openResult(results[sel]);
+                        else if (canCreate) void capture.confirm();
                     }
                 }}
                 placeholder={text.tr('capturePlaceholder')}
                 aria-label={text.tr('quickCapture')}
                 className="mt-2.5 block w-full resize-none rounded-xl bg-t2-sub px-3 py-2.5 text-[13.5px] leading-[1.35] text-t2-ink shadow-[inset_0_0_0_1px_var(--t2-line)] outline-none placeholder:text-t2-ink-3 hover:shadow-[inset_0_0_0_1px_var(--t2-ink-3)] focus:shadow-[inset_0_0_0_1px_var(--t2-ink-3)]"
             />
+            {searching && (
+                <div className="mt-2.5" role="listbox" aria-label={text.tr('searchResults')}>
+                    {results.length === 0 && <div className="px-1 pb-1 text-[12px] text-t2-ink-3">{text.tr('searchNone')}</div>}
+                    {results.map((r, i) => {
+                        const Icon = RESULT_ICON[r.kind];
+                        return (
+                            <button
+                                key={`${r.kind}-${r.id}`}
+                                type="button"
+                                role="option"
+                                aria-selected={i === sel}
+                                onMouseEnter={() => setSel(i)}
+                                onClick={() => openResult(r)}
+                                className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[13px] text-t2-ink ${i === sel ? 'bg-t2-hover' : ''}`}
+                            >
+                                <Icon size={14} strokeWidth={1.8} className="shrink-0 text-t2-ink-3" />
+                                <span className="min-w-0 flex-1 truncate">{r.title || text.tr(r.kind === 'event' ? 'kindEvent' : r.kind === 'note' ? 'kindNote' : 'kindTodo')}</span>
+                            </button>
+                        );
+                    })}
+                    <button
+                        type="button"
+                        role="option"
+                        aria-selected={createRowActive}
+                        onMouseEnter={() => setSel(results.length)}
+                        onClick={() => void capture.confirm()}
+                        className={`mt-0.5 flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[12.5px] text-t2-ink-2 ${createRowActive ? 'bg-t2-hover' : ''}`}
+                    >
+                        <span className="min-w-0 flex-1 truncate">{text.tr('createRow', { title: capture.text.trim() })}</span>
+                    </button>
+                </div>
+            )}
             <div className="mt-2.5 flex gap-1.5" role="radiogroup" aria-label={text.tr('captureWhat')}>
                 {KINDS.map(({ kind, labelKey, Icon }) => {
                     const active = capture.kind === kind;
