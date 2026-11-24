@@ -16,6 +16,8 @@ import {
     removedContactMentions,
     revokeMentionShare,
     shareViaMention,
+    MENTION_SHARE_SKIP_META,
+    mentionRemovalsToConfirm,
     stepsTouchContactMention,
 } from '../mentionShare';
 
@@ -35,7 +37,7 @@ beforeEach(() => {
     shareMock.mockReset();
     askMock.mockReset();
     localStorage.clear();
-    useMentionShareStore.setState({ entries: {}, hint: null });
+    useMentionShareStore.setState({ userId: null, entries: {}, hint: null });
     useDataStore.setState({
         privateKey: {} as CryptoKey,
         publicKey: {} as CryptoKey,
@@ -74,7 +76,7 @@ describe('shareViaMention', () => {
         expect(r.status).toBe('already');
         expect(shareMock).not.toHaveBeenCalled();
         expect(useMentionShareStore.getState().origin('f1', 'u1')).toBeUndefined();
-        expect(localStorage.getItem('tide_mention_shares') ?? '{}').not.toContain('u1');
+        expect(localStorage.getItem('tide_mention_shares:me') ?? '{}').not.toContain('u1');
     });
 
     it('(d) shares with view permission and records the entry', async () => {
@@ -93,7 +95,7 @@ describe('shareViaMention', () => {
         expect(args[8]).toBe('view');
         expect(args[10]).toBe(false);
         expect(useMentionShareStore.getState().origin('f1', 'u1')).toBe('mention');
-        expect(localStorage.getItem('tide_mention_shares')).toContain('f1');
+        expect(localStorage.getItem('tide_mention_shares:me')).toContain('f1');
     });
 
     it('(e) two mentions of the same person share once; release reaches 0 only after the second', async () => {
@@ -186,13 +188,10 @@ describe('handleRemovedContactMentions', () => {
         expect(apiFetchMock).not.toHaveBeenCalled();
     });
 
-    it('asks only when the last chip is gone, then revokes on yes', async () => {
+    it('asks for a mention-made share whose last chip is gone, then revokes on yes', async () => {
         const store = useMentionShareStore.getState();
         store.record('f1', 'u1');
         store.record('f1', 'u1');
-        await handleRemovedContactMentions('f1', [{ id: 'u1', label: 'anna' }]);
-        expect(askMock).not.toHaveBeenCalled();
-
         askMock.mockResolvedValue(true);
         apiFetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
         await handleRemovedContactMentions('f1', [{ id: 'u1', label: 'anna' }]);
@@ -213,6 +212,62 @@ describe('handleRemovedContactMentions', () => {
         useMentionShareStore.getState().record('quicknote:x', 'u1');
         await handleRemovedContactMentions('quicknote:x', [{ id: 'u1', label: 'anna' }]);
         expect(askMock).not.toHaveBeenCalled();
+    });
+});
+
+describe('mentionRemovalsToConfirm', () => {
+    type N = { type: { name: string }; attrs: Record<string, unknown> };
+    const chip = (id: string): N => ({ type: { name: 'mention' }, attrs: { id, type: 'contact', label: id } });
+    // Fake doc: each node sits at its index position.
+    const fdoc = (nodes: N[]) => ({
+        descendants: (cb: (n: N) => boolean | void) => { nodes.forEach((n) => cb(n)); },
+        nodesBetween: (from: number, to: number, cb: (n: N) => boolean | void) => {
+            nodes.forEach((n, p) => { if (p >= from && p < to) cb(n); });
+        },
+    });
+    const del = (pos: number) => ({ getMap: () => ({ forEach: (fn: (a: number, b: number) => void) => fn(pos, pos + 1) }) });
+    const tr = (before: ReturnType<typeof fdoc>, pos: number, meta: Record<string, unknown> = {}) => ({
+        before, steps: [del(pos)], docs: [before], getMeta: (k: string) => meta[k],
+    });
+
+    it('local delete of the last chip -> confirm', () => {
+        const before = fdoc([chip('u1')]);
+        expect(mentionRemovalsToConfirm(tr(before, 0), fdoc([]))).toEqual([{ id: 'u1', label: 'u1' }]);
+    });
+
+    it('remote (y-sync) or flagged setContent transactions -> nothing', () => {
+        const before = fdoc([chip('u1')]);
+        expect(mentionRemovalsToConfirm(tr(before, 0, { 'y-sync$': { isChangeOrigin: true } }), fdoc([]))).toEqual([]);
+        expect(mentionRemovalsToConfirm(tr(before, 0, { [MENTION_SHARE_SKIP_META]: true }), fdoc([]))).toEqual([]);
+    });
+
+    it('a remaining chip of the same person -> nothing (no release, no question)', () => {
+        const before = fdoc([chip('u1'), chip('u1')]);
+        expect(mentionRemovalsToConfirm(tr(before, 0), fdoc([chip('u1')]))).toEqual([]);
+    });
+
+    it('lists each person once even when several chips went at once', () => {
+        const before = fdoc([chip('u1'), chip('u1'), chip('u2')]);
+        const t = { ...tr(before, 0), steps: [{ getMap: () => ({ forEach: (fn: (a: number, b: number) => void) => fn(0, 3) }) }] };
+        expect(mentionRemovalsToConfirm(t, fdoc([]))).toEqual([{ id: 'u1', label: 'u1' }, { id: 'u2', label: 'u2' }]);
+    });
+});
+
+describe('share edge cases', () => {
+    it('does not record origin when the share threw but the person is listed afterwards', async () => {
+        apiFetchMock
+            .mockImplementationOnce(async () => sharesResponse([]))
+            .mockImplementationOnce(async () => sharesResponse([{ user_id: 'u1' }]));
+        shareMock.mockRejectedValue(new Error('chat notice failed'));
+        const r = await shareViaMention({ file, contact, callerCanShare: true });
+        expect(r.status).toBe('shared');
+        expect(useMentionShareStore.getState().origin('f1', 'u1')).toBeUndefined();
+    });
+
+    it('an accepted contact without a key is blocked as no-key', async () => {
+        const r = await shareViaMention({ file, contact: { id: 'u1', shareable: true }, callerCanShare: true });
+        expect(r).toEqual({ status: 'blocked', reason: 'no-key' });
+        expect(apiFetchMock).not.toHaveBeenCalled();
     });
 });
 

@@ -74,6 +74,7 @@ const SENSITIVE_LOCAL_STORAGE_PREFIXES = [
     'tide_unlock_',
     'tide_user_',
     'tide_session_v1',
+    'tide_mention_shares',
 ] as const;
 
 function validateApiFetchOrigin(trimmedUrl: string, base: string): void {

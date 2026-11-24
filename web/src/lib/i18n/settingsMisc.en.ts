@@ -213,6 +213,7 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'mention.shareFailed': "Sharing failed",
     'mention.retry': "Try again",
     'mention.blockedUnconfirmed': "Contact not confirmed yet",
+    'mention.blockedNoKey': "No key available",
     'mention.blockedNotAllowed': "You can't share this",
     'mention.dismiss': "Close hint",
     'mention.revokeAsk': "Also remove {name}'s access?",

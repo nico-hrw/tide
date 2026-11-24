@@ -56,7 +56,7 @@ import { apiFetch } from '@/lib/api';
 import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
 import { getVariableRegistry } from '@/lib/variableRegistryInstance';
 import { getNoteBindings, subscribeNoteBindings } from '@/lib/varsheet/noteBindings';
-import { handleRemovedContactMentions, removedContactMentions, stepsTouchContactMention } from '@/lib/mentionShare';
+import { handleRemovedContactMentions, mentionRemovalsToConfirm } from '@/lib/mentionShare';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
@@ -398,12 +398,9 @@ export function useTipTapConfig({
         onUpdate: ({ editor, transaction }) => {
             if (!editor || editor.isDestroyed || !transaction.docChanged || !contentInit.current) return;
             if (setInkStrokes) setInkStrokes(getEditorInkStrokes(editor));
-            // Local deletions of contact chips only (remote Yjs changes are someone else's edit).
-            const meta = (transaction as unknown as { meta?: Record<string, unknown> }).meta;
-            if (!(meta && Object.keys(meta).some((k) => k.startsWith('y-sync'))) && stepsTouchContactMention(transaction)) {
-                const removed = removedContactMentions(transaction.before, editor.state.doc);
-                if (removed.length > 0) void handleRemovedContactMentions(activeTabIdRef.current ?? null, removed);
-            }
+            // Local deletions of a person's last contact chip only (remote/restored content is skipped).
+            const removed = mentionRemovalsToConfirm(transaction, editor.state.doc);
+            if (removed.length > 0) void handleRemovedContactMentions(activeTabIdRef.current ?? null, removed);
             const content = editor.getJSON();
             if (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTyped.current) return;
 

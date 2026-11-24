@@ -211,6 +211,7 @@ export const settingsMiscDe = {
     'mention.shareFailed': "Teilen fehlgeschlagen",
     'mention.retry': "Erneut versuchen",
     'mention.blockedUnconfirmed': "Kontakt noch nicht bestätigt",
+    'mention.blockedNoKey': "Kein Schlüssel vorhanden",
     'mention.blockedNotAllowed': "Du darfst das nicht teilen",
     'mention.dismiss': "Hinweis schließen",
     'mention.revokeAsk': "Zugriff von {name} auch entziehen?",

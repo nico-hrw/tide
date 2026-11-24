@@ -78,7 +78,8 @@ export function MentionShareToast({ editor, fileId }: { editor: Editor | null; f
         ? t('mention.shared', { name: hint.name })
         : hint.status === 'failed'
             ? t('mention.shareFailed')
-            : hint.reason === 'not-shareable' ? t('mention.blockedUnconfirmed') : t('mention.blockedNotAllowed');
+            : hint.reason === 'not-shareable' ? t('mention.blockedUnconfirmed')
+                : hint.reason === 'no-key' ? t('mention.blockedNoKey') : t('mention.blockedNotAllowed');
 
     const placement = pos
         ? { position: 'fixed' as const, top: pos.top, left: pos.left }

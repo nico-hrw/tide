@@ -63,9 +63,9 @@ async function shareOnce({ file, contact }: MentionShareArgs, publicKeySpki: str
             contact.id, contact.email || '', publicKeySpki, 'view', [], false,
         );
     } catch (err) {
-        // The share itself may have landed before a later step (chat notice) failed.
+        // The share itself may have landed before a later step (chat notice) failed. Say so, but
+        // record no origin: only a share call that itself succeeded may be revoked via a chip delete.
         if ((await isListed(file.id, contact.id)) === true) {
-            store.record(file.id, contact.id);
             return { status: 'shared', reason: 'notify-failed' };
         }
         return { status: 'failed', reason: err instanceof Error ? err.message : 'share-error' };
@@ -79,7 +79,8 @@ const inFlight = new Map<string, Promise<MentionShareResult>>();
 export async function shareViaMention(args: MentionShareArgs): Promise<MentionShareResult> {
     const { file, contact, callerCanShare } = args;
     const spki = contact.public_key;
-    if (!contact.shareable || !spki) return { status: 'blocked', reason: 'not-shareable' };
+    if (!contact.shareable) return { status: 'blocked', reason: 'not-shareable' };
+    if (!spki) return { status: 'blocked', reason: 'no-key' };
     if (!callerCanShare) return { status: 'blocked', reason: 'not-allowed' };
 
     const key = `${file.id}:${contact.id}`;
@@ -88,7 +89,8 @@ export async function shareViaMention(args: MentionShareArgs): Promise<MentionSh
         if (previous) {
             const prev = await previous.catch(() => null);
             if (prev?.status === 'shared') {
-                useMentionShareStore.getState().record(file.id, contact.id);
+                const store = useMentionShareStore.getState();
+                if (store.origin(file.id, contact.id)) store.record(file.id, contact.id);
                 return { status: 'already' };
             }
         }
@@ -153,7 +155,8 @@ export async function startContactMentionShare(o: {
     const callerCanShare = callerCanShareFile(note, state.myId, useActiveNoteStore.getState().permission);
     // Email and key come from the contact list at share time, never from the menu item.
     const c = (state.contacts || []).find((x) => x.id === o.contactId);
-    const shareable = o.shareable && !!c && c.status === 'accepted' && !!c.public_key;
+    // Accepted is required; a missing key is reported separately ('no-key'). The menu flag is UI only.
+    const shareable = !!c && c.status === 'accepted';
     const contact = { id: o.contactId, email: c?.email, public_key: c?.public_key, shareable };
     const title = typeof note?.title === 'string' ? note.title : '';
 
@@ -211,13 +214,36 @@ export function stepsTouchContactMention(tr: { steps: readonly StepLike[]; docs:
     return hit;
 }
 
-/** Chip deleted: drop a reference; ask to revoke only when the last chip of a mention-made share is gone. */
+/** Transactions carrying this meta (content replaced by load, restore or a remote update) never ask to revoke. */
+export const MENTION_SHARE_SKIP_META = 'mentionShareSkip';
+
+type TrLike = { getMeta: (key: string) => unknown; before: DocLike & NodeRangeDoc; steps: readonly StepLike[]; docs: readonly NodeRangeDoc[] };
+
+/**
+ * Pure decision for one editor transaction: the people whose LAST chip a local edit removed.
+ * Remote Yjs updates (`y-sync$`) and flagged content replacements are skipped; a person who
+ * still has a chip in `after` is never listed (no release, no question).
+ */
+export function mentionRemovalsToConfirm(tr: TrLike, after: DocLike): Array<{ id: string; label: string }> {
+    if (tr.getMeta('y-sync$') || tr.getMeta(MENTION_SHARE_SKIP_META)) return [];
+    if (!stepsTouchContactMention(tr)) return [];
+    const remaining = countContactMentions(after);
+    const seen = new Set<string>();
+    return removedContactMentions(tr.before, after).filter((r) => {
+        if (remaining.has(r.id) || seen.has(r.id)) return false;
+        seen.add(r.id);
+        return true;
+    });
+}
+
+/** Called with people whose last chip is gone (see mentionRemovalsToConfirm): ask to revoke a mention-made share. */
 export async function handleRemovedContactMentions(fileId: string | null, removed: Array<{ id: string; label: string }>): Promise<void> {
     if (!isFileTab(fileId)) return;
     for (const r of removed) {
         const store = useMentionShareStore.getState();
         if (store.origin(fileId, r.id) !== 'mention') continue;
-        if (store.release(fileId, r.id) > 0) continue;
+        // No chip of this person is left in the note, whatever the counter says.
+        while (store.release(fileId, r.id) > 0) { /* drop all references */ }
         const hint = store.hint;
         if (hint && hint.fileId === fileId && hint.contactId === r.id) store.dismissHint();
         const yes = await askConfirm({

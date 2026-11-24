@@ -1,12 +1,15 @@
 import { create } from 'zustand';
+import { useDataStore } from '@/store/useDataStore';
 
 /**
- * Shares that an @-contact mention created, counted per (file, person) so a share is
- * only revoked when its last mention is gone. Persisted in localStorage under
- * `tide_mention_shares`. Only a mention that really created a share (status `shared`)
- * creates an entry; an entry with count 0 is kept (origin stays 'mention') until `clear`.
+ * Shares that an @-contact mention created, counted per (file, person). Persisted per user in
+ * localStorage under `tide_mention_shares:<userId>`; nothing is read or written while the user is
+ * unknown, and the entries reload whenever `useDataStore.myId` changes. Logout removes every
+ * `tide_mention_shares*` key (see `clearAllSessionData` in api.ts and `clearMentionShares`).
+ * Only a share call that itself succeeded creates an entry; an entry with count 0 is kept
+ * (origin stays 'mention') until `clear`.
  */
-const STORAGE_KEY = 'tide_mention_shares';
+export const MENTION_SHARES_KEY = 'tide_mention_shares';
 
 export type MentionSharePermission = 'view' | 'edit';
 
@@ -25,6 +28,8 @@ export interface MentionShareHint {
 }
 
 interface MentionShareState {
+    /** User the entries belong to (null = unknown, entries empty) */
+    userId: string | null;
     entries: Record<string, number>;
     /** Hint shown by `MentionShareToast` (not persisted) */
     hint: MentionShareHint | null;
@@ -38,11 +43,17 @@ interface MentionShareState {
     dismissHint: () => void;
 }
 
+/** Per-user storage key; null while the user is unknown. */
+export function mentionSharesKey(userId: string | null | undefined): string | null {
+    return userId ? `${MENTION_SHARES_KEY}:${userId}` : null;
+}
+
 const keyOf = (fileId: string, userId: string) => `${fileId}:${userId}`;
 
-function load(): Record<string, number> {
+function load(storageKey: string | null): Record<string, number> {
+    if (!storageKey) return {};
     try {
-        const raw = typeof localStorage !== 'undefined' ? localStorage.getItem(STORAGE_KEY) : null;
+        const raw = localStorage.getItem(storageKey);
         const parsed: unknown = raw ? JSON.parse(raw) : {};
         if (!parsed || typeof parsed !== 'object') return {};
         const out: Record<string, number> = {};
@@ -55,48 +66,79 @@ function load(): Record<string, number> {
     }
 }
 
-function save(entries: Record<string, number>): void {
+function save(userId: string | null, entries: Record<string, number>): void {
+    const storageKey = mentionSharesKey(userId);
+    if (!storageKey) return;
     try {
-        if (typeof localStorage !== 'undefined') localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+        localStorage.setItem(storageKey, JSON.stringify(entries));
     } catch { /* storage unavailable: counts live in memory only */ }
 }
 
 let hintSeq = 0;
 
-export const useMentionShareStore = create<MentionShareState>((set, get) => ({
-    entries: load(),
-    hint: null,
-
-    record: (fileId, userId) => {
-        const k = keyOf(fileId, userId);
-        const entries = { ...get().entries, [k]: (get().entries[k] ?? 0) + 1 };
-        save(entries);
+export const useMentionShareStore = create<MentionShareState>((set, get) => {
+    /** Entries of the current user, reloaded when the signed-in user changed. */
+    const current = (): { userId: string | null; entries: Record<string, number> } => {
+        const myId = useDataStore.getState().myId || null;
+        const s = get();
+        if (s.userId === myId) return { userId: myId, entries: s.entries };
+        const entries = load(mentionSharesKey(myId));
+        set({ userId: myId, entries });
+        return { userId: myId, entries };
+    };
+    const write = (userId: string | null, entries: Record<string, number>) => {
+        if (!userId) return;
+        save(userId, entries);
         set({ entries });
-    },
+    };
 
-    release: (fileId, userId) => {
-        const k = keyOf(fileId, userId);
-        const current = get().entries[k];
-        if (current === undefined) return 0;
-        const rest = Math.max(0, current - 1);
-        const entries = { ...get().entries, [k]: rest };
-        save(entries);
-        set({ entries });
-        return rest;
-    },
+    return {
+        userId: null,
+        entries: {},
+        hint: null,
 
-    origin: (fileId, userId) => (get().entries[keyOf(fileId, userId)] !== undefined ? 'mention' : undefined),
+        record: (fileId, userId) => {
+            const c = current();
+            const k = keyOf(fileId, userId);
+            write(c.userId, { ...c.entries, [k]: (c.entries[k] ?? 0) + 1 });
+        },
 
-    clear: (fileId, userId) => {
-        const k = keyOf(fileId, userId);
-        if (get().entries[k] === undefined) return;
-        const entries = { ...get().entries };
-        delete entries[k];
-        save(entries);
-        set({ entries });
-    },
+        release: (fileId, userId) => {
+            const c = current();
+            const k = keyOf(fileId, userId);
+            const value = c.entries[k];
+            if (value === undefined) return 0;
+            const rest = Math.max(0, value - 1);
+            write(c.userId, { ...c.entries, [k]: rest });
+            return rest;
+        },
 
-    showHint: (hint) => set({ hint: { ...hint, seq: ++hintSeq } }),
-    updateHint: (patch) => set((s) => (s.hint ? { hint: { ...s.hint, ...patch } } : {})),
-    dismissHint: () => set({ hint: null }),
-}));
+        origin: (fileId, userId) => (current().entries[keyOf(fileId, userId)] !== undefined ? 'mention' : undefined),
+
+        clear: (fileId, userId) => {
+            const c = current();
+            const k = keyOf(fileId, userId);
+            if (c.entries[k] === undefined) return;
+            const entries = { ...c.entries };
+            delete entries[k];
+            write(c.userId, entries);
+        },
+
+        showHint: (hint) => set({ hint: { ...hint, seq: ++hintSeq } }),
+        updateHint: (patch) => set((s) => (s.hint ? { hint: { ...s.hint, ...patch } } : {})),
+        dismissHint: () => set({ hint: null }),
+    };
+});
+
+/** Removes the mention-share records of every user (logout) and the in-memory copy. */
+export function clearMentionShares(): void {
+    try {
+        const doomed: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const k = localStorage.key(i);
+            if (k && k.startsWith(MENTION_SHARES_KEY)) doomed.push(k);
+        }
+        doomed.forEach((k) => localStorage.removeItem(k));
+    } catch { /* restricted storage */ }
+    useMentionShareStore.setState({ userId: null, entries: {}, hint: null });
+}
