@@ -16,6 +16,7 @@ const people: SharePerson[] = [
     { user_id: 'anna', status: 'accepted', permission: 'view', username: 'Anna' },
     { user_id: 'ben', status: 'accepted', permission: 'edit', username: 'Ben' },
     { user_id: 'cy', status: 'pending', permission: 'share', username: 'Cy' },
+    { user_id: 'eli', status: 'accepted', permission: 'edit', can_reshare: true, username: 'Eli' },
     { user_id: 'dora', status: 'accepted', permission: 'view', username: 'Dora' },
 ];
 
@@ -38,6 +39,7 @@ function render(props: Partial<React.ComponentProps<typeof SharePeopleList>> = {
     ));
     return { host, onRoleChange };
 }
+const openMore = (name: string) => { const b = [...row(name).querySelectorAll('button')].find((x) => x.textContent?.startsWith('Mehr')) as HTMLButtonElement; act(() => b.click()); return b; };
 const row = (name: string) => [...document.querySelectorAll('li')].find((li) => li.textContent?.includes(name)) as HTMLElement;
 
 beforeEach(() => {
@@ -77,10 +79,12 @@ describe('SharePeopleList rights', () => {
         const select = row('Anna').querySelector('select') as HTMLSelectElement;
         expect([...select.options].map((o) => o.textContent)).toEqual(['Ansehen', 'Bearbeiten']);
         expect((row('Cy').querySelector('select') as HTMLSelectElement).value).toBe('edit');
+        const more = openMore('Cy');
+        expect(more.getAttribute('aria-expanded')).toBe('true');
+        expect(row('Cy').textContent).toContain('Darf weiterteilen');
         const box = row('Cy').querySelector('input[type=checkbox]') as HTMLInputElement;
         expect(box.checked).toBe(true);
         expect(row('Cy').textContent).toContain('Mehr');
-        expect(row('Cy').textContent).toContain('Darf weiterteilen');
         act(() => box.click());
         expect(onRoleChange).toHaveBeenCalledWith('cy', 'edit');
     });
@@ -89,6 +93,21 @@ describe('SharePeopleList rights', () => {
         const select = row('Cy').querySelector('select') as HTMLSelectElement;
         act(() => { select.value = 'view'; select.dispatchEvent(new Event('change', { bubbles: true })); });
         expect(onRoleChange).toHaveBeenCalledWith('cy', 'view');
+    });
+    it('shows the can_reshare flag as checked and does not offer to clear it (server PATCH only takes permission)', () => {
+        render();
+        openMore('Eli');
+        const box = row('Eli').querySelector('input[type=checkbox]') as HTMLInputElement;
+        expect(box.checked).toBe(true);
+        expect(box.disabled).toBe(true);
+    });
+    it('plain edit row: ticking sends permission share, legacy share row unticks back to edit', () => {
+        const { onRoleChange } = render();
+        openMore('Ben');
+        const box = row('Ben').querySelector('input[type=checkbox]') as HTMLInputElement;
+        expect(box.checked).toBe(false);
+        act(() => box.click());
+        expect(onRoleChange).toHaveBeenCalledWith('ben', 'share');
     });
     it('non-owner sees no editing controls', () => {
         render({ isOwner: false });

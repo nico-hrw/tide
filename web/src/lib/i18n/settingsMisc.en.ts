@@ -287,5 +287,11 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'share.originMention': "Via @ mention",
     'share.originCalendar': "From calendar “{name}”",
     'share.originCalendarAnon': "From calendar",
+    'share.viewDesc': "Read only",
+    'share.editDesc': "Read + write",
+    'share.shareTile': "Share",
+    'share.shareTileDesc': "Can share further",
+    'share.newPermission': "Permission for new share",
+    'share.canReshareDesc': "The recipient may forward this note with equal or lower rights",
     'share.done': "Done",
 };

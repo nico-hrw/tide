@@ -285,5 +285,11 @@ export const settingsMiscDe = {
     'share.originMention': "Über @-Erwähnung",
     'share.originCalendar': "Aus Kalender „{name}“",
     'share.originCalendarAnon': "Aus Kalender",
+    'share.viewDesc': "Nur lesen",
+    'share.editDesc': "Lesen + schreiben",
+    'share.shareTile': "Teilen",
+    'share.shareTileDesc': "Weiter teilen",
+    'share.newPermission': "Berechtigung für neue Freigabe",
+    'share.canReshareDesc': "Empfänger darf diese Notiz mit gleichen oder geringeren Rechten weiterleiten",
     'share.done': "Fertig",
 } as const;

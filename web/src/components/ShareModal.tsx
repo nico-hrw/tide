@@ -31,6 +31,7 @@ interface ExistingShare {
     user_id: string;
     status: string;
     permission: 'view' | 'edit' | 'share';
+    can_reshare?: boolean;
     username?: string;
     email?: string;
     public_key?: string;
@@ -79,6 +80,7 @@ export default function ShareModal({
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
     const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
     const [canReshare, setCanReshare] = useState(false);
+    const [showMore, setShowMore] = useState(false);
 
     // Existing shares state for DEK rotation & live role management
     const [existingShares, setExistingShares] = useState<ExistingShare[]>([]);
@@ -686,13 +688,14 @@ export default function ShareModal({
 
                     {/* Permission Picker for new invites */}
                     <div className="px-6 pt-5">
-                        <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2.5">Berechtigung für neue Freigabe</h3>
+                        <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2.5">{t('share.newPermission')}</h3>
                         <div className={`grid ${callerPermission === 'owner' ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
                             {([
-                                { val: 'view' as const, icon: Eye, label: t('share.view'), desc: 'Nur lesen' },
-                                { val: 'edit' as const, icon: Edit3, label: t('share.edit'), desc: 'Lesen + schreiben' },
-                                // The owner grants re-sharing via "Mehr > Darf weiterteilen" (canReshare), not as a third level.
-                                ...(callerPermission === 'owner' ? [] : [{ val: 'share' as const, icon: Share2, label: 'Teilen', desc: 'Weiter teilen' }]),
+                                { val: 'view' as const, icon: Eye, label: t('share.view'), desc: t('share.viewDesc') },
+                                { val: 'edit' as const, icon: Edit3, label: t('share.edit'), desc: t('share.editDesc') },
+                                // Owners grant re-sharing via "Mehr > Darf weiterteilen" (canReshare). Invite equivalence: the old owner
+                                // tile "share" (share/false) is now edit + can_reshare=true; the tile stays for non-owners.
+                                ...(callerPermission === 'owner' ? [] : [{ val: 'share' as const, icon: Share2, label: t('share.shareTile'), desc: t('share.shareTileDesc') }]),
                             ]).map(opt => {
                                 const Icon = opt.icon;
                                 const disabled = isOptDisabled(opt.val);
@@ -730,21 +733,21 @@ export default function ShareModal({
 
                         {/* Re-sharing checkbox for owners only */}
                         {callerPermission === 'owner' && (
-                            <details className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
-                                <summary className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')}</summary>
-                                <label className="mt-2 flex items-start gap-3 cursor-pointer">
+                            <div className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
+                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')} {showMore ? '▴' : '▾'}</button>
+                                {showMore && <label className="mt-2 flex items-start gap-3 cursor-pointer">
                                     <input
                                         type="checkbox"
                                         checked={canReshare}
                                         onChange={(e) => setCanReshare(e.target.checked)}
-                                        className="mt-0.5 w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
+                                        className="mt-0.5 w-4 h-4 rounded border-t2-line  text-t2-ink accent-t2-accent"
                                     />
                                     <div className="flex-1">
                                         <div className="text-xs font-bold text-t2-ink ">{t('share.canReshare')}</div>
-                                        <div className="text-[11px] text-t2-ink-2  mt-0.5">Empfänger darf diese Notiz mit gleichen oder geringeren Rechten weiterleiten</div>
+                                        <div className="text-[11px] text-t2-ink-2  mt-0.5">{t('share.canReshareDesc')}</div>
                                     </div>
-                                </label>
-                            </details>
+                                </label>}
+                            </div>
                         )}
                     </div>
 
