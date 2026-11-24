@@ -81,3 +81,54 @@ describe('groupItems tagsFirst', () => {
     expect(groupItems(items, 'all').map((g) => g.key)).toEqual(['note', 'tag']);
   });
 });
+
+import { vi, beforeEach } from 'vitest';
+import { ensureContactsLoaded, resetContactsRequest } from '../mentionGroups';
+import { useDataStore } from '@/store/useDataStore';
+
+describe('shouldOfferContacts safe/path queries', () => {
+  it('hides contacts for cross-safe ":" and path "/" queries', () => {
+    expect(shouldOfferContacts({ query: 'safe:an', isQuicknote: false, tagMode: false })).toBe(false);
+    expect(shouldOfferContacts({ query: 'a/b', isQuicknote: false, tagMode: false })).toBe(false);
+  });
+});
+
+describe('ensureContactsLoaded', () => {
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  beforeEach(() => {
+    resetContactsRequest();
+    useDataStore.setState({ contacts: [] });
+  });
+
+  it('does not refetch after an empty successful load', async () => {
+    const fetchContacts = vi.fn().mockResolvedValue(true);
+    useDataStore.setState({ fetchContacts });
+    ensureContactsLoaded();
+    await flush();
+    ensureContactsLoaded();
+    ensureContactsLoaded();
+    await flush();
+    expect(fetchContacts).toHaveBeenCalledTimes(1);
+  });
+
+  it('retries after a failed load', async () => {
+    const fetchContacts = vi.fn().mockResolvedValue(false);
+    useDataStore.setState({ fetchContacts });
+    ensureContactsLoaded();
+    await flush();
+    ensureContactsLoaded();
+    await flush();
+    expect(fetchContacts).toHaveBeenCalledTimes(2);
+  });
+
+  it('refetches on a new menu open', async () => {
+    const fetchContacts = vi.fn().mockResolvedValue(true);
+    useDataStore.setState({ fetchContacts });
+    ensureContactsLoaded();
+    await flush();
+    resetContactsRequest();
+    ensureContactsLoaded();
+    await flush();
+    expect(fetchContacts).toHaveBeenCalledTimes(2);
+  });
+});

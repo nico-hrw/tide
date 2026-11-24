@@ -61,7 +61,7 @@ export const createContactsSlice: DataStoreSlice<ContactsSlice> = (set) => ({
     fetchContacts: async () => {
         try {
             const res = await apiFetch('/api/v1/contacts');
-            if (!res.ok) return;
+            if (!res.ok) return false;
 
             const data = (await res.json().catch(() => null)) as unknown;
             if (Array.isArray(data)) {
@@ -77,8 +77,10 @@ export const createContactsSlice: DataStoreSlice<ContactsSlice> = (set) => ({
                     contactsList: normalized,
                 });
             }
+            return true;
         } catch (error) {
             console.error('[ContactsSlice] Failed to fetch contacts:', error);
+            return false;
         }
     },
 });

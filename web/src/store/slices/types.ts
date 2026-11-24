@@ -255,7 +255,8 @@ export interface ContactsSlice {
     contactsList?: ContactItem[];
     setContactsList?: (contacts: ContactItem[]) => void;
     setContacts?: (contacts: ContactItem[]) => void;
-    fetchContacts: () => Promise<void>;
+    /** Resolves false when the load failed (network/HTTP error), true/undefined otherwise. */
+    fetchContacts: () => Promise<boolean | void>;
 }
 
 export interface SafesSlice {

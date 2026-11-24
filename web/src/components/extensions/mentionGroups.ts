@@ -42,7 +42,7 @@ export function buildContactItems(contacts: ContactItem[], query: string): Conta
 /** Contacts only for a plain non-empty query outside the quicknote menu, tag mode and ghost links. */
 export function shouldOfferContacts(o: { query: string; isQuicknote: boolean; tagMode: boolean }): boolean {
     const q = o.query.trim();
-    return !o.isQuicknote && !o.tagMode && q.length > 0 && !q.startsWith('!');
+    return !o.isQuicknote && !o.tagMode && q.length > 0 && !q.startsWith('!') && !q.includes(':') && !q.includes('/');
 }
 
 /** A chip whose group has no items falls back to 'all' so the menu never strands on an empty list. */
@@ -67,15 +67,16 @@ let contactsRequested = false;
 export function resetContactsRequest(): void {
     contactsRequested = false;
 }
-/** Fire-and-forget: load contacts when the list is empty; the flag resets if the load yielded nothing. */
+/** Fire-and-forget: load contacts once per menu session while the list is empty. */
 export function ensureContactsLoaded(): ContactItem[] {
     const state = useDataStore.getState();
     const list = state.contacts || [];
     if (list.length === 0 && !contactsRequested && typeof state.fetchContacts === 'function') {
         contactsRequested = true;
-        void state.fetchContacts().finally(() => {
-            if ((useDataStore.getState().contacts || []).length === 0) contactsRequested = false;
-        });
+        // Only a real failure (false / rejection) re-arms the request; an empty successful result stays set.
+        void Promise.resolve(state.fetchContacts())
+            .then((ok) => { if (ok === false) contactsRequested = false; })
+            .catch(() => { contactsRequested = false; });
     }
     return list;
 }
