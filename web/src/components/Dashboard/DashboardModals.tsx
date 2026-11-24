@@ -8,6 +8,7 @@ import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
+import { useCalendarShareStore } from "@/store/useCalendarShareStore";
 import { useDataStore } from "@/store/useDataStore";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { apiFetch } from "@/lib/api";
@@ -222,6 +223,8 @@ export function DashboardModals({
             },
         }).then((result) => {
             if (!result.ok) notifyError(text("cal.deleteFailed"));
+            // The calendar is gone: its share rule must not keep auto-sharing.
+            else void useCalendarShareStore.getState().removeRule(id).catch(() => undefined);
         });
     };
 

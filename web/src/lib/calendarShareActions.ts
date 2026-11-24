@@ -123,6 +123,8 @@ export async function syncGroupShares(args: {
     return { done: r1.done + r2.done + r3.done, failed: r1.failed + r2.failed + r3.failed, total, events };
 }
 
+const RULE_MAX_AGE_MS = 60_000;
+
 const autoQueue = new Map<string, Promise<unknown>>();
 
 /** An own event entered one or more groups: share it per the groups' auto-share rules (never for private events). */
@@ -138,9 +140,10 @@ export function autoShareEventIntoGroups(eventId: string, groupIds: string[]): P
 async function autoShareOnce(eventId: string, groupIds: string[]): Promise<ApplyResult> {
     const none = { done: 0, failed: 0 };
     if (groupIds.length === 0) return none;
-    const shareStore = useCalendarShareStore.getState();
-    if (!(await shareStore.load())) return none;
-    const merged = mergeRulesForEvent(groupIds, useCalendarShareStore.getState().rules);
+    // Another device may have changed or removed the rule: never act on a copy older than a minute.
+    const rules = await useCalendarShareStore.getState().freshRules(RULE_MAX_AGE_MS);
+    if (!rules) return none;
+    const merged = mergeRulesForEvent(groupIds, rules);
     const event = storeEvent(eventId);
     if (!merged || !event) return none;
     const planEvent = toPlanEvent(event, useDataStore.getState().myId);
@@ -163,9 +166,8 @@ export async function groupRecipientsWithShare(eventId: string): Promise<string[
     const id = baseIdOf(eventId);
     const event = storeEvent(id);
     if (!event) return [];
-    const store = useCalendarShareStore.getState();
-    if (!(await store.load())) return null;
-    const rules = useCalendarShareStore.getState().rules;
+    const rules = await useCalendarShareStore.getState().freshRules(RULE_MAX_AGE_MS);
+    if (!rules) return null;
     const recipients = new Set(getEventGroupIds(event).flatMap((g) => rules[g]?.recipients.map((r) => r.userId) ?? []));
     if (recipients.size === 0) return [];
     const listed = await fetchShareUserIds(id);

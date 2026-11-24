@@ -30,6 +30,8 @@ export interface EncryptedSingletonOptions<T> {
     empty: () => T;
     /** Parses the decrypted text. May throw (the load then fails and nothing gets overwritten). */
     parse: (text: string) => T;
+    /** Chooses among several matching files (default: the first the server lists). */
+    pick?: (files: Array<{ id: string }>) => { id: string } | undefined;
 }
 
 const asObject = (v: unknown, fallback: object): object =>
@@ -59,7 +61,10 @@ export function createEncryptedSingletonStorage<T>(
         const res = await apiFetch(`/api/v1/files?type=${encodeURIComponent(type)}&recursive=true`);
         if (!res.ok) throw new Error(`[${label}] could not list files`);
         const files: SingletonFileRecord[] = await res.json().catch(() => []);
-        return files.find((f) => f.type === type && (f.owner_id === undefined || f.owner_id === keys.userId)) ?? null;
+        const mine = files.filter((f) => f.type === type && (f.owner_id === undefined || f.owner_id === keys.userId));
+        if (!opts.pick) return mine[0] ?? null;
+        const chosen = opts.pick(mine);
+        return mine.find((f) => f.id === chosen?.id) ?? null;
     }
 
     async function create(ciphertext: string, metadata: unknown, accessKeys: unknown): Promise<string | null> {

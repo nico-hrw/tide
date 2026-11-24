@@ -89,4 +89,30 @@ describe('useCalendarShareStore', () => {
         expect(useCalendarShareStore.getState().rules).toEqual({});
         expect(useCalendarShareStore.getState().userId).toBe('bob');
     });
+
+    it('saving always re-reads the stored rules first (another device may have written)', async () => {
+        const mem = memoryStorage({});
+        setCalendarShareStorageFactory(() => mem.storage);
+        await useCalendarShareStore.getState().load();
+        const other = { ...anna, groupId: 'g2' };
+        await mem.storage.save({ g2: other }); // written elsewhere after our load
+        await useCalendarShareStore.getState().saveRule(anna);
+        expect(mem.read()).toEqual({ g1: anna, g2: other });
+    });
+
+    it('freshRules reloads a cached copy older than the max age', async () => {
+        const mem = memoryStorage({ g1: anna });
+        setCalendarShareStorageFactory(() => mem.storage);
+        await useCalendarShareStore.getState().load();
+        await mem.storage.save({});
+        expect(await useCalendarShareStore.getState().freshRules(60_000)).toEqual({ g1: anna });
+        expect(await useCalendarShareStore.getState().freshRules(0)).toEqual({});
+    });
+
+    it('removeRule drops a deleted group from the stored file', async () => {
+        const mem = memoryStorage({ g1: anna, g2: { ...anna, groupId: 'g2' } });
+        setCalendarShareStorageFactory(() => mem.storage);
+        await useCalendarShareStore.getState().removeRule('g1');
+        expect(Object.keys(mem.read())).toEqual(['g2']);
+    });
 });
