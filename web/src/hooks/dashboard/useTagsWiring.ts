@@ -48,7 +48,7 @@ interface TagsWiringOptions {
     tasks: TaskItem[];
     loadedDirectories: Set<string>;
     handleCreateEventGroup: (title: string) => Promise<string | undefined>;
-    handleEventSave: (id: string, u: { groupIds: string[]; parent_id: string | null; tags: string[] }) => Promise<void> | void;
+    handleEventSave: (id: string, u: { groupIds: string[]; parent_id: string | null; tags: string[] }, options?: { skipAutoShare?: boolean }) => Promise<void> | void;
     updateTask: (id: string, u: { tags: string[] }) => Promise<void>;
 }
 
@@ -65,7 +65,8 @@ export function useTagsWiring(o: TagsWiringOptions): { createTagForContext: (tit
         getEvents: () => useDataStore.getState().events as unknown as CalendarEvent[],
         getTasks: () => useDataStore.getState().tasks,
         createTag: (title) => o.handleCreateEventGroup(title),
-        saveEvent: (id, u) => o.handleEventSave(id, u),
+        // A migration resolves old name tags; it is not the user adding the event to a shared calendar.
+        saveEvent: (id, u) => o.handleEventSave(id, u, { skipAutoShare: true }),
         saveTask: (id, u) => o.updateTask(id, u),
     });
     return { createTagForContext };

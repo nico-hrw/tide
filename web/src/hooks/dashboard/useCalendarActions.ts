@@ -28,6 +28,8 @@ export interface CalendarEventExtraMeta {
     isAllDay?: boolean;
     isGroup?: boolean;
     is_important?: boolean;
+    /** Event lock: excluded from calendar share rules (never auto-shared). */
+    private?: boolean;
     linkedTaskId?: string;
     recurrence?: "none" | "daily" | "weekly" | "monthly" | "yearly";
     recurrence_rule?: string;
@@ -65,7 +67,8 @@ export interface UseCalendarActionsReturn {
     handleEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     handleEventRename: (id: string, newTitle: string) => Promise<void>;
     /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
-    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }) => Promise<void>;
+    /** `skipAutoShare`: adding a group does not trigger the calendar auto-share (tag migration). */
+    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope; skipAutoShare?: boolean }) => Promise<void>;
     handleDeleteEvent: (id: string) => Promise<void>;
 }
 
@@ -219,7 +222,7 @@ export function useCalendarActions({
                         setActiveEventId?.(newFile.id);
                         // Calendar share rule: only groups with "Neue Termine automatisch teilen", never private events.
                         const createdGroupIds = getEventGroupIds(createdEvent);
-                        if (createdGroupIds.length > 0) void autoShareEventIntoGroups(newFile.id, createdGroupIds).catch(() => undefined);
+                        if (createdGroupIds.length > 0 && extraMeta.private !== true) void autoShareEventIntoGroups(newFile.id, createdGroupIds).catch(() => undefined);
                         return newFile.id;
                     }
                 }
@@ -291,7 +294,7 @@ export function useCalendarActions({
     );
 
     const handleEventSave = useCallback(
-        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }): Promise<void> => {
+        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope; skipAutoShare?: boolean }): Promise<void> => {
             const strict = options?.strict === true;
             if (!privateKey || !publicKey) {
                 if (strict) throw new Error("Event save failed: keys unavailable");
@@ -353,6 +356,8 @@ export function useCalendarActions({
                             const createdId = await handleEventCreate(newStart, newEnd, !!(updates.allDay ?? event.allDay), {
                                 title: event.title, description: event.description, color: event.color, effect: event.effect,
                                 groupIds: event.groupIds, parent_id: event.parent_id ?? null, is_important: event.is_important, tags: event.tags,
+                                // The split-off copy keeps the lock, or it would be auto-shared at once.
+                                ...(event.private === true ? { private: true } : {}),
                                 ...rest,
                             });
                             if (!createdId) throw new Error("Could not create the moved occurrence");
@@ -469,7 +474,7 @@ export function useCalendarActions({
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
 
                 // The event entered a group: that group's auto-share rule applies (checks ownership and "privat").
-                if (effectiveUpdates.groupIds !== undefined || effectiveUpdates.parent_id !== undefined) {
+                if (options?.skipAutoShare !== true && (effectiveUpdates.groupIds !== undefined || effectiveUpdates.parent_id !== undefined)) {
                     const nextGroupIds = effectiveUpdates.groupIds ?? (effectiveUpdates.parent_id ? [effectiveUpdates.parent_id] : []);
                     const added = nextGroupIds.filter((g) => !groupIdsBefore.includes(g));
                     if (added.length > 0) void autoShareEventIntoGroups(baseId, added).catch(() => undefined);
