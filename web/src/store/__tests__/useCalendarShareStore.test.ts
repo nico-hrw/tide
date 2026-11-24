@@ -115,4 +115,13 @@ describe('useCalendarShareStore', () => {
         await useCalendarShareStore.getState().removeRule('g1');
         expect(Object.keys(mem.read())).toEqual(['g2']);
     });
+
+    it('a removal saved before the sync survives a close/crash and later saves without pendingRevoke', async () => {
+        const mem = memoryStorage({ g1: { ...anna, recipients: [...anna.recipients, { userId: 'bob', permission: 'view' as const }] } });
+        setCalendarShareStorageFactory(() => mem.storage);
+        await useCalendarShareStore.getState().saveRule({ ...anna, pendingRevoke: ['bob'] });
+        // dialog closed here, no sync ran; a later save (e.g. toggling auto-share) does not mention pendingRevoke
+        await useCalendarShareStore.getState().saveRule({ ...anna, autoShareNew: false });
+        expect(mem.read().g1?.pendingRevoke).toEqual(['bob']);
+    });
 });

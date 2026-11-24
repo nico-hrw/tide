@@ -165,12 +165,17 @@ export function parseShareRules(raw: unknown): CalendarShareRules {
     return out;
 }
 
-/** Stores a copy of the rule; a rule without recipients and without pending removals removes the group's entry. */
+/**
+ * Stores a copy of the rule. `pendingRevoke` left out = keep the stored list; `[]` clears it. A person who is a
+ * recipient again is dropped from the pending list (re-adding cancels the unfinished removal: they are meant to
+ * have access). A rule without recipients and without pending removals removes the group's entry.
+ */
 export function upsertShareRule(rules: CalendarShareRules, rule: CalendarShareRule): CalendarShareRules {
-    const pending = rule.pendingRevoke?.length ? [...rule.pendingRevoke] : undefined;
-    if (rule.recipients.length === 0 && !pending) return removeShareRule(rules, rule.groupId);
+    const asked = rule.pendingRevoke ?? rules[rule.groupId]?.pendingRevoke ?? [];
+    const pending = [...new Set(asked)].filter((u) => !rule.recipients.some((r) => r.userId === u));
+    if (rule.recipients.length === 0 && pending.length === 0) return removeShareRule(rules, rule.groupId);
     const copy: CalendarShareRule = { groupId: rule.groupId, recipients: rule.recipients.map((r) => ({ ...r })), autoShareNew: rule.autoShareNew };
-    if (pending) copy.pendingRevoke = pending;
+    if (pending.length > 0) copy.pendingRevoke = pending;
     return { ...rules, [rule.groupId]: copy };
 }
 

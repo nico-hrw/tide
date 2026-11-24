@@ -234,4 +234,16 @@ describe('rule persistence helpers', () => {
         expect(parsed).toEqual({ g1: { groupId: 'g1', recipients: [], autoShareNew: true, pendingRevoke: ['bob'] } });
         expect(upsertShareRule({}, { groupId: 'g1', recipients: [], autoShareNew: false, pendingRevoke: ['bob'] })).toHaveProperty('g1');
     });
+
+    it('upsert keeps a stored pendingRevoke unless the caller sets it; [] clears it', () => {
+        const base = upsertShareRule({}, rule({ pendingRevoke: ['bob'] }));
+        expect(upsertShareRule(base, rule()).g1.pendingRevoke).toEqual(['bob']);
+        expect(upsertShareRule(base, rule({ pendingRevoke: [] })).g1.pendingRevoke).toBeUndefined();
+    });
+
+    it('re-adding a pending person cancels their pending removal', () => {
+        const base = upsertShareRule({}, rule({ pendingRevoke: ['bob', 'carl'] }));
+        const next = upsertShareRule(base, rule({ recipients: [{ userId: 'anna', permission: 'view' }, { userId: 'bob', permission: 'view' }] }));
+        expect(next.g1.pendingRevoke).toEqual(['carl']);
+    });
 });

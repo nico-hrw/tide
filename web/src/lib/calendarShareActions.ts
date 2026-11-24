@@ -187,21 +187,39 @@ export async function syncGroupShares(args: {
     for (const [userId, count] of sharedCount) await sendCalendarSummary(userId, args.groupTitle ?? '', count);
 
     const pendingRevoke = [...stillPending];
+    // Merge into the stored list (re-read inside updateRule): drop only people fully revoked in THIS run,
+    // keep failures and any entry this run did not handle (e.g. added by another device meanwhile).
+    const finished = new Set(removed.filter((u) => !stillPending.has(u)));
     let persistFailed = false;
-    const hadPending = (rule.pendingRevoke ?? []).length > 0;
-    if (hadPending || pendingRevoke.length > 0) {
+    if (removed.length > 0) {
         try {
             await useCalendarShareStore.getState().updateRule(rule.groupId, (current) => {
                 const base = current ?? { groupId: rule.groupId, recipients: [], autoShareNew: false };
-                // Someone re-added in the meantime is no longer pending.
-                const pending = pendingRevoke.filter((u) => !base.recipients.some((r) => r.userId === u));
-                return { ...base, pendingRevoke: pending };
+                const merged = [...new Set([...(base.pendingRevoke ?? []), ...pendingRevoke])].filter((u) => !finished.has(u));
+                return { ...base, pendingRevoke: merged }; // explicit list ([] clears); re-added recipients are dropped by upsert
             });
         } catch {
             persistFailed = true;
         }
     }
     return { done: r1.done + r2.done + r3.done, failed: r1.failed + r2.failed + r3.failed, total, events, pendingRevoke, persistFailed };
+}
+
+const runningSyncs = new Map<string, Promise<GroupSyncResult>>();
+
+/** The sync running for this calendar, if any (also when the dialog was closed and reopened). */
+export function groupSyncInFlight(groupId: string): Promise<GroupSyncResult> | undefined {
+    return runningSyncs.get(groupId);
+}
+
+/** Runs syncGroupShares unless one already runs for the same calendar (then rejects with 'sync-running'). */
+export function startGroupSync(args: Parameters<typeof syncGroupShares>[0]): Promise<GroupSyncResult> {
+    const groupId = args.rule.groupId;
+    if (runningSyncs.has(groupId)) return Promise.reject(new Error('sync-running'));
+    const run = syncGroupShares(args);
+    runningSyncs.set(groupId, run);
+    void run.finally(() => { if (runningSyncs.get(groupId) === run) runningSyncs.delete(groupId); }).catch(() => undefined);
+    return run;
 }
 
 const RULE_MAX_AGE_MS = 60_000;
@@ -237,7 +255,7 @@ async function autoShareOnce(eventId: string, groupIds: string[]): Promise<Apply
     const rule = { ...merged, recipients: merged.recipients.filter((r) => !listed.includes(r.userId)) };
     if (rule.recipients.length === 0) return none;
     const res = await shareNewEvent({ ...planEvent, groupIds: [rule.groupId] }, rule, shareEventWithContact);
-    if (res.done > 0) notify(tr('calShare.autoShared', { count: res.done }), { tone: 'success' });
+    if (res.done > 0) notify(res.done === 1 ? tr('calShare.autoSharedOne') : tr('calShare.autoShared', { count: res.done }), { tone: 'success' });
     if (res.failed > 0) notifyError(tr('calShare.autoFailed', { count: res.failed }));
     return res;
 }

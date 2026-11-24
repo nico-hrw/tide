@@ -10,7 +10,7 @@ import { performMessengerShare } from '@/lib/shareLogic';
 import { useDataStore } from '@/store/useDataStore';
 import { setCalendarShareStorageFactory, useCalendarShareStore } from '@/store/useCalendarShareStore';
 import type { CalendarShareRules } from '../calendarShare';
-import { autoShareEventIntoGroups, groupRecipientsWithShare, shareEventWithContact, syncGroupShares } from '../calendarShareActions';
+import { autoShareEventIntoGroups, groupRecipientsWithShare, groupSyncInFlight, shareEventWithContact, startGroupSync, syncGroupShares } from '../calendarShareActions';
 
 const apiMock = vi.mocked(apiFetch);
 const shareMock = vi.mocked(performMessengerShare);
@@ -192,5 +192,36 @@ describe('chat messages for calendar shares', () => {
         await autoShareEventIntoGroups('e1', ['g1']);
         expect(shareMock.mock.calls[0][11]).toEqual({ notify: false });
         expect(apiMock.mock.calls.some(([url]) => url === '/api/v1/messages')).toBe(false);
+    });
+});
+
+describe('pending removals are merged, never lost', () => {
+    const noOne = { groupId: 'g1', recipients: [], autoShareNew: true };
+
+    it('a partially failed run keeps only the unfinished people', async () => {
+        lists = { e1: ['bob', 'dan'] };
+        deleteStatus['e1:dan'] = 500;
+        const rule = { ...noOne, pendingRevoke: ['bob', 'dan'] };
+        stored = { g1: rule };
+        await syncGroupShares({ rule, removed: ['bob', 'dan'], permissionChanged: [] });
+        expect(stored.g1?.pendingRevoke).toEqual(['dan']);
+    });
+
+    it('pending entries this run did not handle survive the update', async () => {
+        lists = { e1: ['bob'] };
+        stored = { g1: { ...rules.g1, pendingRevoke: ['bob', 'carl'] } }; // carl added elsewhere meanwhile
+        await syncGroupShares({ rule: { ...rules.g1, pendingRevoke: ['bob'] }, removed: ['bob'], permissionChanged: [] });
+        expect(stored.g1?.pendingRevoke).toEqual(['carl']);
+    });
+});
+
+describe('one sync per calendar at a time', () => {
+    it('rejects a second sync for the same calendar while one runs', async () => {
+        const first = startGroupSync({ rule: rules.g1, removed: [], permissionChanged: [] });
+        expect(groupSyncInFlight('g1')).toBeDefined();
+        await expect(startGroupSync({ rule: rules.g1, removed: [], permissionChanged: [] })).rejects.toThrow('sync-running');
+        await first;
+        await Promise.resolve();
+        expect(groupSyncInFlight('g1')).toBeUndefined();
     });
 });
