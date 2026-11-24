@@ -228,6 +228,7 @@ export const settingsMiscDe = {
     'mention.contactLabel': "Kontakt",
     'mention.canView': "Notiz kann mit diesem Kontakt geteilt werden",
     'mention.canViewEvent': "Termin kann mit diesem Kontakt geteilt werden",
+    'mention.unknownContact': "Unbekannt",
     'mention.openProfile': "Profil öffnen",
     'calShare.title': "Kalender „{name}“ teilen",
     'calShare.intro': "Alle Termine in diesem Kalender und alle, die später dazukommen, werden geteilt.",

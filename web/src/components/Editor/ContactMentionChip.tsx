@@ -18,7 +18,7 @@ const CARD_WIDTH = 224; // w-56
 export function ContactMentionChip({ node }: Pick<NodeViewProps, 'node'>) {
     const t = useT();
     const id = String(node.attrs.id || '');
-    const label = String(node.attrs.label || 'Unknown');
+    const label = String(node.attrs.label || t('mention.unknownContact'));
     const contact = useDataStore((s) => s.contacts?.find((c) => c.id === id));
     const username = contact?.username || label;
     const shareable = node.attrs.shareable === true || node.attrs.shareable === 'true';

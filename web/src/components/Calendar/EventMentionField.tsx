@@ -148,7 +148,7 @@ export function EventMentionField({ eventId, value, onChange, onBlur, isPrivate,
         const next = removeEventMention(valueRef.current, m.id);
         forget(m.id);
         onChange(next);
-        settle(next);
+        if (!session) settle(next); // a session asks only for kept edits (unmount)
     };
 
     const undo = async (h: { contactId: string }) => {
@@ -170,7 +170,7 @@ export function EventMentionField({ eventId, value, onChange, onBlur, isPrivate,
                 ref={taRef}
                 value={editText}
                 onChange={handleChange}
-                onFocus={() => { committedRef.current = valueRef.current; }}
+                onFocus={() => { if (!session) committedRef.current = valueRef.current; }}
                 onBlur={() => { setMenu(null); if (!session) settle(valueRef.current); onBlur?.(); }}
                 onKeyDown={handleKeyDown}
                 placeholder={placeholder}

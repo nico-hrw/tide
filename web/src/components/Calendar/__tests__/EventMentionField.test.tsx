@@ -235,4 +235,29 @@ describe('EventMentionField', () => {
         type('Hi @anna');
         expect(latest).toBe('Hi @anna');
     });
+    it('with a session: the chip x asks nothing until the edit is kept', () => {
+        const session = createMentionSession();
+        act(() => root.render(<Harness initial={`Hi ${TOKEN} da`} session={session} />));
+        const x = host.querySelector('[data-event-mentions] button[aria-label]:not([data-contact-chip])') as HTMLButtonElement;
+        act(() => x.click());
+        expect(latest).toBe('Hi da');
+        expect(removedMock).not.toHaveBeenCalled();
+        act(() => root.unmount());
+        expect(removedMock).toHaveBeenCalledTimes(1);
+        expect(removedMock).toHaveBeenCalledWith('e1', [{ id: 'u1', label: 'anna' }]);
+        root = createRoot(host);
+    });
+
+    it('with a session: delete the token, blur, refocus, keep: asks exactly once', () => {
+        const session = createMentionSession();
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} session={session} />));
+        act(() => { ta().focus(); });
+        type('Hi ');
+        act(() => { ta().blur(); });
+        act(() => { ta().focus(); });
+        act(() => root.unmount());
+        expect(removedMock).toHaveBeenCalledTimes(1);
+        expect(removedMock).toHaveBeenCalledWith('e1', [{ id: 'u1', label: 'anna' }]);
+        root = createRoot(host);
+    });
 });

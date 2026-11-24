@@ -110,8 +110,11 @@ export function recordSessionPick(s: MentionSession, eventId: string, contactId:
 
 /** The edit was thrown away: revoke the session's shares whose token is not in the saved description. */
 export async function discardMentionSession(s: MentionSession, eventId: string, savedDescription: string): Promise<void> {
+    if (s.discarded) return; // a second cancel must not revoke again
     s.discarded = true;
     s.saved = savedDescription;
-    for (const id of [...s.picks]) await revokeIfOurs(s, eventId, id);
-    s.picks.clear();
+    for (const id of [...s.picks]) {
+        s.picks.delete(id);
+        await revokeIfOurs(s, eventId, id);
+    }
 }

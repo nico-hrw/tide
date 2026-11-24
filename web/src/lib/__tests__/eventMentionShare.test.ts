@@ -160,4 +160,17 @@ describe('mention session (discarding an edit)', () => {
         await Promise.resolve();
         expect(revokeMock).toHaveBeenCalledWith('e1', 'u1');
     });
+    it('a double cancel revokes each pick once', async () => {
+        setup({});
+        useMentionShareStore.getState().record('e1', 'u1');
+        let release: () => void = () => undefined;
+        revokeMock.mockImplementation(() => new Promise<void>((r) => { release = r; }));
+        const s = createMentionSession();
+        recordSessionPick(s, 'e1', 'u1');
+        const a = discardMentionSession(s, 'e1', '');
+        const b = discardMentionSession(s, 'e1', '');
+        release();
+        await Promise.all([a, b]);
+        expect(revokeMock).toHaveBeenCalledTimes(1);
+    });
 });
