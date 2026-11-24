@@ -228,4 +228,10 @@ describe('rule persistence helpers', () => {
         expect(removeShareRule(base, 'g1')).toEqual({ g2: base.g2 });
         expect(base.g1).toBeDefined();
     });
+
+    it('keeps a rule that only has pending removals', () => {
+        const parsed = parseShareRules({ g1: { groupId: 'g1', recipients: [], autoShareNew: true, pendingRevoke: ['bob', 7, 'bob'] } });
+        expect(parsed).toEqual({ g1: { groupId: 'g1', recipients: [], autoShareNew: true, pendingRevoke: ['bob'] } });
+        expect(upsertShareRule({}, { groupId: 'g1', recipients: [], autoShareNew: false, pendingRevoke: ['bob'] })).toHaveProperty('g1');
+    });
 });

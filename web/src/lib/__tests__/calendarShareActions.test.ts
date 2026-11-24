@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn() }));
 vi.mock('@/lib/shareLogic', () => ({ performMessengerShare: vi.fn() }));
+vi.mock('@/lib/chatCrypto', () => ({ encryptChatMessage: vi.fn(async () => 'cipher') }));
 vi.mock('@/lib/feedback', () => ({ askConfirm: vi.fn(), notify: vi.fn(), notifyError: vi.fn() }));
 
 import { apiFetch } from '@/lib/api';
@@ -17,6 +18,8 @@ const shareMock = vi.mocked(performMessengerShare);
 const rules: CalendarShareRules = { g1: { groupId: 'g1', recipients: [{ userId: 'anna', permission: 'view' }], autoShareNew: true } };
 let lists: Record<string, string[] | 'error'> = {};
 let deletes: string[] = [];
+let deleteStatus: Record<string, number> = {};
+let stored: CalendarShareRules = {};
 
 function json(body: unknown, status = 200): Response {
     return new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } });
@@ -25,11 +28,16 @@ function json(body: unknown, status = 200): Response {
 beforeEach(() => {
     lists = {};
     deletes = [];
+    deleteStatus = {};
+    stored = rules;
     shareMock.mockReset();
     apiMock.mockReset();
     apiMock.mockImplementation(async (url: string, init?: RequestInit) => {
         const m = url.match(/\/files\/([^/]+)\/shares(?:\/([^/]+))?$/);
-        if (m && init?.method === 'DELETE') { deletes.push(`${m[1]}:${m[2]}`); return json({}); }
+        if (m && init?.method === 'DELETE') {
+            deletes.push(`${m[1]}:${m[2]}`);
+            return json({}, deleteStatus[`${m[1]}:${m[2]}`] ?? 200);
+        }
         if (m) {
             const l = lists[m[1]];
             return l === 'error' ? json({}, 500) : json((l ?? []).map((user_id) => ({ user_id })));
@@ -47,7 +55,7 @@ beforeEach(() => {
             { id: 'e3', title: 'C', groupIds: ['g1'], owner_id: 'other' },
         ],
     } as never);
-    setCalendarShareStorageFactory(() => ({ load: async () => rules, save: async () => {} }));
+    setCalendarShareStorageFactory(() => ({ load: async () => stored, save: async (r) => { stored = r; } }));
     useCalendarShareStore.setState({ userId: null, rules: {}, status: 'idle' });
 });
 
@@ -122,5 +130,67 @@ describe('groupRecipientsWithShare', () => {
         await expect(groupRecipientsWithShare('e1_1700000000000')).resolves.toEqual(['anna']);
         lists.e1 = 'error';
         await expect(groupRecipientsWithShare('e1')).resolves.toBeNull();
+    });
+});
+
+describe('removing people fails closed', () => {
+    const noOne = { groupId: 'g1', recipients: [], autoShareNew: true };
+
+    it('still sends the DELETE for an own event whose share list cannot be read', async () => {
+        lists = { e1: 'error', e2: [] };
+        const res = await syncGroupShares({ rule: noOne, removed: ['bob'], permissionChanged: [] });
+        expect(deletes).toEqual(['e1:bob']);
+        expect(res).toMatchObject({ done: 1, failed: 0, total: 1 });
+    });
+
+    it('a 404 counts as revoked (nothing left to remove)', async () => {
+        lists = { e1: 'error' };
+        deleteStatus['e1:bob'] = 404;
+        const res = await syncGroupShares({ rule: noOne, removed: ['bob'], permissionChanged: [] });
+        expect(res.failed).toBe(0);
+        expect(res.pendingRevoke).toEqual([]);
+        expect(stored.g1?.pendingRevoke).toBeUndefined();
+    });
+
+    it('a failed revoke is reported and kept as pending in the rules file', async () => {
+        lists = { e1: ['bob'], e2: ['bob'] };
+        deleteStatus['e2:bob'] = 500;
+        const res = await syncGroupShares({ rule: noOne, removed: ['bob'], permissionChanged: [] });
+        expect(res).toMatchObject({ done: 1, failed: 1, total: 2 });
+        expect(stored.g1?.pendingRevoke).toEqual(['bob']);
+    });
+
+    it('pending removals from the rules file are retried and cleared once they succeed', async () => {
+        lists = { e2: ['bob'] };
+        const rule = { ...rules.g1, pendingRevoke: ['bob'] };
+        stored = { g1: rule };
+        const res = await syncGroupShares({ rule, removed: [], permissionChanged: [] });
+        expect(deletes).toEqual(['e2:bob']);
+        expect(res.failed).toBe(0);
+        expect(stored.g1?.pendingRevoke ?? []).toEqual([]);
+        expect(stored.g1?.recipients).toEqual(rules.g1.recipients);
+    });
+});
+
+describe('chat messages for calendar shares', () => {
+    it('shares without per-event chat cards and sends one summary per person', async () => {
+        lists = { e1: [] };
+        useDataStore.setState({ events: [
+            { id: 'e1', title: 'A', groupIds: ['g1'], owner_id: 'me' },
+            { id: 'e4', title: 'D', groupIds: ['g1'], owner_id: 'me' },
+        ] } as never);
+        lists.e4 = [];
+        await syncGroupShares({ rule: rules.g1, removed: [], permissionChanged: [], groupTitle: 'Arbeit' });
+        expect(shareMock).toHaveBeenCalledTimes(2);
+        for (const call of shareMock.mock.calls) expect(call[11]).toEqual({ notify: false });
+        const messages = apiMock.mock.calls.filter(([url]) => url === '/api/v1/messages');
+        expect(messages).toHaveLength(1);
+        expect(JSON.parse(String(messages[0][1]?.body)).recipient_id).toBe('anna');
+    });
+
+    it('auto-share of one new event sends no chat card', async () => {
+        await autoShareEventIntoGroups('e1', ['g1']);
+        expect(shareMock.mock.calls[0][11]).toEqual({ notify: false });
+        expect(apiMock.mock.calls.some(([url]) => url === '/api/v1/messages')).toBe(false);
     });
 });

@@ -252,6 +252,8 @@ export const settingsMiscDe = {
     'calShare.removeHint': "Beim Speichern wird der Zugriff auf alle Termine dieses Kalenders entzogen.",
     'calShare.autoShared': "Termin mit {count} Personen aus dem Kalender geteilt",
     'calShare.autoFailed': "Termin konnte mit {count} Personen nicht geteilt werden",
+    'calShare.summaryOne': "Kalender „{name}“ mit dir geteilt · 1 Termin",
+    'calShare.summaryMany': "Kalender „{name}“ mit dir geteilt · {count} Termine",
     'calShare.private': "Privat halten",
     'calShare.privateHint': "Wird nicht mit dem Kalender geteilt.",
     'calShare.privateAsk': "Zugriff von {count} Personen auf diesen Termin entziehen?",

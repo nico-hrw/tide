@@ -15,7 +15,9 @@ export async function performMessengerShare(
     recipientPubKeySpki: string,
     permission: 'view' | 'edit' | 'share' = 'view',
     dependencyFileIds: string[] = [],
-    canReshare: boolean = false
+    canReshare: boolean = false,
+    /** `notify: false` skips the per-item chat share card (bulk calendar sharing sends one summary instead). */
+    opts?: { notify?: boolean }
 ) {
     if (!shareModalFile || !privateKey || !publicKey) {
         throw new Error("Invalid state");
@@ -152,6 +154,8 @@ export async function performMessengerShare(
                 }
             }
         }
+
+        if (opts?.notify === false) return;
 
         // Build a readable share-card payload for the chat. Events get start/end metadata.
         const eventMeta = isEvent ? (() => {

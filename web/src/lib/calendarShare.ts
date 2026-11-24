@@ -12,6 +12,8 @@ export type CalendarShareRule = {
     groupId: string;
     recipients: CalendarShareRecipient[];
     autoShareNew: boolean;
+    /** People removed in the dialog whose access is not yet confirmed revoked on every event (retried on next sync). */
+    pendingRevoke?: string[];
 };
 
 export type CalendarShareRules = Record<string, CalendarShareRule>;
@@ -156,16 +158,20 @@ export function parseShareRules(raw: unknown): CalendarShareRules {
             seen.add(userId);
             recipients.push({ userId, permission: permission as CalendarSharePermission });
         }
-        if (recipients.length === 0) continue;
-        out[key] = { groupId: key, recipients, autoShareNew: v.autoShareNew === true };
+        const pending = [...new Set((Array.isArray(v.pendingRevoke) ? v.pendingRevoke : []).filter((u): u is string => typeof u === 'string' && !!u))];
+        if (recipients.length === 0 && pending.length === 0) continue;
+        out[key] = { groupId: key, recipients, autoShareNew: v.autoShareNew === true, ...(pending.length > 0 ? { pendingRevoke: pending } : {}) };
     }
     return out;
 }
 
-/** Stores a copy of the rule; a rule without recipients removes the group's entry. */
+/** Stores a copy of the rule; a rule without recipients and without pending removals removes the group's entry. */
 export function upsertShareRule(rules: CalendarShareRules, rule: CalendarShareRule): CalendarShareRules {
-    if (rule.recipients.length === 0) return removeShareRule(rules, rule.groupId);
-    return { ...rules, [rule.groupId]: { ...rule, recipients: rule.recipients.map((r) => ({ ...r })) } };
+    const pending = rule.pendingRevoke?.length ? [...rule.pendingRevoke] : undefined;
+    if (rule.recipients.length === 0 && !pending) return removeShareRule(rules, rule.groupId);
+    const copy: CalendarShareRule = { groupId: rule.groupId, recipients: rule.recipients.map((r) => ({ ...r })), autoShareNew: rule.autoShareNew };
+    if (pending) copy.pendingRevoke = pending;
+    return { ...rules, [rule.groupId]: copy };
 }
 
 export function removeShareRule(rules: CalendarShareRules, groupId: string): CalendarShareRules {

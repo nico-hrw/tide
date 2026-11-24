@@ -254,6 +254,8 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'calShare.removeHint': "Saving removes their access to every event in this calendar.",
     'calShare.autoShared': "Event shared with {count} people from the calendar",
     'calShare.autoFailed': "Couldn't share the event with {count} people",
+    'calShare.summaryOne': "Shared calendar “{name}” with you · 1 event",
+    'calShare.summaryMany': "Shared calendar “{name}” with you · {count} events",
     'calShare.private': "Keep private",
     'calShare.privateHint': "Not shared with the calendar.",
     'calShare.privateAsk': "Remove access to this event for {count} people?",

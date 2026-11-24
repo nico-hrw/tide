@@ -75,6 +75,8 @@ interface CalendarShareState {
     freshRules: (maxAgeMs: number) => Promise<CalendarShareRules | null>;
     /** Re-reads the file (never overwrites an unread file), then stores the rule. Throws on failure. */
     saveRule: (rule: CalendarShareRule) => Promise<void>;
+    /** Re-reads the file, then changes one group's rule (undefined = remove). Throws on failure. */
+    updateRule: (groupId: string, change: (rule: CalendarShareRule | undefined) => CalendarShareRule | undefined) => Promise<void>;
     /** Drops a group's rule (the group was deleted). Throws on failure. */
     removeRule: (groupId: string) => Promise<void>;
     ruleFor: (groupId: string) => CalendarShareRule | undefined;
@@ -152,6 +154,10 @@ export const useCalendarShareStore = create<CalendarShareState>((set, get) => {
             return ok ? get().rules : null;
         },
         saveRule: (rule) => write((rules) => upsertShareRule(rules, rule)),
+        updateRule: (groupId, change) => write((rules) => {
+            const next = change(rules[groupId]);
+            return next ? upsertShareRule(rules, { ...next, groupId }) : removeShareRule(rules, groupId);
+        }),
         removeRule: (groupId) => write((rules) => removeShareRule(rules, groupId)),
         ruleFor: (groupId) => {
             syncUser();

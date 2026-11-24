@@ -1,5 +1,7 @@
 import { performMessengerShare } from '@/lib/shareLogic';
-import { fetchShareUserIds, revokeMentionShare, updateMentionSharePermission } from '@/lib/mentionShare';
+import { apiFetch } from '@/lib/api';
+import { encryptChatMessage } from '@/lib/chatCrypto';
+import { fetchShareUserIds, revokeMentionShare } from '@/lib/mentionShare';
 import { getEventGroupIds } from '@/lib/calendarUtils';
 import { notify, notifyError } from '@/lib/feedback';
 import { formatMessage, getTranslation, type SettingsKey } from '@/lib/i18n';
@@ -46,6 +48,7 @@ export async function shareEventWithContact(eventId: string, userId: string, per
         await performMessengerShare(
             { id: eventId, title: event.title || '', type: 'event' }, s.myId, s.privateKey, s.publicKey,
             s.events || [], userId, contact.email || '', contact.public_key, permission, [], false,
+            { notify: false }, // no chat card per event: bulk syncs send one summary, auto-share only toasts
         );
     } catch (err) {
         // The share may have landed before the chat notice failed: then it is shared.
@@ -76,29 +79,81 @@ export async function loadGroupEvents(groupId: string, onProgress?: (done: numbe
     return events;
 }
 
-export type GroupSyncResult = ApplyResult & { total: number; events: PlanEvent[] };
+export type GroupSyncResult = ApplyResult & {
+    total: number;
+    events: PlanEvent[];
+    /** People whose access could not be removed everywhere (kept in the rules file and retried). */
+    pendingRevoke: string[];
+    /** The pending list could not be written back. */
+    persistFailed: boolean;
+};
+
+const enc = encodeURIComponent;
+
+/** One encrypted chat message per person after a bulk share ("Kalender „Arbeit“ mit dir geteilt · 14 Termine"). Best effort. */
+async function sendCalendarSummary(userId: string, groupTitle: string, count: number): Promise<void> {
+    try {
+        const s = useDataStore.getState();
+        const contact = (s.contacts || []).find((c) => c.id === userId);
+        if (!s.myId || !s.publicKey || !contact?.public_key) return;
+        const text = tr(count === 1 ? 'calShare.summaryOne' : 'calShare.summaryMany', { name: groupTitle, count });
+        const content = await encryptChatMessage(text, s.myId, s.publicKey, userId, contact.public_key);
+        const res = await apiFetch('/api/v1/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ recipient_id: userId, recipient_email: contact.email || '', content }),
+        });
+        if (!res.ok) console.warn('[calendar-shares] summary message failed', res.status);
+    } catch (e) {
+        console.warn('[calendar-shares] summary message failed', e);
+    }
+}
+
+/** DELETE that treats "no such share" (404) as done: removing is idempotent. */
+async function revokeIdempotent(eventId: string, userId: string): Promise<void> {
+    const res = await apiFetch(`/api/v1/files/${enc(eventId)}/shares/${enc(userId)}`, { method: 'DELETE' });
+    if (!res.ok && res.status !== 404) throw new Error(`Revoke failed: ${res.status}`);
+}
+
+/** PATCH that treats "no such share" (404) as done. */
+async function patchIdempotent(eventId: string, userId: string, permission: CalendarSharePermission): Promise<void> {
+    const res = await apiFetch(`/api/v1/files/${enc(eventId)}/shares/${enc(userId)}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ permission }),
+    });
+    if (!res.ok && res.status !== 404) throw new Error(`Permission update failed: ${res.status}`);
+}
 
 /**
- * Brings the shares of a group in line with its rule: revokes people removed in the dialog (on every own
- * event of the group, private ones too), changes the permission of people whose right was changed, then
- * shares what is missing. Safe to run again ("Erneut versuchen"): it starts from the server's lists.
+ * Brings the shares of a group in line with its rule: revokes removed people (from the dialog and the
+ * rule's `pendingRevoke`) on every own event of the group, private ones too, and also on events whose
+ * share list could not be read (fail closed). Changes the right of people whose right was changed, then
+ * shares what is missing. People not removed everywhere stay in `pendingRevoke` in the rules file.
+ * Safe to run again ("Erneut versuchen"): it starts from the server's lists.
  */
 export async function syncGroupShares(args: {
     rule: CalendarShareRule;
     removed: string[];
     permissionChanged: string[];
+    /** Calendar name for the one summary chat message per person who got new events. */
+    groupTitle?: string;
     onProgress?: (p: { phase: 'check' | 'apply'; done: number; total: number }) => void;
 }): Promise<GroupSyncResult> {
-    const { rule, removed, permissionChanged, onProgress } = args;
+    const { rule, permissionChanged, onProgress } = args;
+    const keep = new Set(rule.recipients.map((r) => r.userId));
+    const removed = [...new Set([...args.removed, ...(rule.pendingRevoke ?? [])])].filter((u) => !keep.has(u));
     const events = await loadGroupEvents(rule.groupId, (done, total) => onProgress?.({ phase: 'check', done, total }));
     const byId = new Map(events.map((e) => [e.id, e]));
-    const own = events.filter((e) => e.owned && e.sharedWith);
+    const own = events.filter((e) => e.owned);
+    // Unknown list (undefined) = might have it: try anyway.
+    const mayHave = (e: PlanEvent, u: string) => !e.sharedWith || e.sharedWith.includes(u);
     const revokes: PlannedShare[] = own.flatMap((e) =>
-        removed.filter((u) => e.sharedWith?.includes(u)).map((u) => ({ eventId: e.id, userId: u, permission: 'view' as const })));
+        removed.filter((u) => mayHave(e, u)).map((u) => ({ eventId: e.id, userId: u, permission: 'view' as const })));
     const patches: PlannedShare[] = own.flatMap((e) =>
-        rule.recipients.filter((r) => permissionChanged.includes(r.userId) && e.sharedWith?.includes(r.userId))
+        rule.recipients.filter((r) => permissionChanged.includes(r.userId) && mayHave(e, r.userId))
             .map((r) => ({ eventId: e.id, userId: r.userId, permission: r.permission })));
-    // Only events whose list was read: an unreadable list is "unchecked", never "nobody has it".
+    // Sharing only on events whose list was read: an unreadable list is "unchecked", never "nobody has it".
     const shares = planGroupShares({ events: events.filter((e) => e.sharedWith), rule });
     const total = revokes.length + patches.length + shares.length;
 
@@ -109,18 +164,44 @@ export async function syncGroupShares(args: {
         offset += plan.length;
         return res;
     };
+    const stillPending = new Set<string>();
+    const sharedCount = new Map<string, number>();
     const r1 = await run(revokes, async (p) => {
-        await revokeMentionShare(p.eventId, p.userId);
+        try {
+            await revokeIdempotent(p.eventId, p.userId);
+        } catch (err) {
+            stillPending.add(p.userId);
+            throw err;
+        }
         const e = byId.get(p.eventId);
         if (e?.sharedWith) e.sharedWith = e.sharedWith.filter((u) => u !== p.userId);
     });
-    const r2 = await run(patches, (p) => updateMentionSharePermission(p.eventId, p.userId, p.permission));
+    const r2 = await run(patches, (p) => patchIdempotent(p.eventId, p.userId, p.permission));
     const r3 = await run(shares, async (p) => {
         await shareEventWithContact(p.eventId, p.userId, p.permission);
+        sharedCount.set(p.userId, (sharedCount.get(p.userId) ?? 0) + 1);
         const e = byId.get(p.eventId);
         if (e?.sharedWith && !e.sharedWith.includes(p.userId)) e.sharedWith = [...e.sharedWith, p.userId];
     });
-    return { done: r1.done + r2.done + r3.done, failed: r1.failed + r2.failed + r3.failed, total, events };
+
+    for (const [userId, count] of sharedCount) await sendCalendarSummary(userId, args.groupTitle ?? '', count);
+
+    const pendingRevoke = [...stillPending];
+    let persistFailed = false;
+    const hadPending = (rule.pendingRevoke ?? []).length > 0;
+    if (hadPending || pendingRevoke.length > 0) {
+        try {
+            await useCalendarShareStore.getState().updateRule(rule.groupId, (current) => {
+                const base = current ?? { groupId: rule.groupId, recipients: [], autoShareNew: false };
+                // Someone re-added in the meantime is no longer pending.
+                const pending = pendingRevoke.filter((u) => !base.recipients.some((r) => r.userId === u));
+                return { ...base, pendingRevoke: pending };
+            });
+        } catch {
+            persistFailed = true;
+        }
+    }
+    return { done: r1.done + r2.done + r3.done, failed: r1.failed + r2.failed + r3.failed, total, events, pendingRevoke, persistFailed };
 }
 
 const RULE_MAX_AGE_MS = 60_000;
