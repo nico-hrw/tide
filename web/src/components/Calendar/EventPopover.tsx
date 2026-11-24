@@ -10,6 +10,7 @@ import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
 import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
 import { EventPrivateToggle } from "./EventPrivateToggle";
+import { EventMentionField } from "./EventMentionField";
 
 interface CustomDropdownOption {
     value: string;
@@ -545,12 +546,16 @@ export default function EventPopover({
             )}
 
             {/* Description */}
-            <textarea
+            <EventMentionField
+                key={event.id}
+                eventId={event.id}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 onBlur={() => handleSave()}
+                isPrivate={!!event.private}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
+                toastZIndex={1100}
                 className="w-full bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 

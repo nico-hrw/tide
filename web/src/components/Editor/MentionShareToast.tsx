@@ -20,7 +20,15 @@ function initialsOf(name: string): string {
  * "Teilen fehlgeschlagen · Erneut versuchen" or the reason it was not shared.
  * Shown next to the chip of the editor whose file it belongs to.
  */
-export function MentionShareToast({ editor, fileId }: { editor: Editor | null; fileId?: string }) {
+export function MentionShareToast({ editor, fileId, onUndo, onRetry, zIndex }: {
+    editor: Editor | null;
+    fileId?: string;
+    /** Above the host's own layer (popovers and sheets sit above the default z-90) */
+    zIndex?: number;
+    /** Non-editor hosts (event descriptions): revoke and remove the mention themselves; resolves true when done. */
+    onUndo?: (hint: { fileId: string; contactId: string }) => Promise<boolean>;
+    onRetry?: (hint: { fileId: string; contactId: string; name: string }) => Promise<void>;
+}) {
     const t = useT();
     const hint = useMentionShareStore((s) => s.hint);
     const dismiss = useMentionShareStore((s) => s.dismissHint);
@@ -49,17 +57,18 @@ export function MentionShareToast({ editor, fileId }: { editor: Editor | null; f
 
     if (!visible || !hint) return null;
 
-    const onUndo = async () => {
+    const doUndo = async () => {
         setBusy(true);
-        const ok = await undoMentionShare(editor, hint.fileId, hint.contactId, hint.chipPos);
+        const ok = onUndo ? await onUndo(hint) : await undoMentionShare(editor, hint.fileId, hint.contactId, hint.chipPos);
         setBusy(false);
         if (ok) dismiss();
     };
 
-    const onRetry = async () => {
+    const doRetry = async () => {
         setBusy(true);
         dismiss();
-        await startContactMentionShare({ fileId: hint.fileId, contactId: hint.contactId, label: hint.name, shareable: true, chipPos: hint.chipPos });
+        if (onRetry) await onRetry(hint);
+        else await startContactMentionShare({ fileId: hint.fileId, contactId: hint.contactId, label: hint.name, shareable: true, chipPos: hint.chipPos });
         setBusy(false);
     };
 
@@ -79,11 +88,12 @@ export function MentionShareToast({ editor, fileId }: { editor: Editor | null; f
         : hint.status === 'failed'
             ? t('mention.shareFailed')
             : hint.reason === 'not-shareable' ? t('mention.blockedUnconfirmed')
-                : hint.reason === 'no-key' ? t('mention.blockedNoKey') : t('mention.blockedNotAllowed');
+                : hint.reason === 'no-key' ? t('mention.blockedNoKey')
+                    : hint.reason === 'private' ? t('mention.blockedPrivate') : t('mention.blockedNotAllowed');
 
     const placement = pos
-        ? { position: 'fixed' as const, top: pos.top, left: pos.left }
-        : { position: 'fixed' as const, bottom: 24, left: '50%', transform: 'translateX(-50%)' };
+        ? { position: 'fixed' as const, top: pos.top, left: pos.left, zIndex }
+        : { position: 'fixed' as const, bottom: 24, left: '50%', transform: 'translateX(-50%)', zIndex };
 
     return (
         <div
@@ -117,7 +127,7 @@ export function MentionShareToast({ editor, fileId }: { editor: Editor | null; f
                         <span aria-hidden className="pointer-events-none absolute right-0">▾</span>
                     </label>
                     <span aria-hidden className="opacity-60">·</span>
-                    <button type="button" disabled={busy} onClick={() => void onUndo()} className="font-semibold underline-offset-2 hover:underline disabled:opacity-60">
+                    <button type="button" disabled={busy} onClick={() => void doUndo()} className="font-semibold underline-offset-2 hover:underline disabled:opacity-60">
                         {t('mention.undo')}
                     </button>
                 </>
@@ -125,7 +135,7 @@ export function MentionShareToast({ editor, fileId }: { editor: Editor | null; f
             {hint.status === 'failed' && (
                 <>
                     <span aria-hidden className="opacity-60">·</span>
-                    <button type="button" disabled={busy} onClick={() => void onRetry()} className="font-semibold underline-offset-2 hover:underline disabled:opacity-60">
+                    <button type="button" disabled={busy} onClick={() => void doRetry()} className="font-semibold underline-offset-2 hover:underline disabled:opacity-60">
                         {t('mention.retry')}
                     </button>
                 </>

@@ -6,6 +6,7 @@ import { X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 import { paletteFor } from './eventPalette';
+import { EventMentionField } from '@/components/Calendar/EventMentionField';
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -34,6 +35,7 @@ export interface MobileEditEventSheetProps {
     is_task?: boolean;
     linkedTaskId?: string;
     is_completed?: boolean;
+    private?: boolean;
   };
   onSave: (
     id: string,
@@ -320,11 +322,15 @@ export const MobileEditEventSheet = ({
 
           <div className="mt-4">
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-t2-ink-3">Notiz</div>
-            <textarea
+            <EventMentionField
+              key={event.id}
+              eventId={isDraft ? '' : event.id}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
+              isPrivate={!!event.private}
+              toastZIndex={200}
               rows={3}
-              aria-label="Notiz"
+              ariaLabel="Notiz"
               className="w-full resize-none bg-transparent text-[14.5px] text-t2-ink-2 outline-none border-b border-t2-line-soft py-2"
             />
           </div>
