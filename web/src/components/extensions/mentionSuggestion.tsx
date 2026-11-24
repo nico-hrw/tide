@@ -4,6 +4,7 @@ import type { Range } from '@tiptap/core';
 import type { EditorState } from '@tiptap/pm/state';
 import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
+import type { ContactItem } from '@/store/slices/types';
 import { useLinkStore } from '@/store/useLinkStore';
 import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from 'react';
 import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
@@ -12,7 +13,7 @@ import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 import { parseTagQuery } from './tagQuery';
-import { buildContactItems, ensureContactsLoaded, groupItems, groupKeyOf, type MentionFilter, type MentionGroupKey } from './mentionGroups';
+import { buildContactItems, effectiveFilter, ensureContactsLoaded, resetContactsRequest, shouldOfferContacts, groupItems, groupKeyOf, type MentionFilter, type MentionGroupKey } from './mentionGroups';
 import { MentionContactRow, MentionMenuChrome, MentionMenuFooter, MentionSectionHeader } from './MentionMenuChrome';
 import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
@@ -138,6 +139,25 @@ type MentionSuggestionItem =
           tagMode?: boolean;
       };
 
+// Displayed order == keyboard order: items flattened through the type groups.
+// Contacts that arrived after items() ran (async load) are merged in while the menu is open.
+function orderMenuItems(items: MentionSuggestionItem[], query: string, contacts: ContactItem[], filter: MentionFilter, isQuicknote: boolean) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let raw: any[] = items.map((i) => (i.id === 'NEW_TASK' ? { ...i, is_task: true } : i));
+    if (isQuicknote) {
+        return { displayList: raw.filter((i) => i.type !== 'contact'), counts: {} as Partial<Record<MentionGroupKey, number>>, activeFilter: 'all' as MentionFilter };
+    }
+    const tagMode = raw.some((i) => i.type === 'tag' || i.tagMode);
+    if (!raw.some((i) => i.type === 'contact') && shouldOfferContacts({ query, isQuicknote: false, tagMode })) {
+        raw = [...buildContactItems(contacts, query), ...raw];
+    }
+    const tagsFirst = raw.some((i) => i.type === 'tag');
+    const counts: Partial<Record<MentionGroupKey, number>> = {};
+    groupItems(raw, 'all').forEach((g) => { counts[g.key] = g.items.length; });
+    const activeFilter = effectiveFilter(filter, counts);
+    return { displayList: groupItems(raw, activeFilter, { tagsFirst }).flatMap((g) => g.items), counts, activeFilter };
+}
+
 const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [activeGroup, setActiveGroup] = useState<EventGroupItem | null>(null);
@@ -149,14 +169,15 @@ const MentionList = forwardRef((props: any, ref) => {
     const isQuicknoteMenu = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
 
     // Displayed order == keyboard order: items flattened through the type groups.
-    const { displayList, counts } = useMemo(() => {
-        const raw: MentionSuggestionItem[] = ((props.items || []) as MentionSuggestionItem[]).map((i) => (i.id === 'NEW_TASK' ? { ...i, is_task: true } : i));
-        if (isQuicknoteMenu) return { displayList: raw, counts: {} as Partial<Record<MentionGroupKey, number>> };
-        const all = groupItems(raw, 'all');
-        const c: Partial<Record<MentionGroupKey, number>> = {};
-        all.forEach((g) => { c[g.key] = g.items.length; });
-        return { displayList: groupItems(raw, filter).flatMap((g) => g.items), counts: c };
-    }, [props.items, filter, isQuicknoteMenu]);
+    const liveContacts = useDataStore((s) => s.contacts);
+    const { displayList, counts, activeFilter } = useMemo(
+        () => orderMenuItems(props.items || [], props.query || '', liveContacts || [], filter, isQuicknoteMenu),
+        [props.items, props.query, filter, isQuicknoteMenu, liveContacts],
+    );
+
+    useEffect(() => {
+        if (activeFilter !== filter) setFilter(activeFilter);
+    }, [activeFilter, filter]);
 
     const currentList = activeGroup ? activeGroup.events : displayList;
 
@@ -483,7 +504,7 @@ const MentionList = forwardRef((props: any, ref) => {
                 </>
             ) : (
                 <>
-                    {!isQuicknoteMenu && <MentionMenuChrome filter={filter} onFilterChange={setFilter} counts={counts} />}
+                    {!isQuicknoteMenu && <MentionMenuChrome filter={activeFilter} onFilterChange={setFilter} counts={counts} />}
                     {displayList.length ? (
                         displayList.map((item: any, index: number) => (
                             <Fragment key={item.id || index}>
@@ -502,7 +523,7 @@ const MentionList = forwardRef((props: any, ref) => {
                                     selectItem(item, index);
                                 }}
                             >
-                                {item.type === 'contact' ? (
+                                {item.type === 'contact' && !isQuicknoteMenu ? (
                                     <MentionContactRow id={item.id} username={item.username} avatar={item.avatar || {}} shareable={!!item.shareable} />
                                 ) : item.isGroup ? (
                                     <>
@@ -1033,7 +1054,7 @@ export default {
         const actionQuery = tagMode ? cleanActionLabelQuery(parsed) : query;
 
         // 5. Return formatted (people first; not offered in tag-filter mode)
-        const contactItems = tagMode ? [] : buildContactItems(ensureContactsLoaded(), query);
+        const contactItems = shouldOfferContacts({ query, isQuicknote: false, tagMode }) ? buildContactItems(ensureContactsLoaded(), query) : [];
         return [...contactItems, ...capSuggestionItems<MentionSuggestionItem>(
             [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
@@ -1189,6 +1210,7 @@ export default {
                     }
                 }
 
+                resetContactsRequest();
                 component = new ReactRenderer(MentionList, {
                     props,
                     editor: props.editor,
@@ -1209,8 +1231,9 @@ export default {
                     theme: 'headless',
                 });
                 
-                if (props.items && props.items.length > 0) {
-                    const topItem = props.items[0];
+                const ordered = orderMenuItems(props.items || [], props.query || '', useDataStore.getState().contacts || [], 'all', typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')).displayList;
+                if (ordered.length > 0) {
+                    const topItem = ordered[0];
                     const label = topItem.label || topItem.title || '';
                     const q = props.query || '';
                     if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
@@ -1234,8 +1257,9 @@ export default {
                     getReferenceClientRect: props.clientRect,
                 });
                 
-                if (props.items && props.items.length > 0) {
-                    const topItem = props.items[0];
+                const ordered = orderMenuItems(props.items || [], props.query || '', useDataStore.getState().contacts || [], 'all', typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')).displayList;
+                if (ordered.length > 0) {
+                    const topItem = ordered[0];
                     const label = topItem.label || topItem.title || '';
                     const q = props.query || '';
                     if (q && label.toLowerCase().startsWith(q.toLowerCase())) {

@@ -50,3 +50,34 @@ describe('groupItems', () => {
     expect(g[0].items[0].id).toBe('t');
   });
 });
+
+import { effectiveFilter, shouldOfferContacts } from '../mentionGroups';
+
+describe('shouldOfferContacts', () => {
+  it('hides contacts for empty query, quicknote, tag mode, ghost', () => {
+    expect(shouldOfferContacts({ query: '', isQuicknote: false, tagMode: false })).toBe(false);
+    expect(shouldOfferContacts({ query: '  ', isQuicknote: false, tagMode: false })).toBe(false);
+    expect(shouldOfferContacts({ query: 'an', isQuicknote: true, tagMode: false })).toBe(false);
+    expect(shouldOfferContacts({ query: 'an', isQuicknote: false, tagMode: true })).toBe(false);
+    expect(shouldOfferContacts({ query: '!an', isQuicknote: false, tagMode: false })).toBe(false);
+  });
+  it('offers contacts for a plain non-empty query', () => {
+    expect(shouldOfferContacts({ query: 'an', isQuicknote: false, tagMode: false })).toBe(true);
+  });
+});
+
+describe('effectiveFilter', () => {
+  it('falls back to all when the chip has no items', () => {
+    expect(effectiveFilter('tag', { note: 2 })).toBe('all');
+    expect(effectiveFilter('note', { note: 2 })).toBe('note');
+    expect(effectiveFilter('all', {})).toBe('all');
+  });
+});
+
+describe('groupItems tagsFirst', () => {
+  it('pins tag rows first when requested', () => {
+    const items = [{ id: 'n', type: 'note' }, { id: 't', type: 'tag' }];
+    expect(groupItems(items, 'all', { tagsFirst: true }).map((g) => g.key)).toEqual(['tag', 'note']);
+    expect(groupItems(items, 'all').map((g) => g.key)).toEqual(['note', 'tag']);
+  });
+});

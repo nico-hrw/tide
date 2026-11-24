@@ -42,15 +42,16 @@ export function MentionMenuChrome({ filter, onFilterChange, counts }: MentionMen
                     <button
                         key={key}
                         type="button"
-                        disabled={disabled && !active}
+                        aria-disabled={disabled && !active}
                         onMouseDown={(e) => {
                             e.preventDefault();
+                            if (disabled && !active) return;
                             onFilterChange(key);
                         }}
                         className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
                             active
                                 ? 'bg-t2-accent text-t2-surface border-t2-accent'
-                                : 'border-t2-line text-t2-ink-2 hover:bg-t2-hover disabled:opacity-40'
+                                : 'border-t2-line text-t2-ink-2 hover:bg-t2-hover aria-disabled:opacity-40'
                         }`}
                     >
                         {t(CHIP_KEYS[key])}
