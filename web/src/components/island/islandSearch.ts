@@ -35,10 +35,19 @@ export function buildIslandSearchItems(src: { notes: RawNote[]; events: RawEvent
 }
 
 /** Fuzzy matches for the query; titles that start with it come first (the fuzzy order is kept within each group). */
+export function createIslandSearcher(items: IslandSearchItem[]): (query: string, limit?: number) => IslandSearchItem[] {
+    const fuse = new Fuse(items, { keys: ['title'], threshold: 0.35, ignoreLocation: true });
+    return (query, limit = 6) => rank(fuse, query, limit);
+}
+
 export function searchIslandItems(items: IslandSearchItem[], query: string, limit = 6): IslandSearchItem[] {
+    if (!query.trim()) return [];
+    return createIslandSearcher(items)(query, limit);
+}
+
+function rank(fuse: Fuse<IslandSearchItem>, query: string, limit: number): IslandSearchItem[] {
     const q = query.trim();
     if (!q) return [];
-    const fuse = new Fuse(items, { keys: ['title'], threshold: 0.35, ignoreLocation: true });
     const hits = fuse.search(q).map((r) => r.item);
     const lower = q.toLowerCase();
     const starts = hits.filter((i) => i.title.toLowerCase().startsWith(lower));

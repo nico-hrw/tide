@@ -6,7 +6,8 @@ import { Calendar, FileText, SquareCheck } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useIslandActionsStore } from '@/store/useIslandActionsStore';
 import type { CaptureKind } from './islandLogic';
-import { buildIslandSearchItems, nextSelection, searchIslandItems, type IslandSearchItem, type IslandSearchKind } from './islandSearch';
+import { resolveEnter } from './islandEnter';
+import { buildIslandSearchItems, createIslandSearcher, nextSelection, type IslandSearchItem, type IslandSearchKind } from './islandSearch';
 import type { IslandModel } from './useIslandModel';
 import type { IslandText } from './islandText';
 import { CardLabel, CloseButton } from './IslandViews';
@@ -19,6 +20,8 @@ const KINDS: { kind: CaptureKind; labelKey: string; Icon: React.ComponentType<{ 
 
 const RESULT_ICON: Record<IslandSearchKind, typeof Calendar> = { event: Calendar, note: FileText, todo: SquareCheck };
 const RESULT_TYPE: Record<IslandSearchKind, string> = { event: 'event', note: 'file', todo: 'task' };
+
+const NO_ITEMS: never[] = [];
 
 function hintAndChips(model: IslandModel, text: IslandText): { hint: string; chips: string[] } {
     const { capture } = model;
@@ -49,20 +52,21 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
     const canCreate = capture.text.trim().length > 0;
 
     // Typing anywhere: search notes, events and todos first; creating is the last row
-    const notes = useDataStore((s) => s.notes);
-    const events = useDataStore((s) => s.events);
-    const tasks = useDataStore((s) => s.tasks);
+    // Subscribed only in search-first mode, so other captures do not re-render on store changes
+    const notes = useDataStore((s) => (capture.searchFirst ? s.notes : NO_ITEMS));
+    const events = useDataStore((s) => (capture.searchFirst ? s.events : NO_ITEMS));
+    const tasks = useDataStore((s) => (capture.searchFirst ? s.tasks : NO_ITEMS));
     const searching = capture.searchFirst && canCreate;
-    const items = useMemo(
-        () => (capture.searchFirst ? buildIslandSearchItems({ notes, events, tasks }) : []),
-        [capture.searchFirst, notes, events, tasks]
-    );
-    const results = useMemo(() => (searching ? searchIslandItems(items, capture.text) : []), [searching, items, capture.text]);
-    // The highlighted row belongs to the text it was chosen for: typing resets it to the first result
-    const [picked, setPicked] = useState({ text: '', idx: 0 });
-    const sel = picked.text === capture.text ? picked.idx : 0;
+    // The Fuse index is built once per data change, not per keystroke
+    const searcher = useMemo(() => createIslandSearcher(buildIslandSearchItems({ notes, events, tasks })), [notes, events, tasks]);
+    const results = useMemo(() => (searching ? searcher(capture.text) : []), [searching, searcher, capture.text]);
+    // A row is highlighted only once the user picked it (arrows/click) for this text; typing clears the pick
+    const [picked, setPicked] = useState<{ text: string; idx: number } | null>(null);
+    const explicitSel = picked && picked.text === capture.text ? picked.idx : null;
     const setSel = (idx: number) => setPicked({ text: capture.text, idx });
-    const createRowActive = sel >= results.length;
+    const exactTop = resolveEnter({ query: capture.text, results, explicitSel: null }).kind === 'open';
+    const sel = explicitSel ?? (exactTop ? 0 : -1);
+    const createRowActive = explicitSel !== null && explicitSel >= results.length;
 
     const openResult = (r: IslandSearchItem) => {
         useIslandActionsStore.getState().openItem?.({ id: r.id, type: RESULT_TYPE[r.kind], title: r.title });
@@ -96,11 +100,12 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
                     if (e.nativeEvent.isComposing) return;
                     if (searching && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
                         e.preventDefault();
-                        setSel(nextSelection(sel, results.length, e.key === 'ArrowDown' ? 1 : -1));
+                        const down = e.key === 'ArrowDown';
+                        setSel(explicitSel === null && !down ? results.length : nextSelection(explicitSel ?? -1, results.length, down ? 1 : -1));
                     } else if (e.key === 'Enter' && !e.shiftKey) {
                         e.preventDefault();
-                        const open = searching && !createRowActive && !(e.metaKey || e.ctrlKey);
-                        if (open) openResult(results[sel]);
+                        const action = searching && !(e.metaKey || e.ctrlKey) ? resolveEnter({ query: capture.text, results, explicitSel }) : null;
+                        if (action?.kind === 'open') openResult(action.item);
                         else if (canCreate) void capture.confirm();
                     }
                 }}
@@ -119,8 +124,7 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
                                 type="button"
                                 role="option"
                                 aria-selected={i === sel}
-                                onMouseEnter={() => setSel(i)}
-                                onClick={() => openResult(r)}
+                                onClick={() => { setSel(i); openResult(r); }}
                                 className={`flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[13px] text-t2-ink ${i === sel ? 'bg-t2-hover' : ''}`}
                             >
                                 <Icon size={14} strokeWidth={1.8} className="shrink-0 text-t2-ink-3" />
@@ -132,7 +136,6 @@ export default function IslandCapture({ model, text }: { model: IslandModel; tex
                         type="button"
                         role="option"
                         aria-selected={createRowActive}
-                        onMouseEnter={() => setSel(results.length)}
                         onClick={() => void capture.confirm()}
                         className={`mt-0.5 flex w-full items-center gap-2 rounded-[10px] px-2 py-1.5 text-left text-[12.5px] text-t2-ink-2 ${createRowActive ? 'bg-t2-hover' : ''}`}
                     >
