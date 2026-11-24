@@ -8,6 +8,8 @@ import { useDataStore } from "@/store/useDataStore";
 import { useDragGhost } from "@/store/useDragGhost";
 import { apiFetch } from "@/lib/api";
 import { getSafeColor } from "@/lib/designTokens";
+import { VisibilityBadge } from "@/components/Visibility/VisibilityBadge";
+import { getVisibilityState } from "@/components/Visibility/visibilityState";
 import type { DecryptedFile, ContextMenuEvent } from "./types";
 
 export const isTouchDevice = typeof window !== 'undefined' && Boolean(window.matchMedia?.('(pointer: coarse) and (hover: none)')?.matches);
@@ -49,6 +51,14 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
     const isActive = activeTabId === file.id || activeNoteId === file.id;
     const isOpen = !!openTabs?.some(t => t.id === file.id);
     const isLocked = Boolean(file.metadata?.has_custom_password || file.metadata?.security_settings?.has_custom_password || (typeof file.title === 'string' && file.title.startsWith('#')));
+
+    const isOwner = !file.owner_id || !myId || file.owner_id === myId;
+    // The recipient list is not available here; share_status only tells us "shared", so no count is shown.
+    const visibilityState = getVisibilityState({
+        visibility: file.visibility,
+        isOwner,
+        sharedWith: file.share_status === 'shared' ? [{ userId: '' }] : [],
+    });
 
     // Touch long-press handling
     const touchStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -268,9 +278,6 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                         </span>
                     )}
                 </div>
-                {(file as any).share_status === 'shared' && (
-                    <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-t2-accent" title="Geteilte Notiz" />
-                )}
                 {editingId === file.id ? (
                     <input
                         autoFocus
@@ -293,6 +300,9 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                     </span>
                 )}
             </div>
+            <span className="shrink-0 ml-1 flex items-center">
+                <VisibilityBadge kind={visibilityState.kind} size={12} />
+            </span>
         </motion.div>
     );
 };

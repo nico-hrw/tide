@@ -13,6 +13,7 @@ import { useTagRegistry, DEFAULT_TAG_COLOR } from './useTodoTags';
 import { toggleTagInFilter } from '@/lib/tagFilter';
 import { useMobileTodoStyle, mobileCardStyle, MobilePriorityIcon, MobileOverdue } from './MobileTodoStyle';
 import { TodoPriorityBadge } from './TodoPriorityBadge';
+import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
 import {
   RecurrenceType, TaskWithChildren, TaskEditDraft,
   RECURRENCE_OPTIONS, getTaskPriority, getDeadlineInfo, parseDateSafe,
@@ -53,6 +54,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   const tagFilter = useDataStore((s) => s.todoTagFilter);
   const setTodoTagFilter = useDataStore((s) => s.setTodoTagFilter);
   const updateTask = useDataStore((s) => s.updateTask);
+  const myId = useDataStore((s) => s.myId);
+  const isSharedWithMe = !!task.owner_id && !!myId && task.owner_id !== myId;
   const parentTask = useDataStore((s) => task.parentId ? s.tasks.find((t) => t.id === task.parentId) : undefined);
   const effectiveParentDueDate = (parentDueDate || parentTask?.dueDate || parentTask?.scheduledDate || '').slice(0, 10);
   const [isParentMinimized, setIsParentMinimized] = useState(false);
@@ -379,6 +382,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     >
                       {task.title}
                     </span>
+                    {isSharedWithMe && <VisibilityBadge kind="shared-with-me" size={12} />}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">

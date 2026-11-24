@@ -9,6 +9,8 @@ import { useSocialStore } from '@/store/useSocialStore';
 import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
 import { resolveCategory } from '@/lib/calendarColors';
+import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
+import { getVisibilityState } from '@/components/Visibility/visibilityState';
 
 // Assuming types and getEventTheme are available here, either imported or defined
 interface CalendarEvent {
@@ -198,6 +200,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     );
 
     const isShared = event.share_status === 'accepted' || (!!event.owner_id && event.owner_id !== myId);
+    const visibilityKind = getVisibilityState({
+        visibility: event.is_public ? 'public' : undefined,
+        isOwner: !(event.owner_id && event.owner_id !== myId),
+        sharedWith: isShared ? [{ userId: '' }] : [],
+    }).kind;
     const ownerName = ownerPartnerUsername || 'Geteilt';
     const attributionText = ownerPartnerUsername ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
     const effectiveColor = resolveEventColor(event.color);
@@ -670,14 +677,9 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             )}
                         </button>
                     )}
-                    {event.is_public && (
-                        <div className="opacity-60 flex-shrink-0" title="Public Event">
-                            <Globe size={10} />
-                        </div>
-                    )}
-                    {isShared && (
-                        <div className="opacity-75 flex-shrink-0" title={attributionText}>
-                            <Users size={10} />
+                    {(event.is_public || isShared) && (
+                        <div className="opacity-75 flex-shrink-0" title={event.is_public ? 'Public Event' : attributionText}>
+                            <VisibilityBadge kind={visibilityKind} size={12} />
                         </div>
                     )}
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}

@@ -5,13 +5,12 @@ import {
     Check, 
     Loader2, 
     AlertCircle, 
-    Share2, 
-    Users, 
-    Globe, 
     Lock, 
     ShieldCheck, 
     ChevronRight 
 } from "lucide-react";
+import { VisibilityBadge } from "@/components/Visibility/VisibilityBadge";
+import { getVisibilityState } from "@/components/Visibility/visibilityState";
 
 interface SaveStatusMenuProps {
     fileId: string;
@@ -30,7 +29,6 @@ export default function SaveStatusMenu({
     fileId,
     saveStatus,
     visibility = "private",
-    isShared,
     isSharedByOwner,
     isRecipient,
     isProtected,
@@ -39,6 +37,12 @@ export default function SaveStatusMenu({
     onOpenSecurity
 }: SaveStatusMenuProps) {
     const menuRef = useRef<HTMLDivElement>(null);
+    // Recipient list is not passed in, so the shared state carries no count.
+    const visibilityState = getVisibilityState({
+        visibility,
+        isOwner: !isRecipient,
+        sharedWith: isSharedByOwner ? [{ userId: '' }] : [],
+    });
 
     useEffect(() => {
         const handleClickOutside = (e: MouseEvent) => {
@@ -120,13 +124,7 @@ export default function SaveStatusMenu({
                 >
                     <div className="flex items-center gap-2.5 min-w-0">
                         <div className="w-7 h-7 rounded-lg bg-t2-sub  flex items-center justify-center text-t2-accent  shrink-0">
-                            {visibility === "public" ? (
-                                <Globe size={14} />
-                            ) : isShared ? (
-                                <Users size={14} />
-                            ) : (
-                                <Share2 size={14} />
-                            )}
+                            <VisibilityBadge kind={visibilityState.kind} size={14} />
                         </div>
                         <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium text-t2-ink  truncate">
