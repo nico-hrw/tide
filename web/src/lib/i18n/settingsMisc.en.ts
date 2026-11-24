@@ -229,6 +229,7 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'mention.notShared': "not shared",
     'mention.contactLabel': "Contact",
     'mention.canView': "Note can be shared with this contact",
+    'mention.canViewEvent': "Event can be shared with this contact",
     'mention.openProfile': "Open profile",
     'calShare.title': "Share calendar “{name}”",
     'calShare.intro': "All events in this calendar, and any added later, are shared.",

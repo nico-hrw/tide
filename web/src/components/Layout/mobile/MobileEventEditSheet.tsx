@@ -7,6 +7,7 @@ import { format } from 'date-fns';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 import { paletteFor } from './eventPalette';
 import { EventMentionField } from '@/components/Calendar/EventMentionField';
+import { createMentionSession, discardMentionSession } from '@/lib/eventMentionShare';
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -98,6 +99,12 @@ export const MobileEditEventSheet = ({
   const rec = parseRecurrence(event);
   // A draft is created on save; the sheet stays mounted during its exit animation, so it submits only once.
   const submittedRef = useRef(false);
+  // Mentions share at the pick; closing without saving revokes those shares again.
+  const mentionSession = useRef(createMentionSession()).current;
+  const cancel = () => {
+    if (!isDraft) void discardMentionSession(mentionSession, event.id, event.description || '');
+    onDismiss();
+  };
 
   const [title, setTitle] = useState(event.title || '');
   const [dateStr, setDateStr] = useState(() => format(initialStart, 'yyyy-MM-dd'));
@@ -174,7 +181,7 @@ export const MobileEditEventSheet = ({
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[60]"
         style={{ background: 'rgba(0,0,0,0.35)' }}
-        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+        onClick={(e) => { e.stopPropagation(); cancel(); }}
       />
       <motion.div
         key="edit-sheet-content"
@@ -189,7 +196,7 @@ export const MobileEditEventSheet = ({
           <div className="w-10 h-1 rounded-full bg-t2-line" />
         </div>
         <div className="flex items-center justify-between px-5 pb-2 shrink-0">
-          <button type="button" onClick={onDismiss} aria-label="Schließen" className="grid h-9 w-9 place-items-center rounded-full text-t2-ink-2">
+          <button type="button" onClick={cancel} aria-label="Schließen" className="grid h-9 w-9 place-items-center rounded-full text-t2-ink-2">
             <X size={18} />
           </button>
           <span className="text-[15px] font-bold text-t2-ink">Termin</span>
@@ -329,6 +336,7 @@ export const MobileEditEventSheet = ({
               onChange={setDescription}
               isPrivate={!!event.private}
               toastZIndex={200}
+              session={mentionSession}
               rows={3}
               ariaLabel="Notiz"
               className="w-full resize-none bg-transparent text-[14.5px] text-t2-ink-2 outline-none border-b border-t2-line-soft py-2"

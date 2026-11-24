@@ -1,3 +1,4 @@
+import { parseEventMentions } from '@/lib/eventMentions';
 import { isOwnedEvent } from '@/lib/calendarShare';
 import { notifyError } from '@/lib/feedback';
 import { formatMessage, getTranslation } from '@/lib/i18n';
@@ -82,4 +83,35 @@ export async function undoEventMentionShare(eventId: string, contactId: string):
     }
     useMentionShareStore.getState().clear(baseId, contactId);
     return true;
+}
+
+/**
+ * Picks of one editing session (a sheet that saves only on "Speichern"). The share happens at the
+ * pick; discarding the edit must not leave it behind without a trace in the saved description.
+ */
+export interface MentionSession { picks: Set<string>; discarded: boolean; saved: string }
+
+export function createMentionSession(): MentionSession {
+    return { picks: new Set(), discarded: false, saved: '' };
+}
+
+async function revokeIfOurs(s: MentionSession, eventId: string, contactId: string): Promise<void> {
+    if (parseEventMentions(s.saved).some((m) => m.id === contactId)) return;
+    // Only shares this app made from a mention; never one that existed before or came from elsewhere.
+    if (useMentionShareStore.getState().origin(baseIdOf(eventId), contactId) !== 'mention') return;
+    await undoEventMentionShare(eventId, contactId);
+}
+
+/** Call once a pick created a share (status 'shared'). Revokes right away when the edit was already discarded. */
+export function recordSessionPick(s: MentionSession, eventId: string, contactId: string): void {
+    s.picks.add(contactId);
+    if (s.discarded) void revokeIfOurs(s, eventId, contactId);
+}
+
+/** The edit was thrown away: revoke the session's shares whose token is not in the saved description. */
+export async function discardMentionSession(s: MentionSession, eventId: string, savedDescription: string): Promise<void> {
+    s.discarded = true;
+    s.saved = savedDescription;
+    for (const id of [...s.picks]) await revokeIfOurs(s, eventId, id);
+    s.picks.clear();
 }

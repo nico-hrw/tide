@@ -13,6 +13,7 @@ import { handleRemovedContactMentions, shareViaMention } from '@/lib/mentionShar
 import { useDataStore } from '@/store/useDataStore';
 import { useMentionShareStore } from '@/store/useMentionShareStore';
 import { EventMentionField } from '../EventMentionField';
+import { createMentionSession, type MentionSession } from '@/lib/eventMentionShare';
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -25,9 +26,9 @@ describe('EventMentionField', () => {
     let host: HTMLDivElement;
     let latest = '';
 
-    function Harness({ initial = '', eventId = 'e1', isPrivate = false }: { initial?: string; eventId?: string; isPrivate?: boolean }) {
+    function Harness({ initial = '', eventId = 'e1', isPrivate = false, session }: { initial?: string; eventId?: string; isPrivate?: boolean; session?: MentionSession }) {
         const [v, setV] = useState(initial);
-        return <EventMentionField eventId={eventId} value={v} onChange={(s) => { latest = s; setV(s); }} isPrivate={isPrivate} />;
+        return <EventMentionField eventId={eventId} value={v} onChange={(s) => { latest = s; setV(s); }} isPrivate={isPrivate} session={session} />;
     }
 
     const ta = () => host.querySelector('textarea') as HTMLTextAreaElement;
@@ -154,5 +155,84 @@ describe('EventMentionField', () => {
         act(() => x.click());
         expect(latest).toBe('Hi da');
         expect(removedMock).toHaveBeenCalledWith('e1', [{ id: 'u1', label: 'anna' }]);
+    });
+    it('with a session: a pick is recorded, blur asks nothing, a discarded unmount asks nothing', async () => {
+        const session = createMentionSession();
+        useMentionShareStore.getState().record('e1', 'u1');
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} session={session} />));
+        act(() => { ta().focus(); });
+        type('Hi ');
+        act(() => { ta().blur(); });
+        expect(removedMock).not.toHaveBeenCalled();
+        session.discarded = true;
+        act(() => root.unmount());
+        expect(removedMock).not.toHaveBeenCalled();
+        root = createRoot(host);
+    });
+
+    it('with a session: kept edits ask the revoke question on unmount', () => {
+        const session = createMentionSession();
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} session={session} />));
+        type('Hi ');
+        act(() => root.unmount());
+        expect(removedMock).toHaveBeenCalledWith('e1', [{ id: 'u1', label: 'anna' }]);
+        root = createRoot(host);
+    });
+
+    it('with a session: a shared pick is recorded for a later discard; a pick of an existing share is not', async () => {
+        const session = createMentionSession();
+        act(() => root.render(<Harness session={session} />));
+        type('@an');
+        key('Enter');
+        await flush();
+        expect([...session.picks]).toEqual(['u1']);
+        shareMock.mockResolvedValueOnce({ status: 'already' });
+        type('@an');
+        key('Enter');
+        await flush();
+        expect(session.picks.size).toBe(1);
+    });
+
+    it('Enter during IME composition does not pick', () => {
+        act(() => root.render(<Harness />));
+        type('@an');
+        act(() => { ta().dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true, isComposing: true })); });
+        expect(shareMock).not.toHaveBeenCalled();
+        expect(latest).toBe('@an');
+    });
+
+    it('a token for an unknown id shows a generic name, not its own label', () => {
+        act(() => root.render(<Harness initial="Hi [@boss](tide://contact/zzz)" />));
+        const chip = host.querySelector('[data-contact-chip]')!;
+        expect(chip.textContent).not.toContain('boss');
+    });
+
+    it('the chip looks shared only with a mention share (or after a pick), else "nicht geteilt"', async () => {
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} />));
+        expect(host.querySelector('[data-contact-chip]')!.textContent).toContain('nicht geteilt');
+        act(() => root.unmount());
+        root = createRoot(host);
+        useMentionShareStore.getState().record('e1', 'u1');
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} />));
+        expect(host.querySelector('[data-contact-chip]')!.textContent).not.toContain('nicht geteilt');
+    });
+
+    it('the profile card says Termin, not Notiz', () => {
+        useMentionShareStore.getState().record('e1', 'u1');
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} />));
+        act(() => (host.querySelector('[data-contact-chip]') as HTMLButtonElement).click());
+        expect(host.querySelector('[data-contact-card]')!.textContent).toContain('Termin kann');
+    });
+
+    it('after a confirmed revoke, retyping the name does not bring the token back', async () => {
+        removedMock.mockImplementationOnce(async () => { useMentionShareStore.getState().clear('e1', 'u1'); });
+        act(() => root.render(<Harness initial={`Hi ${TOKEN}`} />));
+        act(() => { ta().focus(); });
+        type('Hi ');
+        act(() => { ta().blur(); });
+        await flush();
+        await flush();
+        type('Hi @anna');
+        expect(latest).toBe('Hi @anna');
     });
 });

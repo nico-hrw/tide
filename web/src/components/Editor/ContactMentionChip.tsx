@@ -94,6 +94,7 @@ export function ContactMentionChip({ node }: Pick<NodeViewProps, 'node'>) {
                     avatarSeed={avatarSeed}
                     avatarStyle={avatarStyle}
                     shared={shareable}
+                    kind={node.attrs.itemKind === 'event' ? 'event' : 'note'}
                     alignRight={alignRight}
                     onOpenProfile={openProfile}
                 />

@@ -12,11 +12,13 @@ interface ContactProfileCardProps {
     avatarStyle: 'notionists' | 'openPeeps';
     shared: boolean;
     alignRight?: boolean;
+    /** What is shared: a note (default) or an event */
+    kind?: 'note' | 'event';
     onOpenProfile: () => void;
 }
 
 /** Small card under a contact mention chip: avatar, name, access line and a profile button. */
-export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, shared, alignRight, onOpenProfile }: ContactProfileCardProps) {
+export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, shared, alignRight, kind, onOpenProfile }: ContactProfileCardProps) {
     const t = useT();
     return (
         <div
@@ -37,7 +39,7 @@ export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, 
             {shared && (
                 <div className="mt-2.5 flex items-center gap-1.5 text-xs text-t2-ink-2">
                     <Eye className="w-3.5 h-3.5 shrink-0" aria-hidden="true" />
-                    <span>{t('mention.canView')}</span>
+                    <span>{t(kind === 'event' ? 'mention.canViewEvent' : 'mention.canView')}</span>
                 </div>
             )}
             <button

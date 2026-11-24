@@ -95,3 +95,16 @@ describe('mentionRows', () => {
         expect(mentionRows(contacts, 'ca')[0]).toMatchObject({ id: '4', shareable: false });
     });
 });
+
+describe('browser support', () => {
+    it('fromEditText avoids regex lookbehind (iOS Safari < 16.4 throws on it)', async () => {
+        const fs = await import('node:fs');
+        const src = fs.readFileSync('src/lib/eventMentions.ts', 'utf8');
+        expect(src).not.toContain('(?<');
+    });
+    it('still ignores mail addresses and handles neighbours', () => {
+        expect(fromEditText('@anna @anna', [anna])).toBe(`${tok(anna)} ${tok(anna)}`);
+        expect(fromEditText('(@anna)', [anna])).toBe(`(${tok(anna)})`);
+        expect(fromEditText('x@anna', [anna])).toBe('x@anna');
+    });
+});

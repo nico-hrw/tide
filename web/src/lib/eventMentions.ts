@@ -36,10 +36,10 @@ export function fromEditText(text: string, mentions: EventMention[]): string {
     for (const m of mentions) if (!byLabel.has(m.label)) byLabel.set(m.label, m);
     const labels = [...byLabel.keys()].sort((a, b) => b.length - a.length).map(escapeRe);
     // Not inside a word or mail address, and not the start of a longer name.
-    const re = new RegExp(String.raw`(?<![\w@])@(${labels.join('|')})(?![\w-]|\.\w)`, 'g');
-    return text.replace(re, (_all, label: string) => {
+    const re = new RegExp(String.raw`(^|[^\w@])@(${labels.join('|')})(?![\w-]|\.\w)`, 'g');
+    return text.replace(re, (all, pre: string, label: string) => {
         const m = byLabel.get(label);
-        return m ? `[@${m.label}](tide://contact/${m.id})` : _all;
+        return m ? `${pre}[@${m.label}](tide://contact/${m.id})` : all;
     });
 }
 

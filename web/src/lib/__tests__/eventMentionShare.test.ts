@@ -10,7 +10,7 @@ vi.mock('@/lib/feedback', () => ({ askConfirm: vi.fn(), notifyError: vi.fn() }))
 import { revokeMentionShare, shareViaMention } from '@/lib/mentionShare';
 import { useDataStore } from '@/store/useDataStore';
 import { useMentionShareStore } from '@/store/useMentionShareStore';
-import { canMentionInEvent, precheckEventMention, shareEventViaMention, undoEventMentionShare } from '../eventMentionShare';
+import { createMentionSession, discardMentionSession, recordSessionPick, canMentionInEvent, precheckEventMention, shareEventViaMention, undoEventMentionShare } from '../eventMentionShare';
 
 const shareMock = vi.mocked(shareViaMention);
 const revokeMock = vi.mocked(revokeMentionShare);
@@ -121,5 +121,43 @@ describe('undoEventMentionShare', () => {
         revokeMock.mockRejectedValue(new Error('403'));
         expect(await undoEventMentionShare('e1', 'u1')).toBe(false);
         expect(useMentionShareStore.getState().origin('e1', 'u1')).toBe('mention');
+    });
+});
+
+describe('mention session (discarding an edit)', () => {
+    const saved = (id: string) => `Hi [@anna](tide://contact/${id})`;
+
+    it('revokes a share picked in this session whose token was never saved', async () => {
+        setup({});
+        useMentionShareStore.getState().record('e1', 'u1');
+        useMentionShareStore.getState().record('e1', 'u9'); // older mention share, not picked now
+        revokeMock.mockResolvedValue(undefined);
+        const s = createMentionSession();
+        recordSessionPick(s, 'e1', 'u1');
+        await discardMentionSession(s, 'e1', '');
+        expect(revokeMock).toHaveBeenCalledTimes(1);
+        expect(revokeMock).toHaveBeenCalledWith('e1', 'u1');
+        expect(useMentionShareStore.getState().origin('e1', 'u9')).toBe('mention');
+        expect(s.discarded).toBe(true);
+    });
+    it('keeps a share whose token is in the saved description, and shares without mention origin', async () => {
+        setup({});
+        useMentionShareStore.getState().record('e1', 'u1');
+        const s = createMentionSession();
+        recordSessionPick(s, 'e1', 'u1');
+        recordSessionPick(s, 'e1', 'u2'); // no origin recorded: not ours to revoke
+        await discardMentionSession(s, 'e1', saved('u1'));
+        expect(revokeMock).not.toHaveBeenCalled();
+    });
+    it('a pick that finishes after the discard is revoked too', async () => {
+        setup({});
+        revokeMock.mockResolvedValue(undefined);
+        const s = createMentionSession();
+        await discardMentionSession(s, 'e1', '');
+        useMentionShareStore.getState().record('e1', 'u1');
+        recordSessionPick(s, 'e1', 'u1');
+        await Promise.resolve();
+        await Promise.resolve();
+        expect(revokeMock).toHaveBeenCalledWith('e1', 'u1');
     });
 });
