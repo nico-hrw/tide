@@ -17,6 +17,7 @@ import { useJobEventMatcher } from "@/hooks/useJobEventMatcher";
 import { useDataStore, useWeekStartsOn } from "@/store/useDataStore";
 import { MonthDayPanel, MonthEventInfo, eventColors } from "./MonthDayPanel";
 import { rotateWeekdayLabels } from "@/lib/calendarWeeks";
+import { sortMonthEvents } from "./monthEventOrder";
 import type { CalendarEvent } from "./types";
 
 interface DesktopMonthViewProps {
@@ -111,7 +112,7 @@ export default function DesktopMonthView({
 
                         const timed = (eventsByDay.timedMap.get(dayKey) || []).filter((e) => !isJobOrUniEvent(e));
                         const allDay = (eventsByDay.allDayMap.get(dayKey) || []).filter((e) => !isJobOrUniEvent(e));
-                        const allEventsForDay = [...allDay, ...timed];
+                        const allEventsForDay = sortMonthEvents([...allDay, ...timed]);
 
                         const tasks = allEventsForDay.filter((e) => e.is_task);
                         const regularEvents = allEventsForDay.filter((e) => !e.is_task);
