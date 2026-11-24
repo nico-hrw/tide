@@ -56,6 +56,7 @@ import { apiFetch } from '@/lib/api';
 import { uploadQuicknoteFile, getQuicknoteFileDownloadUrl } from '@/lib/quicknotesApi';
 import { getVariableRegistry } from '@/lib/variableRegistryInstance';
 import { getNoteBindings, subscribeNoteBindings } from '@/lib/varsheet/noteBindings';
+import { handleRemovedContactMentions, removedContactMentions, stepsTouchContactMention } from '@/lib/mentionShare';
 import type { LinkTarget, UseTipTapConfigOptions } from './types';
 import { MentionNodeView } from './MentionNodeView';
 import { PLACELHODER_QUOTES, COLORS } from './editorConstants';
@@ -284,8 +285,12 @@ export function useTipTapConfig({
                     isGhost: { default: false, parseHTML: el => el.getAttribute('data-is-ghost') === 'true' },
                     type: { default: 'note', parseHTML: el => el.getAttribute('data-type-link') || 'note' },
                     start: { default: null, parseHTML: el => el.getAttribute('data-start') },
-                    safe: { default: null, parseHTML: el => el.getAttribute('data-safe') }
+                    safe: { default: null, parseHTML: el => el.getAttribute('data-safe') },
+                    // Contact chips only. Default false: a chip without the attribute never looks shareable after reload.
+                    shareable: { default: false, parseHTML: el => el.getAttribute('data-shareable') === 'true', renderHTML: attrs => (attrs.shareable === true ? { 'data-shareable': 'true' } : {}) }
                 }),
+                // Lets the @-menu find the file this editor belongs to (contact mentions share it).
+                addStorage: () => ({ getFileId: () => activeTabIdRef.current ?? null }),
                 parseHTML: () => [{ tag: 'mark[data-type="mention"]' }, { tag: 'mark.mention' }, { tag: 'span[data-type="mention"]' }],
                 renderHTML: ({ node, HTMLAttributes }) => {
                     const id = node.attrs.id || '';
@@ -393,6 +398,12 @@ export function useTipTapConfig({
         onUpdate: ({ editor, transaction }) => {
             if (!editor || editor.isDestroyed || !transaction.docChanged || !contentInit.current) return;
             if (setInkStrokes) setInkStrokes(getEditorInkStrokes(editor));
+            // Local deletions of contact chips only (remote Yjs changes are someone else's edit).
+            const meta = (transaction as unknown as { meta?: Record<string, unknown> }).meta;
+            if (!(meta && Object.keys(meta).some((k) => k.startsWith('y-sync'))) && stepsTouchContactMention(transaction)) {
+                const removed = removedContactMentions(transaction.before, editor.state.doc);
+                if (removed.length > 0) void handleRemovedContactMentions(activeTabIdRef.current ?? null, removed);
+            }
             const content = editor.getJSON();
             if (isDocEmpty(content) && !isDocEmpty(initialContentRef.current) && !userHasTyped.current) return;
 

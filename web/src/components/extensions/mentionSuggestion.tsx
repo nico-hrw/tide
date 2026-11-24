@@ -14,6 +14,7 @@ import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 import { parseTagQuery } from './tagQuery';
 import { buildContactItems, effectiveFilter, ensureContactsLoaded, resetContactsRequest, shouldOfferContacts, groupItems, groupKeyOf, type MentionFilter, type MentionGroupKey } from './mentionGroups';
+import { mentionFileIdOf, startContactMentionShare } from '@/lib/mentionShare';
 import { MentionContactRow, MentionMenuChrome, MentionMenuFooter, MentionSectionHeader } from './MentionMenuChrome';
 import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
@@ -1086,6 +1087,14 @@ export default {
                 type: 'mention',
                 attrs: { id: props.id, label: props.label, type: 'contact', shareable: props.shareable, isGhost: false },
             }).run();
+            // The chip sits right before the caret; sharing re-checks contact and rights itself.
+            void startContactMentionShare({
+                fileId: mentionFileIdOf(editor),
+                contactId: String(props.id),
+                label: String(props.label ?? ''),
+                shareable: props.shareable === true,
+                chipPos: Math.max(0, editor.state.selection.from - 1),
+            });
             return;
         }
 

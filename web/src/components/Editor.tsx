@@ -18,6 +18,7 @@ import ReferenceEditPopover from './Editor/ReferenceEditPopover';
 import { TableCellBar } from './Editor/TableCellBar';
 import { FormatSearch } from './Editor/FormatSearch';
 import { EditorInlineSearch } from './Editor/EditorInlineSearch';
+import { MentionShareToast } from './Editor/MentionShareToast';
 import { useTipTapConfig } from './Editor/useTipTapConfig';
 import {
     InkStroke, InkToolType, PencilInputMode, setEditorInkStrokes,
@@ -724,6 +725,7 @@ function CollaborativeEditor(props: EditorProps) {
             )}
 
             <EditorInlineSearch editor={editor} />
+            <MentionShareToast editor={editor} fileId={activeTabId} />
             </div>
         </div>
     );
