@@ -181,10 +181,8 @@ export default function DesktopMonthView({
                                             e.stopPropagation();
                                             handleDay(day);
                                         }}
-                                        className={`flex shrink-0 items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all border-l-2 bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
-                                            allCompleted
-                                                ? "border-emerald-500 text-t2-ink-2 "
-                                                : "border-t2-accent text-t2-ink "
+                                        className={`flex shrink-0 items-center gap-1.5 px-1.5 py-0.5 rounded text-[11px] leading-tight font-medium truncate cursor-pointer transition-all bg-t2-hover  hover:bg-t2-stage  shadow-xs ${
+                                            allCompleted ? "text-t2-ink-2 " : "text-t2-ink "
                                         }`}
                                         title={`Todos: ${tasks.length}`}
                                     >
