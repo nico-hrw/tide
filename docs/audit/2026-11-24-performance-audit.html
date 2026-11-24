@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tide — Performance-Audit &amp; Vergleichsbericht 24.11.2026</title>
+<style>
+:root{--bg:#fff;--surface:#f6f6f7;--ink:#0e0e10;--ink2:#52525b;--ink3:#a1a1aa;--line:#e4e4e7;--accent:#2f3138;
+--ok:#2e7d32;--okbg:#e8f5e9;--warn:#8a4b00;--warnbg:#fff3e0;--bad:#b42318;--badbg:#fdecea;--r:14px}
+*{box-sizing:border-box}
+body{margin:0;background:var(--surface);color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1120px;margin:0 auto;padding:40px 24px 80px}
+h1{font-size:30px;margin:0 0 4px;letter-spacing:-.02em}
+h2{font-size:20px;margin:44px 0 14px;letter-spacing:-.01em;border-bottom:2px solid var(--ink);padding-bottom:6px}
+h3{font-size:15px;margin:0 0 6px}
+.sub{color:var(--ink2);margin:0 0 24px}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:0 4px 16px rgba(17,24,39,.06)}
+.grid{display:grid;gap:16px}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.mono,.num{font-family:'JetBrains Mono',ui-monospace,monospace;font-variant-numeric:tabular-nums}
+.hero{display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center}
+@media(max-width:640px){.hero{grid-template-columns:1fr}}
+.ring{width:180px;height:180px;border-radius:50%;display:grid;place-items:center;background:conic-gradient(var(--ok) 0 var(--p),var(--line) var(--p) 100%)}
+.ring div{width:140px;height:140px;border-radius:50%;background:#fff;display:grid;place-items:center;text-align:center;align-content:center}
+.ring b{font-size:44px;line-height:1}.ring span{font-size:12px;color:var(--ink2);margin-top:2px}
+.ring .delta-pill{margin-top:4px;font-size:11.5px;font-weight:700;padding:1px 8px;border-radius:99px;background:var(--okbg);color:var(--ok)}
+.kpi b{display:block;font-size:24px;letter-spacing:-.02em;line-height:1.2}
+.kpi .prev{display:block;font-size:12px;color:var(--ink3);margin:2px 0 4px}
+.kpi span.desc{color:var(--ink2);font-size:13px;display:block}
+.bar{display:grid;grid-template-columns:200px 1fr 145px;gap:12px;align-items:center;margin:9px 0;font-size:14px}
+@media(max-width:640px){.bar{grid-template-columns:1fr;gap:4px}}
+.track{height:12px;background:var(--line);border-radius:6px;overflow:hidden;position:relative}
+.fill{height:100%;border-radius:6px;position:relative;z-index:2}
+.prev-mark{position:absolute;top:0;bottom:0;width:2px;background:var(--ink);opacity:.45;z-index:3}
+.ok{background:#2e7d32}.mid{background:#d98a00}.bad{background:#b42318}
+.bar-val{display:flex;justify-content:flex-end;gap:6px;align-items:baseline;white-space:nowrap}
+.bar-val .old{color:var(--ink3);font-size:12px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2)}
+td.r,th.r{text-align:right;white-space:nowrap}
+.prev-col{color:var(--ink3)}
+.tag{display:inline-block;padding:1px 9px;border-radius:99px;font-size:11.5px;font-weight:600;white-space:nowrap}
+.t-ok{background:var(--okbg);color:var(--ok)}.t-warn{background:var(--warnbg);color:var(--warn)}.t-bad{background:var(--badbg);color:var(--bad)}
+.t-neu{background:var(--surface);color:var(--ink2);border:1px solid var(--line)}
+.find{border-left:4px solid var(--bad);padding:14px 16px;background:#fff;border-radius:0 var(--r) var(--r) 0;border:1px solid var(--line);border-left-width:4px;margin-bottom:12px}
+.find.w{border-left-color:#d98a00}.find.o{border-left-color:var(--ok)}
+.find p{margin:4px 0;color:var(--ink2)}code{background:var(--surface);padding:1px 6px;border-radius:5px;font-size:12.5px}
+.note{background:var(--warnbg);color:var(--warn);padding:12px 16px;border-radius:10px;font-size:13.5px;margin:12px 0}
+.note.info{background:var(--okbg);color:var(--ok)}
+footer{margin-top:48px;color:var(--ink3);font-size:12.5px}
+@media print{body{background:#fff}.card{box-shadow:none}}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Tide — Performance-Audit &amp; Vergleichsbericht</h1>
+<p class="sub">24.11.2026 · Commit <code>ab07e53</code> vs. Baseline 23.11.2026 (<code>9cd3b21</code>) · Dev (<code>:3001</code> / <code>:8081</code>) &amp; Prod (<code>:3099</code>) · Chrome Headless via CDP</p>
+
+<div class="card hero">
+  <div class="ring" style="--p:74%">
+    <div>
+      <b>74</b>
+      <span>von 100</span>
+      <span class="delta-pill">+19 Punkte</span>
+    </div>
+  </div>
+  <div>
+    <h3>Gesamtbewertung: solide verbessert — Vorher 55 / 100 → Jetzt 74 / 100</h3>
+    <p style="margin:0 0 8px;color:var(--ink2)">Die beiden Fix-Commits <code>d56ff3f</code> und <code>77e3296</code> haben die schwerwiegendsten Netzwerk- und Memory-Leaks der Baseline beseitigt: Die Speicher-Kaskade beim Tippen (<code>330 → 2</code> HTTP-Requests), geleakte <code>YjsE2EEProvider</code>-Instanzen (<code>23 → 0</code> <code>crdt-state</code>-Fetches bei Fokus), fehlende Gzip-Kompression (<code>−80..90 %</code> Wire-Bytes) sowie das übergroße Mobile-Auth-Bundle (<code>3.236 ms → 204 ms</code> FCP/LCP) sind behoben.</p>
+    <p style="margin:0;color:var(--ink2)"><b>Verbleibende Engpässe:</b> Sequentielle <code>fetchDirectory(null, true)</code>-Stürme nach Mutationen (<code>88/120</code> Requests im Kalender-Batch), hohe Main-Thread-CPU-Last beim Tippen im Editor (p50 <code>73–88 ms</code>, p95 <code>182–210 ms</code>), der Komplett-Remount beim Tab-Wechsel (<code>23,6 FPS</code>) sowie noch kein <code>ETag</code>/Caching im Backend.</p>
+  </div>
+</div>
+
+<div class="note"><b>Test-Setup &amp; <code>SERVER_MASTER_KEY</code>-Erkenntnis:</b> Gemessen wurde gegen das neu kompilierte Go-Backend auf <code>:8081</code> (<code>ab07e53</code> inkl. <code>middleware.Compress(5)</code>) sowie Next.js Dev (<code>:3001</code>) und Next.js Prod (<code>:3099</code>). Bei der Überprüfung von <code>31_ReturningUser_DevAlice_Login</code> zeigte sich, dass <code>Dev Alice</code> und <code>Dev Bob</code> in <code>cloud/data/tide.db</code> (erstellt 18.11.2026) mit dem <code>SERVER_MASTER_KEY</code> aus <code>docker-compose.yml</code> (<code>0123456789abcdef0123456789abcdef...</code>) verschlüsselt sind — nicht mit dem Dev-Fallback <code>12345678901234567890123456789012</code>. Mit gesetztem <code>docker-compose</code>-Key lief auch der <code>Dev Alice</code>-Login fehlerfrei (<code>200 OK</code>, <code>1.350 ms</code> bis Shell).</div>
+
+<h2>Score je Bereich (Vorher 23.11. → Jetzt 24.11.)</h2>
+<div class="card">
+  <div class="bar"><span>Backend-API</span><div class="track"><div class="prev-mark" style="left:92%"></div><div class="fill ok" style="width:95%"></div></div><div class="bar-val"><span class="old num">92</span><b class="num">95</b><span class="tag t-ok">+3</span></div></div>
+  <div class="bar"><span>Erstladen (Produktion)</span><div class="track"><div class="prev-mark" style="left:75%"></div><div class="fill ok" style="width:92%"></div></div><div class="bar-val"><span class="old num">75</span><b class="num">92</b><span class="tag t-ok">+17</span></div></div>
+  <div class="bar"><span>Suche / Einstellungen</span><div class="track"><div class="prev-mark" style="left:80%"></div><div class="fill ok" style="width:88%"></div></div><div class="bar-val"><span class="old num">80</span><b class="num">88</b><span class="tag t-ok">+8</span></div></div>
+  <div class="bar"><span>Todos</span><div class="track"><div class="prev-mark" style="left:78%"></div><div class="fill ok" style="width:76%"></div></div><div class="bar-val"><span class="old num">78</span><b class="num">76</b><span class="tag t-warn">-2</span></div></div>
+  <div class="bar"><span>Speicher / Listener</span><div class="track"><div class="prev-mark" style="left:25%"></div><div class="fill ok" style="width:75%"></div></div><div class="bar-val"><span class="old num">25</span><b class="num">75</b><span class="tag t-ok">+50</span></div></div>
+  <div class="bar"><span>Netzwerk-Effizienz</span><div class="track"><div class="prev-mark" style="left:25%"></div><div class="fill mid" style="width:70%"></div></div><div class="bar-val"><span class="old num">25</span><b class="num">70</b><span class="tag t-ok">+45</span></div></div>
+  <div class="bar"><span>Kalender</span><div class="track"><div class="prev-mark" style="left:55%"></div><div class="fill mid" style="width:64%"></div></div><div class="bar-val"><span class="old num">55</span><b class="num">64</b><span class="tag t-ok">+9</span></div></div>
+  <div class="bar"><span>Mobile (4× CPU)</span><div class="track"><div class="prev-mark" style="left:40%"></div><div class="fill mid" style="width:58%"></div></div><div class="bar-val"><span class="old num">40</span><b class="num">58</b><span class="tag t-ok">+18</span></div></div>
+  <div class="bar"><span>Notiz-Editor (Tippen)</span><div class="track"><div class="prev-mark" style="left:42%"></div><div class="fill mid" style="width:52%"></div></div><div class="bar-val"><span class="old num">42</span><b class="num">52</b><span class="tag t-ok">+10</span></div></div>
+</div>
+
+<h2>Wichtigste Zahlen (Vorher → Jetzt)</h2>
+<div class="grid g4">
+  <div class="card kpi"><b class="num">2 <span class="tag t-ok">-99,4 %</span></b><span class="prev num">Vorher: 330 Requests</span><span class="desc">Editor-HTTP-Requests beim Tippen von 81 Zeichen (keine <code>crdt-state</code>/Backup-Kaskade mehr; gesamt 16 inkl. Verzeichnis-Refetch)</span></div>
+  <div class="card kpi"><b class="num">+26..312 <span class="tag t-ok">-98 %</span></b><span class="prev num">Vorher: +7.800..15.700</span><span class="desc">JS-Event-Listener pro Tipp-Test nach Bereinigung der geleakten Provider-Instanzen</span></div>
+  <div class="card kpi"><b class="num">0 <span class="tag t-ok">-100 %</span></b><span class="prev num">Vorher: 23 Abrufe</span><span class="desc"><code>crdt-state</code>-Requests bei Window-Focus &amp; Visibility-Wechsel</span></div>
+  <div class="card kpi"><b class="num">204 ms <span class="tag t-ok">-93,7 %</span></b><span class="prev num">Vorher: 3.236 ms</span><span class="desc">Mobile (4× CPU) Prod <code>/auth</code> FCP &amp; LCP durch Lazy-Loading</span></div>
+  <div class="card kpi"><b class="num">-80..90 % <span class="tag t-ok">Gzip aktiv</span></b><span class="prev num">Vorher: 0 % (unkomprimiert)</span><span class="desc">JSON-Wire-Payloads (z. B. <code>files n=50 events</code>: <code>11,7 KB → 1,2 KB</code>)</span></div>
+  <div class="card kpi"><b class="num">2,01 MB <span class="tag t-ok">-27,2 %</span></b><span class="prev num">Vorher: 2,76 MB (52 Chunks)</span><span class="desc">Top-3 Prod-JS-Chunks (64 Chunks gesamt, <code>1,08 + 0,55 + 0,37 MB</code>)</span></div>
+  <div class="card kpi"><b class="num">88 / 120 <span class="tag t-bad">Neuer Befund</span></b><span class="prev num">4 Endpunkte je Mutation</span><span class="desc">Redundante <code>fetchDirectory</code>-GETs beim Anlegen von 8 Kalender-Events</span></div>
+  <div class="card kpi"><b class="num">23,6 FPS <span class="tag t-warn">49–71 Reqs</span></b><span class="prev num">Vorher: 35 FPS / 72–82 Reqs</span><span class="desc">Notiz-Tab- &amp; Sidebar-Wechsel (<code>key={activeTabId}</code> Remount + <code>16</code> Long Tasks)</span></div>
+</div>
+
+<h2>Befunde nach Schwere</h2>
+
+<div class="find o"><h3><span class="tag t-ok">Behoben · d56ff3f</span> 1 · Speicher-Kaskade pro Tastendruck gestoppt (330 → 2 Requests)</h3>
+<p>Die 78× <code>crdt-state</code>, 78× <code>compact</code>, 78× <code>backups</code> und 77× <code>backups/10 minutes</code> beim Tippen von 81 Zeichen sind komplett verschwunden. Im Lauf <code>05_Note_Type_ShortParagraph</code> feuerten nur noch <code>2× POST /compact</code> (sowie <code>2× PUT /files/:id</code> und Hintergrund-Index/Directory-Fetches, gesamt <code>16</code> Requests statt <code>330–334</code>).</p>
+<p><b>Fix:</b> <code>handleAutoSaveSwitchTab</code> per <code>useCallback</code> + Ref in <code>page.tsx:165-175</code> stabilisiert; <code>triggerCompactionRef</code> und separates Unmount-Cleanup mit <code>[]</code> in <code>useAutoSaveSync.ts:543-587</code>.</p></div>
+
+<div class="find o"><h3><span class="tag t-ok">Behoben · d56ff3f</span> 2 · Geleakte YjsE2EEProvider-Instanzen &amp; Fokus-Refetch (23 → 0)</h3>
+<p>Bei Window-Focus/Visibility feuern nun <code>0</code> statt <code>23</code> <code>crdt-state</code>-Requests. In <code>Editor.tsx:113,190-219</code> wird <code>providerRef.current</code> direkt bei Erzeugung gesetzt und bei Tab-Wechsel/Unmount sauber per <code>destroy()</code> abgeräumt. <code>yjsE2EEProvider.ts</code> zerstört sich bei HTTP <code>404</code> selbst und throttelt <code>checkLivenessAndReconnect()</code> auf <code>15 s</code>.</p>
+<p><b>Restpunkt:</b> <code>checkLivenessAndReconnect()</code> prüft nicht eigenständig auf aktive Tab-ID; das Cleanup im Haupt-<code>useEffect</code> setzt nur <code>isCancelled = true</code>.</p></div>
+
+<div class="find o"><h3><span class="tag t-ok">Behoben · 77e3296</span> 3 · Gzip-Kompression, DB-Indizes, Code-Splitting &amp; paralleles RSA</h3>
+<p>Das Go-Backend liefert JSON-Antworten nun mit <code>Content-Encoding: gzip</code> (Level 5) aus (<code>−80..90 %</code> Wire-Transfer). Im Frontend reduzierte dynamisches Nachladen von Modals/Views die Top-3-Prod-Chunks um <code>27,2 %</code> (<code>2,76 MB → 2,01 MB</code>) und senkte Mobile (4× CPU) Prod <code>/auth</code> FCP/LCP von <code>3.236 ms</code> auf <code>204 ms</code> (<code>−93,7 %</code>).</p></div>
+
+<div class="find"><h3><span class="tag t-bad">Hoch</span> 4 · <code>fetchDirectory(null, true)</code>-Sturm &amp; fehlender GET-Short-TTL-Cache</h3>
+<p><code>apiFetch</code> dedupliziert über <code>inflightGets</code> nur <em>gleichzeitig</em> laufende identische GETs, cached aber nicht über aufeinanderfolgende Calls hinweg. Nach jeder Mutation ruft der Store <code>fetchDirectory(null, true)</code> auf und feuert alle 4 Endpunkte (<code>GET /files</code>, <code>/files?type=event</code>, <code>/tasks</code>, <code>/todos?limit=500&amp;include_archived=true</code>):</p>
+<p>• <b>8 Kalender-Events (<code>C4</code>):</b> <b>88 von 120</b> Requests (22× je 4 Endpunkte) sind redundante Directory-Refetches.<br>
+• <b>10–12 Todos (<code>22</code>/<code>C9</code>):</b> 40–44 von 53–56 Requests sind Directory-Refetches + parallele Hintergrund-Notiz-Compaction (<code>PUT /files/:id</code>).<br>
+• <b>8 Notizen (<code>08</code>):</b> 48 von 150 Requests entfallen auf die 4 Directory-Endpunkte (12×4).<br>
+• <b>Dev-Alice-Login (<code>31</code>) &amp; Fokus (<code>29</code>):</b> <code>tasks</code> und <code>todos</code> laufen 3×, <code>files?recursive=true</code> 2×; Fokus triggert noch <code>13</code> Requests (davon 2×4 Directory-GETs).</p></div>
+
+<div class="find w"><h3><span class="tag t-warn">Hoch</span> 5 · Notiz-Editor (Tippen): Weiterhin hohe Main-Thread-CPU-Last</h3>
+<p>Obwohl der Request-Sturm gestoppt ist, bleibt die reine UI-Latenz hoch: <code>81</code> Zeichen Tippen (<code>05</code>) liegt bei p50 <code>73,4 ms</code> / p95 <code>210,0 ms</code> (<code>39,6 FPS</code>, <code>37</code> Long Tasks mit <code>3.647 ms</code>), im <code>4.373</code>-Zeichen-Dokument (<code>06</code>) bei p50 <code>87,5 ms</code> / p95 <code>181,5 ms</code> (<code>35,6 FPS</code>). Titel umbenennen (<code>04</code>): p50 <code>80,2 ms</code> / p95 <code>182,2 ms</code>.</p>
+<p><b>Ursachen:</b> <code>editorContent</code>/<code>editorVersion</code> im Root-State (<code>page.tsx</code>) rendern die Shell bei jedem Zeichen neu; 3× volle <code>descendants()</code>-Traversals in <code>BlockId.ts</code>; Dekorations-Rebuilds in <code>InlineFormulas.ts</code>/<code>AnimatedEmoji</code>; <code>editor.getJSON()</code> pro Transaktion in <code>useTipTapConfig.ts</code>.</p></div>
+
+<div class="find w"><h3><span class="tag t-warn">Hoch</span> 6 · Notiz-Tab- &amp; Sidebar-Wechsel: Komplett-Remount drückt auf 23,6 FPS</h3>
+<p>Beim Wechsel über Sidebar-Kacheln (p50 <code>583 ms</code>, max <code>669 ms</code>) und Editor-Tabs (p50 <code>408 ms</code>, max <code>609 ms</code>) fielen in Lauf <code>09</code> <code>49–71 Requests</code>, <code>16</code> Long Tasks (<code>2.136 ms</code>) und <code>23,6 FPS</code> (p95 Frame <code>150,1 ms</code>) an. Ursache bleibt <code>&lt;CollaborativeEditor key={activeTabId}&gt;</code>, der TipTap, Yjs und WebSocket bei jedem Wechsel zerstört und neu aufbaut.</p></div>
+
+<div class="find w"><h3><span class="tag t-warn">Mittel</span> 7 · Kalender: 42 Spalten, <code>DayColumn</code>-Memo &amp; DOM-Wachstum (Drag &amp; Delete jetzt sauber)</h3>
+<p><b>Neu gemessen:</b> <code>C7</code> Termin Drag &amp; Drop (<code>+120 px</code>, 20 Schritte) läuft flüssig mit <code>53,3–54,1 FPS</code> und genau <code>1 PUT</code> (<code>9,4–11,1 ms</code>). <code>C8</code> Termin löschen via Popover benötigt <code>634 ms</code> bei <code>48,7–54,8 FPS</code> (<code>DELETE 204</code> in <code>12–17 ms</code> + 4 Directory-Refetches).</p>
+<p><b>Offene Schwachstellen:</b> <code>C4</code> (8 Termine) erzeugt weiterhin <code>40</code> Long Tasks (<code>3.877 ms</code>, p50 <code>1,40 s</code>/Termin, <code>38,8 FPS</code>). Wochen-Navigation (9 Schritte, <code>C6</code>) wächst um <code>+2.852</code> DOM-Nodes (auf <code>9.340</code> Nodes) durch nicht recycelte 42-Spalten-Ansichten und ausgehebelte <code>DayColumn</code>-Memos (<code>allEvents</code>/Drag-State).</p></div>
+
+<div class="find w"><h3><span class="tag t-warn">Mittel</span> 8 · Mobile (Dev, 4× CPU): Tab-Wechsel 431–526 ms</h3>
+<p>Während der Produktion-Cold-Load auf <code>/auth</code> hervorragend ist (<code>204 ms</code>), zeigen im eingeloggten Mobile-App-Shell (<code>390×844</code>, <code>4× CPU</code>) Bottom-Nav-Tab-Wechsel <code>431–526 ms</code>, Kalender-Subview-Wechsel <code>320–350 ms</code> und das Öffnen des FAB <code>422 ms</code> (Reload-Script-/Long-Task-Blockierzeit <code>2,08–2,18 s</code>, <code>4.567–4.655</code> DOM-Nodes).</p></div>
+
+<div class="find w"><h3><span class="tag t-warn">Niedrig</span> 9 · Backend &amp; Assets: ETag, Content-Length bei Chunked Gzip, Overwrite-Backup</h3>
+<p>Keine <code>ETag</code>-Header auf allen Endpunkten. Bei größeren komprimierten Listen (<code>n50_all</code>, <code>n150</code>) sendet Go chunked ohne <code>Content-Length</code>. Einzel-<code>POST/PUT</code>-Antworten (<code>file_create_note</code>, <code>file_update_put</code>, <code>tasks_create</code>) sind nicht komprimiert. <code>2 MB</code>-Overwrite liegt im Schnitt bei <code>51,8 ms</code> (vs. <code>16,6 ms</code> Erst-Upload) wegen synchroner Backup-Kaskade. In <code>web/public</code> liegen weiterhin <code>favicon.png</code> (<code>367 KB</code>), <code>tide.apk</code> (<code>23,5 MB</code>) und <code>43 MB</code> Emoji-SVGs.</p></div>
+
+<h2>Gemessene Aktionen — Desktop (1440×900, Dev :3001)</h2>
+<div class="card" style="overflow-x:auto"><table>
+<thead><tr><th>Szenario / Aktion</th><th class="r">Vorher (23.11.)</th><th class="r">Jetzt (24.11.)</th><th class="r">Delta</th><th class="r">Requests (Alt → Neu)</th><th class="r">FPS</th><th>Status / Detail</th></tr></thead><tbody>
+<tr><td>Cold-Load <code>/auth</code> (Dev)</td><td class="r num prev-col">1,80 s</td><td class="r num">1,19 s</td><td class="r"><span class="tag t-ok">-33,8 %</span></td><td class="r num">14 → 13</td><td class="r">–</td><td><span class="tag t-ok">4,57 MB Dev-JS, FCP 264 ms</span></td></tr>
+<tr><td>Dev-Login Einmal-Gast bis Shell</td><td class="r num prev-col">4,56 s</td><td class="r num">4,24 s</td><td class="r"><span class="tag t-ok">-7,0 %</span></td><td class="r num">40 → 49</td><td class="r num">50,5</td><td><span class="tag t-ok">Shell 1,72 s (A0: 2,32 s)</span></td></tr>
+<tr><td>Dev-Login <b>Alice</b> (returning)</td><td class="r num prev-col">5,12 s</td><td class="r num">5,49 s</td><td class="r"><span class="tag t-neu">+7,1 %</span></td><td class="r num">55 → 64</td><td class="r">–</td><td><span class="tag t-ok">Shell 1,35 s · 6 Doppel-GETs</span></td></tr>
+<tr><td>Erste Notiz anlegen</td><td class="r num prev-col">1,94 s</td><td class="r num">2,77 s</td><td class="r"><span class="tag t-warn">+42,7 %</span></td><td class="r num">24 → 33</td><td class="r num">37,2</td><td><span class="tag t-warn">11 Long Tasks (1,31 s)</span></td></tr>
+<tr><td>Titel umbenennen (21 Zeichen)</td><td class="r num prev-col">p50 62–74 ms</td><td class="r num">p50 80,2 ms</td><td class="r"><span class="tag t-warn">+15 %</span></td><td class="r num">11 → 14</td><td class="r num">47,3</td><td><span class="tag t-warn">p95 182 ms · 0 crdt-state</span></td></tr>
+<tr><td>81 Zeichen tippen (Editor)</td><td class="r num prev-col">p50 59,4 ms</td><td class="r num">p50 73,4 ms</td><td class="r"><span class="tag t-warn">CPU hoch</span></td><td class="r num">330 → 2 (16 ges.)</td><td class="r num">39,6</td><td><span class="tag t-ok">-99,4 % Editor-Reqs</span> <span class="tag t-warn">p95 210 ms</span></td></tr>
+<tr><td>4.230 Zeichen einfügen + 40 Tasten</td><td class="r num prev-col">p50 55,9 ms</td><td class="r num">p50 87,5 ms</td><td class="r"><span class="tag t-warn">CPU hoch</span></td><td class="r num">169 → 6</td><td class="r num">35,6</td><td><span class="tag t-ok">-96,4 % Reqs</span> <span class="tag t-warn">29 LT (2,7 s)</span></td></tr>
+<tr><td>Speichern-Button (Kompaktierung)</td><td class="r num prev-col">1,60 s</td><td class="r num">1,63 s</td><td class="r"><span class="tag t-neu">~0 %</span></td><td class="r num">2–3 → 0</td><td class="r num">58,0</td><td><span class="tag t-ok">gut · p95 Frame 17,2 ms</span></td></tr>
+<tr><td>8 Notizen anlegen (Batch)</td><td class="r num prev-col">p50 0,58 s</td><td class="r num">p50 0,93 s</td><td class="r"><span class="tag t-bad">+60 %</span></td><td class="r num">170 → 150</td><td class="r num">20,5</td><td><span class="tag t-bad">48× /files-Sturm · 32 LT</span></td></tr>
+<tr><td>Notiz wechseln (Sidebar / Tab)</td><td class="r num prev-col">0,48 / 0,31 s</td><td class="r num">0,58 / 0,41 s</td><td class="r"><span class="tag t-warn">+21..32 %</span></td><td class="r num">72–82 → 49–71</td><td class="r num">23,6</td><td><span class="tag t-bad">key={activeTabId} Remount</span></td></tr>
+<tr><td>Notiz löschen</td><td class="r num prev-col">1,60 s</td><td class="r num">1,54 s</td><td class="r"><span class="tag t-ok">-3,5 %</span></td><td class="r num">6 → 7</td><td class="r num">52,0</td><td><span class="tag t-ok">ok · 2 LT (178 ms)</span></td></tr>
+<tr><td>Todos öffnen</td><td class="r num prev-col">0,56 s</td><td class="r num">0,56 s</td><td class="r"><span class="tag t-neu">~0 %</span></td><td class="r num">0 → 12</td><td class="r num">48,0</td><td><span class="tag t-ok">ok · 1 LT (62 ms)</span></td></tr>
+<tr><td>Todo anlegen (einzeln)</td><td class="r num prev-col">0,56 s</td><td class="r num">0,65 s</td><td class="r"><span class="tag t-neu">+16 %</span></td><td class="r num">6–7 → 9</td><td class="r num">44,6</td><td><span class="tag t-ok">ok · POST 4,2 ms</span></td></tr>
+<tr><td>10 Todos anlegen (<code>22</code> / <code>C9</code>)</td><td class="r num prev-col">p50 296 ms</td><td class="r num">p50 367 / 488 ms</td><td class="r"><span class="tag t-warn">+24..65 %</span></td><td class="r num">11 → 53–56</td><td class="r num">35,8–38,8</td><td><span class="tag t-warn">40–44× fetchDirectory</span></td></tr>
+<tr><td>Todo Detail / 3 Subtasks / Toggle / Del</td><td class="r num prev-col">1,0 / 1,9 / 0,76 / 0,91 s</td><td class="r num">1,43 / 2,07 / 0,77 / 0,97 s</td><td class="r"><span class="tag t-neu">stabil</span></td><td class="r num">20 → 53 (Summe)</td><td class="r num">21–38</td><td><span class="tag t-warn">je 2–3× Directory-Refetch</span></td></tr>
+<tr><td>Suche (<code>Ctrl+K</code>, Tippen)</td><td class="r num prev-col">p50 17 / 41 ms</td><td class="r num">p50 34,7 / 40,4 ms</td><td class="r"><span class="tag t-ok">gut</span></td><td class="r num">0–2 → 1</td><td class="r num">54,4</td><td><span class="tag t-ok">2 &amp; 14 Treffer verifiziert</span></td></tr>
+<tr><td>Einstellungen (8 Reiter, <code>28</code> / <code>C10</code>)</td><td class="r num prev-col">78–120 ms/Tab</td><td class="r num">70–250 ms/Tab</td><td class="r"><span class="tag t-ok">PASS</span></td><td class="r num">5 → 3–4</td><td class="r num">43,4–48,7</td><td><span class="tag t-ok">Selector-Fix · 1,95–2,62 s ges.</span></td></tr>
+<tr><td>Fokus / Visibility-Wechsel (<code>29</code>)</td><td class="r num prev-col">2,46 s</td><td class="r num">2,41 s</td><td class="r"><span class="tag t-ok">-2,0 %</span></td><td class="r num">26 → 13 (Fokus)</td><td class="r num">43,0</td><td><span class="tag t-ok">23 → 0 crdt-state</span></td></tr>
+</tbody></table></div>
+
+<h2>Kalender-Messungen (Vorher → Jetzt, inkl. Drag &amp; Delete)</h2>
+<div class="card" style="overflow-x:auto"><table>
+<thead><tr><th>Szenario</th><th class="r">Vorher (23.11.)</th><th class="r">Jetzt (24.11.)</th><th class="r">Delta</th><th class="r">Requests</th><th class="r">FPS</th><th>Bewertung</th></tr></thead><tbody>
+<tr><td><code>C1</code> Kalender öffnen (Woche, 42 Spalten)</td><td class="r num prev-col">330 ms</td><td class="r num">398 ms</td><td class="r"><span class="tag t-neu">+21 %</span></td><td class="r num">0</td><td class="r num">33,8</td><td><span class="tag t-ok">42 sichtbare Spalten</span></td></tr>
+<tr><td><code>C2</code> Einzeltermin anlegen + Popover</td><td class="r num prev-col">559 ms</td><td class="r num">367 ms</td><td class="r"><span class="tag t-ok">-34,3 %</span></td><td class="r num">9 → 7</td><td class="r num">44,4</td><td><span class="tag t-ok">schneller</span></td></tr>
+<tr><td><code>C3</code> Termin bearbeiten (Auto-Save PUT)</td><td class="r num prev-col">1,26 s</td><td class="r num">1,35 s</td><td class="r"><span class="tag t-neu">+7,3 %</span></td><td class="r num">2 → 6</td><td class="r num">51,2</td><td><span class="tag t-ok">2 PUTs (14,3 &amp; 40,5 ms)</span></td></tr>
+<tr><td><code>C4</code> 8 Termine anlegen (Batch)</td><td class="r num prev-col">p50 1,26 s (10,6 s)</td><td class="r num">p50 1,40 s (11,6 s)</td><td class="r"><span class="tag t-warn">+9,8 %</span></td><td class="r num">96 → 120</td><td class="r num">38,8</td><td><span class="tag t-bad">88× fetchDirectory · 40 LT</span></td></tr>
+<tr><td><code>C5a–d</code> Tag / Monat / Fortlaufend / Woche</td><td class="r num prev-col">0,71 / 0,56 / 0,55 / 0,65 s</td><td class="r num">0,73 / 0,57 / 0,63 / 0,59 s</td><td class="r"><span class="tag t-neu">stabil</span></td><td class="r num">0–4</td><td class="r num">34–52</td><td><span class="tag t-ok">ok · +3.331 Nodes kum.</span></td></tr>
+<tr><td><code>C6</code> Wochen-Navigation (9 Schritte)</td><td class="r num prev-col">2,06 s (p50 203 ms)</td><td class="r num">2,48 s (p50 214 ms)</td><td class="r"><span class="tag t-warn">+20,0 %</span></td><td class="r num">7 → 8</td><td class="r num">36,9</td><td><span class="tag t-warn">+2.852 Nodes (9.340 ges.)</span></td></tr>
+<tr><td><code>C7</code> Termin Drag &amp; Drop (<code>+120 px</code>)</td><td class="r num prev-col">nicht gemessen</td><td class="r num">1,19 s</td><td class="r"><span class="tag t-ok">neu gemessen</span></td><td class="r num">1 PUT (9,4–11,1 ms)</td><td class="r num">53,3–54,1</td><td><span class="tag t-ok">gut · nur 3 LT (169 ms)</span></td></tr>
+<tr><td><code>C8</code> Termin löschen (Popover)</td><td class="r num prev-col">nicht gemessen</td><td class="r num">634 ms</td><td class="r"><span class="tag t-ok">neu gemessen</span></td><td class="r num">5 (DELETE 12–17 ms)</td><td class="r num">48,7–54,8</td><td><span class="tag t-ok">gut · +4 Directory-GETs</span></td></tr>
+</tbody></table></div>
+
+<h2>Mobile (390×844 @ 4× CPU) &amp; Produktion vs. Dev (<code>:3099</code>)</h2>
+<div class="grid g2">
+  <div class="card"><h3>Produktion <code>/auth</code> — Desktop 1× CPU (<code>P1</code>)</h3>
+  <table>
+    <thead><tr><th>Metrik</th><th class="r">Vorher</th><th class="r">Jetzt</th><th class="r">Delta</th></tr></thead>
+    <tbody>
+      <tr><td>TTFB</td><td class="r num prev-col">4,9 ms</td><td class="r num">5,3 ms</td><td class="r"><span class="tag t-neu">+0,4 ms</span></td></tr>
+      <tr><td>FCP / LCP</td><td class="r num prev-col">260 ms</td><td class="r num">196 ms</td><td class="r"><span class="tag t-ok">-24,6 %</span></td></tr>
+      <tr><td>domInteractive / load</td><td class="r num prev-col">71,9 / 167 ms</td><td class="r num">36,8 / 133,5 ms</td><td class="r"><span class="tag t-ok">-49 % / -20 %</span></td></tr>
+      <tr><td>CLS / Long Tasks</td><td class="r num prev-col">0 / 0</td><td class="r num">0 / 0</td><td class="r"><span class="tag t-ok">0</span></td></tr>
+      <tr><td>Transfer / Requests</td><td class="r num prev-col">753 KB (21)</td><td class="r num">753 KB (21)</td><td class="r"><span class="tag t-neu">~0 %</span></td></tr>
+      <tr><td>DOM / Heap</td><td class="r num prev-col">131 / 3,5 MB</td><td class="r num">131 / 3,5 MB</td><td class="r"><span class="tag t-neu">0</span></td></tr>
+    </tbody>
+  </table></div>
+  <div class="card"><h3>Produktion <code>/auth</code> — Mobil 4× CPU (<code>P2</code>)</h3>
+  <table>
+    <thead><tr><th>Metrik</th><th class="r">Vorher</th><th class="r">Jetzt</th><th class="r">Delta</th></tr></thead>
+    <tbody>
+      <tr><td>TTFB</td><td class="r num prev-col">3,4 ms</td><td class="r num">3,4 ms</td><td class="r"><span class="tag t-neu">0 %</span></td></tr>
+      <tr><td><b>FCP / LCP</b></td><td class="r num prev-col">3.236 ms</td><td class="r num"><b>204 ms</b></td><td class="r"><span class="tag t-ok">-93,7 %</span></td></tr>
+      <tr><td>domInteractive / load</td><td class="r num prev-col">3.150 / 3.394 ms</td><td class="r num">79,5 / 316,5 ms</td><td class="r"><span class="tag t-ok">-97,5 % / -90,7 %</span></td></tr>
+      <tr><td>Long Tasks / TBT</td><td class="r num prev-col">2 (240 ms / 140 ms)</td><td class="r num">2 (187 ms / 87 ms)</td><td class="r"><span class="tag t-ok">-37,9 % TBT</span></td></tr>
+      <tr><td>Gesamt-Szenario</td><td class="r num prev-col">4.625 ms</td><td class="r num">1.682 ms</td><td class="r"><span class="tag t-ok">-63,6 %</span></td></tr>
+      <tr><td>DOM / Heap</td><td class="r num prev-col">130 / 3,5 MB</td><td class="r num">130 / 3,51 MB</td><td class="r"><span class="tag t-neu">~0 %</span></td></tr>
+    </tbody>
+  </table></div>
+</div>
+
+<div class="card" style="margin-top:16px;overflow-x:auto">
+  <h3>Mobile Dev-App-Shell (390×844 @ 4× CPU) &amp; Bundle-Vergleich</h3>
+  <table>
+    <thead><tr><th>Bereich / Metrik</th><th class="r">Vorher (23.11.)</th><th class="r">Jetzt (24.11.)</th><th>Anmerkung</th></tr></thead>
+    <tbody>
+      <tr><td>Mobile Reload FCP / LCP (Dev)</td><td class="r num prev-col">5,1 s (Lauf 2)</td><td class="r num">384 ms (LCP) / 2,69 s load</td><td><span class="tag t-ok">2 LT (2,08 s), 3,07 MB, 4.655 Nodes</span></td></tr>
+      <tr><td>Bottom-Nav Tab-Wechsel (Kalender / Notizen / Todos)</td><td class="r num prev-col">nicht gemessen</td><td class="r num">431–526 ms</td><td><span class="tag t-warn">4× CPU · spürbare Verzögerung</span></td></tr>
+      <tr><td>Mobile Kalender-Subviews (Tag / Woche / Monat)</td><td class="r num prev-col">nicht gemessen</td><td class="r num">320–350 ms</td><td><span class="tag t-warn">4× CPU</span></td></tr>
+      <tr><td>Mobile FAB öffnen</td><td class="r num prev-col">nicht gemessen</td><td class="r num">422 ms</td><td><span class="tag t-warn">4× CPU</span></td></tr>
+      <tr><td>Prod-Bundle gesamt (JS + CSS)</td><td class="r num prev-col">4,81 MB roh (52 Chunks)</td><td class="r num">4,69 MB roh (64–68 JS + 6 CSS)</td><td><span class="tag t-ok">besseres Code-Splitting</span></td></tr>
+      <tr><td>Top-3 größte JS-Chunks (roh)</td><td class="r num prev-col">2,76 MB (1,10+1,02+0,64)</td><td class="r num">2,01 MB (1,08+0,55+0,37)</td><td><span class="tag t-ok">-27,2 %</span></td></tr>
+      <tr><td><code>web/public</code> Altlasten &amp; ungenutzte Pakete</td><td class="r num prev-col">64 MB / 3 Pakete</td><td class="r num">64 MB / unverändert</td><td><span class="tag t-warn">43 MB Emojis, 23,5 MB APK, 367 KB Favicon</span></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<h2>Backend-Direktmessung (<code>:8081</code>, Vorher → Jetzt mit Gzip Level 5)</h2>
+<div class="card" style="overflow-x:auto"><table>
+<thead><tr><th>Endpunkt</th><th class="r">p50 (Alt → Neu)</th><th class="r">p95 / max (Neu)</th><th class="r">Payload (Roh → Wire)</th><th>Header / Anmerkung</th></tr></thead><tbody>
+<tr><td><code>GET /health</code></td><td class="r num">0,83 → 0,50 ms</td><td class="r num">1,61 / 3,91 ms</td><td class="r num">2 B → 2 B</td><td><span class="tag t-ok">Stateless, -40 % p50</span></td></tr>
+<tr><td><code>GET /auth/me</code></td><td class="r num">0,88 → 1,75 ms</td><td class="r num">7,85 / 8,87 ms</td><td class="r num">823 → 688 B (-16 %)</td><td><span class="tag t-ok">gzip</span> · ~0,9 ms Kompressions-CPU</td></tr>
+<tr><td><code>POST /auth/ws-ticket</code></td><td class="r num">0,99 → 0,88 ms</td><td class="r num">4,63 ms</td><td class="r num">94 → 109 B</td><td><span class="tag t-ok">gzip</span> · -10 % p50</td></tr>
+<tr><td><code>POST /files</code> (Notiz) / <code>PUT /files/:id</code></td><td class="r num">1,91 → 2,44 ms / 1,81 → 3,18 ms</td><td class="r num">16,2 / 9,5 ms</td><td class="r num">404 / 414 B</td><td><span class="tag t-neu">kein gzip (kleine JSONs)</span></td></tr>
+<tr><td><code>GET /crdt-state</code></td><td class="r num">1,94 → 3,35 ms</td><td class="r num">8,77 ms</td><td class="r num">45 → 69 B</td><td><span class="tag t-ok">gzip</span> · im Browser 0× bei Fokus</td></tr>
+<tr><td>Upload 10 KB: erst / overwrite</td><td class="r num">5,5 / 11,1 → 7,4 / 6,7 ms</td><td class="r num">15,7 / 8,7 ms</td><td class="r num">0 B</td><td><span class="tag t-ok">Overwrite -40 % p50</span></td></tr>
+<tr><td>Upload 250 KB: erst / overwrite</td><td class="r num">19,8 / 19,1 → 6,3 / 7,2 ms</td><td class="r num">6,5 / 8,6 ms</td><td class="r num">0 B</td><td><span class="tag t-ok">-66 % p50 gesamt</span></td></tr>
+<tr><td>Upload 2 MB: erst / overwrite</td><td class="r num">13,5 / 22,3 → 15,1 / 22,3 ms</td><td class="r num">Ø 16,6 / 51,8 ms</td><td class="r num">0 B</td><td><span class="tag t-warn">Overwrite-Backup synchron</span></td></tr>
+<tr><td>Download 250 KB / 2 MB</td><td class="r num">2,46 / 9,11 → 3,54 / 9,41 ms</td><td class="r num">7,6 / 60,6 ms</td><td class="r num">256 KB / 2 MB</td><td><span class="tag t-warn">kein ETag / Content-Length</span></td></tr>
+<tr><td>Dateiliste <code>n=10</code> (all / events)</td><td class="r num">1,46 / 1,57 → 2,94 / 2,51 ms</td><td class="r num">6,4 / 11,3 ms</td><td class="r num">4,66 KB → 707 B / 2,34 KB → 471 B</td><td><span class="tag t-ok">gzip -85 % / -80 %</span></td></tr>
+<tr><td>Dateiliste <code>n=50</code> (all / events)</td><td class="r num">1,63 / 1,23 → 3,75 / 2,66 ms</td><td class="r num">5,9 / 5,7 ms</td><td class="r num">23,3 KB → chunked / 11,7 → 1,21 KB</td><td><span class="tag t-ok">gzip -90 %</span></td></tr>
+<tr><td>Dateiliste <code>n=150</code> (all / events)</td><td class="r num">5,07 / 2,85 → 7,57 / 4,76 ms</td><td class="r num">12,4 / 7,9 ms</td><td class="r num">70,1 KB / 35,1 KB → gzip chunked</td><td><span class="tag t-ok">gzip aktiv</span></td></tr>
+<tr><td>20 parallele Writes / Reads (n=150)</td><td class="r num">45,2 / 32,7 → 64,4 / 29,5 ms</td><td class="r num">71,0 / 50,2 ms</td><td class="r num">411 B / 70,2 KB gzip</td><td><span class="tag t-ok">0 Fehler · Reads -27 % mean</span></td></tr>
+<tr><td>Tasks CRUD (Create/List/Update/Del)</td><td class="r num">0,5–1,1 → 0,6–1,5 ms</td><td class="r num">1,3–9,0 ms</td><td class="r num">List: 4,08 KB → 690 B (-83 %)</td><td><span class="tag t-ok">gzip auf List/Update</span></td></tr>
+<tr><td>Todos CRUD (Create/List/Patch/Del)</td><td class="r num">0,8–1,6 → 0,8–2,1 ms</td><td class="r num">2,0–6,2 ms</td><td class="r num">List: 4,65 KB → 661 B (-86 %)</td><td><span class="tag t-ok">gzip auf Create/List/Patch</span></td></tr>
+</tbody></table>
+<p style="color:var(--ink2);margin:12px 0 0;font-size:13.5px">WebCrypto-Baseline (Node v24): RSA-4096 Keygen <code>831,5 ms</code>, PBKDF2 600k <code>268,4 ms</code>, RSA-4096 Decrypt <code>14,2 ms</code>, AES-256-GCM 64 KB Decrypt <code>0,96 ms</code>. Durch die Parallelisierung in <code>77e3296</code> blockiert die Metadaten-Entschlüsselung nicht mehr linear.</p></div>
+
+<h2>Empfohlene Maßnahmen (Roadmap 74 → 90+)</h2>
+<div class="card"><table>
+<thead><tr><th>#</th><th>Maßnahme</th><th>Erwarteter Effekt</th><th>Aufwand</th></tr></thead><tbody>
+<tr><td>1</td><td><b>Short-TTL-Cache / Event-basiertes Invalidate für <code>fetchDirectory(null, true)</code></b> (<code>createFsSlice.ts</code> &amp; <code>api.ts</code>) — optimistische Store-Updates statt 4-Endpoint-Refetch nach jeder Mutation</td><td><code>88/120</code> Kalender-Reqs &amp; <code>44/56</code> Todo-Reqs eliminieren, Batch-Latenz deutlich senken</td><td>mittel</td></tr>
+<tr><td>2</td><td><b><code>editorContent</code> / <code>editorVersion</code> aus Root-<code>Dashboard</code> auslagern</b> (Ref/Store-Selector) + <code>BlockId.ts</code>-Traversal auf geänderte Ranges beschränken + <code>editor.getJSON()</code> debouncen</td><td>Tipp-Latenz von p50 <code>73–88 ms</code> auf &lt; <code>25 ms</code>, deutlich weniger Long Tasks</td><td>mittel</td></tr>
+<tr><td>3</td><td><b><code>&lt;CollaborativeEditor&gt;</code> ohne <code>key={activeTabId}</code>-Remount betreiben</b> (Doc/Provider-Switch innerhalb der bestehenden TipTap-Instanz)</td><td>Tab-Wechsel von <code>23,6 FPS</code> / <code>71 Reqs</code> auf ~<code>55 FPS</code> / <code>&lt; 5 Reqs</code></td><td>mittel</td></tr>
+<tr><td>4</td><td><b>Kalender-Render entlasten:</b> <code>allEvents</code> aus <code>DayColumn</code>-Props entfernen, <code>O(N²)</code>-Overlap je Spalte memoizen, nur aktive Woche + Puffer im DOM halten</td><td>Weniger als <code>40</code> Long Tasks bei Event-Batches, konstante Node-Zahl beim Navigieren</td><td>mittel</td></tr>
+<tr><td>5</td><td><b>Mobile Shell (4× CPU) optimieren:</b> Tab-Inhalte lazy/pre-warmen, unnötige Re-Renders bei Bottom-Nav &amp; FAB-Mount abbauen</td><td>Tab-Wechsel <code>431–526 ms</code> &amp; Subviews <code>320–350 ms</code> unter <code>150 ms</code> drücken</td><td>klein–mittel</td></tr>
+<tr><td>6</td><td><b>Backend-Feinschliff:</b> <code>ETag</code>/<code>304</code> für Dateilisten &amp; Blobs, <code>Content-Length</code> bei Downloads, Overwrite-Backup asynchron entkoppeln</td><td><code>0 B</code> bei unveränderten Listen-Fetches, konstanter 2-MB-Upload</td><td>klein</td></tr>
+<tr><td>7</td><td><b><code>web/public</code> &amp; Dev-Setup aufräumen:</b> <code>favicon.png</code> (<code>367 KB → &lt; 15 KB</code>), <code>tide.apk</code> aus <code>public/</code> auslagern, ungenutzte Pakete (<code>recharts</code>, <code>@xyflow/react</code>, <code>iconsax-react</code>) entfernen, <code>cloud/.env.dev</code> mit <code>SERVER_MASTER_KEY</code> dokumentieren</td><td>Sauberer Deploy &amp; konsistenter <code>Dev Alice</code>-Login</td><td>klein</td></tr>
+</tbody></table></div>
+
+<h2>Methodik und Hinweise</h2>
+<div class="card" style="font-size:14px">
+<ul style="margin:0;padding-left:20px;color:var(--ink2)">
+<li>Frontend: Chrome Headless via CDP (<code>Performance.getMetrics</code>, <code>PerformanceObserver</code> für FCP/LCP/CLS/Long Tasks/Event Timing, rAF-Frameraten, Netzwerk- &amp; WebSocket-Events) gegen Next.js Dev (<code>:3001</code>) und Prod (<code>:3099</code>) auf Stand <code>ab07e53</code>.</li>
+<li>Backend: Node v24 Benchmark gegen lokal neu kompiliertes Go-Binary auf <code>:8081</code> (<code>ab07e53</code>, <code>Accept-Encoding: gzip</code>). Alle 170 Test-Dateien, 15 Tasks und 10 Todos wurden automatisch bereinigt (0 Fehler).</li>
+<li><code>Dev Alice</code>: Erst nach Übernahme des <code>SERVER_MASTER_KEY</code> aus <code>docker-compose.yml</code> (<code>0123456789abcdef...</code>) konnte der bestehende Pepper in <code>cloud/data/tide.db</code> entschlüsselt werden; danach lief <code>31_ReturningUser_DevAlice_Login</code> fehlerfrei (<code>1.350 ms</code> bis Shell).</li>
+<li>Kalender Drag &amp; Drop (<code>C7</code>), Löschen (<code>C8</code>) sowie die Mobile-Interaktionen wurden in dedizierten Läufen sauber nachgemessen und schließen die Lücken aus dem Bericht vom 23.11.2026.</li>
+<li>Der Gesamtscore (<code>74 / 100</code>, Vorher <code>55 / 100</code>) ist eine gewichtete Einordnung aus den Messwerten, keine genormte Kennzahl.</li>
+</ul></div>
+
+<footer>Erstellt am 24.11.2026 · Commit <code>ab07e53</code> vs. <code>9cd3b21</code> · Rohdaten: <code>perf_browser_results.json</code>, <code>perf_calendar_and_prod_results.json</code>, <code>perf_gap_results.json</code>, <code>perf_api_results.json</code>, <code>extracted_metrics_summary.json</code></footer>
+</div></body></html>
