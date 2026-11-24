@@ -186,4 +186,8 @@ export const settingsMiscDe = {
     'debug.deletePermanent': 'Dauerhaft löschen',
     'debug.rawPayload': 'Rohdaten',
     'debug.sizeType': 'Größe: {size} Bytes | Typ: {type}',
+    'visibility.private': 'Privat',
+    'visibility.shared': 'Geteilt',
+    'visibility.sharedWithMe': 'Mit mir geteilt',
+    'visibility.public': 'Öffentlicher Link',
 } as const;

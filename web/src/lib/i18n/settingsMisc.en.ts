@@ -188,4 +188,8 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'debug.deletePermanent': 'Delete permanently',
     'debug.rawPayload': 'Raw data',
     'debug.sizeType': 'Size: {size} bytes | Type: {type}',
+    'visibility.private': 'Private',
+    'visibility.shared': 'Shared',
+    'visibility.sharedWithMe': 'Shared with me',
+    'visibility.public': 'Public link',
 };
