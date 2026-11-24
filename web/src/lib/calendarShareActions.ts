@@ -136,11 +136,18 @@ export async function syncGroupShares(args: {
     rule: CalendarShareRule;
     removed: string[];
     permissionChanged: string[];
+    /**
+     * 'full' (default, only after the user confirmed): revoke, change rights, share missing events, send summaries.
+     * 'revoke-only' (retrying unfinished removals without a confirm): only the revokes and the pending merge.
+     */
+    mode?: 'full' | 'revoke-only';
     /** Calendar name for the one summary chat message per person who got new events. */
     groupTitle?: string;
     onProgress?: (p: { phase: 'check' | 'apply'; done: number; total: number }) => void;
 }): Promise<GroupSyncResult> {
-    const { rule, permissionChanged, onProgress } = args;
+    const { rule, onProgress } = args;
+    const full = args.mode !== 'revoke-only';
+    const permissionChanged = full ? args.permissionChanged : [];
     const keep = new Set(rule.recipients.map((r) => r.userId));
     const removed = [...new Set([...args.removed, ...(rule.pendingRevoke ?? [])])].filter((u) => !keep.has(u));
     const events = await loadGroupEvents(rule.groupId, (done, total) => onProgress?.({ phase: 'check', done, total }));
@@ -154,7 +161,7 @@ export async function syncGroupShares(args: {
         rule.recipients.filter((r) => permissionChanged.includes(r.userId) && mayHave(e, r.userId))
             .map((r) => ({ eventId: e.id, userId: r.userId, permission: r.permission })));
     // Sharing only on events whose list was read: an unreadable list is "unchecked", never "nobody has it".
-    const shares = planGroupShares({ events: events.filter((e) => e.sharedWith), rule });
+    const shares = full ? planGroupShares({ events: events.filter((e) => e.sharedWith), rule }) : [];
     const total = revokes.length + patches.length + shares.length;
 
     let offset = 0;
@@ -184,7 +191,7 @@ export async function syncGroupShares(args: {
         if (e?.sharedWith && !e.sharedWith.includes(p.userId)) e.sharedWith = [...e.sharedWith, p.userId];
     });
 
-    for (const [userId, count] of sharedCount) await sendCalendarSummary(userId, args.groupTitle ?? '', count);
+    if (full) for (const [userId, count] of sharedCount) await sendCalendarSummary(userId, args.groupTitle ?? '', count);
 
     const pendingRevoke = [...stillPending];
     // Merge into the stored list (re-read inside updateRule): drop only people fully revoked in THIS run,
@@ -194,9 +201,9 @@ export async function syncGroupShares(args: {
     if (removed.length > 0) {
         try {
             await useCalendarShareStore.getState().updateRule(rule.groupId, (current) => {
-                const base = current ?? { groupId: rule.groupId, recipients: [], autoShareNew: false };
-                const merged = [...new Set([...(base.pendingRevoke ?? []), ...pendingRevoke])].filter((u) => !finished.has(u));
-                return { ...base, pendingRevoke: merged }; // explicit list ([] clears); re-added recipients are dropped by upsert
+                if (!current) return undefined; // calendar (and rule) deleted meanwhile: never recreate it
+                const merged = [...new Set([...(current.pendingRevoke ?? []), ...pendingRevoke])].filter((u) => !finished.has(u));
+                return { ...current, pendingRevoke: merged }; // explicit list ([] clears); re-added recipients are dropped by upsert
             });
         } catch {
             persistFailed = true;

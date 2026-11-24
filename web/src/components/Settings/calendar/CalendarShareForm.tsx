@@ -11,7 +11,7 @@ import { summarizeGroupShares, type CalendarSharePermission, type CalendarShareR
 import { groupSyncInFlight, loadGroupEvents, startGroupSync, type GroupSyncResult } from '@/lib/calendarShareActions';
 
 type Progress = { phase: 'check' | 'apply'; done: number; total: number } | null;
-type SyncArgs = { rule: CalendarShareRule; removed: string[]; permissionChanged: string[] };
+type SyncArgs = { rule: CalendarShareRule; removed: string[]; permissionChanged: string[]; mode: 'full' | 'revoke-only' };
 
 const initials = (name: string): string =>
     name.split(/[\s._@-]+/).filter(Boolean).slice(0, 2).map((p) => p[0]?.toUpperCase() ?? '').join('') || '?';
@@ -37,7 +37,7 @@ export function CalendarShareForm({ group, rule, titleId, onClose }: CalendarSha
     const submittingRef = useRef(false);
     const storeContacts = useDataStore((s) => s.contacts);
     const contacts = useMemo(() => storeContacts ?? [], [storeContacts]);
-    const saveRule = useCalendarShareStore((s) => s.saveRule);
+    const updateRule = useCalendarShareStore((s) => s.updateRule);
 
     const [recipients, setRecipients] = useState<CalendarShareRecipient[]>(rule?.recipients ?? []);
     const [autoShareNew, setAutoShareNew] = useState(rule?.autoShareNew ?? true);
@@ -71,9 +71,10 @@ export function CalendarShareForm({ group, rule, titleId, onClose }: CalendarSha
         try {
             const res = await startGroupSync({ ...args, groupTitle: group.title, onProgress: (p) => mounted.current && setProgress(p) });
             showResult(res, args);
-        } catch {
-            if (mounted.current) setError(t('calShare.loadFailed'));
-            else notifyError(t('calShare.loadFailed'));
+        } catch (err) {
+            const msg = t(err instanceof Error && err.message === 'sync-running' ? 'calShare.syncRunning' : 'calShare.loadFailed');
+            if (mounted.current) setError(msg);
+            else notifyError(msg);
         } finally {
             if (mounted.current) setProgress(null);
         }
@@ -89,7 +90,8 @@ export function CalendarShareForm({ group, rule, titleId, onClose }: CalendarSha
             running.then((res) => mounted.current && setEvents(res.events)).catch(() => undefined)
                 .finally(() => mounted.current && setProgress(null));
         } else if (rule?.pendingRevoke?.length) {
-            void runSync({ rule, removed: [], permissionChanged: [] });
+            // No confirm here: only finish the removals the user already confirmed, never share.
+            void runSync({ rule, removed: [], permissionChanged: [], mode: 'revoke-only' });
         } else if (rule && rule.recipients.length > 0) {
             setProgress({ phase: 'check', done: 0, total: 0 });
             loadGroupEvents(group.id, (done, total) => mounted.current && setProgress({ phase: 'check', done, total }))
@@ -135,16 +137,23 @@ export function CalendarShareForm({ group, rule, titleId, onClose }: CalendarSha
         setSubmitting(true);
         setError(null);
         try {
-            const pending = [...new Set([...(rule?.pendingRevoke ?? []), ...removed])];
-            // Removals are written as pending first, so they survive closing the dialog or a crash.
-            const next: CalendarShareRule = { groupId: group.id, recipients, autoShareNew, ...(pending.length ? { pendingRevoke: pending } : {}) };
+            let next: CalendarShareRule | undefined;
             try {
-                await saveRule(next); // the rule exists only after this explicit confirmation
+                // The rule exists only after this explicit confirmation. Removals are written as pending first, so
+                // they survive closing the dialog or a crash; unioned with the stored list inside the write, so
+                // entries another device added meanwhile are kept.
+                await updateRule(group.id, (current) => {
+                    const pending = [...new Set([...(current?.pendingRevoke ?? []), ...removed])];
+                    next = { groupId: group.id, recipients, autoShareNew, ...(pending.length ? { pendingRevoke: pending } : {}) };
+                    return next;
+                });
             } catch {
                 setError(t('calShare.saveFailed'));
                 return;
             }
-            await runSync({ rule: next, removed, permissionChanged });
+            const saved = useCalendarShareStore.getState().rules[group.id] ?? next;
+            if (!saved) return;
+            await runSync({ rule: saved, removed, permissionChanged, mode: 'full' });
         } finally {
             submittingRef.current = false;
             if (mounted.current) setSubmitting(false);

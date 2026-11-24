@@ -97,4 +97,35 @@ describe('CalendarShareDialog', () => {
         await settle();
         expect(document.body.textContent).toContain('Zugriff auf alle Termine entzogen');
     });
+
+    it('opening with pending removals runs a revoke-only sync, no sharing', async () => {
+        stored = { g1: { ...annaRule.g1, pendingRevoke: ['bob'] } };
+        vi.mocked(startGroupSync).mockResolvedValueOnce({ done: 1, failed: 0, total: 1, events: [], pendingRevoke: [], persistFailed: false });
+        render();
+        await settle();
+        expect(startGroupSync).toHaveBeenCalledTimes(1);
+        expect(vi.mocked(startGroupSync).mock.calls[0][0].mode).toBe('revoke-only');
+    });
+
+    it('confirm runs a full sync; a running sync gets its own message', async () => {
+        vi.mocked(startGroupSync).mockRejectedValueOnce(new Error('sync-running'));
+        render();
+        await settle();
+        act(() => (document.querySelector('button[aria-label="Anna entfernen"]') as HTMLButtonElement).click());
+        act(() => (button('Speichern') as HTMLButtonElement).click());
+        await settle();
+        expect(vi.mocked(startGroupSync).mock.calls[0][0].mode).toBe('full');
+        expect(document.body.textContent).toContain('Eine Freigabe läuft bereits');
+    });
+
+    it('confirm unions its pending removals with entries another device added meanwhile', async () => {
+        vi.mocked(startGroupSync).mockResolvedValueOnce({ done: 1, failed: 0, total: 1, events: [], pendingRevoke: [], persistFailed: false });
+        render();
+        await settle();
+        stored = { g1: { ...annaRule.g1, pendingRevoke: ['carl'] } }; // written elsewhere after the dialog loaded
+        act(() => (document.querySelector('button[aria-label="Anna entfernen"]') as HTMLButtonElement).click());
+        act(() => (button('Speichern') as HTMLButtonElement).click());
+        await settle();
+        expect(stored.g1?.pendingRevoke?.sort()).toEqual(['anna', 'carl']);
+    });
 });

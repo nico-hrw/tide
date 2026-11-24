@@ -225,3 +225,33 @@ describe('one sync per calendar at a time', () => {
         expect(groupSyncInFlight('g1')).toBeUndefined();
     });
 });
+
+describe('revoke-only mode (dialog open with pending removals)', () => {
+    it('only DELETEs: no share POSTs, no permission PATCHes, no messages', async () => {
+        lists = { e1: ['bob'] }; // e1 is missing for anna: a full sync would share it
+        const rule = { ...rules.g1, pendingRevoke: ['bob'] };
+        stored = { g1: rule };
+        const res = await syncGroupShares({ rule, removed: [], permissionChanged: ['anna'], mode: 'revoke-only', groupTitle: 'Arbeit' });
+        expect(deletes).toEqual(['e1:bob']);
+        expect(shareMock).not.toHaveBeenCalled();
+        expect(apiMock.mock.calls.some(([, init]) => init?.method === 'PATCH')).toBe(false);
+        expect(apiMock.mock.calls.some(([url]) => url === '/api/v1/messages')).toBe(false);
+        expect(res).toMatchObject({ done: 1, failed: 0, total: 1 });
+        expect(stored.g1?.pendingRevoke).toBeUndefined();
+    });
+
+    it('the default (full) still shares missing events', async () => {
+        lists = { e1: [] };
+        await syncGroupShares({ rule: rules.g1, removed: [], permissionChanged: [] });
+        expect(shareMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not recreate the rule of a calendar deleted meanwhile, but still reports', async () => {
+        lists = { e1: ['bob'] };
+        deleteStatus['e1:bob'] = 500;
+        stored = {}; // deleted elsewhere while the run was going
+        const res = await syncGroupShares({ rule: { ...rules.g1, pendingRevoke: ['bob'] }, removed: ['bob'], permissionChanged: [], mode: 'revoke-only' });
+        expect(res.failed).toBe(1);
+        expect(stored.g1).toBeUndefined();
+    });
+});
