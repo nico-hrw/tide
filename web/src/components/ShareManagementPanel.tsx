@@ -5,6 +5,7 @@ import { askConfirm, notifyError } from '@/lib/feedback';
 import { Users, X, ShieldAlert, UserMinus, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
+import { ShareOriginLabel, useItemGroupIds } from "@/components/Share/ShareOriginLabel";
 
 interface Share {
     file_id: string;
@@ -30,6 +31,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [revokingId, setRevokingId] = useState<string | null>(null);
+    const groupIds = useItemGroupIds(fileId);
 
     useEffect(() => {
         loadShares();
@@ -154,6 +156,9 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                         </span>
                                         <span className="text-[11px] text-t2-ink-3">
                                             {share.status === 'accepted' ? 'Akzeptiert' : 'Ausstehend'}
+                                        </span>
+                                        <span className="text-[11px] text-t2-ink-3">
+                                            <ShareOriginLabel fileId={fileId} userId={share.user_id} groupIds={groupIds} />
                                         </span>
                                     </div>
                                 </div>

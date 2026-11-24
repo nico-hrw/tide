@@ -165,6 +165,7 @@ export function DashboardModals({
                     onShare={onShare}
                     myId={myId}
                     callerPermission={callerPermission ?? shareModalFile.callerPermission ?? 'owner'}
+                    groups={groups}
                 />
             )}
 
