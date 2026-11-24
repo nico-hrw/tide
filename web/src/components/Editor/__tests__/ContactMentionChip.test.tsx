@@ -48,7 +48,7 @@ describe('ContactMentionChip', () => {
         act(() => chipBtn().click());
         expect(card()).not.toBeNull();
         expect(card()!.textContent).toContain('@anna');
-        expect(card()!.textContent).toContain('Kann diese Notiz ansehen');
+        expect(card()!.textContent).toContain('geteilt werden');
         const spy = vi.fn();
         window.addEventListener('tide:open-profile', spy);
         const open = card()!.querySelector('[data-contact-open-profile]') as HTMLButtonElement;
@@ -62,7 +62,7 @@ describe('ContactMentionChip', () => {
         act(() => root.render(<ContactMentionChip {...props({ shareable: false })} />));
         expect(chipBtn().textContent).toContain('nicht geteilt');
         act(() => chipBtn().click());
-        expect(card()!.textContent).not.toContain('Kann diese Notiz ansehen');
+        expect(card()!.textContent).not.toContain('geteilt werden');
     });
 
     it('closes on Escape and returns focus to the chip', () => {

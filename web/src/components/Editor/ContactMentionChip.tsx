@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { NodeViewWrapper, type NodeViewProps } from '@tiptap/react';
 import Avatar from '@/components/Profile/Avatar';
 import { useT } from '@/components/Settings/useT';
 import { useDataStore } from '@/store/useDataStore';
 import { ContactProfileCard } from './ContactProfileCard';
+
+const CARD_WIDTH = 224; // w-56
 
 /**
  * Chip for an @-mentioned contact: avatar + live name, click opens a profile card.
@@ -21,6 +23,7 @@ export function ContactMentionChip({ node }: Pick<NodeViewProps, 'node'>) {
     const username = contact?.username || label;
     const shareable = node.attrs.shareable === true || node.attrs.shareable === 'true';
     const [open, setOpen] = useState(false);
+    const [alignRight, setAlignRight] = useState(false);
     const wrapRef = useRef<HTMLSpanElement>(null);
     const btnRef = useRef<HTMLButtonElement>(null);
 
@@ -28,6 +31,12 @@ export function ContactMentionChip({ node }: Pick<NodeViewProps, 'node'>) {
         setOpen(false);
         if (refocus) btnRef.current?.focus();
     }, []);
+
+    // Flip the card to the right edge of the chip when it would overflow the viewport
+    useLayoutEffect(() => {
+        if (!open || !wrapRef.current) return;
+        setAlignRight(wrapRef.current.getBoundingClientRect().left + CARD_WIDTH > window.innerWidth - 8);
+    }, [open]);
 
     useEffect(() => {
         if (!open) return;
@@ -85,6 +94,7 @@ export function ContactMentionChip({ node }: Pick<NodeViewProps, 'node'>) {
                     avatarSeed={avatarSeed}
                     avatarStyle={avatarStyle}
                     shared={shareable}
+                    alignRight={alignRight}
                     onOpenProfile={openProfile}
                 />
             )}

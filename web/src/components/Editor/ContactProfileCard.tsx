@@ -11,11 +11,12 @@ interface ContactProfileCardProps {
     avatarSeed: string;
     avatarStyle: 'notionists' | 'openPeeps';
     shared: boolean;
+    alignRight?: boolean;
     onOpenProfile: () => void;
 }
 
 /** Small card under a contact mention chip: avatar, name, access line and a profile button. */
-export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, shared, onOpenProfile }: ContactProfileCardProps) {
+export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, shared, alignRight, onOpenProfile }: ContactProfileCardProps) {
     const t = useT();
     return (
         <div
@@ -23,7 +24,7 @@ export function ContactProfileCard({ userId, username, avatarSeed, avatarStyle, 
             role="dialog"
             aria-label={username}
             contentEditable={false}
-            className="absolute left-0 top-full mt-1.5 z-50 w-56 p-3 rounded-2xl border border-t2-line bg-t2-surface shadow-float text-t2-ink font-normal text-left whitespace-normal"
+            className={`absolute ${alignRight ? 'right-0' : 'left-0'} top-full mt-1.5 z-50 w-56 p-3 rounded-2xl border border-t2-line bg-t2-surface shadow-float text-t2-ink font-normal text-left whitespace-normal`}
             onMouseDown={(e) => e.stopPropagation()}
         >
             <div className="flex items-center gap-3">

@@ -221,6 +221,6 @@ export const settingsMiscDe = {
     'mention.permFailed': "Recht konnte nicht geändert werden",
     'mention.notShared': "nicht geteilt",
     'mention.contactLabel': "Kontakt",
-    'mention.canView': "Kann diese Notiz ansehen",
+    'mention.canView': "Notiz kann mit diesem Kontakt geteilt werden",
     'mention.openProfile': "Profil öffnen",
 } as const;

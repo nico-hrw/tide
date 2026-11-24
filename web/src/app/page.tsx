@@ -47,6 +47,7 @@ const Editor = dynamic(() => import("@/components/Editor"), {
 });
 const CanvasNoteEditor = dynamic(() => import("@/components/Canvas/CanvasNoteEditor"), { ssr: false });
 const SocialHub = dynamic(() => import("@/components/Social/SocialHub"), { ssr: false });
+const ProfilePage = dynamic(() => import("@/components/Profile/ProfilePage"), { ssr: false });
 
 interface ExtendedDecryptedFile extends DecryptedFile {
     isShared?: boolean;
@@ -73,6 +74,8 @@ export default function Dashboard() {
     useTouchContextMenu();
     const router = useRouter();
     const [isMobile, setIsMobile] = useState(false);
+    // Mobile has no profile tab: a contact chip / social hub opens the profile as a full-screen overlay
+    const [mobileProfileId, setMobileProfileId] = useState<string | null>(null);
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
@@ -233,6 +236,7 @@ export default function Dashboard() {
         setDraggedText, setCalendarDropActive, setDeletedBlockIds, setPendingBindBlockId, setKeys,
         fetchDirectory, loadNoteContent, handleFileSelect, switchTab, switchTabRef, handleNewNote,
         islandPush, setIdlePayload,
+        onOpenProfileOverlay: isMobile ? (userId) => setMobileProfileId(userId) : undefined,
     });
 
     useRealtimeSync({ myId, activeNoteId, fileName, isLoadingContent, editorContent, privateKey });
@@ -463,7 +467,7 @@ export default function Dashboard() {
                             : handleEventUpdate(id, newStart, newEnd)}
                     onEventSave={handleEventSave} onEventDelete={(id: string) => handleDeleteEvent(id)}
                     onTaskComplete={(id: string, completed: boolean) => handleEventSave(id, { is_completed: completed })}
-                    socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
+                    socialHubElement={<SocialHub compact={true} onOpenProfile={(userId) => setMobileProfileId(userId)} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
                     userProfile={userProfile} editorElement={mobileEditorElement} onNoteRename={handleMobileNoteRename}
@@ -501,6 +505,19 @@ export default function Dashboard() {
                     </div>
                     <DashboardDesktopContent {...desktopContentProps} />
                 </>
+            )}
+            {isMobile && mobileProfileId && (
+                <div className="fixed inset-0 z-[400] bg-[var(--background)] overflow-y-auto" data-mobile-profile-overlay>
+                    <ProfilePage
+                        userId={mobileProfileId}
+                        onBack={() => setMobileProfileId(null)}
+                        onOpenFile={(fileId, title) => {
+                            setMobileProfileId(null);
+                            window.dispatchEvent(new CustomEvent("mobile_open_note", { detail: { id: fileId, title } }));
+                        }}
+                        onMessage={() => setMobileProfileId(null)}
+                    />
+                </div>
             )}
 
             <RecurrenceScopeDialog />

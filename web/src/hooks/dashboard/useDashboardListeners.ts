@@ -1,5 +1,6 @@
 "use client";
 
+import { routeOpenProfile, type OpenProfileDetail } from "./openProfile";
 import type React from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { isSameDay } from "date-fns";
@@ -86,6 +87,8 @@ export interface UseDashboardListenersOptions {
     handleNewNote: (parentIdOverride?: string | null) => Promise<void> | void;
     islandPush: (view: Omit<IslandView, "id">) => void;
     setIdlePayload: (payload: Record<string, unknown>) => void;
+    /** Mobile: show a profile overlay instead of opening a `profile:` tab. */
+    onOpenProfileOverlay?: (userId: string, username?: string) => void;
 }
 
 export interface UseDashboardListenersReturn {
@@ -152,6 +155,7 @@ export function useDashboardListeners({
     handleNewNote,
     islandPush,
     setIdlePayload,
+    onOpenProfileOverlay,
 }: UseDashboardListenersOptions): UseDashboardListenersReturn {
     const loadedDirectories = useDataStore((s) => s.loadedDirectories);
     const remindedEventsRef = useRef<Set<string>>(new Set());
@@ -171,6 +175,8 @@ export function useDashboardListeners({
     latestSwitchTabRef.current = switchTab;
     const handleNewNoteRef = useRef(handleNewNote);
     handleNewNoteRef.current = handleNewNote;
+    const openProfileOverlayRef = useRef(onOpenProfileOverlay);
+    openProfileOverlayRef.current = onOpenProfileOverlay;
 
     // 1. Note/Event selection & reload window events
     useEffect(() => {
@@ -506,9 +512,10 @@ export function useDashboardListeners({
     // 13b. Contact mention chip: open the person's profile tab
     useEffect(() => {
         const handleOpenProfile = (e: Event) => {
-            const { userId, username } = (e as CustomEvent<{ userId?: string; username?: string }>).detail || {};
-            if (!userId) return;
-            (switchTabRef?.current ?? latestSwitchTabRef.current)(`profile:${userId}`, "profile", username);
+            routeOpenProfile((e as CustomEvent<OpenProfileDetail>).detail, {
+                openOverlay: openProfileOverlayRef.current,
+                switchTab: (id, type, title) => (switchTabRef?.current ?? latestSwitchTabRef.current)(id, type, title),
+            });
         };
         window.addEventListener("tide:open-profile", handleOpenProfile);
         return () => window.removeEventListener("tide:open-profile", handleOpenProfile);

@@ -223,6 +223,6 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'mention.permFailed': "Couldn't change the permission",
     'mention.notShared': "not shared",
     'mention.contactLabel': "Contact",
-    'mention.canView': "Can view this note",
+    'mention.canView': "Note can be shared with this contact",
     'mention.openProfile': "Open profile",
 };

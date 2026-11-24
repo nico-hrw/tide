@@ -457,6 +457,8 @@ export function useTipTapConfig({
                 // Clicks on reference marks open the edit popup (handled by the ReferenceMark plugin)
                 if (target.closest('[data-reference-id]')) return false;
                 const mentionNode = target.closest('.mention') || target.closest('[data-type="mention"]');
+                // Contact chips handle their own click (profile card)
+                if (mentionNode?.getAttribute('data-type-link') === 'contact') return false;
                 if (mentionNode) {
                     event.preventDefault();
                     const targetId = mentionNode.getAttribute('data-id');
