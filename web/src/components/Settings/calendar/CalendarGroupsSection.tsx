@@ -209,7 +209,6 @@ export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId
             {shareGroup && (
                 <CalendarShareDialog
                     group={{ id: shareGroup.id, title: shareGroup.title }}
-                    rule={withShare(shareGroup).share}
                     onClose={() => setShareGroupId(null)}
                 />
             )}

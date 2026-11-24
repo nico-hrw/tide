@@ -11,8 +11,8 @@ import { groupRecipientsWithShare, revokeEventShares } from '@/lib/calendarShare
 export interface EventPrivateToggleProps {
     eventId: string;
     isPrivate: boolean;
-    /** Persists `private` on the event (EventPopover's onEventSave). */
-    onChange: (next: boolean) => void;
+    /** Persists `private` on the event (EventPopover's strict onEventSave); rejects when the save failed. */
+    onChange: (next: boolean) => void | Promise<void>;
 }
 
 /**
@@ -32,7 +32,10 @@ export function EventPrivateToggle({ eventId, isPrivate, onChange }: EventPrivat
 
     const toggle = async () => {
         if (busy) return;
-        if (isPrivate) { onChange(false); return; }
+        if (isPrivate) {
+            try { await onChange(false); } catch { notifyError(t('calShare.privateSaveFailed')); }
+            return;
+        }
         setBusy(true);
         try {
             const holders = await groupRecipientsWithShare(baseId);
@@ -46,7 +49,13 @@ export function EventPrivateToggle({ eventId, isPrivate, onChange }: EventPrivat
                 });
                 if (!yes) return;
             }
-            onChange(true);
+            try {
+                await onChange(true);
+            } catch {
+                // Not saved as private: revoking now would leave a "shared" event without access, so nothing is revoked.
+                notifyError(t('calShare.privateSaveFailed'));
+                return;
+            }
             if (holders.length > 0) {
                 const res = await revokeEventShares(baseId, holders);
                 if (res.failed > 0) notifyError(t('calShare.privateRevokeFailed', { count: res.failed }));

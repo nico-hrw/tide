@@ -34,7 +34,8 @@ export interface CalendarViewProps {
     onEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     onEventRename: (id: string, title: string) => Promise<void>;
     onEventDelete?: (id: string) => Promise<void>;
-    onEventSave?: (id: string, updates: Partial<CalendarEvent> & { parent_id?: string | null; is_task?: boolean; is_completed?: boolean }) => void;
+    /** `strict`: the returned promise rejects when the save failed (handleEventSave honours it). */
+    onEventSave?: (id: string, updates: Partial<CalendarEvent> & { parent_id?: string | null; is_task?: boolean; is_completed?: boolean }, options?: { strict?: boolean }) => void | Promise<void>;
     onEventClick?: (id: string, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
     editingEventId?: string | null;

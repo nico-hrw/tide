@@ -124,7 +124,7 @@ export interface EventPopoverProps {
     event: EventPopoverEvent;
     rect: DOMRect;
     themes: Array<{ id: string; title: string; effect?: string; color?: string }>;
-    onEventSave: (id: string, updates: Partial<EventPopoverEvent>) => void;
+    onEventSave: (id: string, updates: Partial<EventPopoverEvent>, options?: { strict?: boolean }) => void | Promise<void>;
     onEventDelete?: (id: string) => void;
     /** Opens the share dialog for this event. */
     onEventShare?: (e: React.MouseEvent, id: string) => void;
@@ -606,7 +606,7 @@ export default function EventPopover({
                             </div>
                         )}
                     </div>
-                    <EventPrivateToggle eventId={event.id} isPrivate={!!event.private} onChange={(next) => onEventSave(event.id, { private: next })} />
+                    <EventPrivateToggle eventId={event.id} isPrivate={!!event.private} onChange={(next) => onEventSave(event.id, { private: next }, { strict: true })} />
                 </div>
             )}
         </div>,
