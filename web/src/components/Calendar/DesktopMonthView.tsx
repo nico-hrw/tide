@@ -87,9 +87,9 @@ export default function DesktopMonthView({
         <div className="flex-1 flex h-full min-h-0 select-none overflow-hidden bg-transparent">
         <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-transparent transition-[flex-basis] duration-300">
         <div className="flex-1 min-h-0 flex flex-col p-3 sm:p-4">
-            <div className="flex-1 flex flex-col rounded-2xl border-2 border-t2-line  overflow-hidden shadow-md bg-t2-hover ">
+            <div className="flex-1 flex flex-col overflow-hidden">
                 {/* Weekday Header */}
-                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] border-b border-t2-line  bg-t2-surface  z-10 px-2">
+                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] border-b border-t2-line  z-10 px-2">
                     {weekdays.map((wd, i) => (
                         <div
                             key={wd}
