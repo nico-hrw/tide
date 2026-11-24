@@ -268,3 +268,20 @@ sequenceDiagram
 2. **Access Key Prerequisite**: Possession of an entry in `file_shares` without a corresponding entry in `files.access_keys` results in an un-decryptable state. The client verifies cryptographic integrity before displaying or mutating state.
 3. **Non-Escalation Guarantee**: Delegated sharers (`can_reshare = true`) can never assign permissions higher than their own, can never grant `can_reshare` to downstream users, and can never trigger epoch rotation or destructive file operations.
 4. **Post-Revocation Isolation**: Once `revoke-and-rotate` commits, WAL deltas encrypted under older epochs are permanently pruned, preventing revoked parties from reconstructing state updates beyond the revocation boundary.
+
+---
+
+## 8. Sharing via @-Mentions and Calendars (purely client-side)
+
+No server change was needed: both features reuse the existing `file_shares` endpoints and the key-exchange handshake from section 4.
+
+- **@-mention sharing.** Choosing a contact in the `@` menu of a note, event description or calendar todo shares that file with the default permission `view`. Only the owner can do this (the server lists, changes and revokes shares owner-only, so re-sharers would get 403). Undo and the revoke question on chip deletion call `DELETE /api/v1/files/{id}/shares/{userID}`.
+- **Origin tracking.** The client records why a share exists (mention, calendar, manual) per browser in `tide_mention_shares`, scoped per user and cleared on logout. The share modal shows this origin ("Über @-Erwähnung", "Aus Kalender").
+- **Calendar sharing.** A calendar (event group) is shared with people and a permission (`view`/`edit`). The rule is stored as one encrypted `calendar_shares` file per user (the server only sees an opaque blob). Existing events are shared on confirm; new events entering the group are shared automatically (never when the event is `private`). Removals are recorded as `pendingRevoke` in the rule and retried until every revoke is confirmed (fail-closed, idempotent DELETE).
+- **Private events.** `private` on an event excludes it from auto-share, also for split occurrences.
+
+### Known limitations
+- Re-share rights (`can_reshare`) can only be set at invite time; `PATCH` changes only `permission`, so the share list shows the state read-only.
+- Todo-list tasks from `/api/v1/todos` are plaintext rows, not files, and cannot be shared. Calendar todos (`is_task` events) can.
+- Mention reference counts (used to decide the revoke question) are per browser.
+- The `calendar_shares` rule is unsigned; a malicious server could inject a rule, limited to already accepted contacts.

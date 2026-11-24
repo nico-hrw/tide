@@ -76,6 +76,9 @@ web/src/
 2. **Key Storage & Recovery**: The user's RSA private key is protected by a PIN-derived KEK stored in the browser's encrypted vault.
 3. **Sharing**: Re-encrypts the file's DEK with the recipient's RSA public key using RSA-OAEP.
 
+### Session Restore
+Open tabs and the calendar view are persisted per user under `tide_session_v1:<userId>` (`lib/sessionState.ts`, `useSessionRestore`). A plain reload keeps the active tab; a cold restart restores the tabs but activates the calendar. The key is removed on logout and ignored when the user id differs.
+
 ### Touch Calendar Performance & Pitfalls
 - `MobileWeekGrid.tsx` uses a decoupled DOM overlay for event dragging to avoid React re-renders during high-frequency touchmove events.
 - See detailed pitfalls and solutions in [`COMPONENTS.md`](COMPONENTS.md).
