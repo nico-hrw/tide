@@ -219,4 +219,8 @@ export const settingsMiscDe = {
     'mention.revokeKeep': "Behalten",
     'mention.revokeFailed': "Zugriff konnte nicht entzogen werden",
     'mention.permFailed': "Recht konnte nicht geändert werden",
+    'mention.notShared': "nicht geteilt",
+    'mention.contactLabel': "Kontakt",
+    'mention.canView': "Kann diese Notiz ansehen",
+    'mention.openProfile': "Profil öffnen",
 } as const;

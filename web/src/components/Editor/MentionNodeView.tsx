@@ -5,8 +5,15 @@ import { NodeViewWrapper } from '@tiptap/react';
 import { Calendar, Paperclip } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { formatEventTime } from './editorUtils';
+import { ContactMentionChip } from './ContactMentionChip';
 
-export const MentionNodeView = ({ node }: any) => {
+export const MentionNodeView = ({ node, ...rest }: any) => {
+    // Contact mentions have their own chip (avatar + profile card)
+    if (node.attrs.type === 'contact') return <ContactMentionChip node={node} {...rest} />;
+    return <GenericMentionNodeView node={node} />;
+};
+
+const GenericMentionNodeView = ({ node }: any) => {
     const id = node.attrs.id || '';
     const label = node.attrs.label || 'Unknown';
     const isGhost = node.attrs.isGhost === true || node.attrs.isGhost === 'true' || String(id).startsWith('ghost-');

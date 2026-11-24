@@ -264,6 +264,7 @@
 | ShareManagementPanel | `web/src/components/ShareManagementPanel.tsx` | Manage existing shares |
 | ShareManagementModal | `web/src/components/Modals/ShareManagementModal.tsx` | Modal wrapper for share mgmt |
 | MentionShareToast | `web/src/components/Editor/MentionShareToast.tsx` | Hint next to a new @-contact chip: "Mit {Name} geteilt · Ansehen ▾ · Rückgängig", failed (retry) or blocked reason; mounted in `Editor.tsx` |
+| ContactMentionChip / ContactProfileCard | `web/src/components/Editor/ContactMentionChip.tsx`, `ContactProfileCard.tsx` | Chip for `@contact` mentions (avatar + live name, grey "nicht geteilt" when `shareable === false`); click opens a card with "Profil öffnen" which dispatches `tide:open-profile` (handled in `useDashboardListeners`). Rendered by `MentionNodeView` for `type === 'contact'` |
 | mentionShare (lib) | `web/src/lib/mentionShare.ts` | @-contact mention shares the note ("view", owner only), undo/revoke, chip-deletion revoke question; counts in `useMentionShareStore` (`localStorage` `tide_mention_shares`) |
 
 ## Extensions (lazy-loaded modules)

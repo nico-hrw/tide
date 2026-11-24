@@ -221,4 +221,8 @@ export const settingsMiscEn: Record<keyof typeof settingsMiscDe, string> = {
     'mention.revokeKeep': "Keep",
     'mention.revokeFailed': "Couldn't remove access",
     'mention.permFailed': "Couldn't change the permission",
+    'mention.notShared': "not shared",
+    'mention.contactLabel': "Contact",
+    'mention.canView': "Can view this note",
+    'mention.openProfile': "Open profile",
 };

@@ -503,6 +503,17 @@ export function useDashboardListeners({
         return () => window.removeEventListener("tide:navigate", handleNavigate);
     }, [switchTabRef]);
 
+    // 13b. Contact mention chip: open the person's profile tab
+    useEffect(() => {
+        const handleOpenProfile = (e: Event) => {
+            const { userId, username } = (e as CustomEvent<{ userId?: string; username?: string }>).detail || {};
+            if (!userId) return;
+            (switchTabRef?.current ?? latestSwitchTabRef.current)(`profile:${userId}`, "profile", username);
+        };
+        window.addEventListener("tide:open-profile", handleOpenProfile);
+        return () => window.removeEventListener("tide:open-profile", handleOpenProfile);
+    }, [switchTabRef]);
+
     // 14. Calendar drag-ghost click consumer
     useEffect(() => {
         const handleClick = (e: MouseEvent) => {
