@@ -208,6 +208,18 @@ refused (429) within 24 h of the last replacement. After a change the server mai
 address of the session's `verify-otp` (kept in memory 15 min) and `verify-otp` reports
 `vault_replaced_at`. Details: `web/docs/crypto/VAULT_AND_PIN_SECURITY.md`.
 
+Since passkeys, tokens also carry `auth` (`otp` from `verify-otp`, `passkey` from the passkey sign-in).
+Vault, recovery-vault and passkey changes additionally require that the session is **not** from a
+passkey sign-in and that a notice address is known for the account (a `verify-otp` within 15 minutes).
+
+### 5.6 Passkey sign-in (WebAuthn)
+`POST /auth/passkey/login/options` and `/login/verify` work without a session (discoverable
+credentials, user verification required, one-time in-memory challenges, RP ID and origins from
+`WEBAUTHN_RP_ID`/`APP_URL`/`ALLOWED_ORIGINS`). A verified assertion issues the same JWT and cookie as
+`verify-otp` (with `iat`, `auth=passkey`). Library: `github.com/go-webauthn/webauthn` v0.18.2.
+Registration and removal need a change session and a key proof. See
+`web/docs/crypto/VAULT_AND_PIN_SECURITY.md` §8.
+
 ### 5.2 Signing with HMAC-SHA256 (`HS256`)
 - Signed using the server environment variable `JWT_SECRET`.
 - **Startup Guard (`ValidateJWTSecret`)**: Called in `main.go`. If `JWT_SECRET` is unset or empty, the server immediately logs a `[SECURITY FATAL]` message and terminates execution, preventing insecure defaults.

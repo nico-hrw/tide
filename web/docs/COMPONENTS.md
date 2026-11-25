@@ -303,6 +303,7 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 | OfflineStorageSection | `web/src/components/Settings/about/OfflineStorageSection.tsx` | Block "Speicher auf diesem Gerät" in "Über Tide": belegt/Quota (`navigator.storage.estimate`), Status "dauerhaft gesichert" (`persisted`), Zeitpunkt des letzten Offline-Stands, Knopf "Offline-Daten löschen" (2-Schritt, nur aktueller Nutzer). Logik in `lib/offline/store.ts`. |
 | AccessPage | `web/src/components/Settings/pages/AccessPage.tsx` | PAT management (Zugriff): plain-language rights (technical scope names unchanged in requests), calm token list, one-time secret copy, two-step revoke, link to `/docs/api`. events:write is marked planned (server has no write endpoints); notes:read/write are implemented. |
 | BackupHistory | `web/src/components/BackupHistory.tsx` | Backup/restore UI |
+| PasskeySection | `web/src/components/Settings/account/PasskeySection.tsx` (+ `useMailCode.ts`) | Konto → "Passkeys": list (name, added, last used), add (name → mail code → PIN → passkey with PRF envelope), remove (confirm → mail code → key proof). Hints for missing WebAuthn, missing PRF, server without passkey config. |
 | RecoverySection | `web/src/components/Settings/account/RecoverySection.tsx` | Konto → "Wiederherstellungsschlüssel": status (`GET /auth/recovery-vault?status=1`), set up / renew via mail code (fresh session, `apiFetch` `keepSessionOn401`) → PIN → new secret → key proof → `PUT /auth/recovery-vault`; shows the secret once. See `docs/crypto/VAULT_AND_PIN_SECURITY.md`. |
 
 ## Auth (sign-up, unlock, vault recovery)
@@ -313,8 +314,10 @@ Public page `/docs/api` plus plain-Markdown edition `/docs/api.md` (Route Handle
 | AuthInputs | `web/src/components/Auth/AuthInputs.tsx` | `SegmentedDigitInput` (OTP/PIN boxes) and `ActionButton`, moved unchanged from the auth page. |
 | RecoverySecretCard | `web/src/components/Auth/RecoverySecretCard.tsx` | Shows a recovery secret with "An mich selbst mailen" (`mailto:` draft, Tide sends nothing), copy, download (.txt). Optional translated labels. Secret only in props/state. |
 | RecoveryKeyStep | `web/src/components/Auth/RecoveryKeyStep.tsx` | Step after sign-up; continue needs a confirmation, skip needs a second click after a loss warning. Only shown when the server answers `recovery_saved: true`. |
+| PasskeyLoginButton | `web/src/components/Auth/PasskeyLoginButton.tsx` | "Mit Passkey anmelden" on the identifier step (only with WebAuthn, detected via `useSyncExternalStore` so SSR stays stable). Assertion + PRF → `login/verify` → envelope → `completeLogin`; failures fall back to mail code + PIN. |
 | PinRecovery / VaultReplacedNotice | `web/src/components/Auth/PinRecovery.tsx` | "PIN vergessen?": recovery secret + new PIN twice → `recoverWithSecret` (local verify, key proof, `replace-vault`) → normal unlock. Accounts without recovery vault get an explanation (no reset). Notice shows `vault_replaced_at` (≤ 30 days) on the unlock step. |
 | Recovery lib | `web/src/lib/recovery/` | `recoverySecret` (160-bit Crockford-Base32, tolerant input), `recoveryVault` (envelope list `{v:1, envelopes:[{kind:'mail-secret',…}]}`, PBKDF2 200k), `recoveryFlow` (PIN re-wrap, recover, settings set-up), `keyProof` (RSA-OAEP challenge), `recoveryApi`, `recoveryMail`. Uses `crypto.ts` exports only. Vitest: `lib/recovery/__tests__/`. |
+| Passkey lib | `web/src/lib/passkey/` | `webauthnJson` (base64url conversion, never forwards extension results), `passkeySupport` (feature detection, PRF input/result), `passkeyEnvelope` (HKDF → AES-GCM envelope with key + e-mail), `passkeyFlow` (register, sign in, open vault for recovery), `passkeyApi`. Vitest: `lib/passkey/__tests__/`. |
 
 ## Stores (Zustand)
 
@@ -439,6 +442,7 @@ Full reverse mapping (TIDE → GCal) lives in `gcal.go`.
 | Handler | File | Endpoints |
 |---------|------|-----------|
 | Auth | `cloud/internal/api/auth.go` | POST /api/auth/* |
+| Passkeys | `cloud/internal/api/passkey.go`, `passkey_handlers.go`, `passkey_login.go` | GET /api/v1/auth/passkeys, POST /api/v1/auth/passkey/{register/options,register/finish,delete,login/options,login/verify} via go-webauthn. Store: `cloud/internal/store/sqlite_webauthn.go`. |
 | Vault recovery | `cloud/internal/api/auth_recovery.go`, `auth_challenge.go`, `auth_notify.go` | GET/PUT /api/v1/auth/recovery-vault, POST /api/v1/auth/key-challenge, POST /api/v1/auth/replace-vault (fresh session ≤ 10 min + key proof, 24 h replace cooldown, notice mail). Store: `cloud/internal/store/sqlite_recovery.go`. |
 | Files | `cloud/internal/api/files.go` | GET/POST/PUT/DELETE /api/files — 50 MB cap |
 | Links | `cloud/internal/api/links.go` | GET/POST/DELETE /api/links |
