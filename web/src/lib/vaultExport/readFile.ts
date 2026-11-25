@@ -41,9 +41,18 @@ export async function unwrapFileDek(
     return importDEK(await unwrapDEKData(wrapped, masterKey));
 }
 
+/** The server holds no blob for this file (normal for events created from a todo). */
+export class ContentMissingError extends Error {
+    constructor(fileId: string) {
+        super(`Kein Inhalt vorhanden (${fileId})`);
+        this.name = 'ContentMissingError';
+    }
+}
+
 /** Downloads and decrypts the file blob ({data, iv} JSON) to UTF-8 text. */
 export async function readContentText(fileId: string, dek: CryptoKey): Promise<string> {
     const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/download`);
+    if (res.status === 404) throw new ContentMissingError(fileId);
     if (!res.ok) throw new Error(`Download fehlgeschlagen (HTTP ${res.status})`);
     const payload = JSON.parse(await res.text()) as { data?: string; iv?: string };
     if (!payload.data || !payload.iv) throw new Error('Ungültiges Inhaltsformat');

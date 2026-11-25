@@ -19,6 +19,8 @@ LIESMICH.txt
 ## Rules
 
 - Only owned files are exported. Files shared with the user are listed in `manifest.skipped`.
+- Events without a stored blob (the calendar entry of a dated todo, `is_task`) are complete without content; for notes
+  a missing blob is a failure. The app-internal `index` file is skipped (rebuilt by the app).
 - Nothing is dropped silently: unreadable parts (V1 files, custom-password files, undecryptable CRDT entries,
   missing images) are listed in `manifest.failures` with the part (`meta`, `content`, `ydoc`, `asset`).
 - Image keys (`bek`) live inside `ydoc/<id>.bin`; an importer must re-encrypt each asset with a new key and rewrite

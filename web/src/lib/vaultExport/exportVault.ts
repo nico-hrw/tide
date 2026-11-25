@@ -7,7 +7,7 @@ import { useDataStore } from '@/store/useDataStore';
 import * as Y from 'yjs';
 import { createZip, type ZipEntry } from './zip';
 import { eventsToIcs, folderPathOf, noteToMarkdown, safeName, todosToMarkdown } from './readable';
-import { collectAssetRefs, readAsset, readContentText, readYDoc, unwrapFileDek } from './readFile';
+import { ContentMissingError, collectAssetRefs, readAsset, readContentText, readYDoc, unwrapFileDek } from './readFile';
 import {
     VAULT_EXPORT_FORMAT,
     VAULT_EXPORT_VERSION,
@@ -40,6 +40,8 @@ const EXT: Record<string, string> = {
     'image/bmp': 'bmp', 'image/svg+xml': 'svg', 'application/pdf': 'pdf', 'video/mp4': 'mp4', 'audio/mpeg': 'mp3',
 };
 const SKIP_TYPES = new Set(['canvas-asset']);
+/** Rebuilt by the app itself; exporting it would only add noise. */
+const REBUILT_TYPES = new Set(['index']);
 const WITH_YDOC = new Set(['note', 'canvas']);
 const NO_BODY = new Set(['folder']);
 
@@ -91,6 +93,8 @@ export async function exportVault(onProgress?: (p: VaultExportProgress) => void)
             skipped.push({ id: f.id, type: f.type, title: String(f.metadata?.title ?? f.public_meta?.title ?? ''), reason: 'Gehört einer anderen Person (mit dir geteilt)' });
         } else if (SKIP_TYPES.has(f.type)) {
             ownedAssetIds.push(f.id);
+        } else if (REBUILT_TYPES.has(f.type)) {
+            skipped.push({ id: f.id, type: f.type, title: '', reason: 'Wird von der App automatisch neu aufgebaut' });
         } else {
             owned.push(f);
         }
@@ -123,7 +127,8 @@ export async function exportVault(onProgress?: (p: VaultExportProgress) => void)
                     record.contentPath = `content/${f.id}.json`;
                     entries.push({ path: record.contentPath, data: encoder.encode(text) });
                 } catch (e) {
-                    fail('content', title, errText(e));
+                    // Events without a blob (e.g. the calendar entry of a dated todo) are complete without one.
+                    if (!(e instanceof ContentMissingError && f.type === 'event')) fail('content', title, errText(e));
                 }
                 if (WITH_YDOC.has(f.type)) await exportYDoc(f.id, dek, record, entries, exportedAssets, (part, err) => fail(part, title, err));
             } catch (e) {

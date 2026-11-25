@@ -130,6 +130,32 @@ describe('exportVault', () => {
     expect(manifest.failures.map((f) => f.part)).toContain('ydoc');
   });
 
+  it('treats a missing blob as normal for events (todo calendar entries) and skips the rebuilt index', async () => {
+    const todoEvent = {
+      id: 'ev-todo', type: 'event', owner_id: ME, parent_id: null, version: 2, visibility: 'private', public_meta: {},
+      metadata: { has_custom_password: false, title: 'Koffer', is_task: true, linkedTaskId: 't1', start: '2026-05-01T00:00:00.000Z' },
+      access_keys: { [ME]: (await encryptFileV2('{}', publicKey)).encrypted_dek }, secured_meta: await encryptMetadata({ title: 'Koffer' }, publicKey),
+    };
+    const index = { id: 'idx1', type: 'index', owner_id: ME, parent_id: null, version: 2, metadata: {}, secured_meta: '' };
+    routes.set('/api/v1/files?recursive=true', () => Response.json([index]));
+    routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([todoEvent]));
+    // no download route -> 404, like the real server for a blob-less event
+
+    const { manifest } = await exportVault();
+    expect(manifest.counts).toEqual({ event: 1 });
+    expect(manifest.failures).toEqual([]);
+    expect(manifest.skipped.map((x) => x.id)).toEqual(['idx1']);
+  });
+
+  it('still reports a note whose blob is missing', async () => {
+    const note = await encryptedNote('note9', 'Leer', { type: 'doc', content: [] });
+    routes.delete('/api/v1/files/note9/download');
+    routes.set('/api/v1/files?recursive=true', () => Response.json([note]));
+    routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([]));
+    const { manifest } = await exportVault();
+    expect(manifest.failures.map((f) => f.part)).toContain('content');
+  });
+
   it('refuses to run without a key', async () => {
     useDataStore.setState({ privateKey: null } as never);
     await expect(exportVault()).rejects.toThrow(/Schlüssel/);
