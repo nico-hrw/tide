@@ -207,11 +207,6 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.Pin) == "" {
-		http.Error(w, "PIN is required", http.StatusBadRequest)
-		return
-	}
-
 	// Prepare Blind Indexes
 	var emailHash, usernameHash, phoneHash *string
 
@@ -260,10 +255,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	encryptedPepper := aesGCM.Seal(nonce, nonce, pepper, nil)
 
-	pinHash, err := hashPinArgon2id(req.Pin)
-	if err != nil {
-		http.Error(w, "PIN hashing failed", http.StatusInternalServerError)
-		return
+	// The vault PIN is a client-side secret: the web app never sends it. A PIN hash is stored
+	// only when a client explicitly provides one; steps that verify it fail closed otherwise.
+	var pinHash *string
+	if strings.TrimSpace(req.Pin) != "" {
+		hashed, err := hashPinArgon2id(req.Pin)
+		if err != nil {
+			http.Error(w, "PIN hashing failed", http.StatusInternalServerError)
+			return
+		}
+		pinHash = &hashed
 	}
 
 	user := &db.User{
@@ -274,7 +275,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		EncryptedVault:  []byte(req.EncryptedVault),
 		EncryptedPepper: encryptedPepper,
 		PublicKey:       req.PublicKey,
-		PinHash:         &pinHash,
+		PinHash:         pinHash,
 		CreatedAt:       time.Now(),
 		Username:        req.Username,
 	}
