@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { ActionButton, SegmentedDigitInput } from "./AuthInputs";
 import { fetchRecoveryVault, FreshSessionRequiredError } from "@/lib/recovery/recoveryApi";
-import { recoverWithSecret } from "@/lib/recovery/recoveryFlow";
+import { recoverWithKey, recoverWithSecret } from "@/lib/recovery/recoveryFlow";
+import { passkeyEnvelopes } from "@/lib/passkey/passkeyEnvelope";
+import { openVaultWithPasskey, PasskeyCancelledError } from "@/lib/passkey/passkeyFlow";
+import { isWebAuthnAvailable } from "@/lib/passkey/passkeySupport";
 import { RecoverySecretFormatError } from "@/lib/recovery/recoverySecret";
 import { RecoveryVaultError } from "@/lib/recovery/recoveryVault";
 
@@ -43,6 +46,24 @@ export function PinRecovery({ pepper, token, onRecovered, onBack, onRestartLogin
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
     const [sessionTooOld, setSessionTooOld] = useState(false);
+    // Private key opened with a passkey ("Mit Passkey wiederherstellen"); then no secret is needed.
+    const [passkeyKey, setPasskeyKey] = useState<CryptoKey | null>(null);
+    const [webauthn] = useState(() => isWebAuthnAvailable());
+    const hasPasskey = webauthn && passkeyEnvelopes(vault).length > 0;
+    const hasMailSecret = !!vault && vault.includes('"mail-secret"');
+
+    const usePasskey = async () => {
+        if (!vault) return;
+        setBusy(true);
+        setError("");
+        try {
+            setPasskeyKey(await openVaultWithPasskey(vault));
+        } catch (err) {
+            if (!(err instanceof PasskeyCancelledError)) setError(err instanceof Error ? err.message : "Passkey konnte den Tresor nicht öffnen.");
+        } finally {
+            setBusy(false);
+        }
+    };
 
     useEffect(() => {
         let cancelled = false;
@@ -58,7 +79,7 @@ export function PinRecovery({ pepper, token, onRecovered, onBack, onRestartLogin
         e.preventDefault();
         if (!vault) return;
         const newPin = pin.join("");
-        if (!secret.trim()) return setError("Bitte gib deinen Wiederherstellungsschlüssel ein.");
+        if (!passkeyKey && !secret.trim()) return setError("Bitte gib deinen Wiederherstellungsschlüssel ein.");
         if (newPin.length !== 5) return setError("Der neue PIN muss genau 5 Ziffern lang sein.");
         if (newPin !== pin2.join("")) {
             setPin2(EMPTY_PIN);
@@ -67,7 +88,9 @@ export function PinRecovery({ pepper, token, onRecovered, onBack, onRestartLogin
         setBusy(true);
         setError("");
         try {
-            const result = await recoverWithSecret({ recoveryVault: vault, secret, newPin, pepperBase64: pepper, token });
+            const result = passkeyKey
+                ? await recoverWithKey({ privateKey: passkeyKey, newPin, pepperBase64: pepper, token })
+                : await recoverWithSecret({ recoveryVault: vault, secret, newPin, pepperBase64: pepper, token });
             setSecret("");
             await onRecovered(result.privateKey);
         } catch (err) {
@@ -118,9 +141,25 @@ export function PinRecovery({ pepper, token, onRecovered, onBack, onRestartLogin
             {vault && (
                 <>
                     <p className="text-base sm:text-lg text-t2-ink-2 font-light leading-relaxed max-w-md mb-8">
-                        Gib deinen Wiederherstellungsschlüssel ein und wähle einen neuen PIN. Deine Daten bleiben erhalten.
+                        {passkeyKey
+                            ? "Dein Passkey hat den Tresor geöffnet. Wähle jetzt einen neuen PIN. Deine Daten bleiben erhalten."
+                            : "Gib deinen Wiederherstellungsschlüssel ein oder nutze einen Passkey, und wähle einen neuen PIN. Deine Daten bleiben erhalten."}
                     </p>
+                    {hasPasskey && !passkeyKey && (
+                        <div className="mb-8">
+                            <button type="button" onClick={usePasskey} disabled={busy}
+                                className="inline-flex items-center gap-2 rounded-ui px-4 py-2.5 text-sm font-medium bg-t2-surface text-t2-ink ring-1 ring-t2-line hover:bg-t2-hover transition-colors disabled:opacity-50 cursor-pointer">
+                                Mit Passkey wiederherstellen
+                            </button>
+                        </div>
+                    )}
+                    {!hasMailSecret && !hasPasskey && !passkeyKey && (
+                        <p role="alert" className="mb-8 max-w-md text-sm text-t2-late">
+                            Für dieses Konto ist nur ein Passkey als Wiederherstellung hinterlegt, und dieses Gerät bzw. dieser Browser unterstützt keine Passkeys. Nutze ein Gerät mit deinem Passkey.
+                        </p>
+                    )}
                     <form onSubmit={submit} className="w-full max-w-md" noValidate>
+                        {!passkeyKey && hasMailSecret && (<>
                         <label htmlFor="recovery-secret" className="block text-xs font-semibold tracking-wider uppercase text-t2-ink-2 mb-2">
                             Wiederherstellungsschlüssel
                         </label>
@@ -137,6 +176,7 @@ export function PinRecovery({ pepper, token, onRecovered, onBack, onRestartLogin
                             className="w-full resize-none bg-transparent border-0 border-b border-t2-line focus:border-b-t2-ink py-2 px-0 font-mono text-lg text-t2-ink placeholder:text-t2-ink-3 focus:outline-none transition-colors"
                         />
                         <p className="mt-1 mb-6 text-xs text-t2-ink-3">Bindestriche, Leerzeichen und Groß-/Kleinschreibung sind egal.</p>
+                        </>)}
 
                         <p className="block text-xs font-semibold tracking-wider uppercase text-t2-ink-2 mb-2">Neuer PIN</p>
                         <SegmentedDigitInput length={5} digits={pin} onChange={setPin} type="password"

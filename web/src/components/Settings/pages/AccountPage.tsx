@@ -6,6 +6,7 @@ import { useT } from '../useT';
 import { ProfileSections, type ProfileUser } from '../account/ProfileSections';
 import { useVaultBackup } from '../account/useVaultBackup';
 import { RecoverySection } from '../account/RecoverySection';
+import { PasskeySection } from '../account/PasskeySection';
 
 export interface AccountPageProps {
     userProfile?: ProfileUser;
@@ -56,6 +57,8 @@ export function AccountPage({ userProfile, onClose, onLogout }: AccountPageProps
                 </SettingsSection>
 
                 <RecoverySection email={userProfile?.email} />
+
+                <PasskeySection email={userProfile?.email} />
 
                 <SettingsSection title={t('danger.section')} hint={t('danger.sectionHint')} tone="danger">
                     <SettingsCard tone="danger">

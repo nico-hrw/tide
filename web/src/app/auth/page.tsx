@@ -11,6 +11,7 @@ import { buildRecoveryVault } from "@/lib/recovery/recoveryVault";
 import { ActionButton, SegmentedDigitInput } from "@/components/Auth/AuthInputs";
 import { RecoveryKeyStep } from "@/components/Auth/RecoveryKeyStep";
 import { PinRecovery, VaultReplacedNotice } from "@/components/Auth/PinRecovery";
+import { PasskeyLoginButton } from "@/components/Auth/PasskeyLoginButton";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -320,11 +321,11 @@ function AuthContent() {
     };
 
     // Shared end of the PIN unlock and the "PIN vergessen?" recovery: keep the key, enter the app.
-    const completeLogin = async (decryptedKey: CryptoKey, data: LoginResponseData) => {
+    const completeLogin = async (decryptedKey: CryptoKey, data: LoginResponseData, email?: string | null) => {
         await storeMasterKey(decryptedKey);
         purgeLegacyKeys();
 
-        const normalizedId = identifier.trim().toLowerCase();
+        const normalizedId = (email || identifier).trim().toLowerCase();
         localStorage.setItem("tide_user_email", normalizedId);
         localStorage.setItem("tide_user_id", data.user_id);
         if (data.username) {
@@ -648,6 +649,8 @@ function AuthContent() {
                                     label={status === "processing" ? "Einen Moment..." : "Weiter"}
                                 />
                             </form>
+
+                            <PasskeyLoginButton onSignedIn={(r) => completeLogin(r.privateKey, { ...r.data }, r.email)} />
 
                             <p className="text-lg text-t2-ink-2 font-light leading-relaxed max-w-md">
                                 Notizen, Termine und Todos in einer minimalistischen App vereint, um deinen Kopf frei zu halten.
