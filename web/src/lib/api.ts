@@ -217,7 +217,12 @@ const inflightGets = new Map<string, Promise<Response>>();
  * network error or 502-504 and no offline queue with an invented 200. Failures surface as a thrown
  * error or the real error status. Used for sharing, revoking, share lists and the share-rules file.
  */
-export type ApiFetchOptions = RequestInit & { _isSyncReplay?: boolean; offline?: 'never' };
+export type ApiFetchOptions = RequestInit & {
+    _isSyncReplay?: boolean;
+    offline?: 'never';
+    /** A 401 is an expected answer (e.g. a mistyped mail code in settings): return it, do not sign out. */
+    keepSessionOn401?: boolean;
+};
 
 /**
  * Same-tick identical GETs (startup, tab switches and SSE refreshes all hit /files, /tasks, ...)
@@ -240,7 +245,7 @@ export function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Re
 }
 
 async function apiFetchInner(url: string, rawOptions: ApiFetchOptions = {}): Promise<Response> {
-    const { offline, ...options } = rawOptions;
+    const { offline, keepSessionOn401, ...options } = rawOptions;
     const neverOffline = offline === 'never';
     const base = getApiBase();
     const trimmedUrl = url.trim();
@@ -274,7 +279,7 @@ async function apiFetchInner(url: string, rawOptions: ApiFetchOptions = {}): Pro
             credentials: 'include' // Use httpOnly cookie
         });
 
-        if (res.status === 401 && typeof window !== 'undefined' && !isAuthOrLoginPath(window.location.pathname)) {
+        if (res.status === 401 && !keepSessionOn401 && typeof window !== 'undefined' && !isAuthOrLoginPath(window.location.pathname)) {
             console.warn("[apiFetch] 401 Unauthorized. Redirecting.");
             await clearAllSessionData({ callServerLogout: false });
             window.location.href = getAuthPath(window.location.pathname);
