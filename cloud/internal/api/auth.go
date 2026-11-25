@@ -384,14 +384,19 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if user.PinHash != nil && *user.PinHash != "" {
-			if req.PIN == "" {
-				http.Error(w, "Current PIN required to change PIN", http.StatusForbidden)
-				return
-			}
-			if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, *user.PinHash) {
-				return
-			}
+		// A session alone must never enrol the first PIN hash: with one, step-up checks such as the
+		// email change could be passed by whoever holds only a stolen session. Accounts without a
+		// PIN hash therefore cannot set one here.
+		if user.PinHash == nil || *user.PinHash == "" {
+			http.Error(w, "PIN cannot be set without re-authentication", http.StatusForbidden)
+			return
+		}
+		if req.PIN == "" {
+			http.Error(w, "Current PIN required to change PIN", http.StatusForbidden)
+			return
+		}
+		if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, *user.PinHash) {
+			return
 		}
 
 		newHash, err := hashPinArgon2id(req.NewPIN)

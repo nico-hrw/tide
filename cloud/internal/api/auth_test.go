@@ -554,3 +554,38 @@ func TestRegister_WithoutPINStoresNoPinHash(t *testing.T) {
 		t.Fatalf("expected no PIN hash for a PIN-less registration, got %q", *user.PinHash)
 	}
 }
+
+// A session alone must not be able to enrol the first PIN hash (it would unlock the PIN-guarded
+// email change for whoever holds a stolen session).
+func TestUpdateMe_CannotEnrolFirstPINWithoutPINHash(t *testing.T) {
+	s, handler := setupTestStore(t)
+	user := &db.User{
+		ID:              uuid.New().String(),
+		EncryptedVault:  []byte(`{"salt":"s","iv":"i","ciphertext":"c"}`),
+		EncryptedPepper: []byte("pepper"),
+		PublicKey:       "pk",
+		CreatedAt:       time.Now(),
+	}
+	if err := s.CreateUser(context.Background(), user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{"new_pin": "24680"})
+	req := httptest.NewRequest(http.MethodPut, "/me", bytes.NewReader(body))
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", user.ID))
+	rec := httptest.NewRecorder()
+	handler.UpdateMe(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected 403 for first PIN enrolment via session, got %d", rec.Code)
+	}
+
+	// And the email change stays closed for a PIN-less account.
+	body, _ = json.Marshal(map[string]string{"email": "evil@example.test", "pin": "24680"})
+	req = httptest.NewRequest(http.MethodPut, "/me", bytes.NewReader(body))
+	req = req.WithContext(context.WithValue(req.Context(), "user_id", user.ID))
+	rec = httptest.NewRecorder()
+	handler.UpdateMe(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401 for email change without PIN hash, got %d", rec.Code)
+	}
+}
