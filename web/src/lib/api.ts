@@ -176,7 +176,7 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
         { clearNoteImageCache },
         { clearSessionPinCache },
         { clearOfflineCacheCrypto },
-        { idb },
+        { clearOfflineData },
     ] = await Promise.all([
         import('./keyStorage'),
         import('./syncQueue'),
@@ -185,7 +185,7 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
         import('./noteImageAssets'),
         import('./pinSecurity'),
         import('./offlineCacheCrypto'),
-        import('./idb'),
+        import('./offline/store'),
     ]);
 
     purgeLegacyKeys();
@@ -198,13 +198,7 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
         clearMasterKey(),
         clearSyncQueue(),
         clearOfflineCacheCrypto(),
-        (async () => {
-            const allKeys = await idb.keys();
-            const apiCacheKeys = allKeys.filter(
-                (key): key is string => typeof key === 'string' && key.startsWith('api_cache_')
-            );
-            await Promise.all(apiCacheKeys.map((key) => idb.del(key)));
-        })(),
+        clearOfflineData(),
         'caches' in window ? caches.delete('apis') : Promise.resolve(false),
     ]);
 }
@@ -270,19 +264,16 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
             window.location.href = getAuthPath(window.location.pathname);
         }
 
-        // Cache successful GET requests for offline use (excluding sensitive auth endpoints)
-        if (isGet && res.ok && !skipCache && typeof window !== 'undefined') {
-            const clone = res.clone();
-            clone.text().then(async (text) => {
-                const [{ idb }, { encryptCacheValue }] = await Promise.all([
-                    import('./idb'),
-                    import('./offlineCacheCrypto'),
-                ]);
-                const encrypted = await encryptCacheValue(text);
-                if (encrypted !== null) {
-                    await idb.set(`api_cache_${cleanEndpoint}`, encrypted);
-                }
-            }).catch(e => console.warn("Failed to cache GET response", e));
+        if (isGet && !skipCache && typeof window !== 'undefined') {
+            const { isBackendUnreachableStatus, mirrorSuccessfulGet, serveFromMirror } = await import('./offline/mirror');
+            // Backend unreachable behind the proxy (502/503/504): serve the offline mirror if there is one
+            if (isBackendUnreachableStatus(res.status)) {
+                const mirrored = await serveFromMirror(cleanEndpoint);
+                if (mirrored) return mirrored;
+            } else if (res.ok) {
+                // Mirror successful GETs for offline use (never auth endpoints, never mutations)
+                mirrorSuccessfulGet(cleanEndpoint, res);
+            }
         }
 
         // If this was an online success, notify that cloud is available
@@ -303,19 +294,11 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
         // Fallback to offline cache for GET requests
         if (isGet && !skipCache && typeof window !== 'undefined') {
             try {
-                const [{ idb }, { decryptCacheValue }] = await Promise.all([
-                    import('./idb'),
-                    import('./offlineCacheCrypto'),
-                ]);
-                const cacheKey = `api_cache_${cleanEndpoint}`;
-                const cachedRaw = await idb.get<unknown>(cacheKey);
-                if (cachedRaw !== undefined) {
-                    const decryptedText = await decryptCacheValue(cachedRaw);
-                    if (decryptedText !== null) {
-                        console.log(`[apiFetch] Serving from offline cache: ${cleanEndpoint}`);
-                        return new Response(decryptedText, { status: 200, statusText: "OK (Offline Cache)" });
-                    }
-                    await idb.del(cacheKey);
+                const { serveFromMirror } = await import('./offline/mirror');
+                const mirrored = await serveFromMirror(cleanEndpoint);
+                if (mirrored) {
+                    console.log(`[apiFetch] Serving from offline cache: ${cleanEndpoint}`);
+                    return mirrored;
                 }
             } catch (cacheErr) {
                 console.error("Failed to read from offline cache", cacheErr);
@@ -370,10 +353,6 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
 
                 // If updating note content, also cache it immediately in idb so offline re-reads get latest ciphertext
                 if (fileId && (options.method?.toUpperCase() === 'PUT' || cleanEndpoint.includes('/upload'))) {
-                    const [{ idb }, { encryptCacheValue }] = await Promise.all([
-                        import('./idb'),
-                        import('./offlineCacheCrypto'),
-                    ]);
                     const rawContentCiphertext =
                         parsedBody && typeof parsedBody === 'object'
                             ? (parsedBody as { content_ciphertext?: unknown }).content_ciphertext
@@ -385,10 +364,8 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
                                 ? options.body
                                 : null;
                     if (valueToCache !== null) {
-                        const encrypted = await encryptCacheValue(valueToCache);
-                        if (encrypted !== null) {
-                            await idb.set(`api_cache_/api/v1/files/${fileId}/download`, encrypted);
-                        }
+                        const { mirrorWrite } = await import('./offline/store');
+                        await mirrorWrite(`/api/v1/files/${fileId}/download`, valueToCache);
                     }
                 }
 
