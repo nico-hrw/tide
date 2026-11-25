@@ -61,15 +61,46 @@ function fold(line: string): string {
     return out.join('\r\n ');
 }
 
+const p2 = (n: number) => String(n).padStart(2, '0');
+const dateValue = (d: Date) => `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}`;
+const utcValue = (d: Date) =>
+    `${d.getUTCFullYear()}${p2(d.getUTCMonth() + 1)}${p2(d.getUTCDate())}T${p2(d.getUTCHours())}${p2(d.getUTCMinutes())}${p2(d.getUTCSeconds())}Z`;
+
 function icsDate(iso: string, allDay: boolean): string | null {
     const d = new Date(iso);
     if (Number.isNaN(d.getTime())) return null;
-    const p = (n: number, w = 2) => String(n).padStart(w, '0');
-    if (allDay) return `;VALUE=DATE:${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}`;
-    return `:${d.getUTCFullYear()}${p(d.getUTCMonth() + 1)}${p(d.getUTCDate())}T${p(d.getUTCHours())}${p(d.getUTCMinutes())}${p(d.getUTCSeconds())}Z`;
+    return allDay ? `;VALUE=DATE:${dateValue(d)}` : `:${utcValue(d)}`;
+}
+
+/** All-day DTEND is exclusive in iCalendar: the day after the last day, never before start + 1 day. */
+function allDayEnd(startIso: string, endIso: string): string | null {
+    const s = new Date(startIso);
+    const e = new Date(endIso || startIso);
+    if (Number.isNaN(s.getTime())) return null;
+    const last = Number.isNaN(e.getTime()) || e < s ? s : e;
+    const next = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+    return `;VALUE=DATE:${dateValue(next)}`;
 }
 
 const str = (v: unknown): string => (typeof v === 'string' ? v : '');
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string' && x.length > 0) : []);
+const DAY_KEY = /^(\d{4})-(\d{2})-(\d{2})/;
+
+/** Start of the occurrence on the given local day key (yyyy-MM-dd), at the series' local start time. */
+function occurrenceAt(start: Date, key: string): Date | null {
+    const m = DAY_KEY.exec(key);
+    if (!m) return null;
+    return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), start.getHours(), start.getMinutes(), start.getSeconds());
+}
+
+/** UNTIL from the app's separate `recurrence_end` when the rule has no end of its own. */
+function ruleWithEnd(rule: string, recurrenceEnd: string, allDay: boolean): string {
+    if (!rule || /(^|;)(UNTIL|COUNT)=/i.test(rule) || !recurrenceEnd) return rule;
+    const m = DAY_KEY.exec(recurrenceEnd);
+    const end = recurrenceEnd.length <= 10 && m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 23, 59, 59) : new Date(recurrenceEnd);
+    if (Number.isNaN(end.getTime())) return rule;
+    return `${rule};UNTIL=${allDay ? dateValue(end) : utcValue(end)}`;
+}
 
 /** Merged view of an event record: plaintext meta, metadata, secured meta and decrypted body. */
 export function eventFields(file: VaultFileRecord, contentText?: string): Record<string, unknown> {
@@ -82,35 +113,75 @@ export function eventFields(file: VaultFileRecord, contentText?: string): Record
             /* body stays empty */
         }
     }
-    return { ...file.publicMeta, ...file.metadata, ...(file.securedMeta ?? {}), ...body };
+    // Plain `metadata` is the full, current record (secured_meta holds a possibly shortened title, the blob may be
+    // older than an update through the external API); the blob only fills fields that are missing or empty.
+    const merged: Record<string, unknown> = { ...(file.securedMeta ?? {}), ...file.publicMeta, ...file.metadata };
+    for (const [k, v] of Object.entries(body)) {
+        if (merged[k] === undefined || merged[k] === null || merged[k] === '') merged[k] = v;
+    }
+    return merged;
 }
 
-/** One VEVENT; null when the event has no usable start. */
-function eventToIcs(file: VaultFileRecord, contentText: string | undefined, stamp: string): string[] | null {
+/**
+ * VEVENTs of one event; empty when it has no usable start. Recurrence: RRULE (with `recurrence_end` as UNTIL),
+ * `removed_dates` as EXDATE (the occurrence does not exist), cancelled occurrences (`exdates`) as overrides with
+ * STATUS:CANCELLED. Tags (`groupIds`, else `parent_id`) become CATEGORIES.
+ */
+function eventToIcs(file: VaultFileRecord, contentText: string | undefined, stamp: string, tagTitle?: (id: string) => string | undefined): string[] {
     const f = eventFields(file, contentText);
-    const allDay = f.allDay === true;
-    const start = icsDate(str(f.start), allDay);
-    if (!start) return null;
-    const end = icsDate(str(f.end) || str(f.start), allDay);
-    const lines = ['BEGIN:VEVENT', `UID:${file.id}@tide-export`, `DTSTAMP:${stamp}`, `DTSTART${start}`];
+    const allDay = f.allDay === true || f.all_day === true;
+    const startIso = str(f.start);
+    const start = icsDate(startIso, allDay);
+    if (!start) return [];
+    const end = allDay ? allDayEnd(startIso, str(f.end)) : icsDate(str(f.end) || startIso, false);
+    const uid = `UID:${file.id}@tide-export`;
+    const summary = `SUMMARY:${icsEscape(str(f.title) || file.title)}`;
+    const lines = ['BEGIN:VEVENT', uid, `DTSTAMP:${stamp}`, `DTSTART${start}`];
     if (end) lines.push(`DTEND${end}`);
-    lines.push(`SUMMARY:${icsEscape(str(f.title) || file.title)}`);
+    lines.push(summary);
     if (str(f.description)) lines.push(`DESCRIPTION:${icsEscape(str(f.description))}`);
     if (str(f.location)) lines.push(`LOCATION:${icsEscape(str(f.location))}`);
-    const rule = str(f.recurrence_rule).replace(/^RRULE:/i, '');
-    if (rule) lines.push(`RRULE:${rule}`);
+    const tagIds = strList(f.groupIds).length > 0 ? strList(f.groupIds) : file.parentId ? [file.parentId] : [];
+    const tags = tagIds.map((id) => tagTitle?.(id)).filter((t): t is string => !!t);
+    if (tags.length > 0) lines.push(`CATEGORIES:${tags.map(icsEscape).join(',')}`);
+    if (str(f.color)) lines.push(`X-TIDE-COLOR:${icsEscape(str(f.color))}`);
+    const rule = ruleWithEnd(str(f.recurrence_rule).replace(/^RRULE:/i, ''), str(f.recurrence_end), allDay);
+    const startDate = new Date(startIso);
+    const occ = (key: string): string | null => {
+        const d = occurrenceAt(startDate, key);
+        return d ? (allDay ? `;VALUE=DATE:${dateValue(d)}` : `:${utcValue(d)}`) : null;
+    };
+    if (rule) {
+        lines.push(`RRULE:${rule}`);
+        for (const key of strList(f.removed_dates)) {
+            const v = occ(key);
+            if (v) lines.push(`EXDATE${v}`);
+        }
+    }
     if (f.is_cancelled === true) lines.push('STATUS:CANCELLED');
     lines.push('END:VEVENT');
+    if (rule) {
+        const duration = new Date(str(f.end) || startIso).getTime() - startDate.getTime();
+        for (const key of strList(f.exdates)) {
+            const at = occurrenceAt(startDate, key);
+            if (!at || strList(f.removed_dates).includes(key)) continue;
+            const v = occ(key)!;
+            const endAt = allDay ? new Date(at.getFullYear(), at.getMonth(), at.getDate() + 1) : new Date(at.getTime() + Math.max(0, duration || 0));
+            lines.push('BEGIN:VEVENT', uid, `DTSTAMP:${stamp}`, `RECURRENCE-ID${v}`, `DTSTART${v}`,
+                `DTEND${allDay ? `;VALUE=DATE:${dateValue(endAt)}` : `:${utcValue(endAt)}`}`, summary, 'STATUS:CANCELLED', 'END:VEVENT');
+        }
+    }
     return lines;
 }
 
-export function eventsToIcs(items: Array<{ file: VaultFileRecord; contentText?: string }>, now = new Date()): string {
+export function eventsToIcs(
+    items: Array<{ file: VaultFileRecord; contentText?: string }>,
+    now = new Date(),
+    tagTitle?: (id: string) => string | undefined,
+): string {
     const stamp = now.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
     const lines = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//Tide//Vault Export//DE', 'CALSCALE:GREGORIAN'];
-    for (const { file, contentText } of items) {
-        const ev = eventToIcs(file, contentText, stamp);
-        if (ev) lines.push(...ev);
-    }
+    for (const { file, contentText } of items) lines.push(...eventToIcs(file, contentText, stamp, tagTitle));
     lines.push('END:VCALENDAR');
     return lines.map(fold).join('\r\n') + '\r\n';
 }

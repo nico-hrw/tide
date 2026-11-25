@@ -49,6 +49,25 @@ describe('readable companions', () => {
     expect(ics.endsWith('END:VCALENDAR\r\n')).toBe(true);
   });
 
+  it('adds UNTIL, EXDATE, cancelled overrides and categories, and prefers current metadata over an old blob', () => {
+    const ev = rec({
+      id: 'e4', type: 'event', title: 'Kurs', parentId: 'tag1',
+      metadata: {
+        start: '2026-03-02T09:00:00.000Z', end: '2026-03-02T10:00:00.000Z', recurrence_rule: 'FREQ=WEEKLY', recurrence_end: '2026-06-30',
+        removed_dates: ['2026-03-09'], exdates: ['2026-03-16'], description: 'neu', groupIds: ['tag1', 'tag2'],
+      },
+    });
+    const titles: Record<string, string> = { tag1: 'Uni', tag2: 'Sport, Fitness' };
+    const ics = eventsToIcs([{ file: ev, contentText: JSON.stringify({ description: 'alt', location: 'Halle' }) }], new Date('2026-01-01T00:00:00Z'), (id) => titles[id]);
+    expect(ics).toMatch(/RRULE:FREQ=WEEKLY;UNTIL=202606\d{2}T\d{6}Z/);
+    expect(ics).toMatch(/EXDATE:20260309T\d{6}Z/);
+    expect(ics).toMatch(/RECURRENCE-ID:20260316T\d{6}Z/);
+    expect(ics.match(/STATUS:CANCELLED/g)).toHaveLength(1);
+    expect(ics).toContain(String.raw`CATEGORIES:Uni,Sport\, Fitness`);
+    expect(ics).toContain('DESCRIPTION:neu');
+    expect(ics).toContain('LOCATION:Halle');
+  });
+
   it('nests subtasks in the todo list', () => {
     const tasks = [
       { id: '1', title: 'Haupt', isCompleted: false, dueDate: '2026-02-03T00:00:00Z' },
