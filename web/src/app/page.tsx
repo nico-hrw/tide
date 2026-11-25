@@ -55,8 +55,8 @@ interface ExtendedDecryptedFile extends DecryptedFile {
     permission?: string;
 }
 
-import { clearPersistedSessions } from "@/lib/sessionState";
 import { clearMentionShares } from "@/store/useMentionShareStore";
+import { handleSignOut } from "@/components/Layout/sidebar/SidebarUserMenu";
 
 function getInitialTabs(): Tab[] {
     const initial: Tab[] = [{ id: "calendar", title: "Calendar", type: "calendar" }];
@@ -419,15 +419,11 @@ export default function Dashboard() {
             activeTabId={activeTabId} onReturnToTab={(tabId) => setActiveTabId(tabId)} />
     );
 
+    // Same flow as the sidebar's sign-out: server logout, keys, queue, offline mirror, session data.
     const handleAvatarLogout = () => {
         setIsAvatarMenuOpen(false);
-        sessionStorage.clear();
-        clearPersistedSessions();
         clearMentionShares();
-        localStorage.removeItem("tide_user_email");
-        localStorage.removeItem("tide_user_id");
-        localStorage.removeItem("tide_session_token");
-        window.location.reload();
+        void handleSignOut();
     };
 
     // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
