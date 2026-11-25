@@ -24,11 +24,16 @@ export interface MirrorHit {
     cachedAt: number | null;
 }
 
-/** Id of the signed-in user, or null (then nothing is mirrored or served). */
+/**
+ * Id of the signed-in user, or null (then nothing is mirrored or served). localStorage wins on purpose:
+ * `apiFetch` sends the token from localStorage, so the mirror key must belong to that same account. A tab
+ * whose sessionStorage still holds the id of an account another tab has since replaced would otherwise
+ * store the new account's responses under the old account's key. sessionStorage is only the fallback.
+ */
 export function getOfflineUserId(): string | null {
     if (typeof window === 'undefined') return null;
     try {
-        const id = sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id');
+        const id = localStorage.getItem('tide_user_id') || sessionStorage.getItem('tide_user_id');
         return id && id.trim() ? id.trim() : null;
     } catch {
         return null;

@@ -23,7 +23,7 @@ vi.mock('../../offlineCacheCrypto', () => ({
 }));
 
 import { apiFetch, clearAllSessionData } from '../../api';
-import { mirrorKey, mirrorRead, mirrorWrite, clearOfflineData, getLastMirroredAt } from '../store';
+import { mirrorKey, mirrorRead, mirrorWrite, clearOfflineData, getLastMirroredAt, getOfflineUserId } from '../store';
 
 function setUser(id: string | null) {
     localStorage.clear();
@@ -164,5 +164,18 @@ describe('offline mirror', () => {
         release('sealed:{}');
         await pending;
         expect(Array.from(mockIdb.keys()).filter((k) => String(k).startsWith('api_cache_'))).toEqual([]);
+    });
+
+    it('keys the mirror by the localStorage account (the token owner), not a stale tab-local id', async () => {
+        sessionStorage.setItem('tide_user_id', 'old-account');
+        fetchMock.mockResolvedValueOnce(okJson({ n: 7 }));
+        await apiFetch('/api/v1/switched');
+        await flush();
+        expect(await mirrorRead('/api/v1/switched', 'alice')).not.toBeNull();
+        expect(await mirrorRead('/api/v1/switched', 'old-account')).toBeNull();
+        sessionStorage.clear();
+        localStorage.removeItem('tide_user_id');
+        sessionStorage.setItem('tide_user_id', 'alice');
+        expect(getOfflineUserId()).toBe('alice');
     });
 });
