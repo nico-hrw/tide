@@ -16,7 +16,7 @@ vi.mock('@/lib/api', () => ({
   },
 }));
 
-const { exportVault } = await import('../exportVault');
+const { exportVault, countPinProtected } = await import('../exportVault');
 
 const ME = 'me';
 const text = (b: Uint8Array) => new TextDecoder().decode(b);
@@ -197,6 +197,41 @@ describe('exportVault', () => {
     routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([]));
     const { manifest } = await exportVault();
     expect(manifest.failures.map((f) => f.part)).toContain('content');
+  });
+
+  describe('PIN-protected files', () => {
+    const setup = async () => {
+      const uiLock = await encryptedNote('pin1', 'Tagebuch', { type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'geheim' }] }] });
+      uiLock.metadata = { ...uiLock.metadata, has_custom_password: true };
+      const wrapped = await encryptFileV2(JSON.stringify({ type: 'doc', content: [] }), publicKey, 'pin-1234');
+      const doubled = {
+        id: 'pin2', type: 'note', owner_id: ME, parent_id: null, version: 2, visibility: 'private', public_meta: {},
+        metadata: { ...wrapped.metadata, title: 'Tresor' }, access_keys: { [ME]: wrapped.encrypted_dek }, secured_meta: '',
+      };
+      routes.set('/api/v1/files/pin2/download', () => new Response(wrapped.content_ciphertext));
+      routes.set('/api/v1/files?recursive=true', () => Response.json([uiLock, doubled]));
+      routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([]));
+    };
+
+    it('counts them and leaves them out by default, as a notice without loss', async () => {
+      await setup();
+      expect(await countPinProtected()).toBe(2);
+      const { blob, manifest } = await exportVault();
+      const zip = asFile(readZip(new Uint8Array(await blob.arrayBuffer())));
+      expect(zip('content/pin1.json')).toBeUndefined();
+      expect(manifest.failures).toEqual([]);
+      expect(manifest.notices?.filter((n) => n.kind === 'pin-skipped').map((n) => n.id).sort()).toEqual(['pin1', 'pin2']);
+      expect(manifest.counts.note).toBe(2);
+    });
+
+    it('exports a UI-locked note only on explicit opt-in; a real password wrap stays unreadable', async () => {
+      await setup();
+      const { blob, manifest } = await exportVault(undefined, { includePinProtected: true });
+      const zip = asFile(readZip(new Uint8Array(await blob.arrayBuffer())));
+      expect(text(zip('content/pin1.json')!.data)).toContain('geheim');
+      expect(manifest.failures).toEqual([expect.objectContaining({ id: 'pin2', kind: 'custom-password' })]);
+      expect(manifest.notices?.some((n) => n.kind === 'pin-skipped')).toBe(false);
+    });
   });
 
   it('refuses to run without a key', async () => {

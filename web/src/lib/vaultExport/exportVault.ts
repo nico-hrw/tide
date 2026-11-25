@@ -7,11 +7,12 @@ import { useDataStore } from '@/store/useDataStore';
 import { createZip } from './zip';
 import { eventsToIcs, folderPathOf, noteToMarkdown, safeName, todosToMarkdown } from './readable';
 import { IssueLog, describeError, problemsText } from './issues';
-import { EXT, exportFile, type ExportContext, type RawFile } from './exportFile';
+import { EXT, PIN_SKIP_TEXT, exportFile, isPinLocked, pinBlocks, type ExportContext, type RawFile } from './exportFile';
 import { VaultReadError, collectLegacyImageRefs, readLegacyImage, type LegacyImageRef } from './readFile';
 import {
     VAULT_EXPORT_FORMAT,
     VAULT_EXPORT_VERSION,
+    type VaultExportOptions,
     type VaultExportProgress,
     type VaultExportResult,
     type VaultFileRecord,
@@ -47,20 +48,38 @@ async function runPool<T>(items: T[], size: number, work: (item: T, index: numbe
 const json = (value: unknown): Uint8Array => encoder.encode(JSON.stringify(value, null, 2));
 const assetPath = (id: string, mime: string) => `assets/${id}.${EXT[mime.toLowerCase()] ?? 'bin'}`;
 
-export async function exportVault(onProgress?: (p: VaultExportProgress) => void): Promise<VaultExportResult> {
+async function listAll(): Promise<Map<string, RawFile>> {
+    const [all, events] = await Promise.all([listFiles('recursive=true'), listFiles('type=event&recursive=true')]);
+    const listed = new Map<string, RawFile>();
+    for (const f of [...all, ...events]) listed.set(f.id, f);
+    return listed;
+}
+
+const ownedBy = (f: RawFile, myId: string) => !f.owner_id || f.owner_id === myId;
+
+/** Number of the user's own PIN-locked files, shown before the export so the user can opt in (no titles needed). */
+export async function countPinProtected(): Promise<number> {
+    const { myId } = useDataStore.getState();
+    if (!myId) return 0;
+    let n = 0;
+    for (const f of (await listAll()).values()) if (ownedBy(f, myId) && !ASSET_TYPES.has(f.type) && isPinLocked(f)) n++;
+    return n;
+}
+
+export async function exportVault(onProgress?: (p: VaultExportProgress) => void, options: VaultExportOptions = {}): Promise<VaultExportResult> {
     const store = useDataStore.getState();
     const { privateKey, myId } = store;
     if (!privateKey || !myId) throw new Error('Nicht angemeldet oder Schlüssel nicht geladen.');
 
     onProgress?.({ phase: 'listing', current: 0, total: 0 });
-    const [all, events] = await Promise.all([listFiles('recursive=true'), listFiles('type=event&recursive=true')]);
-    const listed = new Map<string, RawFile>();
-    for (const f of [...all, ...events]) listed.set(f.id, f);
+    const listed = await listAll();
+    const pinLocked = new Set([...listed.values()].filter((f) => ownedBy(f, myId) && isPinLocked(f)).map((f) => f.id.toLowerCase()));
 
     const skipped: VaultSkipped[] = [];
     const records: VaultFileRecord[] = [];
     const ctx: ExportContext = {
         privateKey, myId, entries: [], issues: new IssueLog(), readable: new Map(), exportedAssets: new Set(), legacyRefs: new Map(), listed,
+        pinLocked, includePinProtected: options.includePinProtected === true,
     };
     /** Owned image files, by id; the ones a note references are exported with that note. */
     const assetFiles = new Map<string, RawFile>();
@@ -141,7 +160,7 @@ function collectSidecarRefs(records: VaultFileRecord[], ctx: ExportContext): voi
 async function exportLegacyImages(byRecord: Map<string, VaultFileRecord>, assetFiles: Map<string, RawFile>, ctx: ExportContext): Promise<void> {
     for (const [noteId, refs] of ctx.legacyRefs) {
         const note = byRecord.get(noteId);
-        if (!note) continue;
+        if (!note || pinBlocks(noteId, ctx)) continue;
         for (const ref of refs as LegacyImageRef[]) {
             if (ctx.exportedAssets.has(ref.blobId)) continue;
             const file = assetFiles.get(ref.blobId) ?? ctx.listed.get(ref.blobId) ?? { id: ref.blobId, type: 'canvas-asset' };
@@ -167,6 +186,10 @@ async function exportUnassignedImages(assetFiles: Map<string, RawFile>, listed: 
         const parent = f.parent_id ? listed.get(f.parent_id) : undefined;
         const parentTitle = String(parent?.metadata?.title ?? parent?.public_meta?.title ?? '');
         const item = { id: f.id, type: 'canvas-asset', title: parentTitle ? `Bild in „${parentTitle}“` : `Bild ${f.id}` };
+        if (pinBlocks(f.parent_id, ctx)) {
+            ctx.issues.add('pin-skipped', item, 'asset', PIN_SKIP_TEXT);
+            continue;
+        }
         try {
             const { bytes, mimeType } = await readLegacyImage(f, ctx.privateKey);
             const path = assetPath(f.id, mimeType);

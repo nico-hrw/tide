@@ -1,10 +1,10 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Download } from 'lucide-react';
 import { SettingsCard, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
-import { Button, Chip, Notice } from '../ui/Controls';
+import { Button, Chip, ConfirmButton, Notice, Toggle } from '../ui/Controls';
 import { useT } from '../useT';
 import { VaultImportRow } from './VaultImportRow';
-import { exportVault } from '@/lib/vaultExport/exportVault';
+import { countPinProtected, exportVault } from '@/lib/vaultExport/exportVault';
 import type { VaultExportProgress, VaultIssueSeverity, VaultManifest } from '@/lib/vaultExport/types';
 import type { SettingsKey } from '@/lib/i18n';
 
@@ -52,12 +52,23 @@ export function VaultExportSection() {
     const [progress, setProgress] = useState<VaultExportProgress | null>(null);
     const [outcome, setOutcome] = useState<Outcome | null>(null);
     const running = progress !== null;
+    // PIN-locked items stay out unless the user explicitly opts in (the archive is plaintext).
+    const [pinCount, setPinCount] = useState(0);
+    const [includePin, setIncludePin] = useState(false);
+    useEffect(() => {
+        let alive = true;
+        countPinProtected().then((n) => alive && setPinCount(n)).catch(() => undefined);
+        return () => {
+            alive = false;
+        };
+    }, []);
+    const withPin = includePin && pinCount > 0;
 
     const run = async () => {
         setOutcome(null);
         setProgress({ phase: 'listing', current: 0, total: 0 });
         try {
-            const { blob, filename, manifest } = await exportVault(setProgress);
+            const { blob, filename, manifest } = await exportVault(setProgress, { includePinProtected: withPin });
             download(blob, filename);
             setOutcome(exportOutcome(manifest, t));
         } catch (err) {
@@ -79,10 +90,26 @@ export function VaultExportSection() {
         <SettingsSection title={t('export.section')} hint={t('export.sectionHint')} action={<Chip>{t('export.plaintext')}</Chip>}>
             <SettingsCard>
                 <SettingsRow title={t('export.row')} description={t('export.rowDesc')}>
-                    <Button onClick={run} disabled={running} icon={<Download className="h-[15px] w-[15px]" />}>
-                        {running ? t('export.running') : t('export.action')}
-                    </Button>
+                    {withPin ? (
+                        <ConfirmButton
+                            variant="danger"
+                            label={running ? t('export.running') : t('export.action')}
+                            confirmLabel={t('export.pinConfirm', { count: pinCount })}
+                            onConfirm={run}
+                            disabled={running}
+                            icon={<Download className="h-[15px] w-[15px]" />}
+                        />
+                    ) : (
+                        <Button onClick={run} disabled={running} icon={<Download className="h-[15px] w-[15px]" />}>
+                            {running ? t('export.running') : t('export.action')}
+                        </Button>
+                    )}
                 </SettingsRow>
+                {pinCount > 0 && (
+                    <SettingsRow title={t('export.pinRow', { count: pinCount })} description={t('export.pinRowDesc')}>
+                        <Toggle checked={includePin} onChange={setIncludePin} label={t('export.pinRow', { count: pinCount })} disabled={running} />
+                    </SettingsRow>
+                )}
                 <VaultImportRow />
             </SettingsCard>
             {(status || outcome) && (

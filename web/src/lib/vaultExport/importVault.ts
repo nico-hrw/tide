@@ -138,8 +138,11 @@ export async function importVault(zipBytes: Uint8Array, options: ImportOptions):
     const records: VaultFileRecord[] = [];
     /** Old canvas style sidecars by the note they belong to: merged into that note instead of becoming notes. */
     const sidecars = new Map<string, VaultFileRecord>();
+    const pinSkipped = new Set((archive.manifest.notices ?? []).filter((n) => n.kind === 'pin-skipped').map((n) => n.id));
     for (const f of archive.files) {
-        if (f.role === 'helper' && f.helperFor) {
+        if (pinSkipped.has(f.id) && f.type !== 'event' && f.type !== 'folder') {
+            notImported.push({ id: f.id, type: f.type, title: f.title, reason: 'PIN-geschützt: beim Export bewusst nicht enthalten' });
+        } else if (f.role === 'helper' && f.helperFor) {
             sidecars.set(f.helperFor, f);
             notImported.push({ id: f.id, type: f.type, title: f.title, reason: 'Alte Canvas-Stildatei: Striche und Bilder werden in ihre Notiz übernommen, wenn diese noch keine hat' });
         } else if (IMPORTABLE.has(f.type)) records.push(f);

@@ -74,6 +74,7 @@ export type VaultIssueKind =
     | 'content-unreadable'
     | 'no-access-key'
     | 'custom-password'
+    | 'pin-skipped'
     | 'v1-unreadable'
     | 'ydoc-unreadable'
     | 'asset-missing'
@@ -146,6 +147,15 @@ export interface VaultExportResult {
     blob: Blob;
     filename: string;
     manifest: VaultManifest;
+}
+
+export interface VaultExportOptions {
+    /**
+     * PIN-locked files (`has_custom_password`) are left out unless the user explicitly opts in: the archive is
+     * plaintext, so including them would remove the PIN protection. Files with a real second (password) wrap
+     * stay unreadable either way.
+     */
+    includePinProtected?: boolean;
 }
 
 export type VaultExportPhase = 'listing' | 'reading' | 'packing' | 'done';

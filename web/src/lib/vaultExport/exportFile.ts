@@ -55,7 +55,19 @@ export interface ExportContext {
     legacyRefs: Map<string, LegacyImageRef[]>;
     /** Every file the server listed (also foreign ones), to explain image errors. */
     listed: Map<string, RawFile>;
+    /** Ids of PIN-locked files (`has_custom_password`); left out unless `includePinProtected`. */
+    pinLocked: Set<string>;
+    includePinProtected: boolean;
 }
+
+export const isPinLocked = (f: RawFile): boolean => f.metadata?.has_custom_password === true;
+
+/** True when this file's content must stay out of the archive because of a PIN the user did not opt out of. */
+export function pinBlocks(id: string | null | undefined, ctx: ExportContext): boolean {
+    return !ctx.includePinProtected && !!id && ctx.pinLocked.has(id.toLowerCase());
+}
+
+export const PIN_SKIP_TEXT = 'Übersprungen: PIN-geschützt, bewusst nicht enthalten (Inhalt bleibt im Konto geschützt)';
 
 /** An old `.canvas-img-*` file that turned out to be an image: handled as an asset, not as a note. */
 export interface LegacyImageFile {
@@ -131,6 +143,12 @@ export async function exportFile(f: RawFile, ctx: ExportContext): Promise<VaultF
         record.helperFor = sidecar[1].toLowerCase();
     }
     const log = (kind: VaultIssueKind, part: string, error: string) => ctx.issues.add(kind, record, part, error);
+    // PIN-locked (or the old style sidecar of a PIN-locked note): only the plain record, never the content.
+    if (pinBlocks(f.id, ctx) || pinBlocks(record.helperFor, ctx)) {
+        if (f.secured_meta) record.securedMetaRaw = f.secured_meta;
+        log('pin-skipped', 'content', PIN_SKIP_TEXT);
+        return record;
+    }
     const hasBody = !NO_BODY.has(f.type);
     const plaintext = isPlaintextFile(f);
     const isV1 = (f.version ?? 0) < 2 && !plaintext;

@@ -8,6 +8,7 @@ export const ISSUE_SEVERITY: Record<VaultIssueKind, VaultIssueSeverity> = {
     'content-unreadable': 'loss',
     'no-access-key': 'loss',
     'custom-password': 'loss',
+    'pin-skipped': 'info',
     'v1-unreadable': 'loss',
     'ydoc-unreadable': 'loss',
     'asset-missing': 'loss',
@@ -27,7 +28,8 @@ export const ISSUE_SEVERITY: Record<VaultIssueKind, VaultIssueSeverity> = {
 export const ISSUE_LABEL_DE: Record<VaultIssueKind, string> = {
     'content-unreadable': 'Inhalt nicht lesbar',
     'no-access-key': 'Kein Schlüssel für dieses Konto, Inhalt nicht lesbar',
-    'custom-password': 'Mit eigenem Passwort (PIN) geschützt, im Export nicht lesbar',
+    'custom-password': 'Mit eigenem Passwort (PIN) zusätzlich verschlüsselt, ohne PIN nicht lesbar',
+    'pin-skipped': 'Übersprungen: PIN-geschützt, bewusst nicht enthalten (Option beim Export war aus)',
     'v1-unreadable': 'Altes V1-Format, Schlüssel nicht lesbar',
     'ydoc-unreadable': 'Notiz-Zustand (Bilder, Stift, Canvas) nicht entschlüsselbar',
     'asset-missing': 'Bild nicht mehr auf dem Server',
