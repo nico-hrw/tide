@@ -76,7 +76,7 @@ export default function NotePagePreview({ doc }: { doc: PMNode }) {
     const blocks = (doc.content ?? []).slice(0, MAX_BLOCKS);
     return (
         <div
-            className="relative h-[190px] overflow-hidden rounded-lg border border-t2-line bg-white px-3 py-2.5 text-[11px] leading-snug text-t2-ink dark:bg-t2-bg"
+            className="relative h-[190px] overflow-hidden rounded-lg border border-t2-line bg-t2-bg px-3 py-2.5 text-[11px] leading-snug text-t2-ink"
             style={{ WebkitMaskImage: 'linear-gradient(#000 70%, transparent)', maskImage: 'linear-gradient(#000 70%, transparent)' }}
         >
             <Children nodes={blocks} />
