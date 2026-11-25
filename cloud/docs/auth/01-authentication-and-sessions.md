@@ -193,8 +193,20 @@ Tide issues JSON Web Tokens for API session management:
 | :--- | :--- | :--- |
 | `sub` | `string` | The user's internal UUID (`user.ID`) |
 | `exp` | `int64` | Expiration timestamp (issued for 30 days: `time.Now().Add(30 * 24 * time.Hour).Unix()`) |
-| `iat` | `int64` | Issued-at timestamp |
-| `username` | `string` | Public display handle |
+| `iat` | `int64` | Issued-at timestamp (set by `verify-otp` and dev login; tokens issued before 2026-11 lack it) |
+
+> Correction: the code sets only `sub`, `iat` and `exp`; there is no `username` claim.
+> `AuthMiddleware` puts `iat` into the request context (`tokenIssuedAtKey`) for fresh-session checks.
+
+### 5.5 Fresh sessions and vault recovery endpoints
+Endpoints that change the account vault (`PUT /auth/recovery-vault`, `POST /auth/replace-vault`)
+require a **fresh session** (JWT `iat` at most 10 minutes old; tokens without `iat` are never fresh)
+**and** a **key proof**: the answer to `POST /auth/key-challenge`, which encrypts 32 random bytes to
+the stored RSA public key (RSA-OAEP, SHA-256). The challenge is one-time, valid 2 minutes and kept
+only as a hash in memory. `replace-vault` keeps the previous vault in `encrypted_vault_prev` and is
+refused (429) within 24 h of the last replacement. After a change the server mails a notice to the
+address of the session's `verify-otp` (kept in memory 15 min) and `verify-otp` reports
+`vault_replaced_at`. Details: `web/docs/crypto/VAULT_AND_PIN_SECURITY.md`.
 
 ### 5.2 Signing with HMAC-SHA256 (`HS256`)
 - Signed using the server environment variable `JWT_SECRET`.
