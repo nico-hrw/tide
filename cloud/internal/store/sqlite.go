@@ -410,6 +410,10 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 			"ALTER TABLE users ADD COLUMN pin_hash TEXT",
 			"ALTER TABLE users ADD COLUMN login_code TEXT",
 			"ALTER TABLE users ADD COLUMN username TEXT",
+			// Vault recovery (additive, nullable): a second, client-encrypted wrapping of the private
+			// key and one previous generation of encrypted_vault kept by replace-vault.
+			"ALTER TABLE users ADD COLUMN recovery_vault TEXT",
+			"ALTER TABLE users ADD COLUMN encrypted_vault_prev TEXT",
 		}
 		for _, stmt := range userCols {
 			if _, err := s.DB.Exec(stmt); err != nil && !isDuplicateColumnError(err) {

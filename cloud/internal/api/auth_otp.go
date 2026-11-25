@@ -338,6 +338,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
+		"iat": time.Now().Unix(), // lets vault-replacing endpoints require a fresh OTP sign-in
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

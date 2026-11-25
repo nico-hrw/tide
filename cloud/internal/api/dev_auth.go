@@ -271,6 +271,7 @@ func (h *AuthHandler) issueDevTokenAndCookie(w http.ResponseWriter, r *http.Requ
 
 	claims := jwt.MapClaims{
 		"sub": userID,
+		"iat": time.Now().Unix(),
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

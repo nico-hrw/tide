@@ -66,6 +66,8 @@ type RegisterRequest struct {
 	EncryptedVault string `json:"encrypted_vault"`
 	Pepper         string `json:"pepper"` // Base64 or Hex, client generated
 	Pin            string `json:"pin"`
+	// Optional client-encrypted second wrapping of the private key (see auth_recovery.go).
+	RecoveryVault string `json:"recovery_vault,omitempty"`
 }
 
 func hashString(s string) string {
@@ -207,6 +209,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
+	if req.RecoveryVault != "" {
+		if err := validateRecoveryVault(req.RecoveryVault); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+	}
 	// Prepare Blind Indexes
 	var emailHash, usernameHash, phoneHash *string
 
@@ -291,8 +299,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := map[string]interface{}{"id": user.ID}
+	if req.RecoveryVault != "" {
+		saved := true
+		if err := h.Store.SetRecoveryVault(r.Context(), user.ID, req.RecoveryVault); err != nil {
+			log.Printf("REGISTRATION: recovery vault not stored for user %s: %v", user.ID, err)
+			saved = false
+		}
+		resp["recovery_saved"] = saved
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": user.ID})
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
