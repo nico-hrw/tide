@@ -128,7 +128,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                         top: popoverPos?.top ?? 0,
                         left: popoverPos?.left ?? 0,
                         zIndex: 9999,
-                        background: 'var(--popover-bg, light-dark(#fff, #1e293b))',
+                        background: 'var(--popover-bg, var(--t2-surface))',
                         border: '1px solid rgba(99,102,241,0.2)',
                         borderRadius: '12px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',

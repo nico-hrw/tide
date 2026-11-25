@@ -404,7 +404,7 @@ export default function EventPopover({
                         <button
                             key={c}
                             onClick={() => setColor(c)}
-                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-110'}`}
+                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-t2-surface scale-110' : 'hover:scale-110'}`}
                             style={{ backgroundColor: categoryVar(c) }}
                             title={CALENDAR_CATEGORIES.find(cat => cat.key === c)?.name}
                         />

@@ -210,7 +210,7 @@ export default function SocialHub({
     };
 
     return (
-        <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
+        <div className="flex-1 h-full flex flex-col bg-t2-sub overflow-y-auto relative select-none">
             {/* Sticky Header Bar following Job & Uni Planer philosophy */}
             <div className="sticky top-0 z-30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 px-6 md:px-10 py-5 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                 <div className="flex items-center gap-3">

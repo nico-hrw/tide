@@ -250,7 +250,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
 
     if (loading) {
         return (
-            <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto animate-pulse">
+            <div className="flex-1 h-full flex flex-col bg-t2-sub overflow-y-auto animate-pulse">
                 <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                     <div className="h-8 w-24 bg-t2-stage  rounded-xl" />
                     <div className="h-6 w-32 bg-t2-stage  rounded-lg" />
@@ -265,7 +265,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
 
     if (!profile) {
         return (
-            <div className="flex-1 flex flex-col items-center justify-center h-full text-t2-ink-2 bg-[#f8f9fa] dark:bg-[#121212]">
+            <div className="flex-1 flex flex-col items-center justify-center h-full text-t2-ink-2 bg-t2-sub">
                 <User size={48} className="mb-4 opacity-40 text-t2-ink-3" />
                 <p className="text-sm font-semibold">Profil konnte nicht geladen werden</p>
                 <button type="button" onClick={handleBack} className="mt-4 px-4 py-2 rounded-xl text-xs font-semibold bg-t2-surface  border border-t2-line  text-t2-ink  hover:bg-t2-sub transition-colors">
@@ -276,7 +276,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
     }
 
     return (
-        <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
+        <div className="flex-1 h-full flex flex-col bg-t2-sub overflow-y-auto relative select-none">
             {/* Sticky Header with Back Button */}
             <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-4 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                 <div className="flex items-center gap-3">

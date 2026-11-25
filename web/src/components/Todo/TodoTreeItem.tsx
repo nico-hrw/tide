@@ -307,7 +307,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   : isMobileT2
                     ? (isTodayActive ? 'tide-m-today' : '')
                   : isTodayActive
-                    ? 'bg-[#27272a] text-white border border-[#27272a] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                    ? 'bg-t2-accent text-t2-accent-ink border border-t2-accent shadow-md'
                     : 'bg-t2-surface  text-t2-ink  border border-t2-line  hover:border-t2-line  shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
@@ -448,7 +448,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 {/* Main Info Card */}
                 <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
                   isTodayActive
-                    ? 'bg-[#27272a] text-white border border-[#27272a] dark:bg-white dark:text-black dark:border-white shadow-md'
+                    ? 'bg-t2-accent text-t2-accent-ink border border-t2-accent shadow-md'
                     : 'bg-t2-surface  text-t2-ink  border-t2-line  shadow-sm'
                 }`}>
                   <div className="flex items-center justify-between mb-2">

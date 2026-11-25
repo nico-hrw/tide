@@ -331,7 +331,7 @@ export default function MobileLayout({
       ) : null}
       {activeTab === 'todos' ? (
         <div
-          className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden bg-[#f8f9fa] dark:bg-[#121212]"
+          className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden bg-t2-sub"
           style={{ paddingBottom: 'max(64px, calc(56px + env(safe-area-inset-bottom)))' }}
         >
           <style>{`.mobile-todos-container .sticky.top-0{padding-top:max(8px,calc(env(safe-area-inset-top) + 4px))!important}.mobile-todos-container .max-w-4xl,.mobile-todos-container .md\\:max-w-5xl{padding:12px 12px calc(28px + env(safe-area-inset-bottom)) 12px!important;gap:12px!important;max-width:100%!important}`}</style>

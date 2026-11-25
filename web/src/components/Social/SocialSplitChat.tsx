@@ -118,7 +118,7 @@ export default function SocialSplitChat({
                                     >
                                         <div className="relative shrink-0">
                                             <Avatar seed={(c.partner.avatar_seed || c.partner.id) + (c.partner.avatar_salt || '')} style={avatarStyle} size={36} />
-                                            <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${statusColor} ring-2 ring-white dark:ring-[#161616]`} />
+                                            <span className={`absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full ${statusColor} ring-2 ring-t2-surface`} />
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <p className={`text-xs font-semibold truncate ${isSelected ? 'text-t2-accent ' : 'text-t2-ink '}`}>{c.partner.username}</p>
