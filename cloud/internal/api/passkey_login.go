@@ -28,7 +28,7 @@ func (h *AuthHandler) PasskeyLoginOptions(w http.ResponseWriter, r *http.Request
 		http.Error(w, "Failed to start passkey login", http.StatusInternalServerError)
 		return
 	}
-	id, err := st.putCeremony(passkeyCeremony{session: *session, expiresAt: time.Now().Add(passkeyLoginTTL)})
+	id, err := st.logins.put(passkeyCeremony{session: *session, owner: requestIP(r), expiresAt: time.Now().Add(passkeyLoginTTL)})
 	if err != nil {
 		http.Error(w, "Try again shortly", http.StatusServiceUnavailable)
 		return
@@ -56,7 +56,7 @@ func (h *AuthHandler) PasskeyLoginVerify(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
 	}
-	ceremony, ok := st.takeCeremony(req.CeremonyID)
+	ceremony, ok := st.logins.take(req.CeremonyID)
 	if !ok || ceremony.userID != "" {
 		http.Error(w, "Passkey login expired, please try again", http.StatusUnauthorized)
 		return
@@ -96,7 +96,7 @@ func (h *AuthHandler) PasskeyLoginVerify(w http.ResponseWriter, r *http.Request)
 		http.Error(w, "Passkey not accepted", http.StatusUnauthorized)
 		return
 	}
-	resp, ok := h.issueSignIn(w, r, user, "PasskeyLogin")
+	resp, ok := h.issueSignIn(w, r, user, "PasskeyLogin", authMethodPasskey)
 	if !ok {
 		return
 	}

@@ -62,6 +62,8 @@ func createPasskeyTestUser(t *testing.T, s *store.SQLiteStore, h *AuthHandler, n
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// as after a mail-code sign-in: a notice address is known for this account
+	h.rememberSessionEmail(id, name+"@example.test")
 	return vaultUser{id: id, priv: priv}
 }
 

@@ -60,7 +60,7 @@ func (h *AuthHandler) PasskeyRegisterOptions(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !requireFreshSession(w, r) {
+	if !h.requireVaultChangeSession(w, r, userID) {
 		return
 	}
 	st, err := h.passkeys()
@@ -94,7 +94,7 @@ func (h *AuthHandler) PasskeyRegisterOptions(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "Failed to start passkey registration", http.StatusInternalServerError)
 		return
 	}
-	id, err := st.putCeremony(passkeyCeremony{session: *session, userID: userID, expiresAt: time.Now().Add(passkeyRegistrationTTL)})
+	id, err := st.registration.put(passkeyCeremony{session: *session, userID: userID, owner: userID, expiresAt: time.Now().Add(passkeyRegistrationTTL)})
 	if err != nil {
 		http.Error(w, "Try again shortly", http.StatusServiceUnavailable)
 		return
@@ -112,7 +112,7 @@ func (h *AuthHandler) PasskeyRegisterFinish(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !requireFreshSession(w, r) {
+	if !h.requireVaultChangeSession(w, r, userID) {
 		return
 	}
 	st, err := h.passkeys()
@@ -141,7 +141,7 @@ func (h *AuthHandler) PasskeyRegisterFinish(w http.ResponseWriter, r *http.Reque
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	ceremony, ok := st.takeCeremony(req.CeremonyID)
+	ceremony, ok := st.registration.take(req.CeremonyID)
 	if !ok || ceremony.userID != userID {
 		http.Error(w, "Passkey registration expired, please start again", http.StatusBadRequest)
 		return
@@ -216,7 +216,7 @@ func (h *AuthHandler) DeletePasskey(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !requireFreshSession(w, r) {
+	if !h.requireVaultChangeSession(w, r, userID) {
 		return
 	}
 	var req struct {

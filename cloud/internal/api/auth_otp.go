@@ -300,7 +300,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp, ok := h.issueSignIn(w, r, user, "VerifyOTP")
+	resp, ok := h.issueSignIn(w, r, user, "VerifyOTP", authMethodOTP)
 	if !ok {
 		return
 	}
@@ -314,7 +314,7 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 
 // issueSignIn decrypts the pepper, issues the session JWT (with iat) and cookie and returns the sign-in
 // fields shared by verify-otp and the passkey login. On failure it has written the error response.
-func (h *AuthHandler) issueSignIn(w http.ResponseWriter, r *http.Request, user *db.User, logTag string) (map[string]interface{}, bool) {
+func (h *AuthHandler) issueSignIn(w http.ResponseWriter, r *http.Request, user *db.User, logTag, authMethod string) (map[string]interface{}, bool) {
 	// Decrypt Pepper
 	block, err := aes.NewCipher(h.ServerMasterKey)
 	if err != nil {
@@ -355,6 +355,7 @@ func (h *AuthHandler) issueSignIn(w http.ResponseWriter, r *http.Request, user *
 	claims := jwt.MapClaims{
 		"sub": user.ID,
 		"iat": time.Now().Unix(), // lets vault-replacing endpoints require a fresh sign-in
+		"auth": authMethod, // "otp" or "passkey"; vault changes need a mail-code session
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)

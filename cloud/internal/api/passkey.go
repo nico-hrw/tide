@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
+	"net/http"
 	"net/url"
 	"os"
 	"strings"
@@ -24,30 +26,110 @@ import (
 // never from request headers. Without that configuration passkeys are disabled.
 
 const (
-	passkeyEnvelopeKind    = "passkey-prf"
-	maxPasskeysPerUser     = 10
-	passkeyLoginTTL        = 2 * time.Minute
-	passkeyRegistrationTTL = 5 * time.Minute
-	maxPasskeyCeremonies   = 10000
-	maxPasskeyNameRunes    = 64
-	maxPasskeyRequestBytes = 96 * 1024
-	passkeyRPDisplayName   = "Tide"
-	noticePasskeyAdded     = "passkey-added"
-	noticePasskeyRemoved   = "passkey-removed"
+	passkeyEnvelopeKind     = "passkey-prf"
+	maxPasskeysPerUser      = 10
+	passkeyLoginTTL         = 2 * time.Minute
+	passkeyRegistrationTTL  = 5 * time.Minute
+	maxLoginCeremonies      = 10000
+	maxLoginCeremoniesPerIP = 10
+	maxRegCeremonies        = 10000
+	maxRegCeremoniesPerUser = 3
+	maxPasskeyNameRunes     = 64
+	maxPasskeyRequestBytes  = 96 * 1024
+	passkeyRPDisplayName    = "Tide"
+	noticePasskeyAdded      = "passkey-added"
+	noticePasskeyRemoved    = "passkey-removed"
 )
 
 type passkeyCeremony struct {
 	session   webauthn.SessionData
 	userID    string // empty for discoverable login
+	owner     string // client IP (login) or user ID (registration), for the per-owner cap
+	createdAt time.Time
 	expiresAt time.Time
 }
 
+// ceremonyStore keeps open WebAuthn ceremonies in memory. Each store has a total cap and a cap per
+// owner; an owner at its cap loses its own oldest ceremony, so one client cannot crowd out others.
+// Login and registration use separate stores, so anonymous login traffic can never block a
+// signed-in user's registration.
+type ceremonyStore struct {
+	mu          sync.Mutex
+	items       map[string]passkeyCeremony
+	capTotal    int
+	capPerOwner int
+}
+
+func newCeremonyStore(total, perOwner int) *ceremonyStore {
+	return &ceremonyStore{items: make(map[string]passkeyCeremony), capTotal: total, capPerOwner: perOwner}
+}
+
+var errCeremoniesFull = errors.New("too many open passkey ceremonies")
+
+func (cs *ceremonyStore) put(c passkeyCeremony) (string, error) {
+	idBytes := make([]byte, 24)
+	if _, err := rand.Read(idBytes); err != nil {
+		return "", err
+	}
+	id := base64.RawURLEncoding.EncodeToString(idBytes)
+	now := time.Now()
+	c.createdAt = now
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	oldestID, owned := "", 0
+	for k, v := range cs.items {
+		if now.After(v.expiresAt) {
+			delete(cs.items, k)
+			continue
+		}
+		if v.owner == c.owner {
+			owned++
+			if oldestID == "" || v.createdAt.Before(cs.items[oldestID].createdAt) {
+				oldestID = k
+			}
+		}
+	}
+	if owned >= cs.capPerOwner && oldestID != "" {
+		delete(cs.items, oldestID)
+	}
+	if len(cs.items) >= cs.capTotal {
+		return "", errCeremoniesFull
+	}
+	cs.items[id] = c
+	return id, nil
+}
+
+// take returns and always removes the ceremony (one-time use).
+func (cs *ceremonyStore) take(id string) (passkeyCeremony, bool) {
+	cs.mu.Lock()
+	defer cs.mu.Unlock()
+	c, ok := cs.items[id]
+	delete(cs.items, id)
+	if !ok || time.Now().After(c.expiresAt) {
+		return passkeyCeremony{}, false
+	}
+	return c, true
+}
+
 type passkeyState struct {
-	once       sync.Once
-	wa         *webauthn.WebAuthn
-	initErr    error
-	mu         sync.Mutex
-	ceremonies map[string]passkeyCeremony
+	once         sync.Once
+	wa           *webauthn.WebAuthn
+	initErr      error
+	logins       *ceremonyStore
+	registration *ceremonyStore
+}
+
+// requestIP mirrors the client key used by RateLimitMiddleware.
+func requestIP(r *http.Request) string {
+	ip, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		ip = r.RemoteAddr
+	}
+	ip = strings.Trim(strings.TrimSpace(ip), "[]")
+	if ip == "" {
+		ip = "unknown"
+	}
+	return ip
 }
 
 // passkeyUser adapts a Tide user to webauthn.User. The user handle is the user's UUID.
@@ -112,45 +194,15 @@ func passkeyConfigFromEnv() (*webauthn.WebAuthn, error) {
 func (h *AuthHandler) passkeys() (*passkeyState, error) {
 	h.mu.Lock()
 	if h.passkey == nil {
-		h.passkey = &passkeyState{ceremonies: make(map[string]passkeyCeremony)}
+		h.passkey = &passkeyState{
+			logins:       newCeremonyStore(maxLoginCeremonies, maxLoginCeremoniesPerIP),
+			registration: newCeremonyStore(maxRegCeremonies, maxRegCeremoniesPerUser),
+		}
 	}
 	st := h.passkey
 	h.mu.Unlock()
 	st.once.Do(func() { st.wa, st.initErr = passkeyConfigFromEnv() })
 	return st, st.initErr
-}
-
-func (st *passkeyState) putCeremony(c passkeyCeremony) (string, error) {
-	idBytes := make([]byte, 24)
-	if _, err := rand.Read(idBytes); err != nil {
-		return "", err
-	}
-	id := base64.RawURLEncoding.EncodeToString(idBytes)
-	now := time.Now()
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	for k, v := range st.ceremonies {
-		if now.After(v.expiresAt) {
-			delete(st.ceremonies, k)
-		}
-	}
-	if len(st.ceremonies) >= maxPasskeyCeremonies {
-		return "", errors.New("too many open passkey ceremonies")
-	}
-	st.ceremonies[id] = c
-	return id, nil
-}
-
-// takeCeremony returns and always removes the ceremony (one-time use).
-func (st *passkeyState) takeCeremony(id string) (passkeyCeremony, bool) {
-	st.mu.Lock()
-	defer st.mu.Unlock()
-	c, ok := st.ceremonies[id]
-	delete(st.ceremonies, id)
-	if !ok || time.Now().After(c.expiresAt) {
-		return passkeyCeremony{}, false
-	}
-	return c, true
 }
 
 func credentialIDString(id []byte) string { return base64.RawURLEncoding.EncodeToString(id) }

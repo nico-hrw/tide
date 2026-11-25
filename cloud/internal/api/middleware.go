@@ -113,6 +113,9 @@ func AuthMiddleware(next http.Handler) http.Handler {
 		if iat, err := claims.GetIssuedAt(); err == nil && iat != nil {
 			ctx = context.WithValue(ctx, tokenIssuedAtKey, iat.Time)
 		}
+		if method, ok := claims["auth"].(string); ok {
+			ctx = context.WithValue(ctx, tokenAuthMethodKey, method)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

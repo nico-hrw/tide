@@ -23,7 +23,12 @@ import (
 
 type ctxKey string
 
-const tokenIssuedAtKey ctxKey = "token_iat"
+const (
+	tokenIssuedAtKey   ctxKey = "token_iat"
+	tokenAuthMethodKey ctxKey = "token_auth"
+	authMethodOTP             = "otp"
+	authMethodPasskey         = "passkey"
+)
 
 const (
 	freshSessionMaxAge     = 10 * time.Minute
@@ -57,6 +62,22 @@ func requireFreshSession(w http.ResponseWriter, r *http.Request) bool {
 	}
 	http.Error(w, "Fresh sign-in required: request a new email code and try again", http.StatusForbidden)
 	return false
+}
+
+// requireVaultChangeSession guards everything that changes the vault, the recovery vault or the
+// passkeys: a fresh session that did not come from a passkey sign-in and for which a notice address
+// is known (from this account's verify-otp in the last minutes). A passkey sign-in can unlock and use
+// the app, but changes need one mail-code sign-in, so the owner gets a notice mail.
+func (h *AuthHandler) requireVaultChangeSession(w http.ResponseWriter, r *http.Request, userID string) bool {
+	if !requireFreshSession(w, r) {
+		return false
+	}
+	method, _ := r.Context().Value(tokenAuthMethodKey).(string)
+	if method == authMethodPasskey || h.sessionEmailFor(userID) == "" {
+		http.Error(w, "Mail sign-in required: sign in once with an email code to change the vault or passkeys", http.StatusForbidden)
+		return false
+	}
+	return true
 }
 
 func isNonEmptyBase64(s string) bool {
@@ -174,7 +195,7 @@ func (h *AuthHandler) PutRecoveryVault(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !requireFreshSession(w, r) {
+	if !h.requireVaultChangeSession(w, r, userID) {
 		return
 	}
 	var req struct {
@@ -210,7 +231,7 @@ func (h *AuthHandler) ReplaceVault(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
 	}
-	if !requireFreshSession(w, r) {
+	if !h.requireVaultChangeSession(w, r, userID) {
 		return
 	}
 	var req struct {

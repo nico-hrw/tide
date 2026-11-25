@@ -181,9 +181,10 @@ func TestReplaceVault_RoundTripKeepsPreviousGenerations(t *testing.T) {
 }
 
 func TestReplaceVault_RequiresKeyProof(t *testing.T) {
-	s, _, r := recoveryRouter(t)
+	s, h, r := recoveryRouter(t)
 	u := createVaultUser(t, s, "proof")
 	other := createVaultUser(t, s, "other")
+	h.rememberSessionEmail(u.id, "proof@example.test")
 	tok := tokenIssuedAt(t, u.id, time.Now())
 	body := map[string]string{"encrypted_vault": testVaultNew}
 
@@ -235,8 +236,9 @@ func TestKeyChallenge_Expires(t *testing.T) {
 }
 
 func TestReplaceVault_StaleOrMissingIatIsForbidden(t *testing.T) {
-	s, _, r := recoveryRouter(t)
+	s, h, r := recoveryRouter(t)
 	u := createVaultUser(t, s, "stale")
+	h.rememberSessionEmail(u.id, "stale@example.test")
 	freshTok := tokenIssuedAt(t, u.id, time.Now())
 
 	for name, tok := range map[string]string{
@@ -262,8 +264,9 @@ func TestReplaceVault_StaleOrMissingIatIsForbidden(t *testing.T) {
 }
 
 func TestReplaceVault_RejectsMalformedVaults(t *testing.T) {
-	s, _, r := recoveryRouter(t)
+	s, h, r := recoveryRouter(t)
 	u := createVaultUser(t, s, "malformed")
+	h.rememberSessionEmail(u.id, "malformed@example.test")
 	tok := tokenIssuedAt(t, u.id, time.Now())
 	bad := []map[string]string{
 		{"encrypted_vault": ""},
@@ -282,8 +285,9 @@ func TestReplaceVault_RejectsMalformedVaults(t *testing.T) {
 }
 
 func TestRecoveryVault_OnlyOwnAndStatusFlag(t *testing.T) {
-	s, _, r := recoveryRouter(t)
+	s, h, r := recoveryRouter(t)
 	alice := createVaultUser(t, s, "alice")
+	h.rememberSessionEmail(alice.id, "alice@example.test")
 	bob := createVaultUser(t, s, "bob")
 	aliceTok := tokenIssuedAt(t, alice.id, time.Now())
 
