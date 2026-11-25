@@ -23,7 +23,7 @@ vi.mock('../../offlineCacheCrypto', () => ({
 }));
 
 import { apiFetch, clearAllSessionData } from '../../api';
-import { mirrorKey, mirrorRead, mirrorWrite, clearOfflineData } from '../store';
+import { mirrorKey, mirrorRead, mirrorWrite, clearOfflineData, getLastMirroredAt } from '../store';
 
 function setUser(id: string | null) {
     localStorage.clear();
@@ -141,6 +141,28 @@ describe('offline mirror', () => {
         await mirrorWrite('/api/v1/a', '1', 'alice');
         await mirrorWrite('/api/v1/a', '2', 'bob');
         await clearAllSessionData({ callServerLogout: false });
+        expect(Array.from(mockIdb.keys()).filter((k) => String(k).startsWith('api_cache_'))).toEqual([]);
+    });
+
+    it('does not stamp lastMirroredAt when the entry could not be stored (quota full)', async () => {
+        const idbKeyval = await import('idb-keyval');
+        vi.mocked(idbKeyval.set).mockRejectedValueOnce(new Error('QuotaExceededError'));
+        vi.spyOn(console, 'error').mockImplementation(() => {});
+        await mirrorWrite('/api/v1/a', '1', 'alice');
+        expect(await mirrorRead('/api/v1/a', 'alice')).toBeNull();
+        expect(await getLastMirroredAt('alice')).toBeNull();
+        await mirrorWrite('/api/v1/a', '1', 'alice');
+        expect(await getLastMirroredAt('alice')).toBeTypeOf('number');
+    });
+
+    it('a write that was in flight during clearOfflineData does not land afterwards', async () => {
+        const crypto = await import('../../offlineCacheCrypto');
+        let release: (v: string) => void = () => {};
+        vi.mocked(crypto.encryptCacheValue).mockImplementationOnce(() => new Promise<string>((r) => { release = r; }));
+        const pending = mirrorWrite('/api/v1/late', 'x', 'alice');
+        await clearOfflineData();
+        release('sealed:{}');
+        await pending;
         expect(Array.from(mockIdb.keys()).filter((k) => String(k).startsWith('api_cache_'))).toEqual([]);
     });
 });

@@ -48,16 +48,32 @@ export function isMirrorableMethod(method: string | undefined): boolean {
     return !method || method.toUpperCase() === 'GET';
 }
 
-/** Mirror one successful GET body. Best-effort, never throws. */
+/** Bumped by every `clearOfflineData`: a write that started before it must not land (or must be undone) afterwards. */
+let clearGeneration = 0;
+
+/**
+ * Mirror one successful GET body. Best-effort, never throws. `lastMirroredAt` is only set when the entry
+ * really was stored (a full quota must not claim a fresh offline state) and never after a clear.
+ */
 export async function mirrorWrite(endpoint: string, body: string, userId = getOfflineUserId()): Promise<void> {
     if (!userId) return;
+    const generation = clearGeneration;
     try {
         const now = Date.now();
         const envelope: MirrorEnvelope = { _tide_mirror_v1: true, t: now, b: body };
         const sealed = await encryptCacheValue(JSON.stringify(envelope));
-        if (sealed === null) return;
-        await idb.set(mirrorKey(userId, endpoint), sealed);
-        await idb.set(`${META_PREFIX}${userId}`, { lastMirroredAt: now });
+        if (sealed === null || generation !== clearGeneration) return;
+        const key = mirrorKey(userId, endpoint);
+        const stored = await idb.setChecked(key, sealed);
+        if (generation !== clearGeneration) {
+            // The user logged out / cleared the mirror while this write was in flight: take it back.
+            await idb.del(key);
+            return;
+        }
+        if (!stored) return;
+        const metaKey = `${META_PREFIX}${userId}`;
+        await idb.setChecked(metaKey, { lastMirroredAt: now });
+        if (generation !== clearGeneration) await idb.del(metaKey);
     } catch {
         // best effort
     }
@@ -91,6 +107,7 @@ export async function mirrorRead(endpoint: string, userId = getOfflineUserId()):
 
 /** Delete the mirror of one user, or of all users on this device when no id is given. */
 export async function clearOfflineData(userId?: string | null): Promise<void> {
+    clearGeneration++;
     try {
         const prefix = userId ? userPrefix(userId) : MIRROR_PREFIX;
         const metaPrefix = userId ? `${META_PREFIX}${userId}` : META_PREFIX;
