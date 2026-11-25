@@ -26,37 +26,47 @@ async function failure(res: Response, fallback: string): Promise<Error> {
 
 const live = { offline: 'never' as const, cache: 'no-store' as const };
 
+/** Optional explicit session token (during sign-in it is not yet in localStorage). */
+export interface AuthOpts {
+    token?: string;
+}
+
+export function authHeaders(opts?: AuthOpts, extra: Record<string, string> = {}): Record<string, string> {
+    return opts?.token ? { ...extra, Authorization: `Bearer ${opts.token}` } : extra;
+}
+
 /** The caller's recovery vault, or null when none is set up. */
-export async function fetchRecoveryVault(): Promise<string | null> {
-    const res = await apiFetch('/api/v1/auth/recovery-vault', live);
+export async function fetchRecoveryVault(opts?: AuthOpts): Promise<string | null> {
+    const res = await apiFetch('/api/v1/auth/recovery-vault', { ...live, headers: authHeaders(opts) });
     if (!res.ok) throw await failure(res, 'Wiederherstellung konnte nicht geladen werden.');
     const data = (await res.json()) as { has_recovery?: boolean; recovery_vault?: string | null };
     return data.has_recovery && data.recovery_vault ? data.recovery_vault : null;
 }
 
 /** Only whether a recovery vault exists (no content transferred). */
-export async function fetchRecoveryStatus(): Promise<boolean> {
-    const res = await apiFetch('/api/v1/auth/recovery-vault?status=1', live);
+export async function fetchRecoveryStatus(opts?: AuthOpts): Promise<boolean> {
+    const res = await apiFetch('/api/v1/auth/recovery-vault?status=1', { ...live, headers: authHeaders(opts) });
     if (!res.ok) throw await failure(res, 'Status konnte nicht geladen werden.');
     const data = (await res.json()) as { has_recovery?: boolean };
     return data.has_recovery === true;
 }
 
-export async function saveRecoveryVault(vault: RecoveryVault, proof: KeyProof): Promise<void> {
+export async function saveRecoveryVault(vault: RecoveryVault, proof: KeyProof, opts?: AuthOpts): Promise<void> {
     const res = await apiFetch('/api/v1/auth/recovery-vault', {
         method: 'PUT',
         offline: 'never',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(opts, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({ recovery_vault: JSON.stringify(vault), ...proof }),
     });
     if (!res.ok) throw await failure(res, 'Wiederherstellungsschlüssel konnte nicht gespeichert werden.');
 }
 
-export async function replaceEncryptedVault(encryptedVault: EncryptedPrivateKey, proof: KeyProof, recoveryVault?: RecoveryVault): Promise<void> {
+export async function replaceEncryptedVault(encryptedVault: EncryptedPrivateKey, proof: KeyProof, opts?: AuthOpts & { recoveryVault?: RecoveryVault }): Promise<void> {
+    const recoveryVault = opts?.recoveryVault;
     const res = await apiFetch('/api/v1/auth/replace-vault', {
         method: 'POST',
         offline: 'never',
-        headers: { 'Content-Type': 'application/json' },
+        headers: authHeaders(opts, { 'Content-Type': 'application/json' }),
         body: JSON.stringify({
             encrypted_vault: JSON.stringify(encryptedVault),
             ...(recoveryVault ? { recovery_vault: JSON.stringify(recoveryVault) } : {}),

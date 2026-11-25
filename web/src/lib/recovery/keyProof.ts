@@ -29,8 +29,12 @@ export async function decryptKeyChallenge(privateKey: CryptoKey, challengeB64: s
 }
 
 /** Fetches a fresh challenge and answers it. */
-export async function requestKeyProof(privateKey: CryptoKey): Promise<KeyProof> {
-    const res = await apiFetch('/api/v1/auth/key-challenge', { method: 'POST', offline: 'never' });
+export async function requestKeyProof(privateKey: CryptoKey, token?: string): Promise<KeyProof> {
+    const res = await apiFetch('/api/v1/auth/key-challenge', {
+        method: 'POST',
+        offline: 'never',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
     if (!res.ok) {
         if (res.status === 429) throw new KeyProofError('Zu viele Versuche. Bitte warte einen Moment.');
         throw new KeyProofError();

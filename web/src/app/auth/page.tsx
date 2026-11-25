@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, Suspense, useEffect, useRef } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2 } from "lucide-react";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
 import { storeMasterKey, purgeLegacyKeys, getMasterKey } from "@/lib/keyStorage";
 import { getHomePath } from "@/lib/routeUtils";
+import { formatRecoverySecret, generateRecoverySecret } from "@/lib/recovery/recoverySecret";
+import { buildRecoveryVault } from "@/lib/recovery/recoveryVault";
+import { ActionButton, SegmentedDigitInput } from "@/components/Auth/AuthInputs";
+import { RecoveryKeyStep } from "@/components/Auth/RecoveryKeyStep";
+import { PinRecovery, VaultReplacedNotice } from "@/components/Auth/PinRecovery";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -98,6 +102,7 @@ interface LoginResponseData {
     encrypted_vault: string | object;
     pepper: string;
     token?: string;
+    vault_replaced_at?: string;
     [key: string]: unknown;
 }
 
@@ -114,144 +119,15 @@ interface DevLoginResponseData {
     message?: string;
 }
 
-interface SegmentedDigitInputProps {
-    length: number;
-    digits: string[];
-    onChange: (digits: string[]) => void;
-    type?: "text" | "password";
-    allowedChars?: "alphanumeric" | "numeric";
-    hasError?: boolean;
-    autoComplete?: string;
-    inputClassName?: string;
-    gapClassName?: string;
-    autoFocusFirst?: boolean;
-}
-
-function SegmentedDigitInput({
-    length,
-    digits,
-    onChange,
-    type = "text",
-    allowedChars = "numeric",
-    hasError = false,
-    autoComplete = "off",
-    inputClassName = "w-9 sm:w-11 h-12 sm:h-14 text-xl sm:text-2xl font-light text-center pb-2",
-    gapClassName = "gap-1.5 sm:gap-2.5",
-    autoFocusFirst = false,
-}: SegmentedDigitInputProps) {
-    const refs = useRef<(HTMLInputElement | null)[]>([]);
-
-    useEffect(() => {
-        if (autoFocusFirst) {
-            const timer = setTimeout(() => refs.current[0]?.focus(), 60);
-            return () => clearTimeout(timer);
-        }
-    }, [autoFocusFirst]);
-
-    const sanitize = (val: string) => {
-        if (allowedChars === "alphanumeric") {
-            return val.replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
-        }
-        return val.replace(/\D/g, "");
-    };
-
-    const handleChange = (i: number, val: string) => {
-        const cl = sanitize(val);
-        if (!cl) {
-            const n = [...digits]; n[i] = ""; onChange(n);
-            return;
-        }
-        if (cl.length > 1) {
-            const pasted = cl.slice(0, length).split("");
-            const n = Array(length).fill("");
-            pasted.forEach((ch, idx) => { n[idx] = ch; });
-            onChange(n);
-            refs.current[Math.min(pasted.length, length - 1)]?.focus();
-            return;
-        }
-        const n = [...digits]; n[i] = cl; onChange(n);
-        if (i < length - 1) refs.current[i + 1]?.focus();
-    };
-
-    const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-        if (e.key === "Backspace" && !digits[i] && i > 0) {
-            e.preventDefault();
-            const n = [...digits]; n[i - 1] = ""; onChange(n);
-            refs.current[i - 1]?.focus();
-        } else if (e.key === "ArrowLeft" && i > 0) {
-            e.preventDefault(); refs.current[i - 1]?.focus();
-        } else if (e.key === "ArrowRight" && i < length - 1) {
-            e.preventDefault(); refs.current[i + 1]?.focus();
-        }
-    };
-
-    const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
-        e.preventDefault();
-        const p = sanitize(e.clipboardData.getData("text")).slice(0, length);
-        if (!p) return;
-        const n = Array(length).fill("");
-        p.split("").forEach((c, idx) => { n[idx] = c; });
-        onChange(n);
-        refs.current[Math.min(p.length, length - 1)]?.focus();
-    };
-
-    return (
-        <div className={`flex items-center ${gapClassName}`}>
-            {digits.map((digit, i) => (
-                <input
-                    key={i}
-                    ref={(el) => { refs.current[i] = el; }}
-                    type={type}
-                    inputMode={allowedChars === "alphanumeric" ? "text" : "numeric"}
-                    pattern={allowedChars === "alphanumeric" ? undefined : "[0-9]*"}
-                    autoCapitalize={allowedChars === "alphanumeric" ? "characters" : undefined}
-                    autoComplete={autoComplete}
-                    maxLength={1}
-                    value={digit}
-                    onChange={(e) => handleChange(i, e.target.value)}
-                    onKeyDown={(e) => handleKeyDown(i, e)}
-                    onPaste={handlePaste}
-                    className={`${inputClassName} rounded-none bg-transparent border-0 border-b-2 ${
-                        hasError ? "border-b-red-500 text-red-900" : "border-b-t2-line text-t2-ink focus:border-b-t2-ink"
-                    } focus:outline-none transition-colors duration-200`}
-                />
-            ))}
-        </div>
-    );
-}
-
-function ActionButton({ loading, disabled, label }: { loading: boolean; disabled: boolean; label: string }) {
-    return (
-        <button
-            type="submit"
-            disabled={disabled}
-            className="group flex items-center text-t2-ink text-lg tracking-wide hover:text-t2-ink-2 transition-colors duration-300 focus:outline-none disabled:opacity-40 disabled:pointer-events-none cursor-pointer"
-        >
-            <span className="font-medium mr-4">{label}</span>
-            {loading ? (
-                <Loader2 className="w-6 h-6 animate-spin text-t2-ink-2" />
-            ) : (
-                <svg
-                    className="w-6 h-6 transform transition-transform duration-300 group-hover:translate-x-2"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                    xmlns="http://www.w3.org/2000/svg"
-                >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" d="M17 8l4 4m0 0l-4 4m4-4H3" />
-                </svg>
-            )}
-        </button>
-    );
-}
-
 function AuthContent() {
     const router = useRouter();
 
     const isDevMode = process.env.NEXT_PUBLIC_DEV_MODE === "true" || process.env.NODE_ENV !== "production";
     const [isDevLoggingIn, setIsDevLoggingIn] = useState(false);
 
-    const [step, setStep] = useState<"identifier" | "code" | "pin" | "details">("identifier");
+    const [step, setStep] = useState<"identifier" | "code" | "pin" | "details" | "recovery-key" | "pin-recovery">("identifier");
+    // Formatted recovery secret, only between registration and the end of the key step (never stored).
+    const [recoverySecret, setRecoverySecret] = useState<string | null>(null);
     const [identifier, setIdentifier] = useState("");
     const [name, setName] = useState("");
     const [status, setStatus] = useState<"idle" | "processing" | "success" | "error">("idle");
@@ -434,29 +310,34 @@ function AuthContent() {
                 : loginData.encrypted_vault;
 
             const decryptedKey = await cryptoLib.unlockVault(fullPin, loginData.pepper, rawVault);
-            await storeMasterKey(decryptedKey);
-            purgeLegacyKeys();
-
-            const normalizedId = identifier.trim().toLowerCase();
-            localStorage.setItem("tide_user_email", normalizedId);
-            localStorage.setItem("tide_user_id", loginData.user_id);
-            if (loginData.username) {
-                localStorage.setItem("tide_user_name", loginData.username);
-                sessionStorage.setItem("tide_user_name", loginData.username);
-                const localRec = JSON.parse(localStorage.getItem(`tide_user_${normalizedId}`) || "{}");
-                localStorage.setItem(`tide_user_${normalizedId}`, JSON.stringify({ ...localRec, username: loginData.username }));
-            }
-            localStorage.setItem("tide_user_public_key", loginData.public_key);
-            if (loginData.token) localStorage.setItem("tide_session_token", loginData.token);
-
-            setStatus("success");
-            router.push(getHomePath());
+            await completeLogin(decryptedKey, loginData);
         } catch (err) {
             console.error("Failed to decrypt vault:", err);
             setStatus("error");
             setErrorMessage("Falscher PIN. Bitte versuche es erneut.");
             setPinDigits(["", "", "", "", ""]);
         }
+    };
+
+    // Shared end of the PIN unlock and the "PIN vergessen?" recovery: keep the key, enter the app.
+    const completeLogin = async (decryptedKey: CryptoKey, data: LoginResponseData) => {
+        await storeMasterKey(decryptedKey);
+        purgeLegacyKeys();
+
+        const normalizedId = identifier.trim().toLowerCase();
+        localStorage.setItem("tide_user_email", normalizedId);
+        localStorage.setItem("tide_user_id", data.user_id);
+        if (data.username) {
+            localStorage.setItem("tide_user_name", data.username);
+            sessionStorage.setItem("tide_user_name", data.username);
+            const localRec = JSON.parse(localStorage.getItem(`tide_user_${normalizedId}`) || "{}");
+            localStorage.setItem(`tide_user_${normalizedId}`, JSON.stringify({ ...localRec, username: data.username }));
+        }
+        localStorage.setItem("tide_user_public_key", data.public_key);
+        if (data.token) localStorage.setItem("tide_session_token", data.token);
+
+        setStatus("success");
+        router.push(getHomePath());
     };
 
     // ─── Step 4: Register Flow ───────────────────────────────────────────────
@@ -493,6 +374,10 @@ function AuthContent() {
                 return;
             }
 
+            // Second wrapping of the fresh private key with a random recovery secret (client-side only).
+            const secret = generateRecoverySecret();
+            const recoveryVault = await buildRecoveryVault(masterKeys.privateKey, secret);
+
             const res = await apiFetch("/api/v1/auth/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -503,15 +388,22 @@ function AuthContent() {
                     public_key: publicKeySpki,
                     encrypted_vault: JSON.stringify(encryptedVault),
                     pepper: pepperBase64,
+                    recovery_vault: JSON.stringify(recoveryVault),
                 }),
             });
 
             if (res.ok) {
-                setSuccessMessage("Konto erfolgreich erstellt! Bitte melde dich an.");
-                setStep("identifier");
+                const created = (await res.json().catch(() => ({}))) as { recovery_saved?: boolean };
                 setStatus("idle");
                 setRegPinDigits(["", "", "", "", ""]);
                 setName("");
+                if (created.recovery_saved === false) {
+                    setSuccessMessage("Konto erstellt, aber der Wiederherstellungsschlüssel wurde nicht gespeichert. Richte ihn nach der Anmeldung in den Einstellungen ein.");
+                    setStep("identifier");
+                } else {
+                    setRecoverySecret(formatRecoverySecret(secret));
+                    setStep("recovery-key");
+                }
             } else {
                 const text = await res.text().catch(() => "");
                 let msg = "Registrierung fehlgeschlagen.";
@@ -867,6 +759,8 @@ function AuthContent() {
                                 Gib deinen 5-stelligen PIN ein, um deinen privaten Tresor zu entschlüsseln.
                             </p>
 
+                            {loginData?.vault_replaced_at && <VaultReplacedNotice replacedAt={loginData.vault_replaced_at} />}
+
                             <form onSubmit={handlePinSubmit} className="w-full relative mb-12" noValidate>
                                 <div className="relative mb-8 w-fit">
                                     <SegmentedDigitInput
@@ -907,9 +801,47 @@ function AuthContent() {
                                     >
                                         Zurück
                                     </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setStep("pin-recovery");
+                                            setErrorMessage("");
+                                            setPinDigits(["", "", "", "", ""]);
+                                        }}
+                                        className="text-sm font-medium text-t2-ink-3 hover:text-t2-ink underline underline-offset-4 transition-colors cursor-pointer"
+                                    >
+                                        PIN vergessen?
+                                    </button>
                                 </div>
                             </form>
                         </div>
+                    )}
+
+                    {/* ─── PIN vergessen: Wiederherstellung mit dem Schlüssel ─────── */}
+                    {step === "pin-recovery" && loginData && (
+                        <PinRecovery
+                            pepper={loginData.pepper}
+                            token={loginData.token}
+                            onRecovered={(key) => completeLogin(key, loginData)}
+                            onBack={() => setStep("pin")}
+                            onRestartLogin={() => {
+                                setLoginData(null);
+                                setStep("identifier");
+                            }}
+                        />
+                    )}
+
+                    {/* ─── Nach der Registrierung: Wiederherstellungsschlüssel ────── */}
+                    {step === "recovery-key" && recoverySecret && (
+                        <RecoveryKeyStep
+                            secret={recoverySecret}
+                            email={identifier.trim().toLowerCase()}
+                            onDone={() => {
+                                setRecoverySecret(null);
+                                setSuccessMessage("Konto erfolgreich erstellt! Bitte melde dich an.");
+                                setStep("identifier");
+                            }}
+                        />
                     )}
 
                     {/* ─── Step 4: Register Flow (Konto erstellen) ────────────────── */}

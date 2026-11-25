@@ -37,11 +37,12 @@ export async function recoverWithSecret(params: {
     secret: string;
     newPin: string;
     pepperBase64: string;
+    token?: string;
 }): Promise<RecoverResult> {
     const extractable = await openRecoveryVault(params.recoveryVault, params.secret, true);
     const encryptedVault = await wrapPrivateKeyWithPin(extractable, params.newPin, params.pepperBase64);
-    const proof = await requestKeyProof(extractable);
-    await replaceEncryptedVault(encryptedVault, proof);
+    const proof = await requestKeyProof(extractable, params.token);
+    await replaceEncryptedVault(encryptedVault, proof, { token: params.token });
     const privateKey = await unlockVault(params.newPin, params.pepperBase64, encryptedVault, false);
     return { privateKey, encryptedVault };
 }
@@ -56,10 +57,11 @@ export async function setUpRecoveryWithPin(params: {
     encryptedVault: EncryptedPrivateKey;
     secret: string;
     previous?: string | null;
+    token?: string;
 }): Promise<void> {
     const extractable = await unlockVault(params.pin, params.pepperBase64, params.encryptedVault, true);
     const previous = params.previous ? parseRecoveryVault(params.previous) : null;
     const vault = await buildRecoveryVault(extractable, params.secret, previous);
-    const proof = await requestKeyProof(extractable);
-    await saveRecoveryVault(vault, proof);
+    const proof = await requestKeyProof(extractable, params.token);
+    await saveRecoveryVault(vault, proof, { token: params.token });
 }

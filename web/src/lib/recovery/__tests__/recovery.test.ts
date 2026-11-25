@@ -117,7 +117,7 @@ describe('recovery flow', () => {
         proofMock.mockClear();
         const result = await recoverWithSecret({ recoveryVault: vault, secret, newPin: '13579', pepperBase64: pepper });
         expect(replaceMock).toHaveBeenCalledTimes(1);
-        expect(replaceMock.mock.calls[0]).toEqual([result.encryptedVault, { challenge_id: 'c1', challenge_response: 'cg==' }]);
+        expect(replaceMock.mock.calls[0]).toEqual([result.encryptedVault, { challenge_id: "c1", challenge_response: "cg==" }, { token: undefined }]);
         // The key proof is answered with the key opened from the secret.
         const proofKey = (proofMock.mock.calls[0] as unknown as [CryptoKey])[0];
         expect(await canDecrypt(pair, proofKey)).toBe(true);
