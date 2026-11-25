@@ -51,6 +51,11 @@ export function rewriteJson<T>(value: T, ctx: RewriteContext): T {
             for (const k of ['assetId', 'blobId']) if (k in out) out[k] = asset.assetId;
             for (const k of ['bekBase64', 'bek']) if (k in out) out[k] = asset.bekBase64;
             for (const k of ['ivBase64', 'iv']) if (k in out) out[k] = asset.ivBase64;
+            // Old canvas image (key in `encryptedKey`): the re-uploaded image now carries its own key.
+            if (typeof out.encryptedKey === 'string' && out.encryptedKey && !('bek' in out) && !('bekBase64' in out)) {
+                out.bek = asset.bekBase64;
+                out.encryptedKey = '';
+            }
         }
         return out;
     };
@@ -66,6 +71,11 @@ function rewriteYMap(map: Y.Map<unknown>, ctx: RewriteContext): void {
         for (const k of ['assetId', 'blobId']) if (map.has(k)) map.set(k, asset.assetId);
         for (const k of ['bekBase64', 'bek']) if (map.has(k)) map.set(k, asset.bekBase64);
         for (const k of ['ivBase64', 'iv']) if (map.has(k)) map.set(k, asset.ivBase64);
+        const legacyKey = map.get('encryptedKey');
+        if (typeof legacyKey === 'string' && legacyKey && !map.has('bek') && !map.has('bekBase64')) {
+            map.set('bek', asset.bekBase64);
+            map.set('encryptedKey', '');
+        }
     }
     for (const [key, val] of Array.from(map.entries())) {
         if (val instanceof Y.Map) {

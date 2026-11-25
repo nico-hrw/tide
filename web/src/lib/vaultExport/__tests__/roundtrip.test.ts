@@ -4,6 +4,7 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import * as Y from 'yjs';
 import { useDataStore, type TaskItem } from '@/store/useDataStore';
+import type { VaultFileRecord } from '../types';
 
 interface FakeFile {
   id: string; type: string; owner_id: string; parent_id: string | null; version?: number; visibility: string;
@@ -53,7 +54,7 @@ vi.mock('@/lib/api', () => ({
         f.blob = typeof body === 'string' ? body : await (body as Blob).arrayBuffer();
         return json({}, 200);
       }
-      if (m[2] === 'download') return new Response(f.blob as BodyInit);
+      if (m[2] === 'download') return f.blob === undefined ? json({}, 404) : new Response(f.blob as BodyInit);
       if (m[2] === 'crdt-state') return json(f.snapshot ? { ...f.snapshot, wal: [] } : { wal: [] });
       const c = JSON.parse(await text()) as { keyEpoch: number; ivBase64: string; ciphertextBase64: string };
       f.snapshot = { snapshot_iv: c.ivBase64, snapshot_ciphertext: c.ciphertextBase64, key_epoch: c.keyEpoch };
@@ -193,6 +194,134 @@ describe('vault export -> import round trip', () => {
     const b = await zipOf(again.blob);
     const titles = (z: Map<string, Uint8Array>) => treeOf(z).filter((f) => f.type !== 'folder' || f.title !== 'Import').map((f) => f.title).sort();
     expect(titles(b).filter((t) => !t.startsWith('Import '))).toEqual(titles(a));
+  });
+
+  it('exports and re-imports old formats: V1 notes, plaintext notes, style sidecars, old images, API events', async () => {
+    const { encryptFile, encryptMetadata, generateFileKey } = await import('@/lib/crypto');
+    const { derivePublicNoteDEK } = await import('@/lib/cryptoV2');
+    const L = (c: string) => `${c.repeat(8)}-${c.repeat(4)}-4${c.repeat(3)}-8${c.repeat(3)}-${c.repeat(12)}`;
+    const KONZEPT = L('b'), SIDENOTE = L('c'), SIDECAR = L('d'), OLDIMG = L('e'), OLDIMG2 = L('f');
+    const CANVASIMG = '0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b', V1NOTE = '0c0c0c0c-0c0c-4c0c-8c0c-0c0c0c0c0c0c';
+    const PATCH = '0d0d0d0d-0d0d-4d0d-8d0d-0d0d0d0d0d0d', YOGA = '0e0e0e0e-0e0e-4e0e-8e0e-0e0e0e0e0e0e';
+    const EMPTYKEY = '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f', OLDFOLDER = '01010101-0101-4101-8101-010101010101';
+    const MISSING = '02020202-0202-4202-8202-020202020202';
+    await seedA();
+    const { publicKey, privateKey } = A;
+
+    /** V1 file: AES file key + IV RSA-encrypted in secured_meta (the old upload path). */
+    const v1 = async (title: string, bytes: Uint8Array) => {
+      const key = await generateFileKey();
+      const { iv, ciphertext } = await encryptFile(new Blob([bytes as BlobPart]), key);
+      const meta = await encryptMetadata({ title, fileKey: await crypto.subtle.exportKey('jwk', key), iv }, publicKey);
+      return { iv, meta, blob: await ciphertext.arrayBuffer() };
+    };
+    const base = { owner_id: 'A', visibility: 'private', public_meta: {} };
+    const img1 = await v1(`.canvas-img-el1`, PNG);
+    files.set(OLDIMG, { ...base, id: OLDIMG, type: 'canvas-asset', parent_id: KONZEPT, metadata: {}, secured_meta: img1.meta, blob: img1.blob });
+    const img2 = await v1(`.canvas-img-el2`, JPG);
+    files.set(OLDIMG2, { ...base, id: OLDIMG2, type: 'canvas-asset', parent_id: SIDENOTE, metadata: {}, secured_meta: img2.meta, blob: img2.blob });
+    const img3 = await v1('.canvas-img-el3', PNG);
+    files.set(CANVASIMG, { ...base, id: CANVASIMG, type: 'note', parent_id: KONZEPT, version: 1, metadata: {}, secured_meta: img3.meta, blob: img3.blob });
+    const oldNote = await v1('Alt', new TextEncoder().encode(JSON.stringify({ type: 'doc', content: [{ type: 'paragraph', content: [{ type: 'text', text: 'aus V1' }] }] })));
+    files.set(V1NOTE, { ...base, id: V1NOTE, type: 'note', parent_id: null, version: 1, metadata: {}, secured_meta: oldNote.meta, blob: oldNote.blob });
+
+    // Note with an old image element (key on the element) and a reference to an image file that no longer exists.
+    const kDek = await createFile({ id: KONZEPT, type: 'note', parentId: null, publicMeta: {}, metadata: { title: 'Konzept' }, securedMeta: { title: 'Konzept' }, content: '{"type":"doc","content":[]}' }, publicKey, privateKey, 'A');
+    const kd = new Y.Doc();
+    const legacyEl = new Y.Map<unknown>();
+    for (const [k, v] of Object.entries({ id: 'el1', type: 'image', blobId: OLDIMG, encryptedKey: img1.meta, iv: img1.iv, mimeType: 'image/png', anchorBlockId: 'b1' })) legacyEl.set(k, v);
+    kd.getMap<Y.Map<unknown>>('overlay').set('el1', legacyEl);
+    kd.getMap('assets').set(MISSING, { assetId: MISSING, bekBase64: 'AAAA', ivBase64: 'AAAA', mimeType: 'image/png' });
+    await writeSnapshot(KONZEPT, kDek!, Y.encodeStateAsUpdate(kd));
+
+    // Note whose drawing still lives in its old public style sidecar (plain JSON, as useStyleFile wrote it).
+    const sDek = await createFile({ id: SIDENOTE, type: 'note', parentId: null, publicMeta: {}, metadata: { title: 'Zeichnung' }, securedMeta: { title: 'Zeichnung' }, content: '{"type":"doc","content":[]}' }, publicKey, privateKey, 'A');
+    await writeSnapshot(SIDENOTE, sDek!, Y.encodeStateAsUpdate(new Y.Doc()));
+    const sidecar = { version: 1, noteId: SIDENOTE, strokes: [{ id: 's1', points: [{ x: 1, y: 2 }] }], elements: [{ id: 'el2', type: 'image', blobId: OLDIMG2, encryptedKey: img2.meta, iv: img2.iv, mimeType: 'image/jpeg' }] };
+    files.set(SIDECAR, { ...base, id: SIDECAR, type: 'note', parent_id: null, visibility: 'public', public_meta: { title: `.${SIDENOTE}_style` }, metadata: {}, secured_meta: '', blob: JSON.stringify(sidecar) });
+
+    // Note written by the external API: plain Markdown although an access key exists; live doc under the public key.
+    await createFile({ id: PATCH, type: 'note', parentId: null, publicMeta: {}, metadata: { title: 'Patch 12.11.26-16:21' }, securedMeta: { title: 'Patch' }, content: 'x' }, publicKey, privateKey, 'A');
+    Object.assign(files.get(PATCH)!, { metadata: { ...files.get(PATCH)!.metadata, unencrypted: true, author: 'external_api' }, secured_meta: '', blob: '- Punkt eins\n- Punkt zwei' });
+    const pd = new Y.Doc();
+    pd.getMap('overlay').set('s9', { id: 's9', points: [] });
+    await writeSnapshot(PATCH, await derivePublicNoteDEK(PATCH), Y.encodeStateAsUpdate(pd));
+
+    // Event from the external API: no access keys, no blob, everything in plain metadata.
+    files.set(YOGA, {
+      ...base, id: YOGA, type: 'event', parent_id: TAG, version: 2, secured_meta: '', access_keys: {},
+      metadata: { unencrypted: true, author: 'external_api', title: 'Yoga', start: '2026-05-01T08:00:00.000Z', end: '2026-05-01T09:00:00.000Z', recurrence_rule: 'FREQ=WEEKLY', exdates: ['2026-05-08'], removed_dates: ['2026-05-15'], groupIds: [TAG] },
+    });
+    // Event saved without a session user id: its key sits under "".
+    await createFile({ id: EMPTYKEY, type: 'event', parentId: null, publicMeta: {}, metadata: { title: 'Zahnarzt', start: '2026-06-01T08:00:00.000Z' }, securedMeta: { title: 'Zahnarzt' }, content: JSON.stringify({ title: 'Zahnarzt', description: 'Kontrolle' }) }, publicKey, privateKey, 'A');
+    const ek = files.get(EMPTYKEY)!;
+    ek.access_keys = { '': (ek.access_keys as Record<string, unknown>).A };
+    // Folder whose secured_meta was encrypted for another key.
+    files.set(OLDFOLDER, { ...base, id: OLDFOLDER, type: 'folder', parent_id: null, metadata: { title: 'Mai-Ordner' }, secured_meta: await encryptMetadata({ title: 'Mai-Ordner' }, B.publicKey) });
+
+    login('A', A, tasksA());
+    const { manifest, blob } = await exportVault();
+    const z = await zipOf(blob);
+    const tree = treeOf(z) as unknown as VaultFileRecord[];
+    const rec = (id: string) => tree.find((f) => f.id === id)!;
+
+    expect(manifest.failures.map((f) => f.kind)).toEqual(['asset-missing']);
+    expect(manifest.failures[0]).toMatchObject({ id: KONZEPT, title: 'Konzept' });
+    expect(manifest.failures[0].error).toContain('existiert auf dem Server nicht mehr');
+    expect(manifest.warnings?.map((w) => w.kind)).toEqual(['meta-unreadable']);
+    expect(rec(OLDFOLDER).securedMetaRaw).toBeTruthy();
+    expect(rec(OLDFOLDER).title).toBe('Mai-Ordner');
+    const notices = new Set(manifest.notices?.map((n) => n.kind));
+    for (const k of ['plaintext-note', 'helper-file', 'legacy-format', 'plaintext-event', 'unassigned-asset']) expect(notices).toContain(k);
+    expect(manifest.summary?.find((s) => s.kind === 'plaintext-event')).toMatchObject({ count: 1, byType: { event: 1 } });
+
+    expect(rec(KONZEPT).assets).toEqual([expect.objectContaining({ assetId: OLDIMG, legacy: true })]);
+    expect(rec(SIDENOTE).assets).toEqual([expect.objectContaining({ assetId: OLDIMG2, legacy: true })]);
+    expect(rec(SIDECAR).role).toBe('helper');
+    expect(tree.some((f) => f.id === CANVASIMG)).toBe(false);
+    expect(manifest.unassignedAssets).toEqual([expect.objectContaining({ assetId: CANVASIMG, parentId: KONZEPT, parentTitle: 'Konzept', mimeType: 'image/png' })]);
+    expect([...z.get(`assets/${CANVASIMG}.png`)!]).toEqual([...PNG]);
+    expect(new TextDecoder().decode(z.get(`content/${PATCH}.txt`))).toBe('- Punkt eins\n- Punkt zwei');
+    expect(z.has(`ydoc/${PATCH}.bin`)).toBe(true);
+    expect(new TextDecoder().decode(z.get(`content/${V1NOTE}.json`))).toContain('aus V1');
+    expect(new TextDecoder().decode(z.get(`content/${EMPTYKEY}.json`))).toContain('Kontrolle');
+    expect(new TextDecoder().decode(z.get('lesbar/PROBLEME.txt'))).toContain('ECHTE VERLUSTE');
+    const ics = new TextDecoder().decode(z.get('lesbar/kalender.ics'));
+    expect(ics).toContain('SUMMARY:Yoga');
+    expect(ics).toContain('RRULE:FREQ=WEEKLY');
+    expect(ics).toContain('EXDATE:2026051');
+    expect(ics).toContain('CATEGORIES:Uni');
+    expect(ics).toMatch(/RECURRENCE-ID:20260508T\d{6}Z/);
+
+    login('B', B);
+    const report = await importVault(new Uint8Array(await blob.arrayBuffer()), { intoFolder: false });
+    expect(report.failures).toEqual([]);
+    expect(report.exportFailures).toBe(1);
+    expect(report.created.note).toBe(5); // Tokyo, Konzept, Zeichnung, Alt, Patch (the sidecar is merged, not created)
+    expect(report.images).toBe(4);
+    const mine = [...files.values()].filter((f) => f.owner_id === 'B');
+    const byTitle = (t: string) => mine.find((f) => f.metadata?.title === t)!;
+
+    const zeichnung = byTitle('Zeichnung');
+    const zdoc = (await readYDoc(zeichnung.id, await unwrapFileDek(zeichnung, 'B', B.privateKey)))!;
+    const overlay = zdoc.getMap<Y.Map<unknown>>('overlay');
+    expect(overlay.has('s1')).toBe(true);
+    const el2 = overlay.get('el2')!;
+    expect(el2.get('encryptedKey')).toBe('');
+    const ref2 = { assetId: el2.get('blobId') as string, bekBase64: el2.get('bek') as string, ivBase64: el2.get('iv') as string, mimeType: 'image/jpeg' };
+    expect([...(await readAsset(ref2))]).toEqual([...JPG]);
+
+    const konzept = byTitle('Konzept');
+    const kdoc = (await readYDoc(konzept.id, await unwrapFileDek(konzept, 'B', B.privateKey)))!;
+    const el1 = kdoc.getMap<Y.Map<unknown>>('overlay').get('el1')!;
+    expect([...(await readAsset({ assetId: el1.get('blobId') as string, bekBase64: el1.get('bek') as string, ivBase64: el1.get('iv') as string, mimeType: 'image/png' }))]).toEqual([...PNG]);
+
+    const patch = byTitle('Patch 12.11.26-16:21');
+    expect(patch.metadata.unencrypted).toBeUndefined();
+    expect(await readContentText(patch.id, await unwrapFileDek(patch, 'B', B.privateKey))).toContain('Punkt eins');
+    const yoga = byTitle('Yoga');
+    expect(yoga.metadata).toMatchObject({ recurrence_rule: 'FREQ=WEEKLY', exdates: ['2026-05-08'], removed_dates: ['2026-05-15'] });
+    expect(yoga.metadata.unencrypted).toBeUndefined();
   });
 
   it('refuses a damaged or foreign archive before writing anything', async () => {

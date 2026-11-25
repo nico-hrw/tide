@@ -44,7 +44,8 @@ export interface ImportReport {
 
 const IMPORTABLE = new Set(['folder', 'note', 'canvas', 'event']);
 const STOP_AFTER_FAILURES = 5;
-const CRYPTO_FIELDS = ['has_custom_password', 'pwd_salt'];
+/** `unencrypted` must go too: the imported copy is always encrypted, and the app reads `unencrypted` files as plain text. */
+const CRYPTO_FIELDS = ['has_custom_password', 'pwd_salt', 'unencrypted'];
 const uuid = () => crypto.randomUUID();
 
 interface Journal {
@@ -135,8 +136,13 @@ export async function importVault(zipBytes: Uint8Array, options: ImportOptions):
 
     const notImported: ImportReport['notImported'] = [];
     const records: VaultFileRecord[] = [];
+    /** Old canvas style sidecars by the note they belong to: merged into that note instead of becoming notes. */
+    const sidecars = new Map<string, VaultFileRecord>();
     for (const f of archive.files) {
-        if (IMPORTABLE.has(f.type)) records.push(f);
+        if (f.role === 'helper' && f.helperFor) {
+            sidecars.set(f.helperFor, f);
+            notImported.push({ id: f.id, type: f.type, title: f.title, reason: 'Alte Canvas-Stildatei: Striche und Bilder werden in ihre Notiz übernommen, wenn diese noch keine hat' });
+        } else if (IMPORTABLE.has(f.type)) records.push(f);
         else notImported.push({ id: f.id, type: f.type, title: f.title, reason: 'Einstellungs- oder Hilfsdatei, wird nicht übernommen' });
     }
 
@@ -215,7 +221,8 @@ export async function importVault(zipBytes: Uint8Array, options: ImportOptions):
         });
 
         const notes = records.filter((r) => r.type === 'note' || r.type === 'canvas');
-        await step(notes, 'notes', (r, parent) => importNote(r, parent, archive, ctx, meta(r), report, { publicKey, privateKey, myId }));
+        await step(notes, 'notes', (r, parent) =>
+            importNote(r, parent, archive, ctx, meta(r), report, { publicKey, privateKey, myId }, sidecars.get(r.id.toLowerCase())));
 
         const events = records.filter((r) => r.type === 'event');
         await step(events, 'events', async (r, parent) => {
@@ -284,6 +291,7 @@ async function importNote(
     m: { publicMeta: Record<string, unknown>; metadata: Record<string, unknown>; securedMeta: Record<string, unknown> },
     report: ImportReport,
     keys: { publicKey: CryptoKey; privateKey: CryptoKey; myId: string },
+    sidecar?: VaultFileRecord,
 ): Promise<void> {
     if (!r.contentPath && !r.ydocPath) throw new Error('Weder Inhalt noch Notiz-Zustand im Export vorhanden');
     const id = ctx.ids.get(r.id)!;
@@ -307,7 +315,33 @@ async function importNote(
     }
     const doc = new Y.Doc();
     Y.applyUpdate(doc, archive.bytes(r.ydocPath));
+    if (sidecar?.contentPath) mergeSidecar(doc, archive.text(sidecar.contentPath));
     rewriteYDoc(doc, ctx);
     await writeSnapshot(id, dek, Y.encodeStateAsUpdate(doc));
     doc.destroy();
+}
+
+/**
+ * Same rule as the app's one-time migration in useStyleFile: when the note's overlay is still empty, the strokes
+ * and elements of its old `.<noteId>_style` sidecar are copied into it (each as a Y.Map under its id).
+ */
+export function mergeSidecar(doc: Y.Doc, sidecarText: string): void {
+    const overlay = doc.getMap<Y.Map<unknown>>('overlay');
+    if (overlay.size > 0) return;
+    let data: { strokes?: unknown; elements?: unknown };
+    try {
+        data = JSON.parse(sidecarText) as { strokes?: unknown; elements?: unknown };
+    } catch {
+        return;
+    }
+    const items = [...(Array.isArray(data.strokes) ? data.strokes : []), ...(Array.isArray(data.elements) ? data.elements : [])]
+        .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object');
+    if (items.length === 0) return;
+    doc.transact(() => {
+        for (const item of items) {
+            const map = new Y.Map<unknown>();
+            for (const [k, v] of Object.entries(item)) map.set(k, v);
+            overlay.set(typeof item.id === 'string' && item.id ? item.id : uuid(), map);
+        }
+    });
 }
