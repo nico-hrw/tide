@@ -1,11 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { KeyRound, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { isWebAuthnAvailable } from "@/lib/passkey/passkeySupport";
 import { PasskeyCancelledError, signInWithPasskey, type PasskeySignIn } from "@/lib/passkey/passkeyFlow";
 import { PasskeyEnvelopeError } from "@/lib/passkey/passkeyEnvelope";
+
+const noopSubscribe = () => () => undefined;
 
 export interface PasskeyLoginButtonProps {
     onSignedIn: (result: PasskeySignIn) => void | Promise<void>;
@@ -16,7 +18,8 @@ export interface PasskeyLoginButtonProps {
  * the browser has WebAuthn; every failure ends in a message and the normal mail-code flow.
  */
 export function PasskeyLoginButton({ onSignedIn }: PasskeyLoginButtonProps) {
-    const [available] = useState(() => isWebAuthnAvailable());
+    // Server render: false; client: real detection (no hydration mismatch).
+    const available = useSyncExternalStore(noopSubscribe, isWebAuthnAvailable, () => false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState("");
 
