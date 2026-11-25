@@ -32,6 +32,8 @@ export interface EncryptedSingletonOptions<T> {
     parse: (text: string) => T;
     /** Chooses among several matching files (default: the first the server lists). */
     pick?: (files: Array<{ id: string }>) => { id: string } | undefined;
+    /** Every call goes to the live server: no mirror answer, no offline queue (see `apiFetch` `offline: 'never'`). */
+    liveOnly?: boolean;
 }
 
 const asObject = (v: unknown, fallback: object): object =>
@@ -47,6 +49,7 @@ export function createEncryptedSingletonStorage<T>(
     opts: EncryptedSingletonOptions<T>
 ): { load(): Promise<T>; save(value: T): Promise<void> } {
     const { type, label } = opts;
+    const live: { offline?: 'never' } = opts.liveOnly ? { offline: 'never' } : {};
     let fileId: string | null = null;
     let fileOwnerId: string | null = null;
     let queue: Promise<unknown> = Promise.resolve();
@@ -58,7 +61,7 @@ export function createEncryptedSingletonStorage<T>(
     };
 
     async function findFile(keys: SingletonKeys): Promise<SingletonFileRecord | null> {
-        const res = await apiFetch(`/api/v1/files?type=${encodeURIComponent(type)}&recursive=true`);
+        const res = await apiFetch(`/api/v1/files?type=${encodeURIComponent(type)}&recursive=true`, live);
         if (!res.ok) throw new Error(`[${label}] could not list files`);
         const files: SingletonFileRecord[] = await res.json().catch(() => []);
         const mine = files.filter((f) => f.type === type && (f.owner_id === undefined || f.owner_id === keys.userId));
@@ -69,6 +72,7 @@ export function createEncryptedSingletonStorage<T>(
 
     async function create(ciphertext: string, metadata: unknown, accessKeys: unknown): Promise<string | null> {
         const res = await apiFetch('/api/v1/files', {
+            ...live,
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -84,7 +88,7 @@ export function createEncryptedSingletonStorage<T>(
         });
         if (!res.ok) return null;
         const created: { id: string } = await res.json();
-        const upRes = await apiFetch(`/api/v1/files/${encodeURIComponent(created.id)}/upload`, { method: 'POST', body: ciphertext });
+        const upRes = await apiFetch(`/api/v1/files/${encodeURIComponent(created.id)}/upload`, { ...live, method: 'POST', body: ciphertext });
         if (!upRes.ok) return null;
         return created.id;
     }
@@ -109,6 +113,7 @@ export function createEncryptedSingletonStorage<T>(
             }
         }
         const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, {
+            ...live,
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ content_ciphertext: enc.content_ciphertext, metadata: enc.metadata, access_keys: accessKeys }),
@@ -129,7 +134,7 @@ export function createEncryptedSingletonStorage<T>(
             fileOwnerId = file.owner_id ?? keys.userId;
             let ciphertext = file.content_ciphertext;
             if (!ciphertext) {
-                const dlRes = await apiFetch(`/api/v1/files/${encodeURIComponent(file.id)}/download`);
+                const dlRes = await apiFetch(`/api/v1/files/${encodeURIComponent(file.id)}/download`, live);
                 if (!dlRes.ok) {
                     if (dlRes.status === 404 && !file.blob_path) return opts.empty();
                     throw new Error(`Failed to download ${opts.downloadName ?? opts.blobName} blob: ${dlRes.status}`);

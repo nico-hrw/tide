@@ -160,6 +160,21 @@ describe('removing people fails closed', () => {
         expect(stored.g1?.pendingRevoke).toEqual(['bob']);
     });
 
+    it('a revoke that never reached the server (offline) stays pending and is asked live-only', async () => {
+        lists = { e1: ['bob'] };
+        const base = apiMock.getMockImplementation()!;
+        apiMock.mockImplementation(async (url: string, init?: RequestInit) => {
+            if (init?.method === 'DELETE') throw new TypeError('Failed to fetch');
+            return base(url, init);
+        });
+        const res = await syncGroupShares({ rule: noOne, removed: ['bob'], permissionChanged: [] });
+        expect(res).toMatchObject({ done: 0, failed: 1 });
+        expect(res.pendingRevoke).toEqual(['bob']);
+        expect(stored.g1?.pendingRevoke).toEqual(['bob']);
+        const del = apiMock.mock.calls.find((c) => c[1]?.method === 'DELETE');
+        expect(del?.[1]).toMatchObject({ offline: 'never' });
+    });
+
     it('pending removals from the rules file are retried and cleared once they succeed', async () => {
         lists = { e2: ['bob'] };
         const rule = { ...rules.g1, pendingRevoke: ['bob'] };

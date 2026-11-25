@@ -126,9 +126,9 @@ export default function ShareModal({
         if (callerPermission !== 'owner') return;
         setLoadingShares(true);
         try {
-            let res = await apiFetch(`/api/v1/files/${fileId}/shares`);
+            let res = await apiFetch(`/api/v1/files/${fileId}/shares`, { offline: 'never' });
             if (res.status === 404) {
-                res = await apiFetch(`/api/files/${fileId}/shares`);
+                res = await apiFetch(`/api/files/${fileId}/shares`, { offline: 'never' });
             }
             if (res.ok) {
                 const data = await res.json().catch(() => []);
@@ -216,9 +216,9 @@ export default function ShareModal({
 
     const loadContacts = async () => {
         try {
-            let res = await apiFetch(`/api/v1/contacts`);
+            let res = await apiFetch(`/api/v1/contacts`, { offline: 'never' });
             if (res.status === 404) {
-                res = await apiFetch(`/api/contacts`);
+                res = await apiFetch(`/api/contacts`, { offline: 'never' });
             }
             if (res.ok) {
                 interface EnrichedContact {
@@ -255,12 +255,14 @@ export default function ShareModal({
 
         try {
             let res = await apiFetch(`/api/v1/contacts/search`, {
+                offline: 'never',
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: customEmail.trim() })
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/contacts/search`, {
+                    offline: 'never',
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: customEmail.trim() })
@@ -354,12 +356,14 @@ export default function ShareModal({
 
             let res = await apiFetch(`/api/v1/files/${fileId}/shares/${targetUserId}`, {
                 method: "PATCH",
+                offline: 'never',
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ permission: newPerm }),
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/files/${fileId}/shares/${targetUserId}`, {
                     method: "PATCH",
+                    offline: 'never',
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ permission: newPerm }),
                 });
@@ -417,9 +421,9 @@ export default function ShareModal({
                 }
                 if (!pubKeySpki) {
                     try {
-                        let profRes = await apiFetch(`/api/v1/profiles/${rem.user_id}`);
+                        let profRes = await apiFetch(`/api/v1/profiles/${rem.user_id}`, { offline: 'never' });
                         if (profRes.status === 404) {
-                            profRes = await apiFetch(`/api/profiles/${rem.user_id}`);
+                            profRes = await apiFetch(`/api/profiles/${rem.user_id}`, { offline: 'never' });
                         }
                         if (profRes.ok) {
                             const profData = await profRes.json().catch(() => null);
@@ -493,12 +497,14 @@ export default function ShareModal({
             };
 
             let res = await apiFetch(`/api/v1/files/${fileId}/revoke-and-rotate`, {
+                offline: 'never',
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(rotatePayload),
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/files/${fileId}/revoke-and-rotate`, {
+                    offline: 'never',
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(rotatePayload),

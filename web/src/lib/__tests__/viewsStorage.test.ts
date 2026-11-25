@@ -73,4 +73,21 @@ describe('createApiViewsStorage', () => {
     server.files[0].content_ciphertext = '';
     expect(await createApiViewsStorage(() => keys).load()).toEqual([]);
   });
+
+  it('liveOnly storages ask every call for no offline mirror or queue; default ones do not', async () => {
+    const { apiFetch } = await import('../api');
+    const { createEncryptedSingletonStorage } = await import('../encryptedSingletonStorage');
+    const mk = (liveOnly: boolean) => createEncryptedSingletonStorage<SavedView[]>(() => keys, {
+      type: VIEWS_FILE_TYPE, label: 'v', blobName: 'views', empty: () => [], parse: (t) => JSON.parse(t) as SavedView[], liveOnly,
+    });
+    vi.mocked(apiFetch).mockClear();
+    await mk(true).save([view('1')]);
+    await mk(true).load();
+    const calls = vi.mocked(apiFetch).mock.calls;
+    expect(calls.length).toBeGreaterThanOrEqual(4);
+    for (const c of calls) expect(c[1]).toMatchObject({ offline: 'never' });
+    vi.mocked(apiFetch).mockClear();
+    await mk(false).load();
+    for (const c of vi.mocked(apiFetch).mock.calls) expect(c[1]?.offline).toBeUndefined();
+  });
 });

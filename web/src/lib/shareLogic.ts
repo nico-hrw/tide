@@ -27,7 +27,7 @@ export async function performMessengerShare(
 
     try {
         // 1. Fetch file to get current access_keys
-        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`);
+        const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, { offline: 'never' });
         if (!res.ok) throw new Error("Failed to fetch file");
         const file = await res.json().catch(() => null);
         if (!file) throw new Error("Failed to parse file metadata");
@@ -99,6 +99,7 @@ export async function performMessengerShare(
         // Push the sharing update to the backend.
         const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/share`, {
             method: "POST",
+            offline: 'never',
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
@@ -119,7 +120,7 @@ export async function performMessengerShare(
         if (dependencyFileIds && dependencyFileIds.length > 0) {
             for (const depId of dependencyFileIds) {
                 try {
-                    const depRes = await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}`);
+                    const depRes = await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}`, { offline: 'never' });
                     if (!depRes.ok) continue;
                     const depFile = await depRes.json().catch(() => null);
                     if (!depFile) continue;
@@ -140,6 +141,7 @@ export async function performMessengerShare(
 
                     await apiFetch(`/api/v1/files/${encodeURIComponent(depId)}/share`, {
                         method: "POST",
+                        offline: 'never',
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             recipient_id: recipientId,
@@ -204,6 +206,7 @@ export async function performMessengerShare(
 
         const messageRes = await apiFetch("/api/v1/messages", {
             method: "POST",
+            offline: 'never',
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
                 recipient_id: recipientId,
@@ -253,6 +256,7 @@ export async function performFolderShare(
 
     const shareRes = await apiFetch(`/api/v1/files/${encodeURIComponent(folderId)}/share`, {
         method: "POST",
+        offline: 'never',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             recipient_id: recipientId,
@@ -270,8 +274,8 @@ export async function performFolderShare(
     // 2. Recursively find and share all descendant files, canvases, and events
     try {
         const [filesRes, eventsRes] = await Promise.all([
-            apiFetch('/api/v1/files?recursive=true'),
-            apiFetch('/api/v1/files?type=event&recursive=true')
+            apiFetch('/api/v1/files?recursive=true', { offline: 'never' }),
+            apiFetch('/api/v1/files?type=event&recursive=true', { offline: 'never' })
         ]);
 
         const allItems: any[] = [];
@@ -310,6 +314,7 @@ export async function performFolderShare(
                     );
                     await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
+                        offline: 'never',
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             recipient_id: recipientId,
@@ -341,6 +346,7 @@ export async function performFolderShare(
 
                     await apiFetch(`/api/v1/files/${encodeURIComponent(child.id)}/share`, {
                         method: "POST",
+                        offline: 'never',
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             recipient_id: recipientId,
@@ -387,6 +393,7 @@ export async function performFolderShare(
     // 3. Send chat notification
     const messageRes = await apiFetch("/api/v1/messages", {
         method: "POST",
+        offline: 'never',
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
             recipient_id: recipientId,

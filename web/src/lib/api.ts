@@ -206,12 +206,19 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
 const inflightGets = new Map<string, Promise<Response>>();
 
 /**
+ * `offline: 'never'` marks a call that must reflect the live server: no offline-mirror answer on a
+ * network error or 502-504 and no offline queue with an invented 200. Failures surface as a thrown
+ * error or the real error status. Used for sharing, revoking, share lists and the share-rules file.
+ */
+export type ApiFetchOptions = RequestInit & { _isSyncReplay?: boolean; offline?: 'never' };
+
+/**
  * Same-tick identical GETs (startup, tab switches and SSE refreshes all hit /files, /tasks, ...)
  * share one network request. Every caller gets its own cloned Response, so bodies stay readable.
  */
-export function apiFetch(url: string, options: RequestInit & { _isSyncReplay?: boolean } = {}): Promise<Response> {
+export function apiFetch(url: string, options: ApiFetchOptions = {}): Promise<Response> {
     const isGet = !options.method || options.method.toUpperCase() === 'GET';
-    if (!isGet || options.signal || options._isSyncReplay || options.body) {
+    if (!isGet || options.signal || options._isSyncReplay || options.body || options.offline === 'never') {
         return apiFetchInner(url, options);
     }
     const key = `${url.trim()}|${JSON.stringify(options.headers ?? {})}|${options.cache ?? ''}`;
@@ -225,7 +232,9 @@ export function apiFetch(url: string, options: RequestInit & { _isSyncReplay?: b
     return pending.then((res) => res.clone());
 }
 
-async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay?: boolean } = {}): Promise<Response> {
+async function apiFetchInner(url: string, rawOptions: ApiFetchOptions = {}): Promise<Response> {
+    const { offline, ...options } = rawOptions;
+    const neverOffline = offline === 'never';
     const base = getApiBase();
     const trimmedUrl = url.trim();
     validateApiFetchOrigin(trimmedUrl, base);
@@ -264,7 +273,7 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
             window.location.href = getAuthPath(window.location.pathname);
         }
 
-        if (isGet && !skipCache && typeof window !== 'undefined') {
+        if (isGet && !skipCache && !neverOffline && typeof window !== 'undefined') {
             const { isBackendUnreachableStatus, mirrorSuccessfulGet, serveFromMirror } = await import('./offline/mirror');
             // Backend unreachable behind the proxy (502/503/504): serve the offline mirror if there is one
             if (isBackendUnreachableStatus(res.status)) {
@@ -290,6 +299,9 @@ async function apiFetchInner(url: string, options: RequestInit & { _isSyncReplay
         if (typeof window !== 'undefined') {
             window.dispatchEvent(new CustomEvent("tide-offline", { detail: "Cloud nicht erreichbar" }));
         }
+
+        // Live-only calls (sharing, revoking, share lists): a real error, never a mirror or a queued fake success
+        if (neverOffline) throw err;
 
         // Fallback to offline cache for GET requests
         if (isGet && !skipCache && typeof window !== 'undefined') {

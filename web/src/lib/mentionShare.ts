@@ -31,7 +31,7 @@ function tr(key: SettingsKey, vars?: Record<string, string | number>): string {
 /** User ids the file is shared with, or null when the list could not be read (non-owners get 403). */
 export async function fetchShareUserIds(fileId: string): Promise<string[] | null> {
     try {
-        const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares`);
+        const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares`, { offline: 'never' });
         if (!res.ok) return null;
         const data: unknown = await res.json().catch(() => undefined);
         if (data === null) return []; // Go encodes an empty share list as null
@@ -114,13 +114,14 @@ export async function shareViaMention(args: MentionShareArgs): Promise<MentionSh
 }
 
 export async function revokeMentionShare(fileId: string, userId: string): Promise<void> {
-    const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares/${enc(userId)}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares/${enc(userId)}`, { method: 'DELETE', offline: 'never' });
     if (!res.ok) throw new Error(`Revoke failed: ${res.status}`);
 }
 
 export async function updateMentionSharePermission(fileId: string, userId: string, permission: MentionSharePermission): Promise<void> {
     const res = await apiFetch(`/api/v1/files/${enc(fileId)}/shares/${enc(userId)}`, {
         method: 'PATCH',
+        offline: 'never',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permission }),
     });

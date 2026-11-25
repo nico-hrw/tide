@@ -84,7 +84,7 @@ describe('shareViaMention', () => {
         shareMock.mockResolvedValue(undefined);
         const r = await shareViaMention({ file, contact, callerCanShare: true });
         expect(r.status).toBe('shared');
-        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares');
+        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares', { offline: 'never' });
         expect(shareMock).toHaveBeenCalledTimes(1);
         const args = shareMock.mock.calls[0];
         expect(args[0]).toEqual(file);
@@ -138,7 +138,7 @@ describe('revokeMentionShare', () => {
     it('(f) sends DELETE to the share URL', async () => {
         apiFetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
         await revokeMentionShare('f1', 'u1');
-        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares/u1', { method: 'DELETE' });
+        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares/u1', { method: 'DELETE', offline: 'never' });
     });
 
     it('throws when the server refuses', async () => {
@@ -196,7 +196,7 @@ describe('handleRemovedContactMentions', () => {
         apiFetchMock.mockResolvedValue(new Response('{}', { status: 200 }));
         await handleRemovedContactMentions('f1', [{ id: 'u1', label: 'anna' }]);
         expect(askMock).toHaveBeenCalledTimes(1);
-        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares/u1', { method: 'DELETE' });
+        expect(apiFetchMock).toHaveBeenCalledWith('/api/v1/files/f1/shares/u1', { method: 'DELETE', offline: 'never' });
         expect(useMentionShareStore.getState().origin('f1', 'u1')).toBeUndefined();
     });
 
@@ -286,5 +286,35 @@ describe('stepsTouchContactMention', () => {
         expect(stepsTouchContactMention({ steps: [step(4, 6)], docs: [docWith([[5, chip]])] })).toBe(true);
         expect(stepsTouchContactMention({ steps: [step(4, 6)], docs: [docWith([[5, note]])] })).toBe(false);
         expect(stepsTouchContactMention({ steps: [step(7, 7)], docs: [docWith([[5, chip]])] })).toBe(false);
+    });
+});
+
+describe('live-only share calls', () => {
+    it('share list and revoke ask apiFetch for no offline mirror or queue', async () => {
+        apiFetchMock.mockResolvedValueOnce(sharesResponse([]));
+        shareMock.mockRejectedValueOnce(new Error('x'));
+        apiFetchMock.mockResolvedValueOnce(sharesResponse([]));
+        await shareViaMention({ file, contact, callerCanShare: true });
+        for (const call of apiFetchMock.mock.calls) expect(call[1]).toMatchObject({ offline: 'never' });
+
+        apiFetchMock.mockReset();
+        apiFetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
+        await revokeMentionShare('f1', 'u1');
+        expect(apiFetchMock.mock.calls[0][1]).toMatchObject({ method: 'DELETE', offline: 'never' });
+    });
+
+    it('an offline share list is "unreadable": no fake "already shared", the share fails', async () => {
+        apiFetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+        const res = await shareViaMention({ file, contact, callerCanShare: true });
+        expect(res).toEqual({ status: 'failed', reason: 'shares-unavailable' });
+        expect(shareMock).not.toHaveBeenCalled();
+    });
+
+    it('a revoke that did not reach the server keeps the entry and tells the user', async () => {
+        useMentionShareStore.getState().record('f1', 'u1');
+        askMock.mockResolvedValueOnce(true);
+        apiFetchMock.mockRejectedValueOnce(new TypeError('Failed to fetch'));
+        await handleRemovedContactMentions('f1', [{ id: 'u1', label: 'Anna' }]);
+        expect(useMentionShareStore.getState().origin('f1', 'u1')).toBe('mention');
     });
 });

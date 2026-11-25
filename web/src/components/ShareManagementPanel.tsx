@@ -41,7 +41,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
         setLoading(true);
         setError(null);
         try {
-            const res = await apiFetch(`/api/v1/files/${fileId}/shares`);
+            const res = await apiFetch(`/api/v1/files/${fileId}/shares`, { offline: 'never' });
             if (res.ok) {
                 const data = await res.json();
                 setShares(data || []);
@@ -61,7 +61,8 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
         setRevokingId(userId);
         try {
             const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
-                method: "DELETE"
+                method: "DELETE",
+                offline: 'never'
             });
             if (res.ok) {
                 setShares(prev => prev.filter(s => s.user_id !== userId));
@@ -81,6 +82,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             setShares(prev => prev.map(s => s.user_id === userId ? { ...s, permission: newPermission as any } : s));
             const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
                 method: "PATCH",
+                offline: 'never',
                 body: JSON.stringify({ permission: newPermission })
             });
             if (!res.ok) throw new Error();

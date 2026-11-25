@@ -30,6 +30,7 @@ function apiStorage(userId: string): CalendarShareStorage {
     }, {
         type: CALENDAR_SHARES_FILE_TYPE,
         label: 'calendar-shares',
+        liveOnly: true, // a stale or queued rules file must never decide who keeps access
         blobName: 'calendar shares',
         empty: () => ({}),
         pick: (files) => [...files].sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))[0],

@@ -100,6 +100,7 @@ async function sendCalendarSummary(userId: string, groupTitle: string, count: nu
         const content = await encryptChatMessage(text, s.myId, s.publicKey, userId, contact.public_key);
         const res = await apiFetch('/api/v1/messages', {
             method: 'POST',
+            offline: 'never',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ recipient_id: userId, recipient_email: contact.email || '', content }),
         });
@@ -111,7 +112,7 @@ async function sendCalendarSummary(userId: string, groupTitle: string, count: nu
 
 /** DELETE that treats "no such share" (404) as done: removing is idempotent. */
 async function revokeIdempotent(eventId: string, userId: string): Promise<void> {
-    const res = await apiFetch(`/api/v1/files/${enc(eventId)}/shares/${enc(userId)}`, { method: 'DELETE' });
+    const res = await apiFetch(`/api/v1/files/${enc(eventId)}/shares/${enc(userId)}`, { method: 'DELETE', offline: 'never' });
     if (!res.ok && res.status !== 404) throw new Error(`Revoke failed: ${res.status}`);
 }
 
@@ -119,6 +120,7 @@ async function revokeIdempotent(eventId: string, userId: string): Promise<void> 
 async function patchIdempotent(eventId: string, userId: string, permission: CalendarSharePermission): Promise<void> {
     const res = await apiFetch(`/api/v1/files/${enc(eventId)}/shares/${enc(userId)}`, {
         method: 'PATCH',
+        offline: 'never',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ permission }),
     });
