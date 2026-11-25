@@ -301,7 +301,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                 )}
             </div>
             <span className="shrink-0 ml-1 flex items-center">
-                <VisibilityBadge kind={visibilityState.kind} size={12} className="text-t2-ink-2" />
+                <VisibilityBadge kind={visibilityState.kind} size={12} className="text-t2-ink-2" hideWhenPrivate />
             </span>
         </motion.div>
     );

@@ -156,7 +156,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
               <span />
             )}
             <p className="text-[11px] font-medium text-t2-ink-3  text-right">
-              {activeCycleCompletedCount} von {activeCycleTotal} erledigt
+              {activeCycleTotal > 0 ? `Heute ${activeCycleCompletedCount} von ${activeCycleTotal} erledigt` : ''}
             </p>
           </div>
         </>

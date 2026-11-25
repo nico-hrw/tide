@@ -36,7 +36,10 @@ export interface TodoDesktopViewProps {
 
 const asTree = (n: Node): TaskWithChildren => n as TaskWithChildren;
 
-const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void; open?: boolean }> = ({ label, count, onClick, open }) => {
+// Only today and tomorrow carry a number; totals for older/later/archived lists only add pressure.
+const showsCount = (key: string) => key === 'today' || key === 'tomorrow';
+
+const GroupHeader: React.FC<{ label: string; count?: number; onClick?: () => void; open?: boolean }> = ({ label, count, onClick, open }) => {
   const Chevron = open === false ? ChevronRight : ChevronDown;
   return (
     <button
@@ -47,7 +50,7 @@ const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void
     >
       <Chevron size={13} />
       {label}
-      <em className="not-italic font-medium">{count}</em>
+      {count !== undefined && <em className="not-italic font-medium">{count}</em>}
       <span className="flex-1 h-px bg-t2-line-soft" />
     </button>
   );
@@ -150,7 +153,7 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
                 <div id={s.key === 'today' ? 'todo-section-today' : undefined}>
                   <GroupHeader
                     label={s.title}
-                    count={s.items.length}
+                    count={showsCount(s.key) ? s.items.length : undefined}
                     open={!isCollapsed}
                     onClick={() => setCollapsed((p) => ({ ...p, [s.key]: !p[s.key] }))}
                   />
@@ -164,13 +167,13 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
           )}
           {showRecent && (
             <>
-              <GroupHeader label="Kürzlich erledigt" count={recentlyCompletedTasks.length} open={showCompleted} onClick={() => setShowCompleted((p) => !p)} />
+              <GroupHeader label="Kürzlich erledigt" open={showCompleted} onClick={() => setShowCompleted((p) => !p)} />
               {showCompleted && recentlyCompletedTasks.map(card)}
             </>
           )}
           {archivedTasks.length > 0 && filterStatus !== 'completed' && (
             <>
-              <GroupHeader label="Archiv" count={archivedTasks.length} open={archiveOpen} onClick={() => setShowArchive((p) => !p)} />
+              <GroupHeader label="Archiv" open={archiveOpen} onClick={() => setShowArchive((p) => !p)} />
               {archiveOpen && ARCHIVE_TIER_CONFIG.map((tier) => {
                 const items = archivedByTier[tier.key];
                 if (!items.length) return null;

@@ -20,10 +20,13 @@ export interface VisibilityBadgeProps {
   size?: 12 | 14 | 16;
   /** Extra classes; colour is inherited (text-current) unless overridden here. */
   className?: string;
+  /** Indicator mode: private is the default state, so it renders nothing. */
+  hideWhenPrivate?: boolean;
 }
 
-export function VisibilityBadge({ kind, count = 0, size = 14, className = '' }: VisibilityBadgeProps) {
+export function VisibilityBadge({ kind, count = 0, size = 14, className = '', hideWhenPrivate = false }: VisibilityBadgeProps) {
   const t = useT();
+  if (hideWhenPrivate && kind === 'private') return null;
   const Icon = ICONS[kind];
   const label = t(LABEL_KEYS[kind]);
   return (

@@ -11,7 +11,7 @@ Voraussetzung: Dev-Server, zwei Testkonten (A, B), gegenseitig bestätigte Konta
 7. **Teilen-Dialog:** Notiz teilen. Personenliste zeigt Herkunft ("Über @-Erwähnung", "Aus Kalender"), "Darf weiterteilen" nur lesend.
 8. **Kalender teilen (Desktop):** Teilen-Button an einem Kalender. Personen mit Ansehen/Bearbeiten wählen, bestätigen. Termine erscheinen bei B, ein neuer Termin erscheint dort ebenfalls.
 9. **Kalender entziehen:** Person entfernen. Zugriff bei B endet, bei Fehler gibt es "Erneut versuchen".
-10. **Privat halten:** Schloss am Termin (Desktop-Popover und Mobil-Sheet) aktivieren. Termin wird nicht automatisch geteilt, Schloss-Symbol sichtbar.
+10. **Privat halten:** Schloss am Termin (Desktop-Popover und Mobil-Sheet) aktivieren. Termin wird nicht automatisch geteilt. Der Schalter zeigt den Zustand, in Listen erscheint bewusst kein Symbol für Privates.
 11. **Sichtbarkeits-Icons:** Seitenleiste, Termine, Todos, Editor-Kopf zeigen Schloss/Personen/Globus korrekt.
 12. **Monatsansicht:** Termine früh nach spät sortiert, Todos zuerst ohne farbigen Balken, kein Rahmen/Hintergrund um die Ansicht.
 13. **Smart Island:** Tippen sucht zuerst in Notizen/Terminen/Todos. Enter öffnet nur bei Pfeiltasten-/Klick-Auswahl oder exaktem Titel, sonst wird erstellt. Strg+Enter erstellt immer.

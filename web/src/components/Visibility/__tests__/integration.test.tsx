@@ -36,9 +36,9 @@ function renderFile(file: Partial<DecryptedFile>, myId = 'me') {
 const label = () => host.querySelector('[aria-label]')?.getAttribute('aria-label');
 
 describe('FileItem visibility badge', () => {
-  it('shows Privat for an own private note', () => {
+  it('shows no badge for an own private note', () => {
     renderFile({ owner_id: 'me' });
-    expect(label()).toBe('Privat');
+    expect(label()).not.toBe('Privat');
   });
   it('shows Geteilt for an own shared note', () => {
     renderFile({ owner_id: 'me', share_status: 'shared' });

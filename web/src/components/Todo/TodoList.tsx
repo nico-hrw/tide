@@ -340,8 +340,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     });
   }, [tasks]);
 
-  const activeCycleTotal = activeCycleTasks.length;
-  const activeCycleCompletedCount = useMemo(() => activeCycleTasks.filter((t) => t.isCompleted).length, [activeCycleTasks]);
   const activeCycleInProgressCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [activeCycleTasks]);
   const activeCycleOpenCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status !== 'in_progress').length, [activeCycleTasks]);
   const activeCycleOverdueCount = useMemo(() => {
@@ -350,8 +348,15 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   }, [activeCycleTasks]);
   const activeCycleOpenNonOverdueCount = Math.max(0, activeCycleOpenCount - activeCycleOverdueCount);
 
-  const archivedCount = useMemo(() => tasks.filter((t) => isTaskArchived(t)).length, [tasks]);
-  const totalCount = tasks.length;
+  // The header ring only tracks today, so a long backlog never shows up as a big number.
+  const todayProgress = useMemo(() => {
+    const todays = activeCycleTasks.filter((t) => {
+      const d = parseDateSafe(t.dueDate || t.scheduledDate);
+      return d !== null && isSameDay(d, new Date());
+    });
+    return { total: todays.length, done: todays.filter((t) => t.isCompleted).length };
+  }, [activeCycleTasks]);
+
 
   const executeToggleTask = (task: TaskItem) => {
     if (task.isCompleted) {
@@ -670,12 +675,12 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   return (
     <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] '} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
-        activeCycleTotal={activeCycleTotal}
-        activeCycleCompletedCount={activeCycleCompletedCount}
+        activeCycleTotal={todayProgress.total}
+        activeCycleCompletedCount={todayProgress.done}
         activeCycleInProgressCount={activeCycleInProgressCount}
         activeCycleOverdueCount={activeCycleOverdueCount}
         activeCycleOpenNonOverdueCount={activeCycleOpenNonOverdueCount}
-        archivedCount={archivedCount}
+        archivedCount={0}
         tasks={tasks}
         setDraft={setDraft}
         setIsCreateOpen={setIsCreateOpen}

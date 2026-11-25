@@ -26,6 +26,12 @@ describe('VisibilityBadge', () => {
     expect(host.textContent).toContain('2');
     expect(host.querySelector('[aria-label]')?.getAttribute('aria-label')).toContain('Geteilt');
   });
+  it('renders nothing for private in indicator mode', () => {
+    act(() => root.render(<VisibilityBadge kind="private" hideWhenPrivate />));
+    expect(host.innerHTML).toBe('');
+    act(() => root.render(<VisibilityBadge kind="shared" count={1} hideWhenPrivate />));
+    expect(host.textContent).toContain('1');
+  });
   it('shows no number for private', () => {
     act(() => root.render(<VisibilityBadge kind="private" count={3} />));
     expect(host.textContent).toBe('');

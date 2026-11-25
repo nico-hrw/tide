@@ -382,7 +382,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     >
                       {task.title}
                     </span>
-                    <VisibilityBadge kind={isSharedWithMe ? 'shared-with-me' : 'private'} size={12} />
+                    <VisibilityBadge kind={isSharedWithMe ? 'shared-with-me' : 'private'} size={12} hideWhenPrivate />
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
