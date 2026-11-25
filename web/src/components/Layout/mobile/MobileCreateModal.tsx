@@ -284,7 +284,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       transition={{ duration: 0.35, ease: [0.32, 0.72, 0, 1] }}
       className="fixed inset-0 z-50 flex flex-col overflow-hidden"
       style={{
-        background: isDark ? '#11141c' : '#f4f5f7',
+        background: 'var(--t2-sub)',
         paddingTop: 'env(safe-area-inset-top, 0px)',
       }}
     >
@@ -292,8 +292,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
       <div
         className="flex items-center justify-between px-4 py-3.5 z-10 shrink-0 border-b"
         style={{
-          background: isDark ? '#1a1e28' : '#ffffff',
-          borderColor: isDark ? '#262b38' : '#e5e7eb',
+          background: 'var(--t2-surface)',
+          borderColor: 'var(--t2-line)',
         }}
       >
         <button
@@ -306,7 +306,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
 
         <h2
           className="font-bold text-[17px] tracking-tight"
-          style={{ color: isDark ? '#f3f4f6' : '#111827' }}
+          style={{ color: 'var(--t2-ink)' }}
         >
           {mode === 'todo' ? 'Neues To-Do' : 'Neuer Termin'}
         </h2>
@@ -334,8 +334,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         <div
           className="flex flex-col gap-3 rounded-2xl p-4 shadow-sm border"
           style={{
-            background: isDark ? '#1a1e28' : '#ffffff',
-            borderColor: isDark ? '#262b38' : '#f1f2f5',
+            background: 'var(--t2-surface)',
+            borderColor: 'var(--t2-line-soft)',
           }}
         >
           <div className="flex items-center gap-4">
@@ -362,14 +362,14 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               onChange={(e) => setTitle(e.target.value)}
               placeholder="Titel"
               className="w-full text-2xl font-semibold outline-none bg-transparent placeholder-t2-ink-3 "
-              style={{ color: isDark ? '#ffffff' : '#111827' }}
+              style={{ color: 'var(--t2-ink)' }}
             />
           </div>
 
           {/* Preset Color Swatches */}
           <div
             className="flex items-center gap-2 pt-2 border-t overflow-x-auto scrollbar-none"
-            style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+            style={{ borderColor: 'var(--t2-line-soft)' }}
           >
             {PRESET_COLORS.map((c) => {
               const isSelected = color.toLowerCase() === c.toLowerCase();
@@ -382,7 +382,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   style={{
                     backgroundColor: c,
                     boxShadow: isSelected
-                      ? `0 0 0 2px ${isDark ? '#1a1e28' : '#ffffff'}, 0 0 0 4px ${c}`
+                      ? `0 0 0 2px var(--t2-surface), 0 0 0 4px ${c}`
                       : 'none',
                   }}
                   title={c}
@@ -396,8 +396,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         <div
           className="rounded-2xl shadow-sm border overflow-hidden flex flex-col"
           style={{
-            background: isDark ? '#1a1e28' : '#ffffff',
-            borderColor: isDark ? '#262b38' : '#f1f2f5',
+            background: 'var(--t2-surface)',
+            borderColor: 'var(--t2-line-soft)',
           }}
         >
           {mode === 'event' ? (
@@ -405,13 +405,13 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               {/* Event Date */}
               <div
                 className="flex justify-between items-center px-4 py-3.5 border-b"
-                style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+                style={{ borderColor: 'var(--t2-line-soft)' }}
               >
                 <div className="flex items-center gap-2.5">
                   <Calendar size={18} className="text-t2-accent" />
                   <span
                     className="text-[16px]"
-                    style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                    style={{ color: 'var(--t2-ink)' }}
                   >
                     Datum
                   </span>
@@ -428,13 +428,13 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               {/* Event Start Time */}
               <div
                 className="flex justify-between items-center px-4 py-3.5 border-b"
-                style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+                style={{ borderColor: 'var(--t2-line-soft)' }}
               >
                 <div className="flex items-center gap-2.5">
                   <Clock size={18} className="text-t2-accent" />
                   <span
                     className="text-[16px]"
-                    style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                    style={{ color: 'var(--t2-ink)' }}
                   >
                     Von
                   </span>
@@ -454,7 +454,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   <Clock size={18} className="text-t2-accent opacity-60" />
                   <span
                     className="text-[16px]"
-                    style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                    style={{ color: 'var(--t2-ink)' }}
                   >
                     Bis
                   </span>
@@ -473,13 +473,13 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               {/* Todo Due Date */}
               <div
                 className="flex justify-between items-center px-4 py-3.5 border-b"
-                style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+                style={{ borderColor: 'var(--t2-line-soft)' }}
               >
                 <div className="flex items-center gap-2.5">
                   <Calendar size={18} className="text-green-500" />
                   <span
                     className="text-[16px]"
-                    style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                    style={{ color: 'var(--t2-ink)' }}
                   >
                     Fälligkeitsdatum
                   </span>
@@ -499,7 +499,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                   <Clock size={18} className="text-green-500" />
                   <span
                     className="text-[16px]"
-                    style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                    style={{ color: 'var(--t2-ink)' }}
                   >
                     Erinnerung
                   </span>
@@ -521,27 +521,27 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
           <div
             className="rounded-2xl shadow-sm border overflow-hidden flex flex-col"
             style={{
-              background: isDark ? '#1a1e28' : '#ffffff',
-              borderColor: isDark ? '#262b38' : '#f1f2f5',
+              background: 'var(--t2-surface)',
+              borderColor: 'var(--t2-line-soft)',
             }}
           >
             {/* Priority */}
             <div
               className="flex justify-between items-center px-4 py-3 border-b"
-              style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+              style={{ borderColor: 'var(--t2-line-soft)' }}
             >
               <div className="flex items-center gap-2.5">
                 <Flag size={18} className="text-green-500" />
                 <span
                   className="text-[16px]"
-                  style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                  style={{ color: 'var(--t2-ink)' }}
                 >
                   Priorität
                 </span>
               </div>
               <div
                 className="flex items-center gap-1 p-1 rounded-xl"
-                style={{ background: isDark ? '#262b38' : '#f3f4f6' }}
+                style={{ background: 'var(--t2-hover)' }}
               >
                 {[
                   { id: 'none' as const, label: 'Keine' },
@@ -580,7 +580,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
             <div className="flex justify-between items-center px-4 py-3.5">
               <span
                 className="text-[16px]"
-                style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                style={{ color: 'var(--t2-ink)' }}
               >
                 Im Kalender anzeigen
               </span>
@@ -598,8 +598,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
           <div
             className="rounded-2xl shadow-sm border overflow-hidden flex flex-col"
             style={{
-              background: isDark ? '#1a1e28' : '#ffffff',
-              borderColor: isDark ? '#262b38' : '#f1f2f5',
+              background: 'var(--t2-surface)',
+              borderColor: 'var(--t2-line-soft)',
             }}
           >
             <MobileTagField
@@ -618,8 +618,8 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
         <div
           className="rounded-2xl shadow-sm border overflow-hidden flex flex-col transition-all duration-300"
           style={{
-            background: isDark ? '#1a1e28' : '#ffffff',
-            borderColor: isDark ? '#262b38' : '#f1f2f5',
+            background: 'var(--t2-surface)',
+            borderColor: 'var(--t2-line-soft)',
           }}
         >
           <div className="flex justify-between items-center px-4 py-3.5">
@@ -627,7 +627,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               <Repeat size={18} className="text-t2-accent" />
               <span
                 className="text-[16px]"
-                style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}
+                style={{ color: 'var(--t2-ink)' }}
               >
                 Wiederholung
               </span>
@@ -650,18 +650,18 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
             <div
               className="flex flex-col border-t"
               style={{
-                borderColor: isDark ? '#262b38' : '#f3f4f6',
+                borderColor: 'var(--t2-line-soft)',
                 background: isDark ? 'rgba(255, 255, 255, 0.02)' : 'rgba(249, 250, 251, 0.6)',
               }}
             >
               {/* Interval: Alle X Tage/Wochen/... */}
               <div
                 className="flex justify-between items-center px-4 py-3.5 border-b"
-                style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+                style={{ borderColor: 'var(--t2-line-soft)' }}
               >
                 <span
                   className="text-[16px]"
-                  style={{ color: isDark ? '#9ca3af' : '#4b5563' }}
+                  style={{ color: 'var(--t2-ink-2)' }}
                 >
                   Intervall
                 </span>
@@ -677,9 +677,9 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
                     }
                     className="w-14 text-center border rounded-md py-1 text-[16px] outline-none focus:border-t2-accent"
                     style={{
-                      background: isDark ? '#20242d' : '#ffffff',
-                      borderColor: isDark ? '#374151' : '#e5e7eb',
-                      color: isDark ? '#ffffff' : '#111827',
+                      background: 'var(--t2-surface)',
+                      borderColor: 'var(--t2-line)',
+                      color: 'var(--t2-ink)',
                     }}
                   />
                   <span className="text-t2-ink-2 text-sm w-[60px] text-right">
@@ -692,7 +692,7 @@ export const MobileCreateModal: React.FC<MobileCreateModalProps> = ({
               <div className="flex justify-between items-center px-4 py-3.5">
                 <span
                   className="text-[16px]"
-                  style={{ color: isDark ? '#9ca3af' : '#4b5563' }}
+                  style={{ color: 'var(--t2-ink-2)' }}
                 >
                   Endet am
                 </span>
