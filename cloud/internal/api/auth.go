@@ -33,6 +33,7 @@ type AuthHandler struct {
 	otpCache        map[string]otpEntry
 	keyChallenges   map[string]keyChallenge // see auth_challenge.go
 	sessionEmails   map[string]sessionEmail // address of the latest verify-otp per user, short-lived
+	passkey         *passkeyState           // see passkey.go, created on first use
 	mu              sync.Mutex
 }
 

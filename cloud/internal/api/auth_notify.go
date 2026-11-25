@@ -29,6 +29,12 @@ func securityNoticeText(kind string, at time.Time) (subject, body string) {
 	case noticeVaultReplaced:
 		return "Tide: Dein Tresor-PIN wurde neu gesetzt",
 			fmt.Sprintf("Am %s wurde der Tresor deines Tide-Kontos mit einem Wiederherstellungsschlüssel geöffnet und mit einem neuen PIN gesichert.\n\nWarst du das nicht, melde dich sofort an, richte in den Einstellungen einen neuen Wiederherstellungsschlüssel ein und schreib uns. Die vorige Fassung des Tresors ist noch 24 Stunden lang vor weiteren Änderungen geschützt.", when)
+	case noticePasskeyAdded:
+		return "Tide: Neuer Passkey für dein Konto",
+			fmt.Sprintf("Am %s wurde deinem Tide-Konto ein Passkey hinzugefügt. Mit ihm kann man sich ohne Mail-Code und PIN anmelden.\n\nWarst du das nicht, melde dich sofort an, entferne den Passkey unter Einstellungen > Konto > Passkeys und schreib uns.", when)
+	case noticePasskeyRemoved:
+		return "Tide: Ein Passkey wurde entfernt",
+			fmt.Sprintf("Am %s wurde ein Passkey aus deinem Tide-Konto entfernt.\n\nWarst du das nicht, melde dich sofort an, prüfe deine Passkeys und deinen Wiederherstellungsschlüssel und schreib uns.", when)
 	default:
 		return "Tide: Dein Wiederherstellungsschlüssel wurde geändert",
 			fmt.Sprintf("Am %s wurde für dein Tide-Konto ein neuer Wiederherstellungsschlüssel eingerichtet. Der vorige Schlüssel gilt ab jetzt nicht mehr.\n\nWarst du das nicht, melde dich sofort an, richte einen neuen Wiederherstellungsschlüssel ein und schreib uns.", when)

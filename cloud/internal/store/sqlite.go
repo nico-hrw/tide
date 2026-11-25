@@ -730,6 +730,27 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"ALTER TABLE todos ADD COLUMN sort_order INTEGER DEFAULT 0;",
 			},
 		},
+		{
+			// Passkeys (WebAuthn). Additive table only; credential_json holds the go-webauthn credential
+			// record (public data: public key, flags, counter), the other columns serve listing.
+			version: 16,
+			name:    "webauthn_credentials",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS webauthn_credentials (
+					credential_id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+					public_key BLOB NOT NULL,
+					sign_count INTEGER NOT NULL DEFAULT 0,
+					transports TEXT NOT NULL DEFAULT '[]',
+					aaguid TEXT NOT NULL DEFAULT '',
+					name TEXT NOT NULL DEFAULT '',
+					credential_json TEXT NOT NULL,
+					created_at INTEGER NOT NULL,
+					last_used_at INTEGER
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user ON webauthn_credentials(user_id);",
+			},
+		},
 	}
 
 	for _, m := range migrations {

@@ -378,6 +378,13 @@ func main() {
 		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/key-challenge", authHandler.KeyChallenge)
 		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Put("/auth/recovery-vault", authHandler.PutRecoveryVault)
 		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/replace-vault", authHandler.ReplaceVault)
+		// Passkeys: managing them needs a fresh session (+ key proof on finish/delete); login needs none.
+		r.With(api.AuthMiddleware).Get("/auth/passkeys", authHandler.ListPasskeys)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/register/options", authHandler.PasskeyRegisterOptions)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/register/finish", authHandler.PasskeyRegisterFinish)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/delete", authHandler.DeletePasskey)
+		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/passkey/login/options", authHandler.PasskeyLoginOptions)
+		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/passkey/login/verify", authHandler.PasskeyLoginVerify)
 		r.Post("/auth/logout", api.Logout)
 		if !isProduction && strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
 			r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/dev-login", authHandler.DevLogin)
