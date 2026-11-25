@@ -153,6 +153,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'passkey.removed': 'Passkey removed.',
     'passkey.noKey': 'No vault key is loaded on this device. Please sign in again.',
     'passkey.noPrf': 'This device cannot derive a vault key from passkeys. The passkey was not added; email code, PIN and recovery key stay as before.',
+    'passkey.cancelled': 'The passkey dialog was cancelled or not possible (for example because the window was not in front). Please try again.',
 
     'danger.section': 'Manage account',
     'danger.sectionHint': 'These actions are hard to undo. Each asks for a second confirmation.',

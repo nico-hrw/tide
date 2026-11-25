@@ -36,8 +36,11 @@ export function PasskeyLoginButton({ onSignedIn }: PasskeyLoginButtonProps) {
                 // A session was created but the vault did not open: drop it, continue with mail code + PIN.
                 await apiFetch("/api/v1/auth/logout", { method: "POST" }).catch(() => undefined);
             }
-            if (err instanceof PasskeyCancelledError) setError("");
-            else setError(`${err instanceof Error ? err.message : "Passkey-Anmeldung fehlgeschlagen."} Melde dich bitte mit Mail-Code und PIN an.`);
+            if (err instanceof PasskeyCancelledError) setError("Passkey-Anmeldung abgebrochen oder nicht möglich. Du kannst es erneut versuchen oder dich mit Mail-Code und PIN anmelden.");
+            else {
+                const msg = err instanceof Error ? err.message : "Passkey-Anmeldung fehlgeschlagen.";
+                setError(/Mail-Code/.test(msg) ? msg : `${msg} Melde dich bitte mit Mail-Code und PIN an.`);
+            }
         } finally {
             setBusy(false);
         }

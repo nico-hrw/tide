@@ -90,7 +90,7 @@ export function PasskeySection({ email: profileEmail }: { email?: string }) {
             setNotice(t('passkey.added'));
             reload();
         } catch (err) {
-            if (err instanceof PasskeyCancelledError) setError('');
+            if (err instanceof PasskeyCancelledError) setError(t('passkey.cancelled'));
             else if (err instanceof PasskeyPrfUnsupportedError) setError(t('passkey.noPrf'));
             else setError(err instanceof Error ? err.message : t('recovery.failed'));
         } finally {

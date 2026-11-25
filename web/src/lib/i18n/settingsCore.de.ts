@@ -151,6 +151,7 @@ export const settingsCoreDe = {
     'passkey.removed': 'Passkey entfernt.',
     'passkey.noKey': 'Auf diesem Gerät ist kein Tresor-Schlüssel geladen. Bitte melde dich neu an.',
     'passkey.noPrf': 'Dieses Gerät kann mit Passkeys keinen Tresor-Schlüssel ableiten. Der Passkey wurde nicht eingerichtet; Mail-Code, PIN und Wiederherstellungsschlüssel bleiben wie bisher.',
+    'passkey.cancelled': 'Der Passkey-Dialog wurde abgebrochen oder war nicht möglich (z. B. weil das Fenster nicht im Vordergrund war). Bitte versuche es erneut.',
 
     'danger.section': 'Konto verwalten',
     'danger.sectionHint': 'Diese Aktionen lassen sich schwer rückgängig machen. Jede verlangt eine zweite Bestätigung.',
