@@ -397,7 +397,9 @@ function AuthContent() {
                 setStatus("idle");
                 setRegPinDigits(["", "", "", "", ""]);
                 setName("");
-                if (created.recovery_saved === false) {
+                // Only show the key when the server confirms it stored the recovery vault (an older
+                // server ignores the field and would leave the user with a useless key).
+                if (created.recovery_saved !== true) {
                     setSuccessMessage("Konto erstellt, aber der Wiederherstellungsschlüssel wurde nicht gespeichert. Richte ihn nach der Anmeldung in den Einstellungen ein.");
                     setStep("identifier");
                 } else {
