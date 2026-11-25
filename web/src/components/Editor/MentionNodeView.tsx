@@ -200,7 +200,7 @@ const GenericMentionNodeView = ({ node }: any) => {
                         )}
                     </span>
                     {isEvent && eventMentionPreview === 'hover' && (
-                        <span className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 px-2.5 py-1 rounded-md bg-gray-900/90 dark:bg-gray-800/95 text-white text-xs shadow-lg whitespace-nowrap flex items-center gap-1.5 font-normal backdrop-blur-sm">
+                        <span className="pointer-events-none invisible group-hover:visible opacity-0 group-hover:opacity-100 transition-opacity duration-150 absolute bottom-full left-1/2 -translate-x-1/2 mb-1.5 z-50 px-2.5 py-1 rounded-md bg-[color-mix(in_srgb,var(--t2-ink)_90%,transparent)] text-t2-bg text-xs shadow-lg whitespace-nowrap flex items-center gap-1.5 font-normal backdrop-blur-sm">
                             <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: ev?.color || liveFile?.color || '#3b82f6' }} />
                             <span className="font-medium">{title}</span>
                             {eventDateStr && <span className="opacity-75 text-[11px]">({eventDateStr})</span>}

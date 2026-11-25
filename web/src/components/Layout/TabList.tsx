@@ -279,7 +279,7 @@ export default function TabList({
                                                     }}
                                                     style={{ borderRadius: DT.radiusSm }}
                                                     className={`p-1 text-t2-ink-3 hover:text-t2-ink  transition-all shrink-0
-                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-gray-300/50 '}
+                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-t2-line '}
                                                     `}
                                                     title="Tab schließen"
                                                 >

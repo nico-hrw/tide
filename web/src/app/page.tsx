@@ -363,7 +363,7 @@ export default function Dashboard() {
             <div className="flex flex-col items-center justify-center h-screen bg-t2-surface gap-4">
                 <div className="relative w-8 h-8">
                     <div className="absolute inset-0 rounded-full border-2 border-t2-line-soft" />
-                    <div className="absolute inset-0 rounded-full border-2 border-t-gray-800 dark:border-t-white/60 animate-spin" />
+                    <div className="absolute inset-0 rounded-full border-2 border-t-t2-ink animate-spin" />
                 </div>
                 <span className="text-[11px] font-semibold text-t2-ink-3 tracking-[0.3em] uppercase">tide</span>
             </div>

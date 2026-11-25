@@ -49,7 +49,7 @@ export const TodoListHeader: React.FC<TodoListHeaderProps> = (props) => {
         hideProgress
           ? 'hidden md:block px-4 sm:px-6 py-3.5 border-b border-t2-line '
           : 'px-4 sm:px-6 py-1.5 sm:py-2 border-b border-t2-line '
-      } bg-[#f8f9fa]/90 dark:bg-[#121212]/90 backdrop-blur-md`}
+      } bg-[color-mix(in_srgb,var(--t2-sub)_90%,transparent)] backdrop-blur-md`}
     >
       {/* Desktop & iPad Header */}
       <div className={`hidden md:flex items-center justify-between ${!hideProgress ? 'pb-3' : ''}`}>

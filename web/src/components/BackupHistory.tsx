@@ -246,7 +246,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
 
     return (
         <div 
-            className="fixed inset-0 z-[150] flex items-center justify-center bg-[#111827]/20 animate-fade-in p-4"
+            className="fixed inset-0 z-[150] flex items-center justify-center bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] animate-fade-in p-4"
             onClick={onCancel}
         >
             <div 
@@ -255,7 +255,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
             >
                 
                 {/* Header */}
-                <div className="flex justify-between items-center px-6 py-4 border-b border-t2-line  bg-[#f9fafb]/50 dark:bg-zinc-900/50">
+                <div className="flex justify-between items-center px-6 py-4 border-b border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)]">
                     <h2 className="text-lg font-bold text-t2-ink  flex items-center gap-2">
                         <Clock className="text-t2-ink " size={20} /> Versionsverlauf & Backups
                     </h2>
@@ -272,7 +272,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                 <div className="flex flex-1 overflow-hidden">
                     
                     {/* Left Pane: Timeline of Slots */}
-                    <div className="w-1/3 border-r border-t2-line  overflow-y-auto p-4 bg-[#f9fafb]/20 dark:bg-zinc-900/10">
+                    <div className="w-1/3 border-r border-t2-line  overflow-y-auto p-4 bg-[color-mix(in_srgb,var(--t2-sub)_20%,transparent)]">
                         <h3 className="text-xs font-semibold text-t2-ink-2  uppercase tracking-wider mb-4 px-1">
                             Speicherpunkte
                         </h3>
@@ -288,9 +288,9 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                                         onClick={() => handleSelect(slotName)}
                                         className={`w-full text-left p-3.5 rounded-xl border transition-all flex flex-col gap-1 ${
                                             !slot 
-                                                ? 'bg-[#f9fafb]/50 dark:bg-zinc-900/20 border-t2-line  opacity-40 cursor-not-allowed'
+                                                ? 'bg-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)] border-t2-line  opacity-40 cursor-not-allowed'
                                                 : isActive
-                                                    ? 'bg-t2-sub  border-[#111827] dark:border-white ring-1 ring-[#111827]/20 dark:ring-white/20 text-t2-ink  shadow-sm'
+                                                    ? 'bg-t2-sub  border-t2-accent ring-1 ring-[color:color-mix(in_srgb,var(--t2-accent)_20%,transparent)] text-t2-ink  shadow-sm'
                                                     : 'bg-t2-surface  border-t2-line hover:border-t2-line   hover:bg-t2-sub  cursor-pointer'
                                         }`}
                                     >
@@ -335,7 +335,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                         <div className="flex-1 overflow-auto bg-t2-sub  rounded-xl border border-t2-line  p-4 font-normal text-sm leading-relaxed text-t2-ink ">
                             {loading ? (
                                 <div className="flex flex-col items-center justify-center h-full text-t2-ink-3">
-                                    <div className="w-6 h-6 border-2 border-[#111827] dark:border-white border-t-transparent rounded-full animate-spin mb-3" />
+                                    <div className="w-6 h-6 border-2 border-t2-accent border-t-transparent rounded-full animate-spin mb-3" />
                                     <span>Speicherstand wird geladen und entschlüsselt...</span>
                                 </div>
                             ) : errorMsg ? (
@@ -373,7 +373,7 @@ export default function BackupHistory({ fileId, currentContent, onRestore, onCan
                         {!loading && restoredJson && (
                             <button
                                 onClick={doRestore}
-                                className="mt-4 w-full bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 h-[44px] px-5 rounded-[8px] font-semibold text-[14px] flex justify-center items-center gap-2 transition-all active:scale-[0.98]"
+                                className="mt-4 w-full bg-t2-accent hover:opacity-90 text-t2-accent-ink h-[44px] px-5 rounded-[8px] font-semibold text-[14px] flex justify-center items-center gap-2 transition-all active:scale-[0.98]"
                             >
                                 <RotateCcw size={18} /> Diesen Stand wiederherstellen
                             </button>

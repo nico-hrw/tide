@@ -105,7 +105,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onClick={handleClick}
-                className="cursor-pointer underline decoration-gray-400 dark:decoration-gray-500 decoration-dotted underline-offset-4 hover:decoration-gray-600 dark:hover:decoration-gray-300 transition-colors"
+                className="cursor-pointer underline decoration-t2-ink-3 decoration-dotted underline-offset-4 hover:decoration-t2-ink-2 transition-colors"
                 style={{
                     display: 'inline',
                     fontSize: 'inherit',

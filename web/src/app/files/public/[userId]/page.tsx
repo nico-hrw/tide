@@ -133,7 +133,7 @@ export default function PublicProfilePage() {
                 <h1 className="text-2xl font-bold">Public Files: {userId}</h1>
                 <button
                     onClick={() => router.push("/")}
-                    className="px-4 py-2 border dark:border-slate-700 rounded hover:bg-t2-hover  transition-colors"
+                    className="px-4 py-2 border border-t2-line rounded hover:bg-t2-hover  transition-colors"
                 >
                     Go to My Dashboard
                 </button>

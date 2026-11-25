@@ -673,7 +673,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   ]);
 
   return (
-    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] '} relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-t2-sub'} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
         activeCycleTotal={todayProgress.total}
         activeCycleCompletedCount={todayProgress.done}
@@ -929,7 +929,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterStatus === item.id
-                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                  ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                   : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                               }`}
                             >
@@ -960,7 +960,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterPriority === item.id
-                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                  ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                   : 'bg-t2-hover  text-t2-ink  hover:bg-t2-stage '
                               }`}
                             >
@@ -1003,7 +1003,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               selectedDateFilter === null
-                                ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                 : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                             }`}
                           >

@@ -619,7 +619,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftNow
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -634,7 +634,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftToday
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -649,7 +649,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                                 ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
                                 : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
                               : isDraftTomorrow
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -879,7 +879,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         }
                         if (isControlledExpanded === undefined) setLocalExpanded(false);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-colors cursor-pointer"
                       title="Fertig"
                     >
                       <Check size={13} strokeWidth={2.5} />
@@ -935,7 +935,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           type="button"
                           onClick={() => void handleAddSubtask()}
                           disabled={!newSubtaskTitle.trim()}
-                          className="p-1.5 bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] rounded-lg hover:bg-[#09090b] dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          className="p-1.5 bg-t2-accent text-t2-accent-ink rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                           title="Unteraufgabe hinzufügen"
                         >
                           <Plus size={14} />
@@ -1056,7 +1056,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       }
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-colors cursor-pointer shadow-xs"
                     title="Speichern"
                   >
                     <Check size={14} strokeWidth={2.5} />

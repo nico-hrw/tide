@@ -114,7 +114,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           <button
             type="button"
             onClick={() => onDoneEditTodo(editingTodoId)}
-            className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-t2-ink text-white dark:text-neutral-900 shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-t2-ink"
+            className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-t2-ink text-t2-bg shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-t2-ink"
             title="Fertig"
           >
             <Check size={15} strokeWidth={2.4} />
@@ -127,7 +127,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           type="button"
           onClick={onAddSubtask}
           aria-label="Unteraufgabe hinzufügen"
-          className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-t2-ink text-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-t2-ink active:scale-95 transition-all cursor-pointer shrink-0"
+          className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-t2-ink text-t2-bg flex items-center justify-center shadow-lg hover:bg-t2-ink active:scale-95 transition-all cursor-pointer shrink-0"
           title="Unteraufgabe hinzufügen"
         >
           <Plus size={24} />

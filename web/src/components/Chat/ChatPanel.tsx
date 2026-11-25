@@ -969,7 +969,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     <div
                                         key={c.contact_row_id}
                                         className={`p-3 mb-1 rounded-lg cursor-pointer transition-all ${partner?.id === c.partner.id
-                                            ? 'bg-gray-800/90 dark:bg-gray-200/90 text-t2-bg'
+                                            ? 'bg-[color-mix(in_srgb,var(--t2-ink)_90%,transparent)] text-t2-bg'
                                             : 'hover:bg-t2-hover '
                                             }`}
                                     >

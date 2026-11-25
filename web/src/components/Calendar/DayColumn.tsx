@@ -1009,7 +1009,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                 {/* Creation Preview */}
                 {creationDrag && isSameDay(creationDrag.startDay, day) && (
                     <motion.div
-                        className={`absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-t2-ink-3 z-50 backdrop-blur-sm pointer-events-none ${isMagnified ? 'opacity-20' : ''}`}
+                        className={`absolute left-1 right-1 rounded-lg bg-[color-mix(in_srgb,var(--t2-ink-3)_30%,transparent)] border-2 border-dashed border-t2-ink-3 z-50 backdrop-blur-sm pointer-events-none ${isMagnified ? 'opacity-20' : ''}`}
                         style={{ top: creationPreviewTop, height: creationPreviewHeight }}
                     >
                         <div className="flex flex-col gap-0 p-1.5">

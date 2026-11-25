@@ -212,7 +212,7 @@ function SegmentedDigitInput({
                     onKeyDown={(e) => handleKeyDown(i, e)}
                     onPaste={handlePaste}
                     className={`${inputClassName} rounded-none bg-transparent border-0 border-b-2 ${
-                        hasError ? "border-b-red-500 text-red-900" : "border-b-gray-300 text-t2-ink focus:border-b-gray-900"
+                        hasError ? "border-b-red-500 text-red-900" : "border-b-t2-line text-t2-ink focus:border-b-t2-ink"
                     } focus:outline-none transition-colors duration-200`}
                 />
             ))}
@@ -731,7 +731,7 @@ function AuthContent() {
                                         className={`w-full bg-transparent border-0 border-b ${
                                             errorMessage
                                                 ? "border-b-red-500 text-t2-ink focus:border-b-red-500"
-                                                : "border-b-gray-300 focus:border-b-gray-900 text-t2-ink"
+                                                : "border-b-t2-line focus:border-b-t2-ink text-t2-ink"
                                         } py-2 px-0 text-xl font-light placeholder:text-t2-ink-3 focus:outline-none transition-colors duration-300`}
                                     />
                                     <div
@@ -951,7 +951,7 @@ function AuthContent() {
                                             setName(e.target.value);
                                             if (errorMessage) setErrorMessage("");
                                         }}
-                                        className="w-full bg-transparent border-0 border-b border-t2-line focus:border-b-gray-900 py-2.5 px-0 text-xl font-light text-t2-ink placeholder:text-t2-ink-3 focus:outline-none transition-colors duration-300"
+                                        className="w-full bg-transparent border-0 border-b border-t2-line focus:border-b-t2-ink py-2.5 px-0 text-xl font-light text-t2-ink placeholder:text-t2-ink-3 focus:outline-none transition-colors duration-300"
                                     />
                                 </div>
 

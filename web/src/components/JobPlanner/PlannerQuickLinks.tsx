@@ -245,7 +245,7 @@ export default function PlannerQuickLinks() {
                         >
                             {renderIconContent(link)}
                             {/* Hover tooltip */}
-                            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-t2-ink  text-white dark:text-gray-900 text-[11px] font-semibold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-30 shadow-md">
+                            <div className="absolute -top-9 left-1/2 -translate-x-1/2 bg-t2-ink  text-t2-bg text-[11px] font-semibold px-2.5 py-1 rounded-lg opacity-0 group-hover:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-30 shadow-md">
                                 {link.name}
                             </div>
                         </div>

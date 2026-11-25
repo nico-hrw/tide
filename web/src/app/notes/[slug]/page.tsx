@@ -1034,7 +1034,7 @@ export default function QuicknotePage() {
                 {/* Share Button */}
                 <div className="relative">
                     {copied && (
-                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-t2-ink text-white  dark:text-neutral-900 text-xs font-medium shadow-md whitespace-nowrap select-none pointer-events-none">
+                        <div className="absolute bottom-full right-0 mb-2 px-3 py-1.5 rounded-lg bg-t2-ink text-t2-bg text-xs font-medium shadow-md whitespace-nowrap select-none pointer-events-none">
                             Link kopiert! ✓
                         </div>
                     )}

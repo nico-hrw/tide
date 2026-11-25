@@ -614,7 +614,7 @@ export const MobileSearchOverlay: React.FC<MobileSearchOverlayProps> = ({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-3 py-1 rounded-full bg-t2-ink text-white  dark:text-neutral-900 text-[11px] font-bold hover:bg-t2-ink  transition-colors shrink-0"
+                className="px-3 py-1 rounded-full bg-t2-ink text-t2-bg text-[11px] font-bold hover:bg-t2-ink  transition-colors shrink-0"
               >
                 Fertig
               </button>

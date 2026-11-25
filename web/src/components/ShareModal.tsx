@@ -532,7 +532,7 @@ export default function ShareModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-[#111827]/20 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
                 className="bg-t2-surface  border border-t2-line  rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
                 role="dialog"
@@ -710,10 +710,10 @@ export default function ShareModal({
                                         }}
                                         className={`p-3 rounded-[12px] border text-left transition-all ${
                                             disabled
-                                                ? 'border-t2-line  bg-[#f9fafb]/30 dark:bg-zinc-800/20 opacity-40 cursor-not-allowed'
+                                                ? 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_30%,transparent)] opacity-40 cursor-not-allowed'
                                                 : active
-                                                    ? 'border-[#111827] bg-[#111827] text-white dark:border-white dark:bg-white dark:text-zinc-900 shadow-sm'
-                                                    : 'border-t2-line  bg-[#f9fafb]/50 dark:bg-zinc-800/40 hover:bg-t2-sub  hover:border-t2-line '
+                                                    ? 'border-t2-accent bg-t2-accent text-t2-accent-ink shadow-sm'
+                                                    : 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)] hover:bg-t2-sub  hover:border-t2-line '
                                         }`}
                                     >
                                         <Icon size={16} className={active ? 'text-white  mb-1.5' : 'text-t2-ink-2  mb-1.5'} />
@@ -792,7 +792,7 @@ export default function ShareModal({
                                                     else next.delete(dep.id);
                                                     setSelectedDepIds(next);
                                                 }}
-                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
+                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent dark:accent-white"
                                             />
                                             <span className="truncate flex-1">{dep.title}</span>
                                         </label>
@@ -858,12 +858,12 @@ export default function ShareModal({
                                             value={customEmail}
                                             onChange={e => setCustomEmail(e.target.value)}
                                             placeholder="E-Mail-Adresse eingeben..."
-                                            className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  placeholder:text-t2-ink-2  outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                            className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  placeholder:text-t2-ink-2  outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
                                         />
                                         <button
                                             onClick={handleSearchEmail}
                                             disabled={loading || !customEmail.trim()}
-                                            className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
+                                            className="bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
                                         >
                                             {loading ? '...' : 'Suchen'}
                                         </button>
@@ -871,7 +871,7 @@ export default function ShareModal({
                                     {searchResult && (
                                         <button
                                             onClick={() => handleShareWithContact(searchResult)}
-                                            className="w-full p-3 rounded-[12px] bg-t2-sub  border border-t2-line  hover:border-[#111827]/40 dark:hover:border-zinc-600 text-left flex items-center justify-between transition-colors"
+                                            className="w-full p-3 rounded-[12px] bg-t2-sub  border border-t2-line  hover:border-t2-ink-3 text-left flex items-center justify-between transition-colors"
                                         >
                                             <div>
                                                 <p className="font-semibold text-xs text-t2-ink ">{searchResult.username}</p>
