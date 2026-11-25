@@ -1,6 +1,7 @@
 /** Server calls for vault recovery. The server only ever sees client-encrypted vaults. */
 import { apiFetch } from '@/lib/api';
 import type { EncryptedPrivateKey } from '@/lib/crypto';
+import type { KeyProof } from './keyProof';
 import type { RecoveryVault } from './recoveryVault';
 
 export class FreshSessionRequiredError extends Error {
@@ -11,10 +12,16 @@ export class FreshSessionRequiredError extends Error {
 }
 
 async function failure(res: Response, fallback: string): Promise<Error> {
-    if (res.status === 403) return new FreshSessionRequiredError();
-    if (res.status === 429) return new Error('Zu viele Versuche. Bitte warte einen Moment.');
-    const text = await res.text().catch(() => '');
-    return new Error(text.trim() || fallback);
+    const text = (await res.text().catch(() => '')).trim();
+    if (res.status === 403) {
+        if (/key proof/i.test(text)) return new Error('Der Schlüsselnachweis ist fehlgeschlagen. Bitte versuche es erneut.');
+        return new FreshSessionRequiredError();
+    }
+    if (res.status === 429) {
+        if (/24 hours/i.test(text)) return new Error('Der Tresor wurde in den letzten 24 Stunden schon ersetzt. Aus Sicherheitsgründen geht das erst danach wieder.');
+        return new Error('Zu viele Versuche. Bitte warte einen Moment.');
+    }
+    return new Error(text || fallback);
 }
 
 const live = { offline: 'never' as const, cache: 'no-store' as const };
@@ -35,17 +42,17 @@ export async function fetchRecoveryStatus(): Promise<boolean> {
     return data.has_recovery === true;
 }
 
-export async function saveRecoveryVault(vault: RecoveryVault): Promise<void> {
+export async function saveRecoveryVault(vault: RecoveryVault, proof: KeyProof): Promise<void> {
     const res = await apiFetch('/api/v1/auth/recovery-vault', {
         method: 'PUT',
         offline: 'never',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ recovery_vault: JSON.stringify(vault) }),
+        body: JSON.stringify({ recovery_vault: JSON.stringify(vault), ...proof }),
     });
     if (!res.ok) throw await failure(res, 'Wiederherstellungsschlüssel konnte nicht gespeichert werden.');
 }
 
-export async function replaceEncryptedVault(encryptedVault: EncryptedPrivateKey, recoveryVault?: RecoveryVault): Promise<void> {
+export async function replaceEncryptedVault(encryptedVault: EncryptedPrivateKey, proof: KeyProof, recoveryVault?: RecoveryVault): Promise<void> {
     const res = await apiFetch('/api/v1/auth/replace-vault', {
         method: 'POST',
         offline: 'never',
@@ -53,6 +60,7 @@ export async function replaceEncryptedVault(encryptedVault: EncryptedPrivateKey,
         body: JSON.stringify({
             encrypted_vault: JSON.stringify(encryptedVault),
             ...(recoveryVault ? { recovery_vault: JSON.stringify(recoveryVault) } : {}),
+            ...proof,
         }),
     });
     if (!res.ok) throw await failure(res, 'Neuer PIN konnte nicht gespeichert werden.');

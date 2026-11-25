@@ -2,10 +2,15 @@
  * Steps shared by registration, "PIN vergessen?" and the settings set-up.
  * Uses only existing crypto.ts exports; the PIN wrapping is the same as generateUserVault's
  * (PBKDF2-600k from the PIN, the account pepper as salt), just for an existing key.
+ *
+ * Every server write needs a fresh OTP session plus a key proof (keyProof.ts), so the private key
+ * itself, opened by the secret or the PIN, is required to change anything.
  */
 import { base64ToArrayBuffer, deriveKeyFromPassword, encryptPrivateKey, unlockVault, type EncryptedPrivateKey } from '@/lib/crypto';
-import { replaceEncryptedVault } from './recoveryApi';
-import { openRecoveryVault, buildRecoveryVault, parseRecoveryVault, type RecoveryVault } from './recoveryVault';
+import { requestKeyProof } from './keyProof';
+import { replaceEncryptedVault, saveRecoveryVault } from './recoveryApi';
+import { openRecoveryVault, buildRecoveryVault, parseRecoveryVault } from './recoveryVault';
+import type { RecoveryVault } from './recoveryVault';
 
 /** Wraps an extractable private key with a (new) PIN and checks the result opens again. */
 export async function wrapPrivateKeyWithPin(privateKey: CryptoKey, pin: string, pepperBase64: string): Promise<EncryptedPrivateKey> {
@@ -25,7 +30,7 @@ export interface RecoverResult {
 
 /**
  * "PIN vergessen?": open the recovery vault with the secret, wrap the key with the new PIN,
- * verify locally, and only then replace the server's encrypted_vault (fresh session required).
+ * verify locally, prove key possession, and only then replace the server's encrypted_vault.
  */
 export async function recoverWithSecret(params: {
     recoveryVault: string | RecoveryVault;
@@ -35,20 +40,26 @@ export async function recoverWithSecret(params: {
 }): Promise<RecoverResult> {
     const extractable = await openRecoveryVault(params.recoveryVault, params.secret, true);
     const encryptedVault = await wrapPrivateKeyWithPin(extractable, params.newPin, params.pepperBase64);
-    await replaceEncryptedVault(encryptedVault);
+    const proof = await requestKeyProof(extractable);
+    await replaceEncryptedVault(encryptedVault, proof);
     const privateKey = await unlockVault(params.newPin, params.pepperBase64, encryptedVault, false);
     return { privateKey, encryptedVault };
 }
 
-/** Settings set-up for existing accounts: PIN-unlock the current vault extractably, build a recovery vault. */
-export async function buildRecoveryVaultFromPin(params: {
+/**
+ * Settings set-up for existing accounts: PIN-unlock the current vault extractably, build a recovery
+ * vault for `secret`, prove key possession and store it.
+ */
+export async function setUpRecoveryWithPin(params: {
     pin: string;
     pepperBase64: string;
     encryptedVault: EncryptedPrivateKey;
     secret: string;
     previous?: string | null;
-}): Promise<RecoveryVault> {
+}): Promise<void> {
     const extractable = await unlockVault(params.pin, params.pepperBase64, params.encryptedVault, true);
     const previous = params.previous ? parseRecoveryVault(params.previous) : null;
-    return buildRecoveryVault(extractable, params.secret, previous);
+    const vault = await buildRecoveryVault(extractable, params.secret, previous);
+    const proof = await requestKeyProof(extractable);
+    await saveRecoveryVault(vault, proof);
 }

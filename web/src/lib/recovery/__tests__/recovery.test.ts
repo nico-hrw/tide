@@ -7,12 +7,15 @@ if (typeof window !== 'undefined' && (!window.crypto || !window.crypto.subtle)) 
 
 const replaceMock = vi.fn(async () => undefined);
 vi.mock('../recoveryApi', () => ({ replaceEncryptedVault: (...args: unknown[]) => replaceMock(...(args as [])) }));
+const proofMock = vi.fn(async () => ({ challenge_id: 'c1', challenge_response: 'cg==' }));
+vi.mock('../keyProof', async (orig) => ({ ...(await orig<typeof import('../keyProof')>()), requestKeyProof: (...args: unknown[]) => proofMock(...(args as [])) }));
 
 import { exportPublicKey, unlockVault } from '@/lib/crypto';
 import { formatRecoverySecret, generateRecoverySecret, normalizeRecoverySecret, RecoverySecretFormatError, RECOVERY_SECRET_BITS } from '../recoverySecret';
 import { buildRecoveryVault, openRecoveryVault, RecoveryVaultError, RECOVERY_PBKDF2_ITERATIONS, MAIL_SECRET_KIND, type RecoveryVault } from '../recoveryVault';
 import { buildRecoveryMailto, buildRecoveryText, RECOVERY_MAIL_SUBJECT } from '../recoveryMail';
 import { recoverWithSecret, wrapPrivateKeyWithPin } from '../recoveryFlow';
+import { decryptKeyChallenge, KeyProofError } from '../keyProof';
 
 async function rsaPair(): Promise<CryptoKeyPair> {
     return webCrypto.subtle.generateKey(
@@ -111,9 +114,13 @@ describe('recovery flow', () => {
         const vault = await buildRecoveryVault(pair.privateKey, secret);
         replaceMock.mockClear();
 
+        proofMock.mockClear();
         const result = await recoverWithSecret({ recoveryVault: vault, secret, newPin: '13579', pepperBase64: pepper });
         expect(replaceMock).toHaveBeenCalledTimes(1);
-        expect(replaceMock.mock.calls[0]).toEqual([result.encryptedVault]);
+        expect(replaceMock.mock.calls[0]).toEqual([result.encryptedVault, { challenge_id: 'c1', challenge_response: 'cg==' }]);
+        // The key proof is answered with the key opened from the secret.
+        const proofKey = (proofMock.mock.calls[0] as unknown as [CryptoKey])[0];
+        expect(await canDecrypt(pair, proofKey)).toBe(true);
         expect(result.privateKey.extractable).toBe(false);
         expect(await canDecrypt(pair, await unlockVault('13579', pepper, result.encryptedVault))).toBe(true);
         await expect(unlockVault('00000', pepper, result.encryptedVault)).rejects.toBeTruthy();
@@ -135,6 +142,18 @@ describe('recovery flow', () => {
         expect(Object.keys(v).sort()).toEqual(['ciphertext', 'iv', 'salt']);
         expect(v.salt).toBe(pepper);
         expect(typeof (await exportPublicKey(pair.publicKey))).toBe('string');
+    });
+});
+
+describe('key proof', () => {
+    it('decrypts an RSA-OAEP challenge to the original bytes, and fails cleanly with a foreign key', async () => {
+        const pair = await rsaPair();
+        const other = await rsaPair();
+        const plain = webCrypto.getRandomValues(new Uint8Array(32));
+        const ct = await webCrypto.subtle.encrypt({ name: 'RSA-OAEP' }, pair.publicKey, plain);
+        const ctB64 = btoa(String.fromCharCode(...new Uint8Array(ct)));
+        expect(await decryptKeyChallenge(pair.privateKey, ctB64)).toBe(btoa(String.fromCharCode(...plain)));
+        await expect(decryptKeyChallenge(other.privateKey, ctB64)).rejects.toBeInstanceOf(KeyProofError);
     });
 });
 
