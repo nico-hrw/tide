@@ -12,6 +12,37 @@ export function sessionStateKey(userId: string | null | undefined): string | nul
     return userId ? `${SESSION_STATE_KEY}:${userId}` : null;
 }
 
+let logoutStarted = false;
+let logoutStorageCleared = false;
+
+/** Set when a logout begins: from then on nothing may write the session record again. */
+export function markLogoutStarted(): void {
+    logoutStarted = true;
+    logoutStorageCleared = false;
+}
+
+/** Called once the browser storage of the logout is wiped; a user id showing up afterwards means a new login. */
+export function markLogoutStorageCleared(): void {
+    logoutStorageCleared = true;
+}
+
+function hasSignedInUser(): boolean {
+    try {
+        return !!(sessionStorage.getItem('tide_user_id') || localStorage.getItem('tide_user_id'));
+    } catch {
+        return false;
+    }
+}
+
+/** false during/after a logout or when no user is signed in: the session record must then not be written. */
+export function mayPersistSession(): boolean {
+    if (logoutStarted) {
+        if (!(logoutStorageCleared && hasSignedInUser())) return false;
+        logoutStarted = false; // the same page (no reload) signed in again
+    }
+    return hasSignedInUser();
+}
+
 /** Removes the session records of every user (logout). */
 export function clearPersistedSessions(): void {
     try {

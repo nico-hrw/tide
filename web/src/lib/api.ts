@@ -131,10 +131,15 @@ function isSensitiveAuthCacheUrl(targetUrl: string, cleanEndpoint: string): bool
     return matchesSensitive(targetUrl) || matchesSensitive(cleanEndpoint);
 }
 
+import { markLogoutStarted, markLogoutStorageCleared } from './sessionState';
+
 export async function clearAllSessionData(options?: { callServerLogout?: boolean }): Promise<void> {
     if (typeof window === 'undefined') {
         return;
     }
+
+    // Before anything is awaited or deleted: a pagehide/timer write must not bring the record back.
+    markLogoutStarted();
 
     if (options?.callServerLogout) {
         await fetch(`${getApiBase()}/api/v1/auth/logout`, {
@@ -167,6 +172,8 @@ export async function clearAllSessionData(options?: { callServerLogout?: boolean
     } catch {
         // Ignore restricted storage errors
     }
+
+    markLogoutStorageCleared();
 
     const [
         { clearMasterKey, purgeLegacyKeys },

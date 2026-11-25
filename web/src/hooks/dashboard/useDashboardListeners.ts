@@ -11,7 +11,7 @@ import { useDragGhost } from "@/store/useDragGhost";
 import type { IslandView } from "@/components/extensions/smart_island/useIslandStore";
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
-import { isFileListComplete, isTabStale, serializePersistedSession, sessionStateKey } from "@/lib/sessionState";
+import { isFileListComplete, isTabStale, mayPersistSession, serializePersistedSession, sessionStateKey } from "@/lib/sessionState";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
 import { handleViewMentionClick, type ViewMentionClickDetail } from "./viewMentionClick";
 import { selectTags } from "@/lib/tags";
@@ -347,7 +347,7 @@ export function useDashboardListeners({
     // 6b. Durable session record (survives app restart): ids/types/order/active tab/calendar view mode.
     const persistSession = useCallback(() => {
         const key = sessionStateKey(myId);
-        if (!key) return;
+        if (!key || !mayPersistSession()) return;
         try {
             localStorage.setItem(
                 key,
