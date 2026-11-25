@@ -116,7 +116,10 @@ describe('exportVault', () => {
 
     // gaps are reported, never silent
     expect(manifest.failures.some((f) => f.id === 'note2' && f.part === 'content')).toBe(true);
-    expect(manifest.skipped.map((s) => s.id).sort()).toEqual(['orphan1', 'other1']);
+    expect(manifest.skipped.map((s) => s.id)).toEqual(['other1']);
+    // an image no note references and whose key lives nowhere else: reported as a notice, not as a loss
+    expect(manifest.notices?.find((n) => n.id === 'orphan1')).toMatchObject({ kind: 'orphan-asset', severity: 'info' });
+    expect(manifest.summary?.[0]).toMatchObject({ severity: 'loss' });
   });
 
   it('records a note whose CRDT state cannot be decrypted instead of dropping it silently', async () => {
@@ -128,6 +131,46 @@ describe('exportVault', () => {
     const { manifest } = await exportVault();
     expect(manifest.counts.note).toBe(1);
     expect(manifest.failures.map((f) => f.part)).toContain('ydoc');
+    const ydocFailure = manifest.failures.find((f) => f.part === 'ydoc')!;
+    expect(ydocFailure.kind).toBe('ydoc-unreadable');
+    expect(ydocFailure.error).toMatch(/Notiz-Zustand nicht entschlüsselbar: \S+/);
+    expect(ydocFailure.error).toContain('note3');
+  });
+
+  it('keeps a blob that is not an encrypted envelope as raw text and converts it for notes', async () => {
+    const note = await encryptedNote('note4', 'Liste', { type: 'doc', content: [] });
+    routes.set('/api/v1/files/note4/download', () => new Response('- eins\n- zwei'));
+    routes.set('/api/v1/files?recursive=true', () => Response.json([note]));
+    routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([]));
+    const { blob, manifest } = await exportVault();
+    const zip = asFile(readZip(new Uint8Array(await blob.arrayBuffer())));
+    expect(text(zip('content/note4.txt')!.data)).toBe('- eins\n- zwei');
+    expect(text(zip('content/note4.json')!.data)).toContain('eins');
+    expect(manifest.failures).toEqual([]);
+    expect(manifest.warnings?.map((w) => w.kind)).toEqual(['raw-text']);
+    expect(manifest.warnings?.[0].error).toContain('"- eins');
+  });
+
+  it('reports an event whose key belongs to another account as missing details, not as a loss', async () => {
+    const other = await crypto.subtle.generateKey(
+      { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt'],
+    );
+    const v2 = await encryptFileV2(JSON.stringify({ title: 'Kurs' }), other.publicKey);
+    const event = {
+      id: 'ev2', type: 'event', owner_id: ME, parent_id: null, version: 2, visibility: 'private', public_meta: {},
+      metadata: { title: 'Kurs', start: '2026-05-01T00:00:00.000Z', end: '2026-05-01T00:00:00.000Z', allDay: true, description: 'Raum 3' },
+      access_keys: { someoneElse: v2.encrypted_dek }, secured_meta: await encryptMetadata({ title: 'Kurs' }, publicKey),
+    };
+    routes.set('/api/v1/files/ev2/download', () => new Response(v2.content_ciphertext));
+    routes.set('/api/v1/files?recursive=true', () => Response.json([]));
+    routes.set('/api/v1/files?type=event&recursive=true', () => Response.json([event]));
+    const { blob, manifest } = await exportVault();
+    expect(manifest.failures).toEqual([]);
+    expect(manifest.warnings).toEqual([expect.objectContaining({ id: 'ev2', kind: 'event-details-unreadable', severity: 'partial' })]);
+    expect(manifest.warnings?.[0].error).toContain('inkl. Beschreibung');
+    const ics = text(asFile(readZip(new Uint8Array(await blob.arrayBuffer())))('lesbar/kalender.ics')!.data);
+    expect(ics).toContain('DESCRIPTION:Raum 3');
+    expect(ics).toMatch(/DTEND;VALUE=DATE:2026050[12]/);
   });
 
   it('treats a missing blob as normal for events (todo calendar entries) and skips the rebuilt index', async () => {
