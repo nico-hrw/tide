@@ -414,6 +414,8 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 			// key and one previous generation of encrypted_vault kept by replace-vault.
 			"ALTER TABLE users ADD COLUMN recovery_vault TEXT",
 			"ALTER TABLE users ADD COLUMN encrypted_vault_prev TEXT",
+			"ALTER TABLE users ADD COLUMN recovery_vault_prev TEXT",
+			"ALTER TABLE users ADD COLUMN vault_replaced_at INTEGER",
 		}
 		for _, stmt := range userCols {
 			if _, err := s.DB.Exec(stmt); err != nil && !isDuplicateColumnError(err) {

@@ -368,6 +368,12 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		"public_key":      user.PublicKey,
 		"username":        user.Username,
 	}
+	// Vault-change notices for this session go to the address just proven by the OTP (only kept in
+	// memory). The app shows the last replacement time at sign-in as a fallback.
+	h.rememberSessionEmail(user.ID, req.Email)
+	if replacedAt, err := h.Store.GetVaultReplacedAt(r.Context(), user.ID); err == nil && !replacedAt.IsZero() {
+		resp["vault_replaced_at"] = replacedAt.UTC().Format(time.RFC3339)
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(resp)

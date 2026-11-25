@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
+	"github.com/nicoh/tide/internal/store"
 )
 
 // Vault recovery endpoints.
@@ -30,6 +32,9 @@ const (
 	maxRecoveryVaultBytes  = 32 * 1024
 	maxRecoveryEnvelopes   = 8
 	maxRecoveryBodyBytes   = 64 * 1024
+	// A replaced vault keeps its predecessor in encrypted_vault_prev; a second replacement within
+	// this window would overwrite that rollback copy, so it is refused.
+	vaultReplaceCooldown = 24 * time.Hour
 )
 
 var envelopeKindPattern = regexp.MustCompile(`^[a-z0-9][a-z0-9-]{0,31}$`)
@@ -118,6 +123,20 @@ func validateRecoveryVault(s string) error {
 	return nil
 }
 
+// keyProof is the answer to a key challenge (see auth_challenge.go), embedded in write requests.
+type keyProof struct {
+	ChallengeID       string `json:"challenge_id"`
+	ChallengeResponse string `json:"challenge_response"`
+}
+
+func (h *AuthHandler) requireKeyProof(w http.ResponseWriter, userID string, p keyProof) bool {
+	if err := h.consumeKeyProof(userID, p.ChallengeID, p.ChallengeResponse); err != nil {
+		http.Error(w, "Key proof failed: request a new key challenge and answer it with your private key", http.StatusForbidden)
+		return false
+	}
+	return true
+}
+
 func userIDFrom(r *http.Request) string {
 	id, _ := r.Context().Value("user_id").(string)
 	return id
@@ -160,6 +179,7 @@ func (h *AuthHandler) PutRecoveryVault(w http.ResponseWriter, r *http.Request) {
 	}
 	var req struct {
 		RecoveryVault string `json:"recovery_vault"`
+		keyProof
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRecoveryBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -170,11 +190,15 @@ func (h *AuthHandler) PutRecoveryVault(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
+	if !h.requireKeyProof(w, userID, req.keyProof) {
+		return
+	}
 	if err := h.Store.SetRecoveryVault(r.Context(), userID, req.RecoveryVault); err != nil {
 		log.Printf("PutRecoveryVault: store failed for user %s: %v", userID, err)
 		http.Error(w, "Failed to store recovery vault", http.StatusInternalServerError)
 		return
 	}
+	h.notifyVaultChange(userID, noticeRecoverySetup)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]bool{"has_recovery": true})
 }
@@ -192,6 +216,7 @@ func (h *AuthHandler) ReplaceVault(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		EncryptedVault string  `json:"encrypted_vault"`
 		RecoveryVault  *string `json:"recovery_vault"`
+		keyProof
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, maxRecoveryBodyBytes)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -210,12 +235,21 @@ func (h *AuthHandler) ReplaceVault(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	if err := h.Store.ReplaceEncryptedVault(r.Context(), userID, []byte(req.EncryptedVault), req.RecoveryVault); err != nil {
+	if !h.requireKeyProof(w, userID, req.keyProof) {
+		return
+	}
+	err := h.Store.ReplaceEncryptedVault(r.Context(), userID, []byte(req.EncryptedVault), req.RecoveryVault, time.Now(), vaultReplaceCooldown)
+	if errors.Is(err, store.ErrVaultReplaceCooldown) {
+		http.Error(w, "The vault was already replaced within the last 24 hours; it can be replaced again after that", http.StatusTooManyRequests)
+		return
+	}
+	if err != nil {
 		log.Printf("ReplaceVault: store failed for user %s: %v", userID, err)
 		http.Error(w, "Failed to replace vault", http.StatusInternalServerError)
 		return
 	}
 	log.Printf("ReplaceVault: encrypted vault replaced for user %s", userID)
+	h.notifyVaultChange(userID, noticeVaultReplaced)
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
 }

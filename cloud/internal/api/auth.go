@@ -31,6 +31,8 @@ type AuthHandler struct {
 	pinLimiter      *FailedAttemptTracker
 	otpLimiter      *FailedAttemptTracker
 	otpCache        map[string]otpEntry
+	keyChallenges   map[string]keyChallenge // see auth_challenge.go
+	sessionEmails   map[string]sessionEmail // address of the latest verify-otp per user, short-lived
 	mu              sync.Mutex
 }
 
@@ -41,6 +43,8 @@ func NewAuthHandler(s *store.SQLiteStore, masterKey []byte) *AuthHandler {
 		pinLimiter:      NewFailedAttemptTracker(5, 15*time.Minute),
 		otpLimiter:      NewFailedAttemptTracker(5, 15*time.Minute),
 		otpCache:        make(map[string]otpEntry),
+		keyChallenges:   make(map[string]keyChallenge),
+		sessionEmails:   make(map[string]sessionEmail),
 	}
 }
 
@@ -52,7 +56,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/login/step2", h.VerifyPin)
 	r.Post("/auth/verify-pin", h.VerifyPin)
 	r.Post("/auth/login/step2", h.VerifyPin)
-	
+
 	r.With(AuthMiddleware).Get("/me", h.Me)
 	r.With(AuthMiddleware).Put("/me", h.UpdateMe)
 }
@@ -489,5 +493,3 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 }
 
 // Legacy auth code has been removed.
-
-

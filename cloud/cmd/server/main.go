@@ -372,8 +372,10 @@ func main() {
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
 		r.With(api.AuthMiddleware).Post("/auth/ws-ticket", api.IssueWSTicketHandler)
-		// Vault recovery: reads need a session, writes a fresh OTP sign-in (checked in the handler).
+		// Vault recovery: reads need a session; writes need a fresh OTP sign-in plus a key proof
+		// (answer to /auth/key-challenge), both checked in the handlers.
 		r.With(api.AuthMiddleware).Get("/auth/recovery-vault", authHandler.GetRecoveryVault)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/key-challenge", authHandler.KeyChallenge)
 		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Put("/auth/recovery-vault", authHandler.PutRecoveryVault)
 		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/replace-vault", authHandler.ReplaceVault)
 		r.Post("/auth/logout", api.Logout)
