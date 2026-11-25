@@ -3,6 +3,7 @@ import { Download } from 'lucide-react';
 import { SettingsCard, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { Button, Chip, Notice } from '../ui/Controls';
 import { useT } from '../useT';
+import { VaultImportRow } from './VaultImportRow';
 import { exportVault } from '@/lib/vaultExport/exportVault';
 import type { VaultExportProgress } from '@/lib/vaultExport/types';
 
@@ -63,6 +64,7 @@ export function VaultExportSection() {
                         {running ? t('export.running') : t('export.action')}
                     </Button>
                 </SettingsRow>
+                <VaultImportRow />
             </SettingsCard>
             {(status || outcome) && (
                 <div className="mt-3 flex flex-col gap-2">

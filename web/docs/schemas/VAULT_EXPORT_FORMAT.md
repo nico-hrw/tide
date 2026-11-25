@@ -26,7 +26,27 @@ LIESMICH.txt
 - Tags are folders with `isGroup`; events use `parentId` for their main tag. Both are kept as raw records.
 - The Yjs state is read without the editor provider (`readFile.ts`), so exporting never touches `activeNoteStore`.
 
+## Import (`importVault.ts`)
+
+Settings > Account > "Export einspielen". The archive is validated first (`archive.ts`: format, version, every referenced
+path present, manifest counts equal tree counts); nothing is written when that fails.
+
+1. Every file, tag, image and todo gets a new UUID, allocated up front (old id -> new id table, `rewriteIds.ts`).
+2. Folders and tags (parent first), then notes/canvas, events, todos. Optional wrapper folder "Import <date>" holds
+   everything except tags and events.
+3. Per note: file created under the new key, images re-encrypted with fresh keys and uploaded as `canvas-asset`
+   children, Yjs state rewritten (asset map, canvas elements, editor attrs, ids in links) and stored as the encrypted
+   snapshot via `/compact`.
+4. All writes are strict (`importRemote.ts`): retried, errors recorded per item, abort after 5 failures in a row.
+   The store's `createNote`/`addTask` are not used because they fall back to local-only items on server errors.
+5. A journal in localStorage (`tide_vault_import:<user>:<exportedAt>`) makes a rerun continue instead of duplicating.
+6. Verification: every created id must be listed by the server (files, events, todos); the report shows failures and
+   missing items. A clean run clears the journal.
+
+Not imported: `views`, `calendar_shares`, `index` and other helper files (listed in the report). Public links come back
+private.
+
 ## Not included
 
-Shares and contacts (keys differ per account), files owned by others, sessions and keys. The importer (not built
-yet) must run into an empty or explicitly chosen target and verify counts against `manifest.json` afterwards.
+Shares and contacts (keys differ per account), files owned by others, sessions and keys. Importing into a non-empty
+account works but can duplicate tags with the same name.
