@@ -14,6 +14,7 @@ import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
 import { buildSecuredEventMeta } from "@/lib/securedEventMeta";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import { autoShareEventIntoGroups } from "@/lib/calendarShareActions";
+import { eventContentSignature, isUnchangedSinceLastWrite, normalizeRecurrenceRule, putEventGuarded } from "@/lib/eventWriteGuard";
 
 export interface CalendarEventExtraMeta {
     title?: string;
@@ -123,6 +124,10 @@ function buildEventMeta(event: CalendarEventRecord, updates: CalendarEventUpdate
     else if (event.recurrence_rule) meta.recurrence_rule = event.recurrence_rule;
     if (updates.recurrence_end !== undefined) meta.recurrence_end = updates.recurrence_end;
     else if (event.recurrence_end) meta.recurrence_end = event.recurrence_end;
+    // Todo entries: "NONE" (event popover) or "" means no repetition, but differed from the todo's missing rule
+    // and made the task sync rewrite the entry forever. Not stored at all; the key stays (as undefined) so the
+    // local copy and the metadata cache drop it too.
+    if (meta.linkedTaskId && "recurrence_rule" in meta && normalizeRecurrenceRule(meta.recurrence_rule) === "") meta.recurrence_rule = undefined;
     return meta;
 }
 
@@ -131,46 +136,6 @@ function syncVersionInStore(baseId: string, version: number): void {
         events: s.events.map((e) => (e.id === baseId ? { ...e, version } : e)),
         notes: s.notes.map((n) => (n.id === baseId ? { ...n, version } : n)),
     }));
-}
-
-async function putEventWithConflictRetry(baseId: string, event: CalendarEventRecord, body: Record<string, unknown>, strict = false): Promise<void> {
-    const res = await apiFetch(`/api/v1/files/${baseId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
-    if (res.status === 409) {
-        try {
-            const conflictData = (await res.json()) as { current_version?: number };
-            if (typeof conflictData?.current_version === "number") {
-                event.version = conflictData.current_version;
-                syncVersionInStore(baseId, conflictData.current_version);
-                body.version = conflictData.current_version;
-                const retryRes = await apiFetch(`/api/v1/files/${baseId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-                if (strict && !retryRes.ok) throw new Error(`Event save failed (${retryRes.status})`);
-                if (retryRes.ok) {
-                    const retryData = (await retryRes.json().catch(() => null)) as { version?: number } | null;
-                    if (typeof retryData?.version === "number") {
-                        event.version = retryData.version;
-                        syncVersionInStore(baseId, retryData.version);
-                    }
-                }
-            } else if (strict) {
-                throw new Error("Event save conflict without current version");
-            }
-        } catch (e) {
-            if (strict) throw e;
-            /* Silently ignore conflict resolution errors */
-        }
-    } else if (strict && !res.ok) {
-        throw new Error(`Event save failed (${res.status})`);
-    } else if (res.ok) {
-        const data = (await res.json().catch(() => null)) as { version?: number } | null;
-        if (typeof data?.version === "number") {
-            event.version = data.version;
-            syncVersionInStore(baseId, data.version);
-        }
-    }
 }
 
 /**
@@ -316,7 +281,8 @@ export function useCalendarActions({
                 if (isOccurrence) {
                     const timestamp = parseInt(id.split("_")[1], 10);
                     if (!isNaN(timestamp)) occurrenceDateKey = format(new Date(timestamp), "yyyy-MM-dd");
-                } else if (event.recurrence_rule && event.recurrence_rule !== "none") {
+                } else if (normalizeRecurrenceRule(event.recurrence_rule) !== "") {
+                    // "NONE"/"FREQ=NONE" do not repeat: their completion is `is_completed`, not a date in completed_dates.
                     occurrenceDateKey = format(new Date(event.start || Date.now()), "yyyy-MM-dd");
                 }
 
@@ -380,6 +346,12 @@ export function useCalendarActions({
                             completed_dates: toggleDateInList(event.completed_dates, occurrenceDateKey, effectiveUpdates.is_completed),
                             is_completed: event.is_completed || false,
                         };
+                    }
+                } else if (effectiveUpdates.is_completed === false && effectiveUpdates.completed_dates === undefined && event.completed_dates?.length) {
+                    // Entries once treated as repeating keep their date in completed_dates; un-ticking must clear it too.
+                    const startKey = format(new Date(event.start || Date.now()), "yyyy-MM-dd");
+                    if (event.completed_dates.includes(startKey)) {
+                        effectiveUpdates = { ...effectiveUpdates, completed_dates: toggleDateInList(event.completed_dates, startKey, false) };
                     }
                 }
 
@@ -470,7 +442,30 @@ export function useCalendarActions({
                 const freshItemBeforeSend = (freshBeforeSend.events.find((e) => e.id === baseId) || freshBeforeSend.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
                 if (typeof freshItemBeforeSend?.version === "number") body.version = freshItemBeforeSend.version;
 
-                await putEventWithConflictRetry(baseId, event, body, strict);
+                // Same content as this client's last write and nobody wrote since: the server already has it.
+                const signature = eventContentSignature({ ...(body.metadata as Record<string, unknown>), __parent_id: body.parent_id });
+                if (isUnchangedSinceLastWrite(baseId, signature, freshItemBeforeSend?.version)) return;
+
+                // On a conflict these keys win over the fresh server state; the rest is taken from the server.
+                // title/description travel in the re-encrypted content, crypto keys belong to the new DEK.
+                const ownKeys = [
+                    ...Object.keys(effectiveUpdates), "title", "description",
+                    ...Object.keys(body.metadata as Record<string, unknown>).filter((k) => !(k in meta)),
+                    ...(meta.linkedTaskId ? ["recurrence_rule"] : []),
+                ];
+                await putEventGuarded(baseId, body, {
+                    strict,
+                    signature,
+                    ownKeys,
+                    onVersion: (version) => {
+                        event.version = version;
+                        syncVersionInStore(baseId, version);
+                    },
+                    currentVersion: () => {
+                        const now = useDataStore.getState().events.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
+                        return now?.version;
+                    },
+                });
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
 
                 // The event entered a group: that group's auto-share rule applies (checks ownership and "privat").

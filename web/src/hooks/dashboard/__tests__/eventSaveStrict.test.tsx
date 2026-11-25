@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import { useCalendarActions, type UseCalendarActionsReturn } from '../useCalendarActions';
 import { useDataStore } from '@/store/useDataStore';
 import { apiFetch } from '@/lib/api';
+import { resetEventWriteGuard } from '@/lib/eventWriteGuard';
 
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn(), getApiBase: vi.fn().mockReturnValue('') }));
 vi.mock('@/lib/crypto', async (orig) => ({
@@ -32,6 +33,7 @@ function hook(keys: CryptoKey | null): UseCalendarActionsReturn {
 describe('handleEventSave strict option', () => {
     beforeEach(() => {
         vi.mocked(apiFetch).mockReset();
+        resetEventWriteGuard(); // the write brake is per file; these cases write 'e1' back to back
         vi.spyOn(console, 'error').mockImplementation(() => {});
         useDataStore.setState({
             events: [{ id: 'e1', title: 'E', type: 'event', start: '2026-01-01T10:00:00Z', end: '2026-01-01T11:00:00Z', groupIds: ['a'] } as never],
