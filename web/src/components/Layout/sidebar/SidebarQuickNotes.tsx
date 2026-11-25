@@ -77,7 +77,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-[var(--hover-bg)] dark:bg-white/[0.05] border border-t2-line  flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-t2-hover "
+            className="w-[calc(100%-1rem)] mx-2 mb-2 px-3 py-2 rounded-lg bg-t2-hover border border-t2-line  flex items-center justify-between cursor-pointer select-none transition-colors hover:bg-t2-hover "
             title="Workspace wechseln"
         >
             <div className="flex items-center gap-2 min-w-0">

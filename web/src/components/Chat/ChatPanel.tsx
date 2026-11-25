@@ -95,8 +95,8 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
                         className="flex items-center gap-2 p-1 hover:bg-t2-hover  rounded cursor-pointer group"
                         style={{ paddingLeft: `${level * 12 + 20}px` }}
                     >
-                        <FileText size={14} className="text-t2-ink-3 group-hover:text-black dark:group-hover:text-white" />
-                        <span className="text-xs truncate group-hover:text-black dark:group-hover:text-white">{title}</span>
+                        <FileText size={14} className="text-t2-ink-3 group-hover:text-t2-ink" />
+                        <span className="text-xs truncate group-hover:text-t2-ink">{title}</span>
                     </div>
                 );
             })}

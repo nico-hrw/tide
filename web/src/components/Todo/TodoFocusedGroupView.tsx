@@ -312,7 +312,7 @@ export const TodoFocusedGroupView: React.FC<TodoFocusedGroupViewProps> = ({
       {/* Subtasks List */}
       <div className="flex flex-col gap-2.5">
         {totalSubtasks === 0 ? (
-          <div className="py-8 text-center text-xs sm:text-sm text-t2-ink-3  bg-white/40 dark:bg-white/[0.02] border border-dashed border-t2-line  rounded-2xl">
+          <div className="py-8 text-center text-xs sm:text-sm text-t2-ink-3  bg-[color-mix(in_srgb,var(--t2-surface)_40%,transparent)] border border-dashed border-t2-line  rounded-2xl">
             Keine Unteraufgaben vorhanden. Füge oben die erste Unteraufgabe hinzu.
           </div>
         ) : (

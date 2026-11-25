@@ -388,7 +388,7 @@ export default function ProfilePage({ userId, onOpenFile, onMessage, onBack }: P
                     </div>
 
                     {publicFiles.length === 0 ? (
-                        <div className="py-14 text-center border-2 border-dashed border-t2-line  rounded-2xl bg-white/40 dark:bg-white/[0.02]">
+                        <div className="py-14 text-center border-2 border-dashed border-t2-line  rounded-2xl bg-[color-mix(in_srgb,var(--t2-surface)_40%,transparent)]">
                             <FileText className="mx-auto h-10 w-10 text-t2-ink-3  mb-3" />
                             <p className="text-sm font-medium text-t2-ink-2 ">Keine öffentlichen Notizen vorhanden</p>
                             <p className="text-xs text-t2-ink-3  mt-1">Dieser Benutzer hat aktuell keine Notizen oder Dokumente freigegeben.</p>

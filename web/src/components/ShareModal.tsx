@@ -792,7 +792,7 @@ export default function ShareModal({
                                                     else next.delete(dep.id);
                                                     setSelectedDepIds(next);
                                                 }}
-                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent dark:accent-white"
+                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                             />
                                             <span className="truncate flex-1">{dep.title}</span>
                                         </label>

@@ -206,7 +206,7 @@ export function EditorBubbleMenu({
 
             <input
                 type="number" min="8" max="72"
-                className="w-12 px-1 text-center bg-transparent border border-t2-line  rounded-md text-sm outline-none dark:text-white"
+                className="w-12 px-1 text-center bg-transparent border border-t2-line  rounded-md text-sm outline-none text-t2-ink"
                 placeholder="16" value={fontSizeInput}
                 onChange={(e) => setFontSizeInput(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyFontSize(); } }}

@@ -58,7 +58,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
   const surface = dark
     ? 'bg-cal-praktikum text-white'
     : 'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink';
-  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-black/20 dark:ring-white/25') : '';
+  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)]') : '';
   const muted = dark ? 'text-white/70' : 'text-t2-ink-3';
 
   return (
@@ -68,7 +68,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       data-task-id={task.id}
       onClick={() => onActivate(task)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onActivate(task); }}
-      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-black/15 dark:hover:ring-white/20 ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
+      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-[color-mix(in_srgb,var(--t2-ink)_15%,transparent)] ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
     >
       <div className={`w-[54px] shrink-0 text-center leading-[1.15] pt-px ${muted}`}>
         {due && (today ? (

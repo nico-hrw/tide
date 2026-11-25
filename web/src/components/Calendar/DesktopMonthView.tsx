@@ -127,7 +127,7 @@ export default function DesktopMonthView({
                             <div
                                 key={day.toISOString()}
                                 onClick={() => handleDay(day)}
-                                className={`group relative flex flex-col min-w-0 overflow-hidden p-1.5 transition-colors cursor-pointer min-h-[96px] ${panelOpen && sel && isSameDay(sel.day, day) ? "ring-2 ring-black dark:ring-white " : ""}${
+                                className={`group relative flex flex-col min-w-0 overflow-hidden p-1.5 transition-colors cursor-pointer min-h-[96px] ${panelOpen && sel && isSameDay(sel.day, day) ? "ring-2 ring-t2-ink " : ""}${
                                     isTod
                                         ? "rounded-xl bg-t2-sub  border-2 border-t2-accent  shadow-xs hover:border-t2-accent  z-[2]"
                                         : isCurMonth

@@ -242,7 +242,7 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
                     ? 'bg-t2-stage  text-t2-ink  font-semibold ring-1 ring-t2-line '
                     : isOpen
                         ? 'bg-t2-hover  text-t2-ink  font-medium'
-                        : 'hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover text-t2-ink '
+                        : 'hover:bg-t2-hover interactive-hover text-t2-ink '
                 }`}
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
