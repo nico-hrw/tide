@@ -4,7 +4,7 @@
 
 import { apiFetch } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
-import { createZip, type ZipEntry } from './zip';
+import { createZip } from './zip';
 import { eventsToIcs, folderPathOf, noteToMarkdown, safeName, todosToMarkdown } from './readable';
 import { IssueLog, describeError, problemsText } from './issues';
 import { EXT, exportFile, type ExportContext, type RawFile } from './exportFile';

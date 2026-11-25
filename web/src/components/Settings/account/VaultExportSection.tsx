@@ -5,9 +5,35 @@ import { Button, Chip, Notice } from '../ui/Controls';
 import { useT } from '../useT';
 import { VaultImportRow } from './VaultImportRow';
 import { exportVault } from '@/lib/vaultExport/exportVault';
-import type { VaultExportProgress } from '@/lib/vaultExport/types';
+import type { VaultExportProgress, VaultIssueSeverity, VaultManifest } from '@/lib/vaultExport/types';
+import type { SettingsKey } from '@/lib/i18n';
 
-type Outcome = { tone: 'success' | 'error'; lines: string[] };
+type Line = { tone: 'success' | 'error' | 'info'; text: string };
+type Outcome = Line[];
+type Translate = ReturnType<typeof useT>;
+
+const HEADINGS: Array<{ severity: VaultIssueSeverity; key: SettingsKey; tone: Line['tone'] }> = [
+    { severity: 'loss', key: 'export.lossHeading', tone: 'error' },
+    { severity: 'partial', key: 'export.partialHeading', tone: 'info' },
+    { severity: 'info', key: 'export.infoHeading', tone: 'info' },
+];
+
+/** Separates real loss ("content missing") from missing extra details and from notes without any loss. */
+function exportOutcome(manifest: VaultManifest, t: Translate): Outcome {
+    const files = Object.values(manifest.counts).reduce((a, b) => a + b, 0);
+    const summary = manifest.summary ?? [];
+    const lines: Line[] = [{ tone: 'success', text: t('export.done', { files, assets: manifest.assetCount, tasks: manifest.taskCount }) }];
+    for (const h of HEADINGS) {
+        const rows = summary.filter((s) => s.severity === h.severity);
+        if (rows.length === 0) continue;
+        const count = rows.reduce((n, s) => n + s.count, 0);
+        const kinds = rows.map((s) => t('export.kindLine', { count: s.count, label: t(`export.kind.${s.kind}` as SettingsKey) })).join(' · ');
+        lines.push({ tone: h.tone, text: `${t(h.key, { count })} ${kinds}` });
+    }
+    if (summary.length > 0) lines.push({ tone: 'info', text: t('export.reportHint') });
+    if (manifest.skipped.length > 0) lines.push({ tone: 'info', text: t('export.skipped', { skipped: manifest.skipped.length }) });
+    return lines;
+}
 
 function download(blob: Blob, filename: string) {
     const url = URL.createObjectURL(blob);
@@ -33,16 +59,9 @@ export function VaultExportSection() {
         try {
             const { blob, filename, manifest } = await exportVault(setProgress);
             download(blob, filename);
-            const files = Object.values(manifest.counts).reduce((a, b) => a + b, 0);
-            const lines = [
-                manifest.failures.length > 0
-                    ? t('export.doneIssues', { failures: manifest.failures.length })
-                    : t('export.done', { files, assets: manifest.assetCount, tasks: manifest.taskCount }),
-            ];
-            if (manifest.skipped.length > 0) lines.push(t('export.skipped', { skipped: manifest.skipped.length }));
-            setOutcome({ tone: manifest.failures.length > 0 ? 'error' : 'success', lines });
+            setOutcome(exportOutcome(manifest, t));
         } catch (err) {
-            setOutcome({ tone: 'error', lines: [t('export.failed', { message: err instanceof Error ? err.message : String(err) })] });
+            setOutcome([{ tone: 'error', text: t('export.failed', { message: err instanceof Error ? err.message : String(err) }) }]);
         } finally {
             setProgress(null);
         }
@@ -69,8 +88,8 @@ export function VaultExportSection() {
             {(status || outcome) && (
                 <div className="mt-3 flex flex-col gap-2">
                     {status && <Notice>{status}</Notice>}
-                    {outcome?.lines.map((line) => (
-                        <Notice key={line} tone={outcome.tone}>{line}</Notice>
+                    {outcome?.map((line) => (
+                        <Notice key={line.text} tone={line.tone}>{line.text}</Notice>
                     ))}
                 </div>
             )}

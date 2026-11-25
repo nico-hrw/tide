@@ -111,7 +111,8 @@ function storeContent(record: VaultFileRecord, text: string, ctx: ExportContext,
 }
 
 function stripV1Keys(meta: Record<string, unknown>): Record<string, unknown> {
-    const { fileKey: _k, iv: _iv, isLocked: _l, ...rest } = meta;
+    const rest = { ...meta };
+    for (const k of ['fileKey', 'iv', 'isLocked']) delete rest[k];
     return rest;
 }
 
