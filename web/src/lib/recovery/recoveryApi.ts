@@ -4,6 +4,9 @@ import type { EncryptedPrivateKey } from '@/lib/crypto';
 import type { KeyProof } from './keyProof';
 import type { RecoveryVault } from './recoveryVault';
 
+/** Shown when a passkey session (or one without known notice address) tries to change the vault. */
+export const MAIL_SIGN_IN_REQUIRED = 'Dafür bitte einmal per Mail-Code anmelden. Mit einer Passkey-Anmeldung lassen sich Tresor, Wiederherstellungsschlüssel und Passkeys nicht ändern.';
+
 export class FreshSessionRequiredError extends Error {
     constructor() {
         super('Deine Anmeldung ist zu alt. Bitte melde dich neu mit einem Mail-Code an und versuche es direkt danach noch einmal.');
@@ -15,6 +18,7 @@ async function failure(res: Response, fallback: string): Promise<Error> {
     const text = (await res.text().catch(() => '')).trim();
     if (res.status === 403) {
         if (/key proof/i.test(text)) return new Error('Der Schlüsselnachweis ist fehlgeschlagen. Bitte versuche es erneut.');
+        if (/mail sign-in required/i.test(text)) return new Error(MAIL_SIGN_IN_REQUIRED);
         return new FreshSessionRequiredError();
     }
     if (res.status === 429) {

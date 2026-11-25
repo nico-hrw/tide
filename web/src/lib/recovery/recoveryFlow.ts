@@ -40,8 +40,16 @@ export async function recoverWithSecret(params: {
     token?: string;
 }): Promise<RecoverResult> {
     const extractable = await openRecoveryVault(params.recoveryVault, params.secret, true);
-    const encryptedVault = await wrapPrivateKeyWithPin(extractable, params.newPin, params.pepperBase64);
-    const proof = await requestKeyProof(extractable, params.token);
+    return recoverWithKey({ privateKey: extractable, newPin: params.newPin, pepperBase64: params.pepperBase64, token: params.token });
+}
+
+/**
+ * Sets a new PIN for an already opened (extractable) private key, e.g. from a passkey envelope:
+ * wrap, verify locally, key proof, replace-vault.
+ */
+export async function recoverWithKey(params: { privateKey: CryptoKey; newPin: string; pepperBase64: string; token?: string }): Promise<RecoverResult> {
+    const encryptedVault = await wrapPrivateKeyWithPin(params.privateKey, params.newPin, params.pepperBase64);
+    const proof = await requestKeyProof(params.privateKey, params.token);
     await replaceEncryptedVault(encryptedVault, proof, { token: params.token });
     const privateKey = await unlockVault(params.newPin, params.pepperBase64, encryptedVault, false);
     return { privateKey, encryptedVault };
