@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from 'react';
 import { CloudOff, RefreshCw, CheckCircle2, Wifi, ArrowUpRight } from 'lucide-react';
 import { flushSyncQueue, getSyncQueue, initSyncQueueListener } from '@/lib/syncQueue';
+import { requestPersistentStorage } from '@/lib/offline/store';
 
 export default function CloudStatusBanner() {
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
@@ -11,9 +12,12 @@ export default function CloudStatusBanner() {
     const [isSyncing, setIsSyncing] = useState(false);
     const [justSynced, setJustSynced] = useState(false);
     const [isDismissed, setIsDismissed] = useState(false);
+    const [cachedAt, setCachedAt] = useState<number | null>(null);
 
     useEffect(() => {
         initSyncQueueListener();
+        // Ask quietly (no dialog) that the browser keeps the offline data on this device
+        void requestPersistentStorage();
 
         // Check initial queue count
         getSyncQueue().then(queue => {
@@ -32,13 +36,16 @@ export default function CloudStatusBanner() {
             setIsDismissed(false);
         };
 
-        const handleTideOffline = () => {
+        const handleTideOffline = (e: Event) => {
+            const at = (e as CustomEvent<{ cachedAt?: number | null } | string>).detail;
+            if (at && typeof at === 'object' && typeof at.cachedAt === 'number') setCachedAt(at.cachedAt);
             setIsCloudUnreachable(true);
             setIsDismissed(false);
         };
 
         const handleTideOnline = () => {
             setIsCloudUnreachable(false);
+            setCachedAt(null);
         };
 
         const handleQueueUpdated = (e: Event) => {
@@ -108,7 +115,7 @@ export default function CloudStatusBanner() {
     }
 
     return (
-        <div className="hidden md:block fixed top-3 left-1/2 -translate-x-1/2 z-[999] pointer-events-auto max-w-md w-[calc(100%-2rem)] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
+        <div className="fixed top-[max(0.75rem,env(safe-area-inset-top))] left-1/2 -translate-x-1/2 z-[999] pointer-events-auto max-w-md w-[calc(100%-2rem)] transition-all animate-in fade-in slide-in-from-top-2 duration-200">
             {showOffline ? (
                 <div className="flex items-center justify-between gap-3 px-3.5 py-2 rounded-2xl bg-amber-500/10 dark:bg-amber-500/15 border border-amber-500/25 backdrop-blur-xl shadow-xl text-amber-900 dark:text-amber-200 text-xs">
                     <div className="flex items-center gap-2.5 min-w-0">
@@ -117,7 +124,9 @@ export default function CloudStatusBanner() {
                         </div>
                         <div className="flex flex-col min-w-0">
                             <span className="font-semibold truncate">
-                                Cloud nicht erreichbar · Offline-Stand aktiv
+                                {cachedAt
+                                    ? `Offline – Stand von ${new Date(cachedAt).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}`
+                                    : 'Cloud nicht erreichbar · Offline-Stand aktiv'}
                             </span>
                             <span className="text-[11px] text-amber-700/80 dark:text-amber-300/80 truncate">
                                 {pendingCount > 0 
