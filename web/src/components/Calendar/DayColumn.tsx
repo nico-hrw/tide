@@ -783,7 +783,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
             )}
 
             <div 
-                className="relative shrink-0 z-[10]" 
+                className="relative shrink-0 z-[10]"
+                data-slot-grid={readOnly ? undefined : format(day, "yyyy-MM-dd")}
                 style={{ height: `${24 * hourHeight}px` }}
                 onMouseDown={(e) => {
                     if (readOnly) return;

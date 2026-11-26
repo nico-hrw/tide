@@ -20,6 +20,8 @@ import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
 import { useWeekWindow, initialScrollTop } from './useWeekWindow';
 import { useFixedWeekNavigation } from './useFixedWeekNavigation';
+import { useSlotCreateGesture } from '@/hooks/useSlotCreateGesture';
+import { resolveTimeGridSlot } from './slotResolvers';
 import { useNoTagPrompt, useTaggedCreate } from './useNoTagPrompt';
 import type { CalendarViewProps, CalendarViewMode } from './types';
 
@@ -144,6 +146,15 @@ export default function CalendarView({
         enabled: isFixedWeek,
         isDragging: !!(draggingId || resizingId || creationDrag),
     });
+
+    // Touch: double tap or long press on an empty spot of the week / day grid creates an event there.
+    // Mouse and pen keep click-and-drag (the gesture only reacts to pointerType "touch").
+    useSlotCreateGesture(
+        scrollContainerRef,
+        { resolve: resolveTimeGridSlot, onCreate: (hit) => { void onEventCreate?.(hit.start, hit.end, false); } },
+        !!onEventCreateProp && (viewMode === 'week' || viewMode === 'day'),
+        [viewMode, isFixedWeek],
+    );
 
     // The infinite week view restores the vertical position itself (useWeekWindow); do it here for fixed mode.
     // A container that already existed before a runtime mode switch keeps its live vertical position.

@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
     format,
     startOfMonth,
@@ -18,6 +18,8 @@ import { useDataStore, useWeekStartsOn } from "@/store/useDataStore";
 import { MonthDayPanel, MonthEventInfo, eventColors } from "./MonthDayPanel";
 import { rotateWeekdayLabels } from "@/lib/calendarWeeks";
 import { sortMonthEvents } from "./monthEventOrder";
+import { useSlotCreateGesture } from "@/hooks/useSlotCreateGesture";
+import { resolveMonthCellSlot } from "./slotResolvers";
 import type { CalendarEvent } from "./types";
 
 interface DesktopMonthViewProps {
@@ -83,6 +85,14 @@ export default function DesktopMonthView({
 
     const panelOpen = tablet && sel !== null;
 
+    // Touch: double tap or long press on an empty part of a day cell creates an event (same default as "+").
+    const gridRef = useRef<HTMLDivElement>(null);
+    useSlotCreateGesture(
+        gridRef,
+        { resolve: resolveMonthCellSlot, onCreate: (hit) => { void onEventCreate?.(hit.start, hit.end, false); } },
+        !!onEventCreate,
+    );
+
     return (
         <div className="flex-1 flex h-full min-h-0 select-none overflow-hidden bg-transparent">
         <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden bg-transparent transition-[flex-basis] duration-300">
@@ -103,7 +113,7 @@ export default function DesktopMonthView({
                 </div>
 
                 {/* Month Day Grid */}
-                <div className="grid grid-cols-[repeat(7,minmax(0,1fr))] flex-1 auto-rows-[minmax(96px,1fr)] overflow-y-auto gap-1.5 p-2">
+                <div ref={gridRef} style={{ touchAction: "manipulation" }} className="grid grid-cols-[repeat(7,minmax(0,1fr))] flex-1 auto-rows-[minmax(96px,1fr)] overflow-y-auto gap-1.5 p-2">
                     {days.map((day) => {
                         const dayKey = format(day, "yyyy-MM-dd");
                         const isCurMonth = isSameMonth(day, currentDate);
@@ -126,6 +136,7 @@ export default function DesktopMonthView({
                         return (
                             <div
                                 key={day.toISOString()}
+                                data-month-day={dayKey}
                                 onClick={() => handleDay(day)}
                                 className={`group relative flex flex-col min-w-0 overflow-hidden p-1.5 transition-colors cursor-pointer min-h-[96px] ${panelOpen && sel && isSameDay(sel.day, day) ? "ring-2 ring-t2-ink " : ""}${
                                     isTod
@@ -177,6 +188,7 @@ export default function DesktopMonthView({
                             <div className="flex-1 min-h-0 flex flex-col gap-1 overflow-hidden">
                                 {hasTasks && (
                                     <div
+                                        data-slot-ignore
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDay(day);
@@ -225,6 +237,7 @@ export default function DesktopMonthView({
                                     return (
                                         <div
                                             key={ev.id}
+                                            data-slot-ignore
                                             onClick={(e) => {
                                                 e.stopPropagation();
                                                 if (tablet) setSel({ day, ev });
@@ -254,6 +267,7 @@ export default function DesktopMonthView({
 
                                 {hiddenCount > 0 && (
                                     <div
+                                        data-slot-ignore
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             handleDay(day);
