@@ -161,13 +161,32 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
 
   const shown = preview ?? rows;
 
+  // The bar grows and shrinks smoothly when rows come and go: its height follows the content with a transition.
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const update = () => setHeight(el.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   return (
-    <div ref={rootRef} className="relative flex flex-col gap-2.5 min-w-0">
+    <div
+      ref={rootRef}
+      className="relative min-w-0 flex-1 transition-[height] duration-200 ease-out motion-reduce:transition-none"
+      style={height === null ? undefined : { height }}
+    >
+      <div ref={innerRef} className={`flex flex-col gap-3 ${shown.length > 1 ? 'py-2.5' : ''}`}>
       {shown.map((row, r) => (
-        <div key={`row-${r}`} className="flex items-center">
+        <div key={`row-${r}`} className="flex w-full items-center justify-center">
           {row.map((group, g) => (
             <React.Fragment key={`group-${r}-${g}`}>
-              {g > 0 && <div className="w-5 shrink-0" aria-hidden="true" />}
+              {/* Tabs of one group sit close together; groups keep room between them (28 to 128 px). */}
+              {g > 0 && <div className="h-px min-w-7 max-w-32 flex-1" aria-hidden="true" />}
               <div className="flex items-center gap-1">
                 {group.map((id) => (
                   <div
@@ -185,6 +204,7 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
           ))}
         </div>
       ))}
+      </div>
       {dragId && ghost && (
         <div
           className="pointer-events-none fixed z-[900] flex items-center rounded-lg border border-t2-line bg-t2-surface opacity-95 shadow-lg"

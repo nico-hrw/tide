@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
-import { CALENDAR_CATEGORIES } from "@/lib/calendarColors";
+import { workspaceTone } from "@/lib/workspaceColor";
+import { usePopupTimer } from "@/hooks/usePopupTimer";
+import { PopupTimerBar } from "@/components/Popup/PopupTimerBar";
 import {
     Plus,
     Archive,
@@ -55,17 +57,16 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
-    const leaveTimer = useRef<number | null>(null);
-    const cancelClose = useCallback(() => {
-        if (leaveTimer.current !== null) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
-    }, []);
-    // Compact (sidebar row): the list closes when the pointer has been away for a moment; not while a context menu is open.
-    const scheduleClose = useCallback(() => {
-        cancelClose();
-        leaveTimer.current = window.setTimeout(() => setIsOpen(false), 350);
-    }, [cancelClose]);
-    useEffect(() => cancelClose, [cancelClose]);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const popRef = useRef<HTMLDivElement>(null);
     const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
+    // Compact (sidebar row): the list closes when the mouse stays away from it and the row (the bar on top shows the time);
+    // it holds while a context menu of a workspace is open.
+    const { fillRef, restRef } = usePopupTimer({
+        refs: [rootRef, popRef],
+        enabled: compact && isOpen && !ctxMenu,
+        onExpire: () => setIsOpen(false),
+    });
     const [listPos, setListPos] = useState<{ top: number; left: number } | null>(null);
     const defaultSafe = useDataStore((s) => s.defaultSafe);
     const setDefaultSafe = useDataStore((s) => s.setDefaultSafe);
@@ -78,12 +79,6 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     const [newSafeName, setNewSafeName] = useState('');
 
     const displayName = (s: string) => (s === 'main' ? 'Standard' : s);
-    // Each workspace keeps one calendar colour, picked from its name, so the tiles are told apart at a glance.
-    const tileFor = (s: string) => {
-        let h = 0;
-        for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
-        return CALENDAR_CATEGORIES[Math.abs(h) % CALENDAR_CATEGORIES.length];
-    };
     const safeLabel =
         activeSafes.length === 1
             ? displayName(activeSafes[0])
@@ -129,8 +124,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
 
     return (
         <div
-            onMouseEnter={compact ? cancelClose : undefined}
-            onMouseLeave={compact && !ctxMenu ? scheduleClose : undefined}
+            ref={rootRef}
             className={compact ? 'relative w-full px-2' :(className ||"flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
             {toggleButton}
             {ctxMenu && (
@@ -162,15 +156,17 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
+                        ref={popRef}
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                         style={compact && listPos ? { top: listPos.top, left: listPos.left } : undefined}
                         className={compact
-                            ? 'fixed z-[700] w-[260px] p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
+                            ? 'fixed z-[700] w-[260px] p-1.5 pt-3 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
                             : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-t2-line  space-y-1 overflow-hidden'}
                     >
+                        {compact && <PopupTimerBar fillRef={fillRef} restRef={restRef} />}
                         {/* List of safes */}
                         <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto no-scrollbar">
                             {allSafes.map((safe, idx) => {
@@ -203,8 +199,8 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
                                             title={`Zu "${safe}" wechseln`}
                                         >
-                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: tileFor(safe).bg, color: tileFor(safe).ink }} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
-                                            <span className="truncate text-xs">{safe}</span>
+                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: workspaceTone(safe).bg, color: workspaceTone(safe).ink }} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
+                                            <span className="truncate text-xs">{displayName(safe)}</span>
                                         </button>
 
                                         <div className="flex h-6 items-center gap-1 shrink-0">

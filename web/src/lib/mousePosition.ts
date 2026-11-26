@@ -1,0 +1,28 @@
+/**
+ * Last known mouse position, shared by everything that reacts to the pointer's distance (toasts, popups).
+ * Stays null on touch devices (no mouse), so nothing there ever expires because of "the mouse is far away".
+ */
+let mousePos: { x: number; y: number } | null = null;
+let listening = false;
+
+/** Starts listening once; safe to call from every effect. */
+export function trackMouse(): void {
+    if (listening || typeof window === 'undefined') return;
+    listening = true;
+    const set = (e: MouseEvent) => { mousePos = { x: e.clientX, y: e.clientY }; };
+    // mousedown / contextmenu: a menu opens at the click, before any mousemove has been seen
+    window.addEventListener('mousemove', set, { passive: true });
+    window.addEventListener('mousedown', set, { passive: true, capture: true });
+    window.addEventListener('contextmenu', set, { passive: true, capture: true });
+}
+
+export function getMousePos(): { x: number; y: number } | null {
+    return mousePos;
+}
+
+/** px between a point and a rectangle (0 inside it). */
+export function distanceToRect(p: { x: number; y: number }, r: { left: number; right: number; top: number; bottom: number }): number {
+    const dx = Math.max(r.left - p.x, 0, p.x - r.right);
+    const dy = Math.max(r.top - p.y, 0, p.y - r.bottom);
+    return Math.hypot(dx, dy);
+}

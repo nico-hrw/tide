@@ -3,6 +3,8 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Calendar, ChevronDown, GraduationCap, LayoutGrid, ListTodo, Puzzle, Settings, Users, Variable } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
@@ -32,17 +34,9 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
-    const leaveTimer = useRef<number | null>(null);
-
-    // Sidebar row: the dropdown closes when the pointer has been away for a moment (the gap to the popover is short).
-    const cancelClose = () => {
-        if (leaveTimer.current !== null) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
-    };
-    const scheduleClose = () => {
-        cancelClose();
-        leaveTimer.current = window.setTimeout(() => setOpen(false), 350);
-    };
-    useEffect(() => cancelClose, []);
+    const popRef = useRef<HTMLDivElement>(null);
+    // The panel closes when the mouse stays away from the button and the panel; the bar on top shows the time left.
+    const { fillRef, restRef } = usePopupTimer({ refs: [ref, popRef], enabled: open, onExpire: () => setOpen(false) });
 
     useEffect(() => {
         if (!open) return;
@@ -67,8 +61,6 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
         <div
             ref={ref}
             className={variant === 'row' ? 'relative w-full' : 'relative shrink-0 flex items-center'}
-            onMouseEnter={variant === 'row' ? cancelClose : undefined}
-            onMouseLeave={variant === 'row' ? scheduleClose : undefined}
         >
             <button
                 type="button"
@@ -93,13 +85,15 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
 
             {open && (
                 <div
+                    ref={popRef}
                     role="menu"
                     className={variant === 'row'
                         ? 'fixed z-[700] w-[260px] p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] overflow-hidden'
                         : 'absolute right-0 top-[calc(100%+10px)] z-[150] w-[320px] overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100'}
                     style={variant === 'row' && pos ? { top: pos.top, left: pos.left } : undefined}
                 >
-                    <div className="px-4 pb-2 pt-3.5">
+                    <PopupTimerBar fillRef={fillRef} restRef={restRef} />
+                    <div className="px-4 pb-2 pt-5">
                         <div className="text-[13px] font-semibold text-t2-ink">Plugins</div>
                         <div className="text-[12px] text-t2-ink-3">Werkzeuge, die du mit Tide nutzen kannst</div>
                     </div>

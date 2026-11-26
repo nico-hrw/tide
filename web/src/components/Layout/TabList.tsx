@@ -300,9 +300,9 @@ export default function TabList({
             {/* Zone 2: Center balanced zone (Horizontally Centered Tabs) */}
             <div 
                 ref={scrollRef}
-                className={`flex items-center min-w-0 py-1 ${navigationMode === 'folders' ? 'flex-1 justify-start overflow-x-auto no-scrollbar' : 'max-w-full overflow-x-auto no-scrollbar'}`}
+                className={`flex items-center min-w-0 py-1 overflow-x-auto no-scrollbar ${navigationMode === 'folders' ? 'flex-1 justify-start' : 'flex-[4_1_0%]'}`}
             >
-                <div className={`flex items-center gap-1.5 shrink-0 ${navigationMode === 'folders' ? 'justify-start' : 'mx-auto'}`}>
+                <div className="flex w-full items-center gap-1.5">
                     <TabLayoutView rows={rows} renderTab={renderTab} onMove={(id, target) => applyRows(moveTab(rows, id, target))} />
 
                     {/* "+" New Note Tab Button */}
