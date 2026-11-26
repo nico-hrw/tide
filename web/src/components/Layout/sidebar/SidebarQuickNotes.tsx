@@ -65,13 +65,12 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="flex items-center gap-1 px-1 py-1.5 bg-transparent text-t2-ink-2 text-[13px] font-semibold cursor-pointer select-none max-w-[12rem]"
-            title="Workspace wechseln"
+            className="flex h-7 w-7 items-center justify-center rounded-md text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink-2 cursor-pointer select-none"
+            title={`Workspace wechseln (aktuell: ${safeLabel})`}
+            aria-label={`Workspace wechseln, aktuell ${safeLabel}`}
             aria-expanded={isOpen}
         >
-            <Archive size={14} className="shrink-0 text-t2-ink-3" />
-            <span className="truncate">{safeLabel}</span>
-            <ChevronDown size={14} className={`shrink-0 text-t2-ink-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
+            <Archive size={15} className="shrink-0" />
         </button>
     ) : (
         <button
