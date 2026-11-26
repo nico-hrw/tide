@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays, Clock, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock, Layers, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { WorkspacePicker } from '@/components/Todo/TodoWorkspacePicker';
+import { todoSafe } from '@/lib/todoSafes';
 import TagPicker from '@/components/Tags/TagPicker';
 import { useTagCreate } from '@/components/Tags/useTagCreate';
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from '@/lib/calendarColors';
@@ -114,6 +116,13 @@ export default function CalendarEventEditor({ event, themes, onUpdate, onDelete 
                         </span>
                     </Row>
                 )}
+                <Row label="Workspace" icon={<Layers size={15} />}>
+                    <WorkspacePicker
+                        safe={todoSafe(event)}
+                        linkedSafes={event.linkedSafes ?? []}
+                        onChange={(next) => onUpdate(next)}
+                    />
+                </Row>
                 <Row label="Tags" icon={<TagIcon size={15} />}>
                     <TagPicker
                         tags={themes}

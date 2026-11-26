@@ -1,5 +1,6 @@
 "use client";
 
+import { todoSafe } from '@/lib/todoSafes';
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
@@ -216,6 +217,8 @@ export function useTaskCalendarSync({
                             title: t.title,
                             is_task: true,
                             linkedTaskId: t.id,
+                            safe: todoSafe(t),
+                            linkedSafes: t.linkedSafes ?? [],
                             color:
                                 t.color ||
                                 (t.folder && foldersMeta[t.folder]?.color
@@ -240,8 +243,9 @@ export function useTaskCalendarSync({
                     const isAllDayDiff = Boolean(existingEvent.allDay) !== isAllDay;
                     const isCompletedDiff = isLinkedCompletionDiff(existingEvent, t.isCompleted);
                     const isRecurrenceDiff = isLinkedRecurrenceDiff(existingEvent.recurrence_rule, t.recurrence_rule);
+                    const isSafeDiff = todoSafe(existingEvent) !== todoSafe(t) || (existingEvent.linkedSafes ?? []).join(',') !== (t.linkedSafes ?? []).join(',');
 
-                    if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff) {
+                    if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff || isSafeDiff) {
                         const updates: CalendarEventUpdates = {
                             title: t.title,
                             start: start.toISOString(),
@@ -252,6 +256,8 @@ export function useTaskCalendarSync({
                             // "" (not undefined): a todo without repetition also clears the entry's rule.
                             recurrence_rule: t.recurrence_rule ?? "",
                             recurrence_end: t.recurrence_end,
+                            safe: todoSafe(t),
+                            linkedSafes: t.linkedSafes ?? [],
                         };
                         // One attempt per todo state and entry: if the entry still differs afterwards (another
                         // client, another time zone, a rejected write), only a new todo state writes again.

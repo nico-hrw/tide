@@ -2,6 +2,9 @@ import type React from "react";
 import type { ScheduleEventData } from "./ScheduleModal";
 
 export interface CalendarEvent {
+    /** Workspace of the event ("main" when unset) and extra workspaces it is shown in. */
+    safe?: string;
+    linkedSafes?: string[];
     id: string;
     title: string;
     start: string;

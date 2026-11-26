@@ -18,6 +18,9 @@ import { eventContentSignature, isUnchangedSinceLastWrite, normalizeRecurrenceRu
 
 export interface CalendarEventExtraMeta {
     title?: string;
+    /** Workspace of the event ("main" when unset) and extra workspaces it is shown in. */
+    safe?: string;
+    linkedSafes?: string[];
     description?: string;
     color?: string;
     effect?: string;
@@ -85,6 +88,7 @@ interface WindowWithTideSave {
 const FALLBACK_META_KEYS = [
     "title", "description", "allDay", "isGroup", "effect", "is_cancelled", "exdates", "removed_dates",
     "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds", "private",
+    "safe", "linkedSafes",
 ] as const;
 
 const isSameTime = (d1?: string, d2?: string): boolean => {
@@ -154,7 +158,11 @@ export function useCalendarActions({
 
             const title = extraMeta.title || "New Event";
             try {
-                const meta: Record<string, unknown> = { ...extraMeta, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
+                // New events land in the first active workspace unless the caller names one.
+                const defaultSafe = useDataStore.getState().activeSafes?.[0] ?? "main";
+                const safe = extraMeta.safe ?? defaultSafe;
+                const linkedSafes = extraMeta.linkedSafes ?? [];
+                const meta: Record<string, unknown> = { ...extraMeta, safe, linkedSafes, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
                 // RSA-OAEP only fits ~190 bytes: keep secured_meta small, the rest goes to `metadata` / the AES blob.
                 const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta({ title, start: meta.start as string, end: meta.end as string, allDay: isAllDay }), publicKey);
                 const bodyPayload: Record<string, unknown> = { type: "event", parent_id: null, public_meta: {} };
@@ -182,6 +190,7 @@ export function useCalendarActions({
                             ...extraMeta, id: newFile.id, type: "event", title,
                             start: meta.start as string, end: meta.end as string, allDay: isAllDay,
                             is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId,
+                            safe, linkedSafes,
                         };
                         applySetEvents([...storeState.events, createdEvent]);
                         setActiveEventId?.(newFile.id);

@@ -494,6 +494,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                 title: draggedTask.title,
                                 is_task: true,
                                 linkedTaskId: draggedTask.id,
+                                safe: draggedTask.safe,
+                                linkedSafes: draggedTask.linkedSafes,
                                 description: draggedTask.description,
                                 color: resolveTaskColor(draggedTask)
                             });
@@ -855,6 +857,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                 title: draggedTask.title,
                                 is_task: true,
                                 linkedTaskId: draggedTask.id,
+                                safe: draggedTask.safe,
+                                linkedSafes: draggedTask.linkedSafes,
                                 description: draggedTask.description,
                                 color: resolveTaskColor(draggedTask)
                             });
