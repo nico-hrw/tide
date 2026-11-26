@@ -4,6 +4,7 @@ import { normalizeSafe } from "@/lib/todoSafes";
 import {
     Plus,
     Archive,
+    Layers,
     ChevronDown,
     Check,
     CheckSquare,
@@ -54,6 +55,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
 
     const [isOpen, setIsOpen] = useState(false);
     const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
+    const [listPos, setListPos] = useState<{ top: number; left: number } | null>(null);
     const defaultSafe = useDataStore((s) => s.defaultSafe);
     const setDefaultSafe = useDataStore((s) => s.setDefaultSafe);
     const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
@@ -75,13 +77,16 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     const toggleButton = compact ? (
         <button
             type="button"
-            onClick={() => setIsOpen((prev) => !prev)}
+            onClick={(e) => {
+                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); }
+                setIsOpen((prev) => !prev);
+            }}
             className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none"
             title="Workspace wechseln"
             aria-expanded={isOpen}
         >
+            <Layers size={16} className="shrink-0 text-t2-ink-3" aria-hidden="true" />
             <span className="flex-1 truncate">{safeLabel}</span>
-            <ChevronDown size={11} className={`shrink-0 text-t2-ink-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </button>
     ) : (
         <button
@@ -121,9 +126,13 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         // Todos and events have no move-to-standard yet: keep them visible by refusing the delete.
                         const inUse = tasksInSafe(ctxMenu.safe) + eventsInSafe(ctxMenu.safe);
                         if (inUse > 0) {
+                        // Native dialog until the app has its own confirm for workspaces.
+                        // eslint-disable-next-line no-alert
                             window.alert(`„${displayName(ctxMenu.safe)}“ enthält noch ${inUse} Todos oder Termine. Verschiebe sie zuerst in einen anderen Workspace.`);
                             return;
                         }
+                        // Native dialog until the app has its own confirm for workspaces.
+                        // eslint-disable-next-line no-alert
                         if (window.confirm(`Workspace „${displayName(ctxMenu.safe)}“ löschen? Seine Notizen wandern nach Standard.`)) deleteSafe(ctxMenu.safe);
                     }}
                 />
@@ -137,8 +146,9 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
+                        style={compact && listPos ? { top: listPos.top, left: listPos.left } : undefined}
                         className={compact
-                            ? 'absolute left-0 right-0 top-full z-50 mt-1.5 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
+                            ? 'fixed z-[700] w-[260px] p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
                             : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-t2-line  space-y-1 overflow-hidden'}
                     >
                         {/* List of safes */}

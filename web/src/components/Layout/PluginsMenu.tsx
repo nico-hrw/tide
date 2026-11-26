@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
-import { Calendar, ChevronDown, GraduationCap, ListTodo, Puzzle, Settings, Users, Variable } from 'lucide-react';
+import { Calendar, ChevronDown, GraduationCap, LayoutGrid, ListTodo, Puzzle, Settings, Users, Variable } from 'lucide-react';
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
@@ -29,6 +29,7 @@ interface Entry {
 /** "Plugins" button in the top bar with a tidy panel of tiles. */
 export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExtensions = [], onTabSelect, onOpenSocial, onOpenSettings, onOpenVariables }: PluginsMenuProps) {
     const [open, setOpen] = useState(false);
+    const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -54,7 +55,10 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
         <div ref={ref} className="relative shrink-0 flex items-center">
             <button
                 type="button"
-                onClick={() => setOpen((v) => !v)}
+                onClick={(e) => {
+                    if (!open) { const r = e.currentTarget.getBoundingClientRect(); setPos({ top: r.top, left: r.right + 8 }); }
+                    setOpen((v) => !v);
+                }}
                 title="Plugins und Erweiterungen"
                 aria-label="Plugins"
                 aria-expanded={open}
@@ -63,14 +67,16 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
                 }`}
             >
                 {variant === 'pill' && <Puzzle size={14} />}
-                <span className={variant === 'pill' ? 'hidden sm:inline' : 'truncate'}>Plugins</span>
-                <ChevronDown size={11} className={`text-t2-ink-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
+                {variant === 'row' && <LayoutGrid size={16} className="shrink-0 text-t2-ink-3" aria-hidden="true" />}
+                <span className={variant === 'pill' ? 'hidden sm:inline' : 'flex-1 truncate'}>Plugins</span>
+                {variant === 'pill' && <ChevronDown size={11} className={`text-t2-ink-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />}
             </button>
 
             {open && (
                 <div
                     role="menu"
-                    className={`absolute ${variant === 'row' ? 'left-0 top-full z-[150] mt-1.5 w-full' : 'right-0 top-[calc(100%+10px)] z-[150] w-[320px]'} overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100`}
+                    className={`${variant === 'row' ? 'fixed z-[700] w-[300px]' : 'absolute right-0 top-[calc(100%+10px)] z-[150] w-[320px]'} overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100`}
+                    style={variant === 'row' && pos ? { top: pos.top, left: pos.left } : undefined}
                 >
                     <div className="px-4 pb-2 pt-3.5">
                         <div className="text-[13px] font-semibold text-t2-ink">Plugins</div>
