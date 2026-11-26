@@ -22,10 +22,14 @@ type FileHandler struct {
 	BlobStore store.BlobStore
 	Broker    *Broker
 	Hub       *Hub
+
+	// updateGuard brakes PUT/PATCH /files/{id} per user+file (nil: no limit).
+	updateGuard *fileUpdateGuard
 }
 
 func NewFileHandler(s *store.SQLiteStore, b store.BlobStore, broker *Broker) *FileHandler {
-	return &FileHandler{Store: s, BlobStore: b, Broker: broker, Hub: GlobalHub}
+	return &FileHandler{Store: s, BlobStore: b, Broker: broker, Hub: GlobalHub,
+		updateGuard: newFileUpdateGuard(fileUpdateRatePerMinute, fileUpdateBurst)}
 }
 
 func (h *FileHandler) RegisterRoutes(r chi.Router) {
@@ -336,6 +340,21 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	_ = requesterID // used above; keep variable in scope
+
+	if ok, retryAfter := h.updateGuard.allow(requesterID, id); !ok {
+		writeFileUpdateRateLimited(w, retryAfter)
+		return
+	}
+
+	// Repeated write of what the server already holds (also with a stale version): change nothing,
+	// no version bump, no broadcast, no backup cascade; answer with the current state.
+	if isNoOpFileUpdate(file, &req, requesterID) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Tide-Noop", "1")
+		w.WriteHeader(http.StatusOK)
+		json.NewEncoder(w).Encode(file)
+		return
+	}
 
 	// Update fields
 	if req.ParentID != nil {

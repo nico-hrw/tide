@@ -53,10 +53,16 @@ func (l *IPRateLimiter) Stop() {
 
 // Allow reports whether a request from the given IP is permitted under the token bucket limits.
 func (l *IPRateLimiter) Allow(ip string) bool {
+	ok, _ := l.allowAt(ip, time.Now())
+	return ok
+}
+
+// allowAt is Allow at a given time for any string key (not only IPs, e.g. "user|file"); when the
+// request is refused it also reports how long until the next token is available.
+func (l *IPRateLimiter) allowAt(ip string, now time.Time) (bool, time.Duration) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	now := time.Now()
 	entry, exists := l.ips[ip]
 	if !exists {
 		if len(l.ips) >= maxEntries {
@@ -80,10 +86,17 @@ func (l *IPRateLimiter) Allow(ip string) bool {
 
 	if entry.tokens >= 1.0 {
 		entry.tokens -= 1.0
-		return true
+		return true, 0
 	}
 
-	return false
+	if l.rate <= 0 {
+		return false, maxIdleAge
+	}
+	wait := time.Duration((1.0 - entry.tokens) / l.rate * float64(time.Second))
+	if wait < time.Millisecond {
+		wait = time.Millisecond // float rounding just below a full token
+	}
+	return false, wait
 }
 
 // evictLocked purges entries idle longer than maxIdleAge and, if the map is
