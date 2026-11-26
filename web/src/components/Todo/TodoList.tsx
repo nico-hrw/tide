@@ -11,6 +11,7 @@ import {
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
+import { todoVisibleInSafes } from '@/lib/todoSafes';
 import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
 import { pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
@@ -41,7 +42,10 @@ export {
 const LINGER_DELAY_MS = 5000;
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
-  const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
+  const { tasks: allTasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
+  const activeSafes = useDataStore((s) => s.activeSafes);
+  // Todos of the active workspaces (own or linked); the rest stays in its workspace.
+  const tasks = useMemo(() => allTasks.filter((t) => todoVisibleInSafes(t, activeSafes ?? [])), [allTasks, activeSafes]);
   const isDesktopVariant = variant === 'desktop';
 
   const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);

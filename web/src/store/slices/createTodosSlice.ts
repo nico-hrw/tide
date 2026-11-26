@@ -18,6 +18,8 @@ function taskToServerTodoPayload(task: TaskItem, includeId: boolean): Record<str
         is_completed: Boolean(task.isCompleted),
         folder: task.folder ?? '',
         linked_note_id: task.linkedNoteId ?? '',
+        safe: task.safe ?? 'main',
+        linked_safes: task.linkedSafes ?? [],
         recurrence: task.recurrence ?? '',
         recurrence_rule: task.recurrence_rule ?? '',
         recurrence_end: task.recurrence_end ?? '',
@@ -62,9 +64,14 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 : isCompleted
                 ? new Date().toISOString()
                 : undefined;
+        // Workspace: explicit, else the parent's (sub-todos stay with their parent), else the first active one.
+        const parent = taskDraft.parentId ? state.tasks.find((t) => t.id === taskDraft.parentId) : undefined;
+        const defaultSafe = parent?.safe ?? (state as { activeSafes?: string[] }).activeSafes?.[0] ?? 'main';
         const newTask: TaskItem = {
             id: fallbackId,
             ...taskDraft,
+            safe: taskDraft.safe ?? defaultSafe,
+            linkedSafes: taskDraft.linkedSafes ?? [],
             parentId: taskDraft.parentId !== undefined ? taskDraft.parentId : null,
             order: taskDraft.order !== undefined ? taskDraft.order : 0,
             showInCalendar,

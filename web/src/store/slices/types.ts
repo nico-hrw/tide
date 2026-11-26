@@ -31,6 +31,10 @@ export interface TaskItem {
     recurrence_end?: string;
     completed_dates?: string[];
     folder?: string;
+    /** Workspace the todo belongs to ("main" when unset). */
+    safe?: string;
+    /** Extra workspaces the todo is shown in. */
+    linkedSafes?: string[];
     tags?: string[];
     showInCalendar?: boolean;
     createdAt?: string;

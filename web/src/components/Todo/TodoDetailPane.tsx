@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Flag, Link2, Plus, Tag, Trash2 } from 'lucide-react';
+import { Calendar, Flag, Layers, Link2, Plus, Tag, Trash2 } from 'lucide-react';
+import { TodoWorkspacePicker } from './TodoWorkspacePicker';
 import { format } from 'date-fns';
 import { TaskItem, useDataStore } from '@/store/useDataStore';
 import { Priority, getTaskPriority, getPriorityColor, parseDateSafe } from './types';
@@ -146,6 +147,11 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
             ))}
           </div>
         </Row>
+        {!parent && (
+          <Row label="Workspace" icon={<Layers size={15} />}>
+            <TodoWorkspacePicker task={task} onUpdate={onUpdate} />
+          </Row>
+        )}
         <Row label="Tags" icon={<Tag size={15} />}>
           <TagPicker
             tags={allTags}

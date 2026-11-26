@@ -34,6 +34,8 @@ interface ServerTodoItem {
     is_completed?: boolean;
     folder?: string;
     linked_note_id?: string;
+    safe?: string;
+    linked_safes?: string[];
     recurrence?: string;
     recurrence_rule?: string;
     recurrence_end?: string;
@@ -66,6 +68,8 @@ function mapServerTodoToTaskItem(raw: ServerTodoItem): TaskItem {
         recurrence_end: raw.recurrence_end || undefined,
         completed_dates: Array.isArray(raw.completed_dates) ? raw.completed_dates : [],
         folder: raw.folder || undefined,
+        safe: raw.safe || 'main',
+        linkedSafes: Array.isArray(raw.linked_safes) ? raw.linked_safes : [],
         tags: Array.isArray(raw.tags) ? raw.tags : [],
         showInCalendar: Boolean(raw.show_in_calendar),
         createdAt: raw.created_at || undefined,
