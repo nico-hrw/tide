@@ -54,9 +54,10 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     const [isCreatingSafe, setIsCreatingSafe] = useState(false);
     const [newSafeName, setNewSafeName] = useState('');
 
+    const displayName = (s: string) => (s === 'main' ? 'Standard' : s);
     const safeLabel =
         activeSafes.length === 1
-            ? activeSafes[0]
+            ? displayName(activeSafes[0])
             : activeSafes.length > 1
             ? `${activeSafes.length} Workspaces aktiv`
             : 'Kein Workspace';
@@ -65,12 +66,12 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={() => setIsOpen((prev) => !prev)}
-            className="flex h-7 w-7 items-center justify-center rounded-md text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink-2 cursor-pointer select-none"
-            title={`Workspace wechseln (aktuell: ${safeLabel})`}
-            aria-label={`Workspace wechseln, aktuell ${safeLabel}`}
+            className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none"
+            title="Workspace wechseln"
             aria-expanded={isOpen}
         >
-            <Archive size={15} className="shrink-0" />
+            <span className="flex-1 truncate">{safeLabel}</span>
+            <ChevronDown size={11} className={`shrink-0 text-t2-ink-3 transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`} />
         </button>
     ) : (
         <button
@@ -107,7 +108,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                         className={compact
-                            ? 'absolute right-0 top-full z-50 mt-2 w-60 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
+                            ? 'absolute left-0 right-0 top-full z-50 mt-1.5 p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
                             : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-t2-line  space-y-1 overflow-hidden'}
                     >
                         {/* List of safes */}
@@ -141,14 +142,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
                                             title={`Zu "${safe}" wechseln`}
                                         >
-                                            <Archive
-                                                size={13}
-                                                className={
-                                                    isActive
-                                                        ? 'text-t2-accent'
-                                                        : 'text-[var(--text-muted)] group-hover:text-[var(--text-body)]'
-                                                }
-                                            />
+                                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${isActive ? 'bg-t2-accent text-t2-accent-ink' : 'bg-t2-sub text-t2-ink-2'}`} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
                                             <span className="truncate text-xs">{safe}</span>
                                             {isActive && (
                                                 <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">

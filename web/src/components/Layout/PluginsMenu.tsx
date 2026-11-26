@@ -5,6 +5,8 @@ import { Calendar, ChevronDown, GraduationCap, ListTodo, Puzzle, Settings, Users
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
+    /** "pill" in the tab bar; "row" as a full-width sidebar entry (no icon). */
+    variant?: 'pill' | 'row';
     activeTabId: string;
     enabledExtensions?: string[];
     onTabSelect: (id: string, type: Tab['type']) => void;
@@ -25,7 +27,7 @@ interface Entry {
 }
 
 /** "Plugins" button in the top bar with a tidy panel of tiles. */
-export default function PluginsMenu({ activeTabId, enabledExtensions = [], onTabSelect, onOpenSocial, onOpenSettings, onOpenVariables }: PluginsMenuProps) {
+export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExtensions = [], onTabSelect, onOpenSocial, onOpenSettings, onOpenVariables }: PluginsMenuProps) {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
 
@@ -60,15 +62,15 @@ export default function PluginsMenu({ activeTabId, enabledExtensions = [], onTab
                     open ? 'border-t2-line bg-t2-surface text-t2-ink shadow-xs' : 'border-transparent text-t2-ink-2 hover:bg-t2-stage hover:text-t2-ink'
                 }`}
             >
-                <Puzzle size={14} />
-                <span className="hidden sm:inline">Plugins</span>
+                {variant === 'pill' && <Puzzle size={14} />}
+                <span className={variant === 'pill' ? 'hidden sm:inline' : 'truncate'}>Plugins</span>
                 <ChevronDown size={11} className={`text-t2-ink-3 transition-transform duration-200 ${open ? 'rotate-180' : ''}`} />
             </button>
 
             {open && (
                 <div
                     role="menu"
-                    className="absolute right-0 top-[calc(100%+10px)] z-[150] w-[320px] overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100"
+                    className={`absolute ${variant === 'row' ? 'left-0 top-full z-[150] mt-1.5 w-full' : 'right-0 top-[calc(100%+10px)] z-[150] w-[320px]'} overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100`}
                 >
                     <div className="px-4 pb-2 pt-3.5">
                         <div className="text-[13px] font-semibold text-t2-ink">Plugins</div>

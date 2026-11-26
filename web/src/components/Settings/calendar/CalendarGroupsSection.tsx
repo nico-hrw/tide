@@ -54,7 +54,7 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
 
     return (
         <div>
-            <div className="flex items-center gap-3 px-4 py-2.5">
+            <div className="group flex items-center gap-3 px-4 py-2.5">
                 <i className="h-3 w-3 shrink-0 rounded-[4px]" style={{ backgroundColor: color }} aria-hidden />
                 <input
                     value={title}
@@ -68,6 +68,8 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                 {group.share && group.share.recipients.length > 0 && (
                     <VisibilityBadge kind="shared" count={group.share.recipients.length} size={12} className="text-t2-ink-3" />
                 )}
+                {/* Actions show on hover or keyboard focus; the row stays calm in long lists. */}
+                <div className="flex items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-focus-within:opacity-100">
                 <IconButton label={hidden ? t('cal.show', { name: group.title }) : t('cal.hide', { name: group.title })} onClick={() => onToggleVisibility?.(group.id)}>
                     {hidden ? <EyeOff className="h-[15px] w-[15px]" /> : <Eye className="h-[15px] w-[15px]" />}
                 </IconButton>
@@ -105,6 +107,7 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                         <Trash2 className="h-[15px] w-[15px]" />
                     </IconButton>
                 )}
+                </div>
             </div>
             {styleOpen && (
                 <div className="space-y-3 bg-t2-sub px-4 pb-3.5 pt-3">

@@ -316,14 +316,17 @@ export default function TabList({
                 {/* Optional external plugin slot */}
                 {pluginSlot}
 
-                <PluginsMenu
-                    activeTabId={activeTabId}
-                    enabledExtensions={enabledExtensions}
-                    onTabSelect={onTabSelect}
-                    onOpenSocial={onOpenSocial}
-                    onOpenSettings={onOpenSettings}
-                    onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
-                />
+                {/* With the sidebar open, plugins live in the sidebar. */}
+                {!isSidebarOpen && (
+                    <PluginsMenu
+                        activeTabId={activeTabId}
+                        enabledExtensions={enabledExtensions}
+                        onTabSelect={onTabSelect}
+                        onOpenSocial={onOpenSocial}
+                        onOpenSettings={onOpenSettings}
+                        onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
+                    />
+                )}
 
                 {/* Profile lives in the sidebar; it only shows here while the sidebar is hidden */}
                 {setIsAvatarMenuOpen && avatarMenuRef && !(isSidebarOpen && navigationMode !== 'folders') && (
