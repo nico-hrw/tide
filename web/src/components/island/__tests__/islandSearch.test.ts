@@ -20,6 +20,62 @@ describe('buildIslandSearchItems', () => {
     });
 });
 
+describe('buildIslandSearchItems: one result per thing', () => {
+    const keys = (i: ReturnType<typeof buildIslandSearchItems>) => i.map((x) => `${x.kind}:${x.id}`).sort();
+
+    it('a birthday event without a note yields only the event', () => {
+        const res = buildIslandSearchItems({ notes: [], events: [{ id: 'b1', title: 'Geburtstag Anna', start: '2026-03-01' }], tasks: [] });
+        expect(keys(res)).toEqual(['event:b1']);
+        expect(searchIslandItems(res, 'Geburtstag').map((r) => r.kind)).toEqual(['event']);
+    });
+
+    it('an event and a separate note with the same title stay one event and one note', () => {
+        const res = buildIslandSearchItems({
+            notes: [{ id: 'n1', title: 'Planung', type: 'note' }],
+            events: [{ id: 'e1', title: 'Planung', start: '2026-03-01' }],
+            tasks: [],
+        });
+        expect(keys(res)).toEqual(['event:e1', 'note:n1']);
+    });
+
+    it('a plain note yields only the note', () => {
+        expect(keys(buildIslandSearchItems({ notes: [{ id: 'n1', title: 'Idee', type: 'note' }], events: [], tasks: [] }))).toEqual(['note:n1']);
+    });
+
+    it('an id that is both an event and a note counts as the event only', () => {
+        const res = buildIslandSearchItems({ notes: [{ id: 'x', title: 'Anna', type: 'note' }], events: [{ id: 'x', title: 'Anna' }], tasks: [] });
+        expect(keys(res)).toEqual(['event:x']);
+    });
+
+    it('notes list entries of event or index type are no notes', () => {
+        const res = buildIslandSearchItems({ notes: [{ id: 'a', type: 'event', title: 'A' }, { id: 'b', type: 'index', title: 'B' }, { id: 'c', type: 'canvas', title: 'C' }], events: [], tasks: [] });
+        expect(keys(res)).toEqual(['note:c']);
+    });
+
+    it('a todo with a calendar entry shows once, as the todo', () => {
+        const res = buildIslandSearchItems({
+            notes: [],
+            events: [{ id: 'ev1', title: 'Steuer', start: '2026-03-01', linkedTaskId: 't1' }],
+            tasks: [{ id: 't1', title: 'Steuer', dueDate: '2026-03-01' }],
+        });
+        expect(keys(res)).toEqual(['todo:t1']);
+    });
+
+    it('a todo calendar entry whose todo no longer exists stays an event', () => {
+        const res = buildIslandSearchItems({ notes: [], events: [{ id: 'ev1', title: 'Steuer', linkedTaskId: 'gone' }], tasks: [] });
+        expect(keys(res)).toEqual(['event:ev1']);
+    });
+
+    it('recurrence instances and repeated ids collapse into one result', () => {
+        const res = buildIslandSearchItems({
+            notes: [{ id: 'n1', title: 'A', type: 'note' }, { id: 'n1', title: 'A', type: 'note' }],
+            events: [{ id: 'w1', title: 'Sport' }, { id: 'w1_1700000000000', title: 'Sport' }, { id: 'w1_1700086400000', title: 'Sport' }],
+            tasks: [{ id: 't1', title: 'T' }, { id: 't1', title: 'T' }],
+        });
+        expect(keys(res)).toEqual(['event:w1', 'note:n1', 'todo:t1']);
+    });
+});
+
 describe('searchIslandItems', () => {
     it('returns nothing for an empty query', () => {
         expect(searchIslandItems(items, '   ')).toEqual([]);

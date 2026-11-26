@@ -15,23 +15,53 @@ export interface IslandSearchItem {
 }
 
 interface RawNote { id: string; title?: string; type?: string; isGroup?: boolean }
-interface RawEvent { id: string; title?: string; start?: string }
+interface RawEvent { id: string; title?: string; start?: string; linkedTaskId?: string }
 interface RawTask { id: string; title?: string; dueDate?: string }
 
+/** Types that live in the notes list but are not notes a user can open as a result. */
+const NON_NOTE_TYPES = new Set(['folder', 'event', 'task', 'todo', 'index', 'views', 'calendar_shares', 'canvas-asset']);
+
+/** Recurrence instances carry ids like "baseId_timestamp"; the item itself is the base id. */
+const baseId = (id: string): string => (id.includes('_') ? id.split('_')[0] : id);
+
+/**
+ * One result per thing, and only for what really exists in the data:
+ * - a note appears only as a note, an event only as an event, a todo only as a todo
+ *   (an id that is both an event and a note counts as the event, a todo with a calendar entry as the todo)
+ * - events are matched by their base id, so a repeating event is one result, not one per occurrence
+ */
 export function buildIslandSearchItems(src: { notes: RawNote[]; events: RawEvent[]; tasks: RawTask[] }): IslandSearchItem[] {
-    const out: IslandSearchItem[] = [];
+    const tasks: IslandSearchItem[] = [];
+    const taskIds = new Set<string>();
+    for (const t of src.tasks || []) {
+        if (!t?.id || taskIds.has(t.id)) continue;
+        taskIds.add(t.id);
+        tasks.push({ id: t.id, title: t.title || '', kind: 'todo', date: t.dueDate });
+    }
+
+    const events: IslandSearchItem[] = [];
+    const eventIds = new Set<string>();
+    for (const e of src.events || []) {
+        if (!e?.id) continue;
+        const id = baseId(e.id);
+        if (eventIds.has(id)) continue;
+        // The calendar entry of a todo is the todo itself, as long as that todo really exists
+        if (e.linkedTaskId && taskIds.has(e.linkedTaskId)) continue;
+        eventIds.add(id);
+        events.push({ id, title: e.title || '', kind: 'event', date: e.start });
+    }
+
+    const notes: IslandSearchItem[] = [];
+    const noteIds = new Set<string>();
     for (const n of src.notes || []) {
         // Folders and tags are navigation, not results
-        if (!n?.id || n.type === 'folder' || n.isGroup) continue;
-        out.push({ id: n.id, title: n.title || '', kind: 'note' });
+        if (!n?.id || n.isGroup || (n.type && NON_NOTE_TYPES.has(n.type))) continue;
+        if (noteIds.has(n.id) || eventIds.has(n.id) || taskIds.has(n.id)) continue;
+        noteIds.add(n.id);
+        notes.push({ id: n.id, title: n.title || '', kind: 'note' });
     }
-    for (const e of src.events || []) {
-        if (e?.id) out.push({ id: e.id, title: e.title || '', kind: 'event', date: e.start });
-    }
-    for (const t of src.tasks || []) {
-        if (t?.id) out.push({ id: t.id, title: t.title || '', kind: 'todo', date: t.dueDate });
-    }
-    return out;
+
+    return [...notes, ...events.filter((e) => !taskIds.has(e.id)), ...tasks];
 }
 
 /** Fuzzy matches for the query; titles that start with it come first (the fuzzy order is kept within each group). */
