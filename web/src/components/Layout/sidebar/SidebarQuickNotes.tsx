@@ -1,4 +1,6 @@
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
+import { normalizeSafe } from "@/lib/todoSafes";
 import {
     Plus,
     Archive,
@@ -51,6 +53,14 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
+    const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
+    const defaultSafe = useDataStore((s) => s.defaultSafe);
+    const setDefaultSafe = useDataStore((s) => s.setDefaultSafe);
+    const closeCtxMenu = useCallback(() => setCtxMenu(null), []);
+    const tasks = useDataStore((s) => s.tasks);
+    const events = useDataStore((s) => s.events);
+    const tasksInSafe = (safe: string) => tasks.filter((t) => normalizeSafe(t.safe || 'main') === safe).length;
+    const eventsInSafe = (safe: string) => events.filter((e) => normalizeSafe(e.safe || 'main') === safe).length;
     const [isCreatingSafe, setIsCreatingSafe] = useState(false);
     const [newSafeName, setNewSafeName] = useState('');
 
@@ -98,6 +108,26 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     return (
         <div className={compact ? 'relative shrink-0' : (className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
             {toggleButton}
+            {ctxMenu && (
+                <WorkspaceContextMenu
+                    menu={ctxMenu}
+                    isActive={activeSafes.includes(ctxMenu.safe)}
+                    isDefault={defaultSafe === ctxMenu.safe}
+                    onClose={closeCtxMenu}
+                    onShowOnly={() => setActiveSafes([ctxMenu.safe])}
+                    onToggle={() => toggleSafe(ctxMenu.safe)}
+                    onSetDefault={() => setDefaultSafe(defaultSafe === ctxMenu.safe ? null : ctxMenu.safe)}
+                    onDelete={() => {
+                        // Todos and events have no move-to-standard yet: keep them visible by refusing the delete.
+                        const inUse = tasksInSafe(ctxMenu.safe) + eventsInSafe(ctxMenu.safe);
+                        if (inUse > 0) {
+                            window.alert(`„${displayName(ctxMenu.safe)}“ enthält noch ${inUse} Todos oder Termine. Verschiebe sie zuerst in einen anderen Workspace.`);
+                            return;
+                        }
+                        if (window.confirm(`Workspace „${displayName(ctxMenu.safe)}“ löschen? Seine Notizen wandern nach Standard.`)) deleteSafe(ctxMenu.safe);
+                    }}
+                />
+            )}
 
             {/* Safe list: inline in der Seitenleiste, als Popover in der kompakten Variante */}
             <AnimatePresence>
@@ -118,6 +148,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                 return (
                                     <motion.div
                                         key={safe}
+                                        onContextMenu={(e) => { e.preventDefault(); setCtxMenu({ safe, x: e.clientX, y: e.clientY }); }}
                                         initial={{ opacity: 0, x: -8 }}
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{

@@ -4,6 +4,7 @@
  */
 export type SettingsPageId =
     | 'account'
+    | 'workspaces'
     | 'appearance'
     | 'calendar'
     | 'notes'
@@ -21,7 +22,7 @@ export interface NavGroup {
 
 export const NAV_GROUPS: readonly NavGroup[] = [
     { id: 'personal', pages: ['account', 'appearance'] },
-    { id: 'workspace', pages: ['calendar', 'notes', 'todos'] },
+    { id: 'workspace', pages: ['workspaces', 'calendar', 'notes', 'todos'] },
     { id: 'advanced', pages: ['extensions', 'access'] },
 ];
 

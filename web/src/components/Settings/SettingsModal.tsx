@@ -11,6 +11,7 @@ import { AppearancePage } from './pages/AppearancePage';
 import { CalendarPage } from './pages/CalendarPage';
 import { NotesPage } from './pages/NotesPage';
 import { TodosPage } from './pages/TodosPage';
+import { WorkspacesPage } from './pages/WorkspacesPage';
 import { ExtensionsPage } from './pages/ExtensionsPage';
 import { AccessPage } from './pages/AccessPage';
 import { AboutPage } from './pages/AboutPage';
@@ -174,6 +175,7 @@ function SettingsModalBody({
                             )}
                             {page === 'notes' && <NotesPage noteLayout={noteLayout} onSetNoteLayout={onSetNoteLayout} />}
                             {page === 'todos' && <TodosPage enabledExtensions={enabledExtensions} onToggleExtension={onToggleExtension} />}
+                            {page === 'workspaces' && <WorkspacesPage />}
                             {page === 'extensions' && (
                                 <ExtensionsPage
                                     enabledExtensions={enabledExtensions}

@@ -31,6 +31,18 @@ export function loadCachedSafes(): string[] {
     }
 }
 
+const DEFAULT_SAFE_KEY = 'tide_default_safe';
+
+function loadDefaultSafe(): string | null {
+    if (typeof window === 'undefined') return null;
+    try {
+        const v = localStorage.getItem(DEFAULT_SAFE_KEY);
+        return v && v.trim() ? v : null;
+    } catch {
+        return null;
+    }
+}
+
 export function loadCachedActiveSafes(): string[] {
     if (typeof window === 'undefined') return DEFAULT_ACTIVE_SAFES;
     try {
@@ -59,6 +71,15 @@ export function loadCachedActiveSafes(): string[] {
 export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
     availableSafes: loadCachedSafes(),
     activeSafes: loadCachedActiveSafes(),
+    defaultSafe: loadDefaultSafe(),
+    setDefaultSafe: (name) => {
+        const next = name && name.trim() ? (name === 'Standard' ? 'main' : name.trim()) : null;
+        try {
+            if (next) localStorage.setItem(DEFAULT_SAFE_KEY, next);
+            else localStorage.removeItem(DEFAULT_SAFE_KEY);
+        } catch { /* private mode */ }
+        set({ defaultSafe: next });
+    },
 
     setActiveSafes: (safes: string[]) => {
         const valid = safes
