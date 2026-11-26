@@ -2,6 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { Calendar, ChevronDown, GraduationCap, LayoutGrid, ListTodo, Puzzle, Settings, Users, Variable } from 'lucide-react';
+import { motion } from 'framer-motion';
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
@@ -52,7 +53,7 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
     ];
 
     return (
-        <div ref={ref} className="relative shrink-0 flex items-center">
+        <div ref={ref} className={variant === 'row' ? 'relative w-full' : 'relative shrink-0 flex items-center'}>
             <button
                 type="button"
                 onClick={(e) => {
@@ -62,9 +63,11 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
                 title="Plugins und Erweiterungen"
                 aria-label="Plugins"
                 aria-expanded={open}
-                className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all active:scale-95 cursor-pointer ${
-                    open ? 'border-t2-line bg-t2-surface text-t2-ink shadow-xs' : 'border-transparent text-t2-ink-2 hover:bg-t2-stage hover:text-t2-ink'
-                }`}
+                className={variant === 'row'
+                    ? 'flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none'
+                    : `flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-medium transition-all active:scale-95 cursor-pointer ${
+                        open ? 'border-t2-line bg-t2-surface text-t2-ink shadow-xs' : 'border-transparent text-t2-ink-2 hover:bg-t2-stage hover:text-t2-ink'
+                    }`}
             >
                 {variant === 'pill' && <Puzzle size={14} />}
                 {variant === 'row' && <LayoutGrid size={16} className="shrink-0 text-t2-ink-3" aria-hidden="true" />}
@@ -75,7 +78,9 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
             {open && (
                 <div
                     role="menu"
-                    className={`${variant === 'row' ? 'fixed z-[700] w-[300px]' : 'absolute right-0 top-[calc(100%+10px)] z-[150] w-[320px]'} overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100`}
+                    className={variant === 'row'
+                        ? 'fixed z-[700] w-[260px] p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] overflow-hidden'
+                        : 'absolute right-0 top-[calc(100%+10px)] z-[150] w-[320px] overflow-hidden rounded-2xl border border-t2-line bg-t2-surface shadow-[0_18px_44px_rgba(0,0,0,0.16)] animate-in fade-in zoom-in-95 duration-100'}
                     style={variant === 'row' && pos ? { top: pos.top, left: pos.left } : undefined}
                 >
                     <div className="px-4 pb-2 pt-3.5">
@@ -84,14 +89,17 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
                     </div>
 
                     <div className="px-2 pb-2">
-                        {entries.map((e) => {
+                        {entries.map((e, idx) => {
                             const active = !!e.tabId && e.tabId === activeTabId;
                             return (
-                                <button
+                                <motion.button
                                     key={e.key}
                                     type="button"
                                     role="menuitem"
                                     onClick={e.onSelect}
+                                    initial={variant === 'row' ? { opacity: 0, x: -8 } : false}
+                                    animate={{ opacity: 1, x: 0 }}
+                                    transition={{ type: 'spring', stiffness: 350, damping: 40, mass: 0.8, delay: idx * 0.03 }}
                                     className={`group flex w-full items-center gap-3 rounded-xl px-2.5 py-2 text-left transition-colors cursor-pointer ${active ? 'bg-t2-sub' : 'hover:bg-t2-hover'}`}
                                 >
                                     <span
@@ -105,7 +113,7 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
                                         <span className="block truncate text-[12px] text-t2-ink-3">{e.hint}</span>
                                     </span>
                                     {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-t2-ink" aria-label="geöffnet" />}
-                                </button>
+                                </motion.button>
                             );
                         })}
                     </div>

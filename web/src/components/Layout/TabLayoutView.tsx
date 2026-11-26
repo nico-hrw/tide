@@ -46,11 +46,14 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
       }}
       onDragLeave={leave(key)}
       onDrop={drop(target)}
-      className={`shrink-0 rounded-full transition-colors ${box} ${
-        !dragId ? '' : hint === key ? 'bg-t2-accent' : 'bg-t2-line-soft'
-      }`}
+      className={`relative shrink-0 transition-colors ${box}`}
+      data-drop-zone={key}
       aria-hidden="true"
-    />
+    >
+      {dragId && hint === key && (
+        <span className="pointer-events-none absolute inset-y-1 left-1/2 w-[2px] -translate-x-1/2 rounded-full bg-t2-accent opacity-70" />
+      )}
+    </div>
   );
 
   return (
@@ -61,12 +64,12 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
         const lastRef = lastGroup[lastGroup.length - 1];
         return (
           <React.Fragment key={`row-${r}`}>
-            {r === 0 && zone(`rowAbove-${r}`, { kind: 'rowAbove', ref: firstRef }, 'h-3 w-full')}
+            {r === 0 && zone(`rowAbove-${r}`, { kind: 'rowAbove', ref: firstRef }, 'h-5 w-full')}
             <div className="flex items-stretch">
-              {zone(`rowStart-${r}`, { kind: 'rowStart', ref: firstRef }, 'w-3 min-h-[34px]')}
+              {zone(`rowStart-${r}`, { kind: 'rowStart', ref: firstRef }, 'w-6 min-h-[34px]')}
               {row.map((group, g) => (
                 <React.Fragment key={`group-${r}-${g}`}>
-                  {g > 0 && zone(`groupBefore-${r}-${g}`, { kind: 'groupBefore', ref: group[0] }, 'w-4 min-h-[34px]')}
+                  {g > 0 && zone(`groupBefore-${r}-${g}`, { kind: 'groupBefore', ref: group[0] }, 'w-6 min-h-[34px]')}
                   <div
                     className="flex items-center gap-1"
                     onDragOver={over(`group-${r}-${g}`)}
@@ -112,9 +115,9 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
                   </div>
                 </React.Fragment>
               ))}
-              {zone(`rowEnd-${r}`, { kind: 'rowEnd', ref: lastRef }, 'w-3 min-h-[34px]')}
+              {zone(`rowEnd-${r}`, { kind: 'rowEnd', ref: lastRef }, 'w-6 min-h-[34px]')}
             </div>
-            {zone(`rowBelow-${r}`, { kind: 'rowBelow', ref: firstRef }, 'h-3 w-full')}
+            {zone(`rowBelow-${r}`, { kind: 'rowBelow', ref: firstRef }, 'h-5 w-full')}
           </React.Fragment>
         );
       })}

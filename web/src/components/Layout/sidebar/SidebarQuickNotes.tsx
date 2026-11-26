@@ -1,6 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
+import { CALENDAR_CATEGORIES } from "@/lib/calendarColors";
 import {
     Plus,
     Archive,
@@ -67,6 +68,12 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     const [newSafeName, setNewSafeName] = useState('');
 
     const displayName = (s: string) => (s === 'main' ? 'Standard' : s);
+    // Each workspace keeps one calendar colour, picked from its name, so the tiles are told apart at a glance.
+    const tileFor = (s: string) => {
+        let h = 0;
+        for (const ch of s) h = (h * 31 + ch.charCodeAt(0)) | 0;
+        return CALENDAR_CATEGORIES[Math.abs(h) % CALENDAR_CATEGORIES.length];
+    };
     const safeLabel =
         activeSafes.length === 1
             ? displayName(activeSafes[0])
@@ -111,7 +118,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     );
 
     return (
-        <div className={compact ? 'relative shrink-0' : (className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
+        <div className={compact ? 'relative w-full' :(className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
             {toggleButton}
             {ctxMenu && (
                 <WorkspaceContextMenu
@@ -168,7 +175,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             mass: 0.8,
                                             delay: idx * 0.03,
                                         }}
-                                        className={`flex items-center justify-between px-2 py-1.5 rounded-lg group transition-colors ${
+                                        className={`flex h-9 items-center justify-between px-2 rounded-lg group transition-colors ${
                                             isActive
                                                 ? 'bg-t2-sub  text-t2-accent  font-medium'
                                                 : 'text-t2-ink  hover:bg-t2-hover '
@@ -183,16 +190,11 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
                                             title={`Zu "${safe}" wechseln`}
                                         >
-                                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${isActive ? 'bg-t2-accent text-t2-accent-ink' : 'bg-t2-sub text-t2-ink-2'}`} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
+                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: tileFor(safe).bg, color: tileFor(safe).ink }} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
                                             <span className="truncate text-xs">{safe}</span>
-                                            {isActive && (
-                                                <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
-                                                    aktiv
-                                                </span>
-                                            )}
                                         </button>
 
-                                        <div className="flex items-center gap-1 shrink-0">
+                                        <div className="flex h-6 items-center gap-1 shrink-0">
                                             {/* Toggle multi-select */}
                                             <button
                                                 type="button"
@@ -200,7 +202,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                     e.stopPropagation();
                                                     toggleSafe(safe);
                                                 }}
-                                                className={`p-1 rounded hover:bg-t2-hover  transition-colors cursor-pointer ${
+                                                className={`flex h-6 w-6 items-center justify-center rounded hover:bg-t2-hover transition-colors cursor-pointer ${
                                                     isActive
                                                         ? 'text-t2-accent '
                                                         : 'text-t2-ink-3  hover:text-t2-ink-2 '
@@ -231,7 +233,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                             e.stopPropagation();
                                                             deleteSafe(safe);
                                                         }}
-                                                        className="p-1 rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                                        className="flex h-6 w-6 items-center justify-center rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                                                         title={`Workspace "${safe}" löschen`}
                                                     >
                                                         <Trash2 size={12} />
