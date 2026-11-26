@@ -343,6 +343,7 @@ export default function Sidebar({
             <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <SidebarQuickNotes
+                    compact
                     activeTabId={activeTabId}
                     enabledExtensions={enabledExtensions}
                     onOpenSocial={onOpenSocial}

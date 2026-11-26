@@ -6,6 +6,7 @@ import { format } from "date-fns";
 import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
 import { TagPicker } from "@/components/Tags/TagPicker";
+import { WorkspacePicker } from "@/components/Todo/TodoWorkspacePicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
 import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
@@ -104,6 +105,8 @@ export interface EventPopoverEvent {
     description?: string;
     parent_id?: string | null;
     groupIds?: string[];
+    safe?: string;
+    linkedSafes?: string[];
     color?: string;
     effect?: string;
     allDay?: boolean;
@@ -160,6 +163,7 @@ export default function EventPopover({
     const [color, setColor] = useState(event.color || CALENDAR_CATEGORIES[0].key);
     const [showColorPicker, setShowColorPicker] = useState(false);
     const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(getEventGroupIds(event));
+    const [workspace, setWorkspace] = useState({ safe: event.safe || 'main', linkedSafes: event.linkedSafes ?? [] });
     const [isExpanded, setIsExpanded] = useState(false);
 
     // Computed position — adjusted after render via layoutEffect
@@ -460,6 +464,14 @@ export default function EventPopover({
 
             {/* Groups / Tags & Repeat */}
             <div className="flex flex-col gap-2.5">
+                <div className="flex flex-col gap-1.5">
+                    <span className="px-1 text-[11px] font-bold text-t2-ink-3 uppercase tracking-widest">Workspace</span>
+                    <WorkspacePicker
+                        safe={workspace.safe}
+                        linkedSafes={workspace.linkedSafes}
+                        onChange={(next) => { setWorkspace(next); handleSave(next); }}
+                    />
+                </div>
                 {/* Tags: first selected tag sets the style/color */}
                 <div className="flex flex-col gap-1.5">
                     <div className="flex items-center justify-between px-1">
