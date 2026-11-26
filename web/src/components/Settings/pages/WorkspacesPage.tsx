@@ -54,7 +54,7 @@ export function WorkspacesPage() {
 
     return (
         <SettingsPage>
-            <SettingsPageHeader title={t('nav.workspaces')} lead={t('workspaces.lead')} />
+            <SettingsPageHeader title={t('nav.workspaces')} lead={t('page.workspaces.lead')} />
 
             <SettingsSection title={t('workspaces.list')} hint={t('workspaces.listHint')}>
                 <SettingsCard>

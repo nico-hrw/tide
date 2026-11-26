@@ -5,7 +5,7 @@ describe('Navigationsstruktur', () => {
     it('gruppiert wie gefordert', () => {
         expect(NAV_GROUPS.map((g) => [g.id, [...g.pages]])).toEqual([
             ['personal', ['account', 'appearance']],
-            ['workspace', ['calendar', 'notes', 'todos']],
+            ['workspace', ['workspaces', 'calendar', 'notes', 'todos']],
             ['advanced', ['extensions', 'access']],
         ]);
     });

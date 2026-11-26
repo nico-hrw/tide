@@ -18,7 +18,7 @@ export const settingsCoreDe = {
     'nav.notes': 'Notizen',
     'nav.todos': 'Todos',
     'nav.workspaces': 'Arbeitsbereiche',
-    'workspaces.lead': 'Workspaces trennen Notizen, Todos und Termine. Du kannst mehrere gleichzeitig anzeigen.',
+    'page.workspaces.lead': 'Workspaces trennen Notizen, Todos und Termine. Du kannst mehrere gleichzeitig anzeigen.',
     'workspaces.list': 'Workspaces',
     'workspaces.listHint': 'Was ein Workspace enthält, welche gerade angezeigt werden und wo neue Inhalte landen.',
     'workspaces.create': 'Neuer Workspace',

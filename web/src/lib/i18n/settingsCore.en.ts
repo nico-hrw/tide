@@ -20,7 +20,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'nav.notes': 'Notes',
     'nav.todos': 'Todos',
     'nav.workspaces': 'Workspaces',
-    'workspaces.lead': 'Workspaces separate notes, todos and events. You can show several at once.',
+    'page.workspaces.lead': 'Workspaces separate notes, todos and events. You can show several at once.',
     'workspaces.list': 'Workspaces',
     'workspaces.listHint': 'What each workspace holds, which are shown and where new items land.',
     'workspaces.create': 'New workspace',
