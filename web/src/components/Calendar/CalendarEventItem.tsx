@@ -9,6 +9,10 @@ import { useSocialStore } from '@/store/useSocialStore';
 import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
 import { resolveCategory } from '@/lib/calendarColors';
+import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
+import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
+import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
+import { getVisibilityState } from '@/components/Visibility/visibilityState';
 
 // Assuming types and getEventTheme are available here, either imported or defined
 interface CalendarEvent {
@@ -31,6 +35,8 @@ interface CalendarEvent {
     is_public?: boolean;
     parent_id?: string | null;
     groupIds?: string[];
+    safe?: string;
+    linkedSafes?: string[];
     owner_id?: string;
     share_status?: string;
     permission?: string;
@@ -188,6 +194,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 }) => {
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
+    const activeSafes = useDataStore(state => state.activeSafes);
+    const eventIsExternal = todoIsExternal(event, activeSafes ?? []);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
     const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
     const ownerPartnerUsername = useSocialStore(
@@ -198,6 +206,11 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     );
 
     const isShared = event.share_status === 'accepted' || (!!event.owner_id && event.owner_id !== myId);
+    const visibilityKind = getVisibilityState({
+        visibility: event.is_public ? 'public' : undefined,
+        isOwner: !(event.owner_id && event.owner_id !== myId),
+        isShared,
+    }).kind;
     const ownerName = ownerPartnerUsername || 'Geteilt';
     const attributionText = ownerPartnerUsername ? `Aus dem Kalender von ${ownerName}` : 'Geteilt';
     const effectiveColor = resolveEventColor(event.color);
@@ -567,7 +580,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     setIsLinkingMode(false);
                 }
             }}
-            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 75 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${popoverOpen && !isDragging && !isResizing ? 'outline outline-2 outline-offset-[-2px] outline-black dark:outline-white hover:outline-black dark:hover:outline-white z-[85]' : ''} ${!isDragging && !isResizing ? 'hover:outline hover:outline-2 hover:outline-offset-[-2px] hover:outline-[var(--ev-edge)]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform,filter] duration-150 hover:brightness-[0.93] ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
+            className={`event-item group absolute ${isTimePoint ? 'px-1.5 py-0 overflow-visible rounded-sm' : isShortEvent ? 'px-2.5 py-0 overflow-hidden' : durationMinutes < 75 ? 'px-3 py-1.5 overflow-hidden' : 'px-3.5 py-3 overflow-hidden'} cursor-pointer ${isDragging || isResizing ? 'shadow-none scale-[1.01] z-[100]' : 'shadow-none hover:z-[70] z-[60]'} ${isHighlightedEvent ? 'ring-2 ring-t2-accent z-[80]' : ''} ${popoverOpen && !isDragging && !isResizing ? 'outline outline-2 outline-offset-[-2px] outline-t2-ink hover:outline-t2-ink z-[85]' : ''} ${!isDragging && !isResizing ? 'hover:outline hover:outline-2 hover:outline-offset-[-2px] hover:outline-[var(--ev-edge)]' : ''} ${isCompleted ? 'opacity-50' : ''} ${isCancelled ? 'opacity-40 grayscale pointer-events-auto' : ''} ${(isDragging || isResizing) && isMagnified ? 'opacity-20' : ''} font-medium transition-[opacity,transform,filter] duration-150 hover:brightness-[0.93] ${isActiveParent ? 'opacity-20 backdrop-blur-sm pointer-events-none' : ''} ${isMiddleDay ? 'z-0 pointer-events-none opacity-30' : ''} ${shouldGlow ? 'event-shimmer' : ''}`}
             onClick={(e) => {
                 e.stopPropagation();
 
@@ -670,16 +683,10 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                             )}
                         </button>
                     )}
-                    {event.is_public && (
-                        <div className="opacity-60 flex-shrink-0" title="Public Event">
-                            <Globe size={10} />
-                        </div>
-                    )}
-                    {isShared && (
-                        <div className="opacity-75 flex-shrink-0" title={attributionText}>
-                            <Users size={10} />
-                        </div>
-                    )}
+                    <div className="opacity-75 flex-shrink-0" title={isShared && !event.is_public ? attributionText : undefined}>
+                        <VisibilityBadge kind={visibilityKind} size={12} hideWhenPrivate />
+                    </div>
+                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} className="hidden sm:inline-flex" />}
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
                     <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}

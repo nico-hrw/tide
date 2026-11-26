@@ -6,6 +6,9 @@ import { de } from 'date-fns/locale';
 import { TaskItem } from '@/store/useDataStore';
 import { TaskWithChildren, getTaskPriority, parseDateSafe } from './types';
 import { TodoCheckbox, TodoPriorityIcon } from './TodoCardParts';
+import { ChevronDown } from 'lucide-react';
+import { TodoRescheduleBar } from './TodoRescheduleBar';
+import { isOverdueOpen, type ReschedulePatch } from './reschedule';
 
 /** Dauer des Ausblendens eines abgehakten Untertodos, bevor das nächste nachrückt. */
 const LEAVE_MS = 420;
@@ -19,16 +22,22 @@ export interface TodoCardProps {
   onActivate: (task: TaskWithChildren) => void;
   onToggleTask: (task: TaskItem) => void;
   onToggleSubtask: (id: string) => void;
+  /** Quick reschedule for overdue open todos: the "Überfällig" badge opens the options below the title. */
+  rescheduleOpen?: boolean;
+  onToggleReschedule?: (id: string) => void;
+  onReschedule?: (id: string, patch: ReschedulePatch) => void;
 }
 
 export const TodoCard: React.FC<TodoCardProps> = ({
   task, isSelected, isExpanded, isCompleting, onActivate, onToggleTask, onToggleSubtask,
+  rescheduleOpen = false, onToggleReschedule, onReschedule,
 }) => {
   const [leaving, setLeaving] = useState<Set<string>>(new Set());
   const subs = task.children || [];
   const due = parseDateSafe(task.dueDate || task.scheduledDate);
   const today = due ? isToday(due) : false;
   const overdue = due && !task.isCompleted && !today ? isBefore(startOfDay(due), startOfDay(new Date())) : false;
+  const canReschedule = Boolean(onReschedule && onToggleReschedule) && isOverdueOpen(task);
   const priority = getTaskPriority(task);
   const dark = today && !task.isCompleted;
 
@@ -58,7 +67,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
   const surface = dark
     ? 'bg-cal-praktikum text-white'
     : 'bg-[color-mix(in_srgb,#5C6E6C_8%,var(--t2-bg))] text-t2-ink';
-  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-black/20 dark:ring-white/25') : '';
+  const ring = isSelected ? (dark ? 'ring-1 ring-white/40' : 'ring-1 ring-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)]') : '';
   const muted = dark ? 'text-white/70' : 'text-t2-ink-3';
 
   return (
@@ -68,7 +77,7 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       data-task-id={task.id}
       onClick={() => onActivate(task)}
       onKeyDown={(e) => { if (e.key === 'Enter' && e.target === e.currentTarget) onActivate(task); }}
-      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-black/15 dark:hover:ring-white/20 ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
+      className={`flex items-start gap-3 py-3.5 pr-3.5 pl-1.5 rounded-[14px] cursor-pointer transition-[box-shadow,opacity] hover:ring-1 hover:ring-[color-mix(in_srgb,var(--t2-ink)_15%,transparent)] ${surface} ${ring} ${isCompleting ? 'opacity-50' : ''}`}
     >
       <div className={`w-[54px] shrink-0 text-center leading-[1.15] pt-px ${muted}`}>
         {due && (today ? (
@@ -94,10 +103,34 @@ export const TodoCard: React.FC<TodoCardProps> = ({
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <b className={`flex-1 min-w-0 block text-[15px] font-medium leading-5 ${task.isCompleted ? 'line-through opacity-60' : ''}`}>{task.title}</b>
-          {overdue && (
+          {overdue && canReschedule ? (
+            <button
+              type="button"
+              aria-expanded={rescheduleOpen}
+              aria-label={`Überfällig, ${task.title} verschieben`}
+              title="Verschieben: Jetzt, Heute, Morgen …"
+              onClick={(e) => { e.stopPropagation(); onToggleReschedule?.(task.id); }}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Escape' && rescheduleOpen) onToggleReschedule?.(task.id);
+              }}
+              className="shrink-0 inline-flex items-center gap-1 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white cursor-pointer hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-t2-late"
+            >
+              Überfällig
+              <ChevronDown size={12} className={`transition-transform ${rescheduleOpen ? 'rotate-180' : ''}`} />
+            </button>
+          ) : overdue && (
             <span className="shrink-0 rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>
           )}
         </div>
+        {canReschedule && rescheduleOpen && onReschedule && (
+          <div
+            className="mt-2.5"
+            onKeyDownCapture={(e) => { if (e.key === 'Escape') { e.stopPropagation(); onToggleReschedule?.(task.id); } }}
+          >
+            <TodoRescheduleBar task={task} onReschedule={onReschedule} onDone={() => onToggleReschedule?.(task.id)} />
+          </div>
+        )}
         {subs.length > 0 && (
           <div className="mt-2.5 flex flex-col gap-[7px]">
             {shown.map((s) => {

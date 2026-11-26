@@ -67,7 +67,7 @@ export default function SocialContactCard({
                                 size={48}
                             />
                             <span
-                                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${statusColor} ring-2 ring-white dark:ring-[#1a1a1a] transition-colors`}
+                                className={`absolute bottom-0 right-0 w-3 h-3 rounded-full ${statusColor} ring-2 ring-t2-surface transition-colors`}
                                 title={statusTitle}
                             />
                         </div>

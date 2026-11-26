@@ -372,6 +372,19 @@ func main() {
 		r.With(api.AuthMiddleware).Get("/auth/me", authHandler.Me)
 		r.With(api.AuthMiddleware).Put("/auth/me", authHandler.UpdateMe)
 		r.With(api.AuthMiddleware).Post("/auth/ws-ticket", api.IssueWSTicketHandler)
+		// Vault recovery: reads need a session; writes need a fresh OTP sign-in plus a key proof
+		// (answer to /auth/key-challenge), both checked in the handlers.
+		r.With(api.AuthMiddleware).Get("/auth/recovery-vault", authHandler.GetRecoveryVault)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/key-challenge", authHandler.KeyChallenge)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Put("/auth/recovery-vault", authHandler.PutRecoveryVault)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/replace-vault", authHandler.ReplaceVault)
+		// Passkeys: managing them needs a fresh session (+ key proof on finish/delete); login needs none.
+		r.With(api.AuthMiddleware).Get("/auth/passkeys", authHandler.ListPasskeys)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/register/options", authHandler.PasskeyRegisterOptions)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/register/finish", authHandler.PasskeyRegisterFinish)
+		r.With(api.RateLimitMiddleware(authLimiter), api.AuthMiddleware).Post("/auth/passkey/delete", authHandler.DeletePasskey)
+		r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/passkey/login/options", authHandler.PasskeyLoginOptions)
+		r.With(api.RateLimitMiddleware(otpVerifyLimiter)).Post("/auth/passkey/login/verify", authHandler.PasskeyLoginVerify)
 		r.Post("/auth/logout", api.Logout)
 		if !isProduction && strings.EqualFold(os.Getenv("DEV_MODE"), "true") {
 			r.With(api.RateLimitMiddleware(authLimiter)).Post("/auth/dev-login", authHandler.DevLogin)

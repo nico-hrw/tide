@@ -23,6 +23,7 @@ import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useSplitViewDrag } from "@/hooks/useSplitViewDrag";
 import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
 import Sidebar from "@/components/Layout/Sidebar";
+import WorkspaceTimeTracker from "@/components/Layout/WorkspaceTimeTracker";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { filterFilesBySafe } from "@/components/Layout/sidebar/SidebarFiles";
 import { DashboardDesktopContent, type DashboardCollaborator, type DashboardDesktopContentProps } from "@/components/Dashboard/DashboardDesktopContent";
@@ -47,12 +48,16 @@ const Editor = dynamic(() => import("@/components/Editor"), {
 });
 const CanvasNoteEditor = dynamic(() => import("@/components/Canvas/CanvasNoteEditor"), { ssr: false });
 const SocialHub = dynamic(() => import("@/components/Social/SocialHub"), { ssr: false });
+const ProfilePage = dynamic(() => import("@/components/Profile/ProfilePage"), { ssr: false });
 
 interface ExtendedDecryptedFile extends DecryptedFile {
     isShared?: boolean;
     access_keys?: string | Record<string, unknown>;
     permission?: string;
 }
+
+import { clearMentionShares } from "@/store/useMentionShareStore";
+import { handleSignOut } from "@/components/Layout/sidebar/SidebarUserMenu";
 
 function getInitialTabs(): Tab[] {
     const initial: Tab[] = [{ id: "calendar", title: "Calendar", type: "calendar" }];
@@ -70,6 +75,21 @@ export default function Dashboard() {
     useTouchContextMenu();
     const router = useRouter();
     const [isMobile, setIsMobile] = useState(false);
+    // Mobile has no profile tab: a contact chip / social hub opens the profile as a full-screen overlay
+    const [mobileProfileId, setMobileProfileId] = useState<string | null>(null);
+    // Back gesture / hardware back closes the overlay: one history entry while it is open
+    useEffect(() => {
+        if (!mobileProfileId) return;
+        let popped = false;
+        window.history.pushState({ tideMobileProfile: true }, "");
+        const onPop = () => { popped = true; setMobileProfileId(null); };
+        window.addEventListener("popstate", onPop);
+        return () => {
+            window.removeEventListener("popstate", onPop);
+            // Closed by a button: drop our entry (only if it is still the current one)
+            if (!popped && (window.history.state as { tideMobileProfile?: boolean } | null)?.tideMobileProfile) window.history.back();
+        };
+    }, [mobileProfileId]);
     useEffect(() => {
         const checkMobile = () => setIsMobile(window.innerWidth < 768);
         checkMobile();
@@ -139,7 +159,7 @@ export default function Dashboard() {
     } | null>(null);
 
     const { myId, privateKey, publicKey, userProfile, isRestored, status } = useSessionRestore({
-        setKeys, fetchDirectory, setOpenTabs, setActiveTabId, setCalendarDate,
+        setKeys, fetchDirectory, setOpenTabs, setActiveTabId, setCalendarDate, setCalendarViewMode,
         setEditorContent: (content) => editorActionsRef.current?.setEditorContent(content),
         setActiveFileKey: (key) => editorActionsRef.current?.setActiveFileKey(key),
         setFileName: (name) => editorActionsRef.current?.setFileName(name),
@@ -226,10 +246,11 @@ export default function Dashboard() {
     const { handleBlocksDeleted } = useDashboardListeners({
         privateKey, publicKey, myId, isRestored, activeNoteId, fileName, setFileName, openTabs,
         setOpenTabs, activeTabId, setActiveTabId, noteLayout, calendarDate, setCalendarDate,
-        setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
+        calendarViewMode, setCalendarViewMode, setActiveEventId, storeFiles, files, events, tasks: storeTasks, enabledExtensions, editorInstance,
         setDraggedText, setCalendarDropActive, setDeletedBlockIds, setPendingBindBlockId, setKeys,
         fetchDirectory, loadNoteContent, handleFileSelect, switchTab, switchTabRef, handleNewNote,
         islandPush, setIdlePayload,
+        onOpenProfileOverlay: isMobile ? (userId) => setMobileProfileId(userId) : undefined,
     });
 
     useRealtimeSync({ myId, activeNoteId, fileName, isLoadingContent, editorContent, privateKey });
@@ -301,10 +322,13 @@ export default function Dashboard() {
 
     const handleEventCreateRef = useRef(handleEventCreate);
     handleEventCreateRef.current = handleEventCreate;
+    const handleMagicLinkClickRef = useRef(handleMagicLinkClick);
+    handleMagicLinkClickRef.current = handleMagicLinkClick;
     useEffect(() => {
         useIslandActionsStore.getState().register({
             createEvent: (start, end, title) => handleEventCreateRef.current(start, end, false, { title }),
             editEvent: (start) => { setScheduleInitialStart(start); setScheduleModalOpen(true); },
+            openItem: (target) => { void handleMagicLinkClickRef.current(target); },
         });
         const onCollectorCreate = (e: Event) => {
             const { title, start, end } = (e as CustomEvent<{ title: string; start: string; end: string }>).detail;
@@ -340,7 +364,7 @@ export default function Dashboard() {
             <div className="flex flex-col items-center justify-center h-screen bg-t2-surface gap-4">
                 <div className="relative w-8 h-8">
                     <div className="absolute inset-0 rounded-full border-2 border-t2-line-soft" />
-                    <div className="absolute inset-0 rounded-full border-2 border-t-gray-800 dark:border-t-white/60 animate-spin" />
+                    <div className="absolute inset-0 rounded-full border-2 border-t-t2-ink animate-spin" />
                 </div>
                 <span className="text-[11px] font-semibold text-t2-ink-3 tracking-[0.3em] uppercase">tide</span>
             </div>
@@ -396,13 +420,11 @@ export default function Dashboard() {
             activeTabId={activeTabId} onReturnToTab={(tabId) => setActiveTabId(tabId)} />
     );
 
+    // Same flow as the sidebar's sign-out: server logout, keys, queue, offline mirror, session data.
     const handleAvatarLogout = () => {
         setIsAvatarMenuOpen(false);
-        sessionStorage.clear();
-        localStorage.removeItem("tide_user_email");
-        localStorage.removeItem("tide_user_id");
-        localStorage.removeItem("tide_session_token");
-        window.location.reload();
+        clearMentionShares();
+        void handleSignOut();
     };
 
     // Mobile title field: the visible title follows every keystroke, the rename itself is saved shortly after typing stops.
@@ -453,9 +475,10 @@ export default function Dashboard() {
                     onEventUpdate={(id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) =>
                         meta ? handleEventSave(id, { ...meta, start: newStart.toISOString(), end: newEnd.toISOString() })
                             : handleEventUpdate(id, newStart, newEnd)}
-                    onEventSave={handleEventSave} onEventDelete={(id: string) => handleDeleteEvent(id)}
+                    onEventSave={handleEventSave} onSetEventPrivate={(id: string, value: boolean) => handleEventSave(id, { private: value }, { strict: true })}
+                    onEventDelete={(id: string) => handleDeleteEvent(id)}
                     onTaskComplete={(id: string, completed: boolean) => handleEventSave(id, { is_completed: completed })}
-                    socialHubElement={<SocialHub compact={true} onOpenProfile={() => {}} userProfile={userProfile} privateKey={privateKey}
+                    socialHubElement={<SocialHub compact={true} onOpenProfile={(userId) => setMobileProfileId(userId)} userProfile={userProfile} privateKey={privateKey}
                         onOpenFile={(fileId, title) => handleFileSelect(fileId, title)}
                         onOpenCalendar={() => window.dispatchEvent(new CustomEvent("mobile_switch_calendar"))} />}
                     userProfile={userProfile} editorElement={mobileEditorElement} onNoteRename={handleMobileNoteRename}
@@ -481,7 +504,6 @@ export default function Dashboard() {
                                 onOpenCalendar={() => handleTabSelect("calendar", "calendar")} onOpenSocial={() => setActiveTabId("social")}
                                 onOpenExams={() => handleTabSelect("job_planner", "job_planner")}
                                 onOpenStudium={() => handleTabSelect("job_planner", "job_planner")}
-                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos}
                                 isAvatarMenuOpen={isAvatarMenuOpen} setIsAvatarMenuOpen={shouldShowSidebar ? setIsAvatarMenuOpen : undefined} avatarMenuRef={avatarMenuRef}
                                 onOpenSettings={() => setSettingsModalOpen(true)} onOpenTrash={() => setActiveTabId("trash")}
                                 onLogout={handleAvatarLogout} />
@@ -492,7 +514,21 @@ export default function Dashboard() {
                         )}
                     </div>
                     <DashboardDesktopContent {...desktopContentProps} />
+                    <WorkspaceTimeTracker />
                 </>
+            )}
+            {isMobile && mobileProfileId && (
+                <div className="fixed inset-0 z-[400] bg-[var(--background)] overflow-y-auto overscroll-contain pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]" data-mobile-profile-overlay>
+                    <ProfilePage
+                        userId={mobileProfileId}
+                        onBack={() => setMobileProfileId(null)}
+                        onOpenFile={(fileId, title) => {
+                            setMobileProfileId(null);
+                            window.dispatchEvent(new CustomEvent("mobile_open_note", { detail: { id: fileId, title } }));
+                        }}
+                        onMessage={() => setMobileProfileId(null)}
+                    />
+                </div>
             )}
 
             <RecurrenceScopeDialog />

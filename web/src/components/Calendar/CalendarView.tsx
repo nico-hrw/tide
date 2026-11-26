@@ -20,11 +20,14 @@ import { useCalendarScroll } from './useCalendarScroll';
 import { useEventsByDay } from './useEventsByDay';
 import { useWeekWindow, initialScrollTop } from './useWeekWindow';
 import { useFixedWeekNavigation } from './useFixedWeekNavigation';
+import { useSlotCreateGesture } from '@/hooks/useSlotCreateGesture';
+import { resolveTimeGridSlot } from './slotResolvers';
+import { todoVisibleInSafes } from '@/lib/todoSafes';
 import { useNoTagPrompt, useTaggedCreate } from './useNoTagPrompt';
 import type { CalendarViewProps, CalendarViewMode } from './types';
 
 export default function CalendarView({
-    events,
+    events: allEvents,
     onEventCreate: onEventCreateProp,
     onEventUpdate,
     onEventRename,
@@ -43,6 +46,9 @@ export default function CalendarView({
 }: CalendarViewProps) {
     const weekStartsOn = useWeekStartsOn();
     const calendarScrollMode = useDataStore(s => s.calendarScrollMode);
+    const activeSafes = useDataStore(s => s.activeSafes);
+    // Events of the active workspaces only (own or linked); the rest stays in its workspace.
+    const events = useMemo(() => allEvents.filter((e) => todoVisibleInSafes(e, activeSafes ?? [])), [allEvents, activeSafes]);
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
     const viewMode = viewModeProp ?? internalViewMode;
@@ -144,6 +150,15 @@ export default function CalendarView({
         enabled: isFixedWeek,
         isDragging: !!(draggingId || resizingId || creationDrag),
     });
+
+    // Touch: double tap or long press on an empty spot of the week / day grid creates an event there.
+    // Mouse and pen keep click-and-drag (the gesture only reacts to pointerType "touch").
+    useSlotCreateGesture(
+        scrollContainerRef,
+        { resolve: resolveTimeGridSlot, onCreate: (hit) => { void onEventCreate?.(hit.start, hit.end, false); } },
+        !!onEventCreateProp && (viewMode === 'week' || viewMode === 'day'),
+        [viewMode, isFixedWeek],
+    );
 
     // The infinite week view restores the vertical position itself (useWeekWindow); do it here for fixed mode.
     // A container that already existed before a runtime mode switch keeps its live vertical position.

@@ -8,6 +8,8 @@ import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { SearchOverlay } from "@/components/Workspaces/SearchOverlay";
+import { useCalendarShareStore } from "@/store/useCalendarShareStore";
+import { startGroupSync } from "@/lib/calendarShareActions";
 import { useDataStore } from "@/store/useDataStore";
 import { useJobPlannerStore } from "@/store/useJobPlannerStore";
 import { apiFetch } from "@/lib/api";
@@ -190,14 +192,23 @@ export function DashboardModals({
             : { eventPatches: [], taskPatches: [] };
         const text = (key: string, vars?: Record<string, string | number>) =>
             formatMessage(getTranslation(store.language || "de", "settings", key), vars);
+        // A shared calendar: say that shares already given stay (null = rules unreadable, say it too).
+        const shareRules = await useCalendarShareStore.getState().freshRules(60_000);
+        const shareRule = shareRules?.[id];
+        const keepsSharesNote = !shareRules || shareRule ? ` ${text("calShare.deleteKeepsShares")}` : "";
         // Removing a tag changes events, todos and notes: a real question, not just an undo toast
         const ok = await askConfirm({
             title: text("cal.deleteConfirm"),
-            message: text("cal.deleteConfirmCount", { events: patches.eventPatches.length, todos: patches.taskPatches.length }),
+            message: text("cal.deleteConfirmCount", { events: patches.eventPatches.length, todos: patches.taskPatches.length }) + keepsSharesNote,
             confirmLabel: "Tag löschen",
             tone: "danger",
         });
         if (!ok) return;
+        // Removals the user already confirmed but that did not finish: try them while the events still carry the tag.
+        if (shareRule?.pendingRevoke?.length) {
+            const res = await startGroupSync({ rule: shareRule, removed: [], permissionChanged: [], mode: "revoke-only" }).catch(() => null);
+            if (!res || res.failed > 0) notifyError(text("calShare.deletePendingFailed"));
+        }
         void deleteTagEverywhere(id, {
             events,
             tasks: store.tasks,
@@ -222,6 +233,8 @@ export function DashboardModals({
             },
         }).then((result) => {
             if (!result.ok) notifyError(text("cal.deleteFailed"));
+            // The calendar is gone: its share rule must not keep auto-sharing.
+            else void useCalendarShareStore.getState().removeRule(id).catch(() => undefined);
         });
     };
 

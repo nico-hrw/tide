@@ -183,6 +183,26 @@ Retry-After: 10
 }
 ```
 
+### 4.2 File Update Write Brake (`PUT`/`PATCH /api/v1/files/{id}`)
+
+`cloud/internal/api/files_update_guard.go`, wired into `FileHandler.UpdateFile` after the access check (unknown file stays 404, missing write permission stays 403, both without using a token). Background: two stale browser tabs once rewrote six calendar entries 100-270 times a minute (versions ~75 000).
+
+**No-op detection.** The server cannot compare encrypted content, only metadata. A PUT is a no-op when it carries no `content_ciphertext` and every field it sends equals the stored state: `parent_id` (`"__none__"`/`""` = NULL), `visibility`, `secured_meta` (byte-identical, owner only; a collaborator's `secured_meta` lives in the share row and always counts as a change), `public_meta`, `metadata` and, for the owner, `access_keys`. JSON is compared normalised: key order ignored; `null`, `""`, `false`, `{}`, `[]` equal a missing key; array order and number spelling kept. A no-op writes nothing, keeps the version, sends no SSE `file_updated`, runs no backup cascade, and answers `200` with the stored file (same JSON as a normal PUT, plus header `X-Tide-Noop: 1`). This also holds with a stale `version`: the server already holds what the client wants, so nothing is overwritten and the client learns the current version. Any real change with a stale version still gets `409` exactly as before.
+
+Note: calendar entry saves always send fresh `secured_meta` and `content_ciphertext` (random IVs), so they are never no-ops; for them only the rate limit applies.
+
+**Rate limit.** Token bucket per `user|file`: 90 updates/min, burst 30 (no-ops count too). Highest legitimate rates measured in the web client: calendar entries 20/min per tab (`eventWriteGuard.ts`: burst 3, then one per 2 s), search index one write per 2 s debounce per tab, note metadata only after 15 s idle (3 s for overlays). The daemon under `core/` only reads. Exceeding the limit:
+
+```http
+HTTP/1.1 429 Too Many Requests
+Content-Type: application/json
+Retry-After: <seconds until the next token, at least 1>
+
+{"error":"too_many_requests","message":"Too many updates for this file. Please wait before trying again.","retry_after":1}
+```
+
+A refused write sends no broadcast, which also breaks refresh-driven ping-pong chains. The server logs at most one warning per file and minute. Web clients do not retry on 429: `apiFetch` returns it unchanged, `eventWriteGuard` reports the save as failed, the offline `syncQueue` keeps 429 items for its next flush.
+
 ---
 
 ## 5. HTTP Security & CORS Policies

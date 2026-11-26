@@ -31,6 +31,9 @@ type AuthHandler struct {
 	pinLimiter      *FailedAttemptTracker
 	otpLimiter      *FailedAttemptTracker
 	otpCache        map[string]otpEntry
+	keyChallenges   map[string]keyChallenge // see auth_challenge.go
+	sessionEmails   map[string]sessionEmail // address of the latest verify-otp per user, short-lived
+	passkey         *passkeyState           // see passkey.go, created on first use
 	mu              sync.Mutex
 }
 
@@ -41,6 +44,8 @@ func NewAuthHandler(s *store.SQLiteStore, masterKey []byte) *AuthHandler {
 		pinLimiter:      NewFailedAttemptTracker(5, 15*time.Minute),
 		otpLimiter:      NewFailedAttemptTracker(5, 15*time.Minute),
 		otpCache:        make(map[string]otpEntry),
+		keyChallenges:   make(map[string]keyChallenge),
+		sessionEmails:   make(map[string]sessionEmail),
 	}
 }
 
@@ -52,7 +57,7 @@ func (h *AuthHandler) RegisterRoutes(r chi.Router) {
 	r.Post("/login/step2", h.VerifyPin)
 	r.Post("/auth/verify-pin", h.VerifyPin)
 	r.Post("/auth/login/step2", h.VerifyPin)
-	
+
 	r.With(AuthMiddleware).Get("/me", h.Me)
 	r.With(AuthMiddleware).Put("/me", h.UpdateMe)
 }
@@ -66,6 +71,8 @@ type RegisterRequest struct {
 	EncryptedVault string `json:"encrypted_vault"`
 	Pepper         string `json:"pepper"` // Base64 or Hex, client generated
 	Pin            string `json:"pin"`
+	// Optional client-encrypted second wrapping of the private key (see auth_recovery.go).
+	RecoveryVault string `json:"recovery_vault,omitempty"`
 }
 
 func hashString(s string) string {
@@ -207,11 +214,12 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Missing required fields", http.StatusBadRequest)
 		return
 	}
-	if strings.TrimSpace(req.Pin) == "" {
-		http.Error(w, "PIN is required", http.StatusBadRequest)
-		return
+	if req.RecoveryVault != "" {
+		if err := validateRecoveryVault(req.RecoveryVault); err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
-
 	// Prepare Blind Indexes
 	var emailHash, usernameHash, phoneHash *string
 
@@ -260,10 +268,16 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	encryptedPepper := aesGCM.Seal(nonce, nonce, pepper, nil)
 
-	pinHash, err := hashPinArgon2id(req.Pin)
-	if err != nil {
-		http.Error(w, "PIN hashing failed", http.StatusInternalServerError)
-		return
+	// The vault PIN is a client-side secret: the web app never sends it. A PIN hash is stored
+	// only when a client explicitly provides one; steps that verify it fail closed otherwise.
+	var pinHash *string
+	if strings.TrimSpace(req.Pin) != "" {
+		hashed, err := hashPinArgon2id(req.Pin)
+		if err != nil {
+			http.Error(w, "PIN hashing failed", http.StatusInternalServerError)
+			return
+		}
+		pinHash = &hashed
 	}
 
 	user := &db.User{
@@ -274,7 +288,7 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		EncryptedVault:  []byte(req.EncryptedVault),
 		EncryptedPepper: encryptedPepper,
 		PublicKey:       req.PublicKey,
-		PinHash:         &pinHash,
+		PinHash:         pinHash,
 		CreatedAt:       time.Now(),
 		Username:        req.Username,
 	}
@@ -290,8 +304,18 @@ func (h *AuthHandler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	resp := map[string]interface{}{"id": user.ID}
+	if req.RecoveryVault != "" {
+		saved := true
+		if err := h.Store.SetRecoveryVault(r.Context(), user.ID, req.RecoveryVault); err != nil {
+			log.Printf("REGISTRATION: recovery vault not stored for user %s: %v", user.ID, err)
+			saved = false
+		}
+		resp["recovery_saved"] = saved
+	}
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(map[string]string{"id": user.ID})
+	json.NewEncoder(w).Encode(resp)
 }
 
 func (h *AuthHandler) Me(w http.ResponseWriter, r *http.Request) {
@@ -383,14 +407,19 @@ func (h *AuthHandler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		if user.PinHash != nil && *user.PinHash != "" {
-			if req.PIN == "" {
-				http.Error(w, "Current PIN required to change PIN", http.StatusForbidden)
-				return
-			}
-			if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, *user.PinHash) {
-				return
-			}
+		// A session alone must never enrol the first PIN hash: with one, step-up checks such as the
+		// email change could be passed by whoever holds only a stolen session. Accounts without a
+		// PIN hash therefore cannot set one here.
+		if user.PinHash == nil || *user.PinHash == "" {
+			http.Error(w, "PIN cannot be set without re-authentication", http.StatusForbidden)
+			return
+		}
+		if req.PIN == "" {
+			http.Error(w, "Current PIN required to change PIN", http.StatusForbidden)
+			return
+		}
+		if !h.verifyPinWithLimiter(r.Context(), w, user.ID, req.PIN, *user.PinHash) {
+			return
 		}
 
 		newHash, err := hashPinArgon2id(req.NewPIN)
@@ -465,5 +494,3 @@ func (h *AuthHandler) VerifyPin(w http.ResponseWriter, r *http.Request) {
 }
 
 // Legacy auth code has been removed.
-
-

@@ -11,7 +11,6 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { useDataStore } from '@/store/useDataStore';
 import {
   MobileBottomNav,
   MobileBottomNavProps,
@@ -55,9 +54,6 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
   onMoreClick,
   onGoToToday,
 }) => {
-  const theme = useDataStore((s) => s.theme);
-  const isDark = theme === 'dark';
-
   // ── Keyboard-aware bottom bar offset ────────────────────────────────────────
   const [kbOffset, setKbOffset] = useState(0);
   useEffect(() => {
@@ -118,7 +114,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           <button
             type="button"
             onClick={() => onDoneEditTodo(editingTodoId)}
-            className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-t2-ink text-white dark:text-neutral-900 shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-t2-ink"
+            className="h-10 px-4 flex items-center gap-1.5 rounded-full text-xs font-semibold bg-t2-ink text-t2-bg shadow-sm transition-all active:scale-95 shrink-0 cursor-pointer hover:bg-t2-ink"
             title="Fertig"
           >
             <Check size={15} strokeWidth={2.4} />
@@ -131,7 +127,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           type="button"
           onClick={onAddSubtask}
           aria-label="Unteraufgabe hinzufügen"
-          className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-t2-ink text-white dark:text-neutral-900 flex items-center justify-center shadow-lg hover:bg-t2-ink active:scale-95 transition-all cursor-pointer shrink-0"
+          className="pointer-events-auto w-[52px] h-[52px] rounded-full bg-t2-ink text-t2-bg flex items-center justify-center shadow-lg hover:bg-t2-ink active:scale-95 transition-all cursor-pointer shrink-0"
           title="Unteraufgabe hinzufügen"
         >
           <Plus size={24} />
@@ -173,8 +169,8 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
           <div
             className="fixed bottom-[84px] right-4 rounded-2xl shadow-xl border p-2 flex flex-col w-[170px] z-50 transition-all origin-bottom-right"
             style={{
-              background: isDark ? '#1a1e28' : '#ffffff',
-              borderColor: isDark ? '#262b38' : '#f1f2f5',
+              background: 'var(--t2-surface)',
+              borderColor: 'var(--t2-line-soft)',
               boxShadow:
                 '0 10px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
             }}
@@ -186,7 +182,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
                 onNewEvent();
               }}
               className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-t2-sub"
-              style={{ color: isDark ? '#f3f4f6' : '#1f2937' }}
+              style={{ color: 'var(--t2-ink)' }}
             >
               <CalendarPlus className="w-5 h-5 text-t2-accent shrink-0" />
               <span>Termin</span>
@@ -199,7 +195,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
                 onNewTodo();
               }}
               className="flex items-center gap-3 w-full text-left px-3 py-3 text-[15px] font-semibold rounded-xl transition-colors cursor-pointer hover:bg-t2-sub"
-              style={{ color: isDark ? '#f3f4f6' : '#1f2937' }}
+              style={{ color: 'var(--t2-ink)' }}
             >
               <CheckSquare className="w-5 h-5 text-green-500 shrink-0" />
               <span>To-Do</span>
@@ -209,7 +205,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
               <>
                 <div
                   className="h-[1px] my-1"
-                  style={{ background: isDark ? '#262b38' : '#f3f4f6' }}
+                  style={{ background: 'var(--t2-hover)' }}
                 />
                 <button
                   type="button"
@@ -218,7 +214,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
                     setIsPlusMenuOpen(false);
                   }}
                   className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-t2-sub"
-                  style={{ color: isDark ? '#9ca3af' : '#4b5563' }}
+                  style={{ color: 'var(--t2-ink-2)' }}
                 >
                   <PenLine size={16} className="text-t2-accent shrink-0" />
                   <span>Notiz</span>
@@ -230,7 +226,7 @@ export const MobileBottomDock: React.FC<MobileBottomDockProps> = ({
                     setIsPlusMenuOpen(false);
                   }}
                   className="flex items-center gap-3 w-full text-left px-3 py-2 text-[14px] font-medium rounded-xl transition-colors cursor-pointer hover:bg-t2-sub"
-                  style={{ color: isDark ? '#9ca3af' : '#4b5563' }}
+                  style={{ color: 'var(--t2-ink-2)' }}
                 >
                   <FolderPlus size={16} className="text-t2-accent shrink-0" />
                   <span>Ordner</span>

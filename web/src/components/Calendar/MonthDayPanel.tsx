@@ -55,7 +55,7 @@ export function MonthDayPanel({
                             type="button"
                             onClick={() => onSelect(ev)}
                             style={{ background: c.bg, color: c.ink }}
-                            className={`w-full shrink-0 rounded-xl px-3.5 py-2.5 text-left transition-all hover:brightness-[0.94] ${active ? 'ring-2 ring-black dark:ring-white' : ''}`}
+                            className={`w-full shrink-0 rounded-xl px-3.5 py-2.5 text-left transition-all hover:brightness-[0.94] ${active ? 'ring-2 ring-t2-ink' : ''}`}
                         >
                             <div className="truncate text-[13.5px] font-bold leading-tight">{ev.title || 'Ohne Titel'}</div>
                             <div className="mt-0.5 text-[12px] font-medium opacity-80 tabular-nums">{timeLabel(ev)}</div>

@@ -266,7 +266,7 @@ export default function SecuritySettingsModal({
     return (
         <div 
             onClick={onClose}
-            className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[#111827]/20 animate-in fade-in duration-200"
+            className="fixed inset-0 z-[250] flex items-center justify-center p-4 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] animate-in fade-in duration-200"
         >
             <div 
                 className="w-full max-w-md rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] border border-t2-line  bg-t2-surface  overflow-hidden p-6 animate-in zoom-in-95 duration-150 flex flex-col gap-4"
@@ -333,7 +333,7 @@ export default function SecuritySettingsModal({
                                 value={currentPin}
                                 onChange={e => setCurrentPin(e.target.value)}
                                 placeholder="Aktuelle PIN eingeben..."
-                                className="w-full h-[40px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
+                                className="w-full h-[40px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 transition-colors"
                             />
                         </div>
                     )}
@@ -349,12 +349,12 @@ export default function SecuritySettingsModal({
                                     value={recoveryOtp}
                                     onChange={e => setRecoveryOtp(e.target.value)}
                                     placeholder="6-stelliger Code..."
-                                    className="flex-1 h-[40px] px-3 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs font-mono text-center text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="flex-1 h-[40px] px-3 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs font-mono text-center text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleVerifyRecoveryOtp}
-                                    className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[40px] px-3.5 font-semibold text-xs transition-colors"
+                                    className="bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-[8px] h-[40px] px-3.5 font-semibold text-xs transition-colors"
                                 >
                                     Prüfen
                                 </button>
@@ -388,13 +388,13 @@ export default function SecuritySettingsModal({
                                     onChange={e => setFirstPin(e.target.value)}
                                     onKeyDown={e => { if (e.key === 'Enter') handleFirstPinSubmit(e); }}
                                     placeholder="PIN / Passwort eingeben..."
-                                    className="flex-1 h-[42px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 transition-colors"
+                                    className="flex-1 h-[42px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 transition-colors"
                                 />
                                 <button
                                     type="button"
                                     onClick={handleFirstPinSubmit}
                                     disabled={!firstPin.trim()}
-                                    className="h-[42px] px-4 rounded-[8px] bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1.5"
+                                    className="h-[42px] px-4 rounded-[8px] bg-t2-accent hover:opacity-90 text-t2-accent-ink text-xs font-semibold disabled:opacity-50 transition-colors flex items-center gap-1.5"
                                 >
                                     <span>Weiter</span>
                                     <ArrowRight size={13} />
@@ -412,7 +412,7 @@ export default function SecuritySettingsModal({
                                     className={`w-full h-[42px] pl-3.5 pr-10 rounded-[8px] border text-xs text-t2-ink  focus:outline-none transition-colors ${
                                         isMatch ? 'border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-500/5' :
                                         isMismatch ? 'border-rose-500 ring-2 ring-rose-500/20 bg-rose-500/5' :
-                                        'border-t2-line  bg-t2-surface  focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400'
+                                        'border-t2-line  bg-t2-surface  focus:ring-2 focus:ring-t2-accent focus:ring-offset-2'
                                     }`}
                                 />
                                 <div className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 pointer-events-none">
@@ -445,7 +445,7 @@ export default function SecuritySettingsModal({
                                     name="frequency"
                                     checked={frequencyMode === 'always'}
                                     onChange={() => setFrequencyMode('always')}
-                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                 />
                                 <span className="text-t2-ink  font-medium">Jedes Mal beim Öffnen</span>
                             </label>
@@ -458,7 +458,7 @@ export default function SecuritySettingsModal({
                                         name="frequency"
                                         checked={frequencyMode === 'session'}
                                         onChange={() => setFrequencyMode('session')}
-                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                     />
                                     <span className="text-t2-ink  truncate font-medium">Einmal pro Sitzung</span>
                                 </label>
@@ -468,7 +468,7 @@ export default function SecuritySettingsModal({
                                         name="frequency"
                                         checked={frequencyMode === 'once'}
                                         onChange={() => setFrequencyMode('once')}
-                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                        className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                     />
                                     <span className="text-t2-ink  truncate font-medium">Einmal auf diesem Gerät</span>
                                 </label>
@@ -483,7 +483,7 @@ export default function SecuritySettingsModal({
                                     name="frequency"
                                     checked={frequencyMode === 'custom'}
                                     onChange={() => setFrequencyMode('custom')}
-                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                                    className="w-4 h-4 text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                 />
                                 <span className="text-t2-ink  font-medium">Alle</span>
                                 <input
@@ -493,13 +493,13 @@ export default function SecuritySettingsModal({
                                     disabled={frequencyMode !== 'custom'}
                                     value={frequencyValue}
                                     onChange={e => setFrequencyValue(parseInt(e.target.value, 10) || 1)}
-                                    className="w-14 px-2 py-1 text-center font-bold rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="w-14 px-2 py-1 text-center font-bold rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
                                 />
                                 <select
                                     disabled={frequencyMode !== 'custom'}
                                     value={customUnit}
                                     onChange={e => setCustomUnit(e.target.value as any)}
-                                    className="flex-1 px-2 py-1 rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                    className="flex-1 px-2 py-1 rounded-[6px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  focus:outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
                                 >
                                     <option value="timeout_minutes">Minuten</option>
                                     <option value="every_x_times">Öffnungen</option>
@@ -515,7 +515,7 @@ export default function SecuritySettingsModal({
                             type="checkbox"
                             checked={requireForShares}
                             onChange={e => setRequireForShares(e.target.checked)}
-                            className="w-4 h-4 rounded text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-zinc-900 dark:accent-white"
+                            className="w-4 h-4 rounded text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                         />
                         <span>PIN auch für freigegebene Empfänger verlangen</span>
                     </label>
@@ -547,7 +547,7 @@ export default function SecuritySettingsModal({
                             type="button"
                             onClick={handleSavePin}
                             disabled={isSaving || (pinStep === 'confirm' && (!isMatch || isMismatch))}
-                            className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+                            className="bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
                         >
                             {isSaving ? <RefreshCw size={15} className="animate-spin" /> : <Check size={15} />}
                             <span>Speichern</span>

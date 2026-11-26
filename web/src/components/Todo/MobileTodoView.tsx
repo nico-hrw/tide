@@ -107,7 +107,6 @@ export const MobileTodoView: React.FC = () => {
       .sort((a, b) => String(b.completedAt ?? '').localeCompare(String(a.completedAt ?? ''))),
     [roots],
   );
-  const archivedCount = useMemo(() => roots.filter((t) => isTaskArchived(t)).length, [roots]);
 
   // Beim Öffnen auf „Heute“ scrollen, damit überfällige Todos darüber nur kurz stören.
   useEffect(() => {
@@ -280,7 +279,7 @@ export const MobileTodoView: React.FC = () => {
               className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3"
             >
               {s.title}
-              <em className="not-italic font-medium">{s.items.length}</em>
+              {(s.key === 'today' || s.key === 'tomorrow') && <em className="not-italic font-medium">{s.items.length}</em>}
               <span className="h-px flex-1 bg-t2-line-soft" />
             </div>
             {s.items.map((t) => renderCard(t, s.key === 'today'))}
@@ -294,7 +293,7 @@ export const MobileTodoView: React.FC = () => {
               aria-expanded={showCompleted}
               className="mt-3.5 mb-0.5 flex w-full items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3"
             >
-              Kürzlich erledigt <em className="not-italic font-medium">{completedRoots.length}</em>
+              Kürzlich erledigt
               <span className="h-px flex-1 bg-t2-line-soft" />
               <ChevronDown size={14} className={`transition-transform ${showCompleted ? 'rotate-180' : ''}`} />
             </button>
@@ -313,7 +312,7 @@ export const MobileTodoView: React.FC = () => {
               </button>
             ))}
             <div className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3">
-              Archiv <em className="not-italic font-medium">{archivedCount}</em>
+              Archiv
               <span className="h-px flex-1 bg-t2-line-soft" />
             </div>
           </>

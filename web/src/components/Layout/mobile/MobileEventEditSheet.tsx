@@ -6,6 +6,9 @@ import { X, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { CALENDAR_CATEGORIES, resolveCategory } from '@/lib/calendarColors';
 import { paletteFor } from './eventPalette';
+import { EventMentionField } from '@/components/Calendar/EventMentionField';
+import { EventPrivateToggle } from '@/components/Calendar/EventPrivateToggle';
+import { createMentionSession, discardMentionSession } from '@/lib/eventMentionShare';
 
 type Freq = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
 
@@ -34,6 +37,7 @@ export interface MobileEditEventSheetProps {
     is_task?: boolean;
     linkedTaskId?: string;
     is_completed?: boolean;
+    private?: boolean;
   };
   onSave: (
     id: string,
@@ -52,6 +56,8 @@ export interface MobileEditEventSheetProps {
   ) => void;
   onDismiss: () => void;
   onDelete?: (id: string) => void;
+  /** Strict save of `private` (rejects on failure); the lock saves at once, independent of Fertig/Cancel. */
+  onSetPrivate?: (id: string, value: boolean) => Promise<void>;
   themes?: Array<{ id: string; title: string; color?: string; effect?: string }>;
 }
 
@@ -78,6 +84,7 @@ export const MobileEditEventSheet = ({
   onSave,
   onDismiss,
   onDelete,
+  onSetPrivate,
   themes,
 }: MobileEditEventSheetProps) => {
   const initialStart = useMemo(() => {
@@ -96,7 +103,14 @@ export const MobileEditEventSheet = ({
   const rec = parseRecurrence(event);
   // A draft is created on save; the sheet stays mounted during its exit animation, so it submits only once.
   const submittedRef = useRef(false);
+  // Mentions share at the pick; closing without saving revokes those shares again.
+  const mentionSession = useRef(createMentionSession()).current;
+  const cancel = () => {
+    if (!isDraft) void discardMentionSession(mentionSession, event.id, event.description || '');
+    onDismiss();
+  };
 
+  const [isPrivate, setIsPrivate] = useState(!!event.private);
   const [title, setTitle] = useState(event.title || '');
   const [dateStr, setDateStr] = useState(() => format(initialStart, 'yyyy-MM-dd'));
   const [startTime, setStartTime] = useState(() => hm(initialStart));
@@ -172,7 +186,7 @@ export const MobileEditEventSheet = ({
         exit={{ opacity: 0 }}
         className="fixed inset-0 z-[60]"
         style={{ background: 'rgba(0,0,0,0.35)' }}
-        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
+        onClick={(e) => { e.stopPropagation(); cancel(); }}
       />
       <motion.div
         key="edit-sheet-content"
@@ -187,7 +201,7 @@ export const MobileEditEventSheet = ({
           <div className="w-10 h-1 rounded-full bg-t2-line" />
         </div>
         <div className="flex items-center justify-between px-5 pb-2 shrink-0">
-          <button type="button" onClick={onDismiss} aria-label="Schließen" className="grid h-9 w-9 place-items-center rounded-full text-t2-ink-2">
+          <button type="button" onClick={cancel} aria-label="Schließen" className="grid h-9 w-9 place-items-center rounded-full text-t2-ink-2">
             <X size={18} />
           </button>
           <span className="text-[15px] font-bold text-t2-ink">Termin</span>
@@ -320,14 +334,29 @@ export const MobileEditEventSheet = ({
 
           <div className="mt-4">
             <div className="mb-1.5 text-[11px] font-bold uppercase tracking-[0.06em] text-t2-ink-3">Notiz</div>
-            <textarea
+            <EventMentionField
+              key={event.id}
+              eventId={isDraft ? '' : event.id}
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={setDescription}
+              isPrivate={isPrivate}
+              toastZIndex={200}
+              session={mentionSession}
               rows={3}
-              aria-label="Notiz"
+              ariaLabel="Notiz"
               className="w-full resize-none bg-transparent text-[14.5px] text-t2-ink-2 outline-none border-b border-t2-line-soft py-2"
             />
           </div>
+
+          {onSetPrivate && !isDraft && (
+            <div className="mt-4">
+              <EventPrivateToggle
+                eventId={event.id}
+                isPrivate={isPrivate}
+                onChange={async (next) => { await onSetPrivate(event.id, next); setIsPrivate(next); }}
+              />
+            </div>
+          )}
         </form>
 
         {onDelete && (

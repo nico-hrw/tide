@@ -41,6 +41,7 @@ export interface MobileLayoutProps {
   onEventClick?: (id: string) => void;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: { title?: string; color?: string; description?: string }) => void;
   onEventSave?: (id: string, updates: Record<string, unknown>) => void;
+  onSetEventPrivate?: (id: string, value: boolean) => Promise<void>;
   onEventDelete?: (id: string) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   socialHubElement?: React.ReactNode;
@@ -52,7 +53,7 @@ type WindowWithNoteCache = Window & { __mobileNoteCache?: Record<string, string>
 
 export default function MobileLayout({
   events, files, folders, onNoteSelect, onNewNote, onDeleteNote, onNewFolder, onNewFolderIn, onNoteRename,
-  editorElement, activeNoteId, activeNoteTitle, onNewEvent, onEventClick, onEventUpdate, onEventSave,
+  editorElement, activeNoteId, activeNoteTitle, onNewEvent, onEventClick, onEventUpdate, onEventSave, onSetEventPrivate,
   onEventDelete, onTaskComplete, userProfile, themes,
 }: MobileLayoutProps) {
   const weekStartsOn = useWeekStartsOn();
@@ -330,7 +331,7 @@ export default function MobileLayout({
       ) : null}
       {activeTab === 'todos' ? (
         <div
-          className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden bg-[#f8f9fa] dark:bg-[#121212]"
+          className="mobile-todos-container w-full h-full flex flex-col flex-1 min-h-0 relative max-w-full overflow-hidden bg-t2-sub"
           style={{ paddingBottom: 'max(64px, calc(56px + env(safe-area-inset-bottom)))' }}
         >
           <style>{`.mobile-todos-container .sticky.top-0{padding-top:max(8px,calc(env(safe-area-inset-top) + 4px))!important}.mobile-todos-container .max-w-4xl,.mobile-todos-container .md\\:max-w-5xl{padding:12px 12px calc(28px + env(safe-area-inset-bottom)) 12px!important;gap:12px!important;max-width:100%!important}`}</style>
@@ -363,7 +364,7 @@ export default function MobileLayout({
         onDateFilterChange={(date) => setFilterState((p) => ({ ...p, date }))} allTags={allTags} selectedTag={filterState.tag}
         onTagChange={(tag) => setFilterState((p) => ({ ...p, tag }))} selectedEvent={selectedEvent} onSelectEvent={setSelectedEvent}
         editingEvent={editingEvent} onEditEvent={setEditingEvent} now={now} resolvedThemes={resolvedThemes}
-        onEventDelete={onEventDelete} onEventSave={onEventSave} onEventUpdate={onEventUpdate} onTaskComplete={onTaskComplete}
+        onEventDelete={onEventDelete} onEventSave={onEventSave} onSetEventPrivate={onSetEventPrivate} onEventUpdate={onEventUpdate} onTaskComplete={onTaskComplete}
         contextMenu={contextMenu} onCloseContextMenu={() => setContextMenu(null)} onNewNote={onNewNote}
         onStartEditingNote={() => setUi((p) => ({ ...p, editingNote: true }))} onNewFolderIn={onNewFolderIn}
         onStartRename={(id, value) => setRenameState({ id, value })} onDeleteNote={onDeleteNote} renamingId={renameState.id}

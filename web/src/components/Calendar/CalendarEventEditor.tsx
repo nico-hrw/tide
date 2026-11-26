@@ -2,7 +2,9 @@
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays, Clock, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock, Layers, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { WorkspacePicker } from '@/components/Todo/TodoWorkspacePicker';
+import { todoSafe } from '@/lib/todoSafes';
 import TagPicker from '@/components/Tags/TagPicker';
 import { useTagCreate } from '@/components/Tags/useTagCreate';
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from '@/lib/calendarColors';
@@ -73,7 +75,7 @@ export default function CalendarEventEditor({ event, themes, onUpdate, onDelete 
                                 aria-checked={category.key === c.key}
                                 title={c.name}
                                 onClick={() => onUpdate({ color: c.key })}
-                                className={`h-5 w-5 rounded-full transition-transform hover:scale-110 ${category.key === c.key ? 'ring-2 ring-black ring-offset-2 ring-offset-t2-bg dark:ring-white' : ''}`}
+                                className={`h-5 w-5 rounded-full transition-transform hover:scale-110 ${category.key === c.key ? 'ring-2 ring-t2-ink ring-offset-2 ring-offset-t2-bg' : ''}`}
                                 style={{ background: categoryVar(c.key) }}
                             />
                         ))}
@@ -114,6 +116,13 @@ export default function CalendarEventEditor({ event, themes, onUpdate, onDelete 
                         </span>
                     </Row>
                 )}
+                <Row label="Workspace" icon={<Layers size={15} />}>
+                    <WorkspacePicker
+                        safe={todoSafe(event)}
+                        linkedSafes={event.linkedSafes ?? []}
+                        onChange={(next) => onUpdate(next)}
+                    />
+                </Row>
                 <Row label="Tags" icon={<TagIcon size={15} />}>
                     <TagPicker
                         tags={themes}

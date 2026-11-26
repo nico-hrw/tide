@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import SidebarIsland from "./sidebar/SidebarIsland";
 import AvatarMenu from "./AvatarMenu";
-import { GraduationCap, ListTodo } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
@@ -81,9 +81,6 @@ export default function Sidebar({
     onLogout,
     onOpenExams,
     onNewCanvasNote,
-    onOpenTodos,
-    isTodosActive,
-    onToggleTodos,
 }: SidebarProps) {
     const { orderedNoteIds, setOrderedNoteIds, navigationMode } = useDataStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -342,16 +339,6 @@ export default function Sidebar({
                     <GraduationCap size={16} />
                     Studium
                 </button>
-                <button
-                    type="button"
-                    onClick={() => (onToggleTodos ? onToggleTodos() : onOpenTodos?.())}
-                    className={`flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-t2-hover ${
-                        isTodosActive || activeTabId === 'todos' ? 'bg-t2-hover font-semibold text-t2-ink' : 'text-t2-ink-2'
-                    }`}
-                >
-                    <ListTodo size={16} />
-                    Todos
-                </button>
             </nav>
             <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
@@ -502,7 +489,7 @@ export default function Sidebar({
             )}
 
             {toastMessage && (
-                <div className="fixed bottom-6 right-6 z-[300] bg-[#111827] dark:bg-zinc-800 text-white dark:text-zinc-100 px-4 py-3 rounded-xl shadow-2xl border border-t2-ink-3 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
+                <div className="fixed bottom-6 right-6 z-[300] bg-t2-ink text-t2-bg px-4 py-3 rounded-xl shadow-2xl border border-t2-ink-3 text-xs sm:text-sm flex items-center gap-2.5 animate-in fade-in slide-in-from-bottom-2 duration-200 pointer-events-none">
                     <Check size={16} className="text-emerald-400 shrink-0" />
                     <span className="font-medium">{toastMessage}</span>
                 </div>

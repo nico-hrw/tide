@@ -31,7 +31,7 @@ const CommentNodeView = (props: any) => {
             <span contentEditable={false} onClick={() => setIsOpen(!isOpen)} style={{ color: randomColor }} className="cursor-pointer font-bold px-0.5 select-none">*</span>
             {/* The Content Area */}
             {isOpen && (
-                <span className="block mt-1 mb-2 pl-3 border-l-2 border-dashed text-sm italic" style={{ borderColor: randomColor, color: '#555' }}>
+                <span className="block mt-1 mb-2 pl-3 border-l-2 border-dashed text-sm italic" style={{ borderColor: randomColor, color: 'var(--t2-ink-2)' }}>
                     <NodeViewContent
                         as={"span" as any}
                         className="inline-block min-w-[50px] min-h-[1.5em] outline-none cursor-text"

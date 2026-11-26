@@ -1,374 +1,234 @@
-# Tide Vault, PIN & Passkey Security Architecture Specification
+# Tide Account Vault, PIN & Recovery
 
-> **Status:** Canonical Security Architecture Specification  
-> **Target Files:**  
-> - [`web/src/lib/crypto.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/crypto.ts) (Master KDF, Key Wrapping, RSA Primitives)  
-> - [`web/src/lib/cryptoV2.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/cryptoV2.ts) (Envelope Encryption & DEK Unwrap Engine)  
-> - [`web/src/lib/pinSecurity.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/pinSecurity.ts) (PIN Hash, Salt, Frequency & Cache Management)  
-> - [`web/src/components/Security/PinPromptModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/PinPromptModal.tsx) (PIN Verification & Recovery UI)  
-> - [`web/src/components/Security/SecuritySettingsModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/SecuritySettingsModal.tsx) (Security Policy Configuration UI)  
-> **Compliance:** Zero-Knowledge, Web Crypto API (`window.crypto.subtle`), FIDO2 / WebAuthn Level 3 (PRF Extension), BIP-39 Standard
-
----
-
-## 1. Vault Philosophy & Threat Model
-
-Tide enforces a strict **Zero-Knowledge (ZK) Client-Side Vault Architecture**. The application operates under the assumption that the backend server, network transport layer, database, and cloud storage providers are potentially hostile, compromised, or untrusted.
-
-### 1.1 Core Principles
-1. **Client-Exclusive Secret Custody:** Plaintext passwords, PINs, BIP-39 recovery phrases, derived Key Encryption Keys (KEKs), and raw asymmetric private keys reside exclusively in transient browser client memory (`window.crypto.subtle` memory heap). They are never transmitted over the wire or stored in unencrypted persistent storage.
-2. **Server-Blind Storage:** The central server acts exclusively as a blind synchronization and storage relay for:
-   - User public identity keys (SPKI 4096-bit RSA).
-   - Encrypted Master Vault envelopes (`{ salt, iv, ciphertext }`).
-   - Per-user cryptographic salt values.
-   - Encrypted Document Encryption Keys (`access_keys` envelopes).
-3. **Hardware & Engine Isolation:** Cryptographic transformations are delegated directly to the browser runtime's native C++ implementation via the W3C Web Crypto API. Private keys are instantiated as **non-extractable** `CryptoKey` handles, mitigating arbitrary memory leakage from client-side scripts.
+> **Status:** describes the code as it is (2026-11). Earlier versions of this file described BIP-39
+> phrases, a progressive client lockout and an inactivity auto-lock, which do not exist (§7).
+> Passkeys (WebAuthn PRF) exist since 2026-11 as an option (§8).
+>
+> **Code:** `web/src/lib/crypto.ts` (key pair, PBKDF2, vault wrap/unwrap), `web/src/lib/keyStorage.ts`
+> (non-extractable key in IndexedDB), `web/src/lib/recovery/` (recovery secret, envelopes, key proof),
+> `web/src/app/auth/page.tsx` + `web/src/components/Auth/` (sign-up, unlock, "PIN vergessen?"),
+> `web/src/components/Settings/account/RecoverySection.tsx`, `cloud/internal/api/auth*.go`,
+> `cloud/internal/store/sqlite_recovery.go`; passkeys: `web/src/lib/passkey/`,
+> `web/src/components/Auth/PasskeyLoginButton.tsx`, `web/src/components/Settings/account/PasskeySection.tsx`,
+> `cloud/internal/api/passkey*.go`, `cloud/internal/store/sqlite_webauthn.go`.
 
 ---
 
-## 2. Vault Unlock Flow: PIN / Password Derivation
+## 1. What the vault is
 
-The primary gate to the user's encrypted identity is their Master PIN or Password. The vault unlock process transforms low-entropy human credentials into a cryptographically hardened 256-bit symmetric Key Encryption Key (KEK) using high-iteration PBKDF2.
+There is no symmetric master key. A user's identity is one **RSA-OAEP 4096 / SHA-256 key pair**
+(`generateMasterKeys`). The public key is stored on the server as SPKI (base64). The private key
+never leaves the client unencrypted; the server stores it in two client-encrypted wrappings:
 
-### 2.1 Cryptographic Parameters
-
-| Parameter | Specification | Purpose / Standard |
+| Column (`users`) | Content | Opened with |
 | :--- | :--- | :--- |
-| **KDF Algorithm** | `PBKDF2` (W3C Web Crypto) | Password-Based Key Derivation Function 2 |
-| **Pseudo-Random Function (PRF)** | `HMAC-SHA-256` | Cryptographic hash primitive |
-| **Iteration Count** | `600,000` (`DEFAULT_PBKDF2_ITERATIONS`) | OWASP 2024+ recommendation against GPU attacks |
-| **Legacy Iterations** | `100,000` (`LEGACY_PBKDF2_ITERATIONS`) | Backward compatibility for legacy vaults |
-| **Salt Size** | 16 bytes (128 bits) CSPRNG | Per-user cryptographic salt |
-| **Derived Key Type** | `AES-GCM` 256-bit | Key Encryption Key (KEK) |
-| **KEK Extractability** | `extractable: false` | Key cannot be exported from Web Crypto memory |
-| **Vault Cipher** | `AES-256-GCM` (12-byte IV, 128-bit Tag) | Authenticated encryption of Master Private Key |
-| **Unwrapped Identity Key** | `RSA-OAEP` 4096-bit (PKCS#8) | Master asymmetric decryption and unwrap key |
+| `encrypted_vault` | `{salt, iv, ciphertext}`: PKCS#8 private key, AES-256-GCM | KEK = PBKDF2-SHA-256(PIN, salt = account pepper, 600 000 it.) |
+| `recovery_vault` (nullable) | `{v:1, envelopes:[…]}` (see §3, §8) | the recovery secret, or a passkey's PRF output |
+| `encrypted_vault_prev` (nullable) | previous `encrypted_vault`, kept by `replace-vault` | old PIN |
+| `recovery_vault_prev` (nullable) | previous `recovery_vault` | old recovery secret |
+| `vault_replaced_at` (nullable, unix s) | time of the last `replace-vault` | |
 
-### 2.2 Step-by-Step Derivation and Unlock Sequence
+The **pepper** (32 random bytes, made by the client at sign-up) is the PBKDF2 salt of the PIN
+wrapping. The server stores it AES-GCM-encrypted with `SERVER_MASTER_KEY` and returns it in
+`verify-otp`. `unlockVault` falls back to 100 000 iterations for legacy vaults.
 
-1. **Secret Ingestion:** The user inputs their Master PIN or Password into the authentication interface (`PinPromptModal.tsx`).
-2. **Envelope Retrieval:** The client fetches the user's encrypted vault record from the server:
-   ```json
-   {
-     "salt": "u+Vz...Base64==",
-     "iv": "3aF9...Base64==",
-     "ciphertext": "0kLm...Base64=="
-   }
-   ```
-3. **Key Material Import:** The user's input string is converted to UTF-8 bytes and imported into the Web Crypto engine:
-   ```typescript
-   const keyMaterial = await window.crypto.subtle.importKey(
-     "raw",
-     new TextEncoder().encode(pinOrPassword),
-     { name: "PBKDF2" },
-     false,
-     ["deriveKey"]
-   );
-   ```
-4. **KEK Derivation:** PBKDF2 executes 600,000 iterations of HMAC-SHA-256 with the user's specific 16-byte salt:
-   ```typescript
-   const kek = await window.crypto.subtle.deriveKey(
-     {
-       name: "PBKDF2",
-       salt: base64ToArrayBuffer(vault.salt),
-       iterations: 600000,
-       hash: "SHA-256"
-     },
-     keyMaterial,
-     { name: "AES-GCM", length: 256 },
-     false, // Non-extractable
-     ["decrypt"]
-   );
-   ```
-5. **Vault Decryption (AES-256-GCM):** The KEK decrypts the encrypted private key payload:
-   ```typescript
-   const pkcs8Buffer = await window.crypto.subtle.decrypt(
-     { name: "AES-GCM", iv: base64ToArrayBuffer(vault.iv) },
-     kek,
-     base64ToArrayBuffer(vault.ciphertext)
-   );
-   ```
-   *Failure Handling:* If the PIN is incorrect or ciphertext has been tampered with, AES-GCM tag verification fails, rejecting the operation before any private key material is instantiated.
-6. **Master Private Key Import:** The decrypted PKCS#8 buffer is imported as a non-extractable 4096-bit RSA-OAEP private key:
-   ```typescript
-   const masterPrivateKey = await window.crypto.subtle.importKey(
-     "pkcs8",
-     pkcs8Buffer,
-     { name: "RSA-OAEP", hash: "SHA-256" },
-     false, // Non-extractable
-     ["decrypt"]
-   );
-   ```
-7. **Session Memory Initialization:** The resulting `masterPrivateKey` is cached in active session memory (`useDataStore`), ready to unwrap document DEKs via `unwrapDEKData()` in [`web/src/lib/cryptoV2.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/cryptoV2.ts).
+The server never receives the vault PIN or the recovery secret. (`users.pin_hash` is a separate,
+optional server-side Argon2id hash used by `/verify-pin` and the PIN-guarded email change; the web
+client does not send a PIN at sign-up, so new accounts have none. The recovery paths never use it.)
 
----
+## 2. Sign-in and unlock
 
-## 3. WebAuthn & Passkey Integration (PRF Extension)
+1. `POST /auth/request-otp` → mail code (dev: `[DEV] OTP for …` in the server log).
+2. `POST /auth/verify-otp` → JWT (`sub`, `iat`, `exp` 30 days; also as `tide_session` cookie),
+   pepper, `encrypted_vault`, `public_key`, and `vault_replaced_at` if the vault was ever replaced.
+   It **never** returns `recovery_vault`.
+3. The client runs `unlockVault(pin, pepper, vault)` and keeps the private key as a
+   **non-extractable** `CryptoKey` in IndexedDB (`storeMasterKey`).
 
-To provide biometric and hardware-bound unlocking (Face ID, Touch ID, Windows Hello, YubiKey) without sacrificing Zero-Knowledge guarantees, Tide leverages the **FIDO2 WebAuthn Pseudo-Random Function (PRF) extension** (`hmac-secret` / `prf`).
+A wrong PIN is an AES-GCM tag failure on the device. There is no server-side PIN check and no
+server-side attempt counter for the vault PIN: whoever has the `encrypted_vault` and pepper (the
+server operator, or anyone who completes the mail-code step) can try all 100 000 five-digit PINs
+offline. The PIN protects against a stolen session or device, not against the operator.
 
-### 3.1 The Zero-Knowledge Passkey Dilemma
-Traditional WebAuthn authenticates a user to a remote server using asymmetric signatures (`navigator.credentials.get`). While secure for authentication, signature assertions alone cannot decrypt client-side data without exposing keys to the server.
+## 3. Recovery key ("Wiederherstellungsschlüssel")
 
-The **PRF Extension** solves this by instructing the authenticator hardware's secure element (SE/TPM/Secure Enclave) to evaluate an HMAC over a client-provided salt using an internal, hardware-fused credential secret. This produces a deterministic, 256-bit symmetric output known only to the client hardware.
+**Secret:** 160 bits from `crypto.getRandomValues`, written as 32 Crockford-Base32 characters in
+groups of four (`XXXX-XXXX-…`). Input is normalised: case, spaces and dashes are ignored, `O`→`0`,
+`I`/`L`→`1` (`recoverySecret.ts`).
 
-### 3.2 Registration Flow (Hardware Credential Creation)
+**Envelope list** (`recoveryVault.ts`):
 
-During Passkey setup in [`SecuritySettingsModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/SecuritySettingsModal.tsx):
-1. **Client Generation of PRF Salt:** A 32-byte CSPRNG salt (`prf_salt`) is generated on the client.
-2. **Credential Creation with PRF Extension:**
-   ```typescript
-   const credential = await navigator.credentials.create({
-     publicKey: {
-       challenge: window.crypto.getRandomValues(new Uint8Array(32)),
-       rp: { name: "Tide Zero-Knowledge Cloud", id: window.location.hostname },
-       user: {
-         id: new TextEncoder().encode(userId),
-         name: userEmail,
-         displayName: userDisplayName
-       },
-       pubKeyCredParams: [
-         { type: "public-key", alg: -7 },  // ES256
-         { type: "public-key", alg: -257 } // RS256
-       ],
-       authenticatorSelection: {
-         authenticatorAttachment: "platform", // Face ID / Touch ID / Windows Hello
-         residentKey: "required",
-         userVerification: "required"
-       },
-       extensions: {
-         prf: {
-           eval: {
-             first: prfSaltBuffer // 32-byte salt
-           }
-         }
-       }
-     }
-   }) as PublicKeyCredential;
-   ```
-3. **Hardware Symmetric Secret Extraction:**
-   The browser returns the PRF extension result:
-   ```typescript
-   const extensionResults = credential.getClientExtensionResults();
-   const prfOutput = extensionResults.prf?.results?.first; // 32-byte raw symmetric output
-   ```
-4. **Passkey Vault Wrap:** The `prfOutput` is imported as an AES-GCM 256-bit key (`Passkey-KEK`). The user's Master Private Key (PKCS#8) is encrypted with this `Passkey-KEK` and stored locally or on the server alongside the `credentialId` and `prf_salt`.
-
-### 3.3 Passkey Unlock Flow
-
-1. When accessing Tide, the client requests biometric assertion:
-   ```typescript
-   const assertion = await navigator.credentials.get({
-     publicKey: {
-       challenge: window.crypto.getRandomValues(new Uint8Array(32)),
-       rpId: window.location.hostname,
-       allowCredentials: [{ id: credentialId, type: "public-key" }],
-       userVerification: "required",
-       extensions: {
-         prf: {
-           eval: {
-             first: prfSaltBuffer
-           }
-         }
-       }
-     }
-   }) as PublicKeyCredential;
-   ```
-2. The hardware authenticator verifies biometric presence (Touch ID/Face ID) locally.
-3. The secure enclave reproduces the exact 32-byte PRF symmetric secret.
-4. The client uses this secret to unwrap the Master Private Key instantly, bypassing manual PIN entry while preserving end-to-end zero-knowledge security.
-
----
-
-## 4. Vault Lockout & Brute-Force Defense
-
-Because PINs typically possess lower entropy than full cryptographic passphrases, client-side brute-force defense is enforced via a hybrid model of **computational delay (PBKDF2)**, **local state lockout tracking**, and **progressive throttle penalties**.
-
-### 4.1 Threat Context: Offline vs. Online Attacks
-- **Offline Server Compromise:** If an attacker dumps the server database, the 600,000 PBKDF2-HMAC-SHA256 iterations impose a high computational barrier (approx. 300ms–800ms per attempt on modern hardware, millions of USD in GPU cluster runtime to crack complex PINs).
-- **Online Client Interface Attacks:** Local scripts or malicious browser extensions attempting rapid iteration against the client interface are halted by local lockout thresholds.
-
-### 4.2 Progressive Delay & Lockout Matrix
-
-Local attempt tracking is maintained across [`pinSecurity.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/pinSecurity.ts) and [`PinPromptModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/PinPromptModal.tsx):
-
-| Failed Consecutive Attempts | Enforced Action / Penalty | Client State Behavior |
-| :--- | :--- | :--- |
-| **1 – 2** | Standard error feedback (`Falsche PIN`) | Instant retry permitted |
-| **3** | Progressive delay penalty | 5-second mandatory cooldown timer |
-| **4** | Progressive delay penalty | 30-second mandatory cooldown timer |
-| **5** | Exponential backoff | 5-minute cooldown timer |
-| **10** | **Temporary Vault Lockout** | 1-hour total lock; recovery phrase prompt triggered |
-
-### 4.3 Anti-Tamper Local State
-- Lockout counters and timestamps are recorded in `sessionStorage` and `localStorage` with monotonic checks.
-- If system time manipulation is detected (e.g., negative elapsed time), the client immediately enforces the maximum lockout period.
-- Repeated failures trigger an automatic offer to initiate the BIP-39 Seed Phrase Recovery Flow.
-
----
-
-## 5. Key Recovery & BIP-39 Seed Phrase
-
-To guard against permanent data loss resulting from forgotten PINs or lost authenticators, Tide provides a deterministic **BIP-39 Mnemonic Seed Phrase Recovery System**.
-
-### 5.1 Entropy and Mnemonic Generation
-1. **Entropy Source:** 256 bits of high-quality entropy from `window.crypto.getRandomValues(new Uint8Array(32))`.
-2. **BIP-39 Wordlist:** Derives a 24-word recovery phrase (or 128-bit for 12 words) compliant with the standard BIP-39 English wordlist.
-3. **Checksum Verification:** Appends SHA-256 checksum bits (8 bits for 24 words) prior to mnemonic formatting.
-
-### 5.2 Recovery Envelope Architecture
-The Master Private Key is dual-wrapped at account creation:
-1. **Primary Envelope:** Wrapped with the user's PIN-derived KEK (`encrypted_vault`).
-2. **Recovery Envelope:** Wrapped with a 256-bit symmetric key derived from the BIP-39 Seed Phrase (`recovery_vault`):
-   ```
-   Seed Phrase (24 words)
-       │
-       ▼
-   PBKDF2-HMAC-SHA512 (2048 iterations, salt="mnemonic" + optional passphrase)
-       │
-       ▼
-   512-bit Root Seed
-       │
-       ▼ (First 256 bits)
-   Recovery-KEK (AES-256-GCM)
-       │
-       ▼
-   Recovery Envelope: AES-GCM Encrypt(Master Private Key PKCS#8)
-   ```
-
-### 5.3 Resetting Forgotten PINs
-When a user forgets their PIN:
-1. The user inputs their 24-word recovery phrase into the recovery modal.
-2. The client calculates the Recovery-KEK and decrypts the `recovery_vault` to extract the Master Private Key.
-3. The user establishes a new PIN.
-4. A new PBKDF2 salt is generated; the Master Private Key is re-wrapped with the new PIN's KEK.
-5. The updated primary envelope (`encrypted_vault`) and new salt are committed to the backend server.
-6. The underlying RSA master keypair remains identical, meaning **all existing document DEKs (`access_keys`) and shared files remain fully accessible without re-encrypting the user's entire library**.
-
----
-
-## 6. In-Memory Key Security & Auto-Locking
-
-Once unlocked, sensitive keys must be insulated from potential browser execution hazards (XSS, rogue extensions, accidental object serialization, or device abandonment).
-
-### 6.1 Non-Extractable CryptoKey Objects
-All keys imported into the session use Web Crypto's native security perimeter:
-```typescript
-await window.crypto.subtle.importKey(
-  "pkcs8",
-  privateKeyData,
-  { name: "RSA-OAEP", hash: "SHA-256" },
-  false, // extractable = FALSE (SEC-04 Compliance)
-  ["decrypt"]
-);
-```
-- **Heap Immutability:** When `extractable: false` is configured, calling `window.crypto.subtle.exportKey()` throws a DOMException `InvalidAccessError`. Malicious scripts executing inside the application context cannot dump the raw private key bytes to an exfiltration server.
-- **Reference Scrubbing:** Key references in volatile memory are assigned to closed-scope closures or encapsulated within reactive store state (`useDataStore`), never exposed on `window` or global objects.
-
-### 6.2 Auto-Locking Inactivity Engine
-To prevent unauthorized access when a user leaves their computer unlocked:
-1. **Activity Listeners:** Global event listeners monitor user interaction (`pointermove`, `keydown`, `touchstart`, `scroll`).
-2. **Inactivity Timer:** Configurable timeout (default: 15 minutes; range: 1 min to 8 hours).
-3. **Lock Execution:**
-   - Clears the Master Private Key reference from the Zustand store.
-   - Flushes `sessionPinCache` in [`pinSecurity.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/pinSecurity.ts).
-   - Clears transient document DEK decryption caches.
-   - Removes session unlock flags (`sessionStorage.removeItem('tide_unlocked_*')`).
-   - Replaces the current application view with the `PinPromptModal` or Passkey unlock overlay.
-
----
-
-## 7. Cryptographic Sequence Workflows
-
-### 7.1 Master Vault Unlock via PIN (PBKDF2 + AES-GCM)
-
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as PinPromptModal (Client)
-    participant Engine as Web Crypto (SubtleCrypto)
-    participant Server as Tide Backend & DB
-
-    User->>UI: Enter PIN / Password
-    UI->>Server: GET /api/user/vault (Fetch encrypted_vault & salt)
-    Server-->>UI: Return { salt, iv, ciphertext, iterations: 600000 }
-    
-    rect rgb(240, 248, 255)
-        Note over UI,Engine: Client-Side PBKDF2 Key Derivation
-        UI->>Engine: importKey("raw", PIN, "PBKDF2")
-        Engine-->>UI: KeyMaterial Handle
-        UI->>Engine: deriveKey(PBKDF2-HMAC-SHA256, salt, 600000 iter)
-        Engine-->>UI: KEK (AES-256-GCM, extractable: false)
-    end
-
-    rect rgb(255, 250, 240)
-        Note over UI,Engine: Vault Decryption & RSA Private Key Import
-        UI->>Engine: decrypt(AES-GCM, iv, KEK, ciphertext)
-        alt Invalid PIN or Tag Mismatch
-            Engine-->>UI: OperationError: MAC check failed
-            UI-->>User: "Falsche PIN. Bitte versuche es erneut." (Increment Fail Counter)
-        else Success
-            Engine-->>UI: Decrypted PKCS#8 Raw Buffer
-            UI->>Engine: importKey("pkcs8", buffer, RSA-OAEP, extractable: false)
-            Engine-->>UI: MasterPrivateKey (CryptoKey Handle)
-            UI->>UI: Store MasterPrivateKey in volatile Zustand state
-            UI->>UI: Reset failed attempts counter & start inactivity timer
-            UI-->>User: Vault Unlocked! Render Protected Workspace
-        end
-    end
+```json
+{ "v": 1,
+  "envelopes": [
+    { "kind": "mail-secret", "salt": "…", "iv": "…", "ciphertext": "…",
+      "kdf": { "name": "PBKDF2", "hash": "SHA-256", "iterations": 200000 } } ] }
 ```
 
----
+The private key (PKCS#8) is AES-256-GCM-encrypted with PBKDF2-SHA-256(secret, 16-byte random salt,
+200 000 it.), using the existing `deriveKeyFromPassword`/`encryptPrivateKey`. Argon2 is not available
+in WebCrypto; with 160 bits of entropy the iteration count is a margin, not the barrier (≈2^17.6
+extra work). It deliberately differs from 600 000/100 000 so `decryptPrivateKey` never runs its
+legacy fallback. `envelopes` is a list so another kind (`passkey-prf`, see §8) can sit next to the
+mail secret; rebuilding the mail envelope keeps unknown kinds. The server validates only
+`v == 1`, 1–8 envelopes, `kind` (`[a-z0-9-]`, ≤ 32) and base64 `iv`/`ciphertext`; size ≤ 32 KiB.
 
-### 7.2 Biometric Vault Unlock via WebAuthn PRF Extension
+**Handing it to the user:** shown once after sign-up (`RecoveryKeyStep`) or after setting it up in
+the settings, with "An mich selbst mailen" (a `mailto:` draft to the own address that the user's mail
+program sends; Tide sends nothing), "Kopieren" and "Herunterladen" (`.txt`). The secret lives only in
+React state while shown; it is not written to localStorage, IndexedDB or logs. Continuing after
+sign-up needs a confirmation checkbox; skipping shows "Ohne Schlüssel sind deine Daten bei
+vergessenem PIN unwiederbringlich verloren." The step only appears when the server answers
+`recovery_saved: true`.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor User
-    participant UI as Tide Client (WebAuthn Handler)
-    participant Auth as Authenticator (Touch ID / Face ID / TPM)
-    participant Engine as Web Crypto (SubtleCrypto)
-    participant Server as Tide Backend
+## 4. Server endpoints and their guards
 
-    User->>UI: Click "Mit Passkey entsperren"
-    UI->>Server: GET /api/user/passkey-challenge
-    Server-->>UI: Return { challenge, credentialId, prfSalt }
+| Endpoint | Guard | Effect |
+| :--- | :--- | :--- |
+| `POST /auth/register` | IP rate limit | optional `recovery_vault` (validated before the user is created); answers `recovery_saved` |
+| `GET /auth/recovery-vault` | session | own `{has_recovery, recovery_vault}`; `?status=1` returns only `has_recovery`; `Cache-Control: no-store` |
+| `POST /auth/key-challenge` | session, IP rate limit | 32 random bytes RSA-OAEP-SHA-256-encrypted to the stored public key; server keeps only SHA-256 of them, bound to user, 2 min, one-time (in memory) |
+| `PUT /auth/recovery-vault` | **change session + key proof**, IP rate limit | stores a new recovery vault, old one → `recovery_vault_prev` |
+| `POST /auth/replace-vault` | **change session + key proof**, IP rate limit, **24 h cooldown** | old `encrypted_vault` → `encrypted_vault_prev`, new one stored, `vault_replaced_at` set (one UPDATE) |
+| passkey endpoints | see §8 | |
 
-    rect rgb(245, 245, 255)
-        Note over UI,Auth: WebAuthn Hardware Execution
-        UI->>Auth: navigator.credentials.get({ prf: { eval: { first: prfSalt } } })
-        Auth->>User: Prompt Biometric / Security Key Verification
-        User->>Auth: Provide Fingerprint / Face / Hardware Touch
-        Auth->>Auth: Compute HMAC-SHA256(InternalCredentialSecret, prfSalt)
-        Auth-->>UI: Assertion + PRF Extension Result (32-byte Symmetric Secret)
-    end
+- **Fresh session:** the JWT `iat` is at most 10 minutes old (1 min clock skew). Tokens without `iat`
+  (issued before this change) are never fresh. In practice: sign in with a mail code, then act.
+- **Change session** (`requireVaultChangeSession`): fresh **and** not from a passkey sign-in (JWT
+  claim `auth` is `otp` or absent, never `passkey`) **and** a notice address is known for the account
+  (from a `verify-otp` within the last 15 minutes). This guards `replace-vault`, `PUT recovery-vault`
+  and adding/removing passkeys; it ensures the owner always gets the notice mail.
+- **Key proof:** the request carries `challenge_id` + `challenge_response` (decrypted plaintext,
+  base64). The server compares hashes in constant time and consumes the challenge on any answer. So
+  changing either vault needs the **private key itself** (opened via the recovery secret or the PIN)
+  **plus** a fresh mail-code sign-in. Neither a stolen session nor a mailbox alone is enough.
+- **Cooldown:** a second `replace-vault` within 24 h is refused with 429, so the kept previous
+  generation is never silently overwritten. `PUT recovery-vault` has no cooldown; it keeps exactly one
+  previous recovery vault.
+- **Notice:** after a successful replace or recovery set-up the server mails a notice without secrets
+  ("Warst du das nicht, …") to the address from the session's `verify-otp` (kept in memory for
+  15 min; the database only has the blind index). Without a known address the mail is skipped and
+  logged. In dev without `RESEND_API_KEY` a `[DEV] Security notice for …` line is logged. As a
+  fallback the unlock step shows "Dein Tresor-PIN wurde am … neu gesetzt" for 30 days
+  (`vault_replaced_at` from `verify-otp`).
 
-    rect rgb(240, 255, 240)
-        Note over UI,Engine: Vault Decryption via Hardware Key
-        UI->>Engine: importKey("raw", prfSecret, "AES-GCM", extractable: false)
-        Engine-->>UI: Passkey-KEK
-        UI->>Engine: decrypt(AES-GCM, iv, Passkey-KEK, passkey_vault_ciphertext)
-        Engine-->>UI: Decrypted PKCS#8 Buffer
-        UI->>Engine: importKey("pkcs8", buffer, RSA-OAEP, extractable: false)
-        Engine-->>UI: MasterPrivateKey (CryptoKey Handle)
-        UI->>UI: Initialize Session & Active Document Decryption
-        UI-->>User: Biometric Unlock Successful!
-    end
+## 5. Flows
+
+**Sign-up:** generate key pair, pepper, PIN vault (as before) → generate secret → `buildRecoveryVault`
+from the still-extractable private key → `register` with `recovery_vault` → key step.
+
+**"PIN vergessen?"** (unlock step, after the mail code): `GET recovery-vault` → enter secret + new PIN
+twice → open the envelope (extractable key) → wrap with the new PIN and the existing pepper
+(`wrapPrivateKeyWithPin`, same parameters as sign-up) → **verify locally with `unlockVault`** →
+key challenge answered with the opened key → `replace-vault` → normal unlock. Wrong secret: AES-GCM
+fails on the device, nothing is sent. Stale session: message plus "Neu mit Mail-Code anmelden".
+Accounts without a recovery vault get an explanation that no recovery is possible and that only an
+empty restart of the account would remain (that reset is **not built**).
+
+**Existing accounts** (Settings → Konto → Wiederherstellungsschlüssel): status via `?status=1` →
+mail code in the section (fresh session; a wrong code does not sign out, `apiFetch` option
+`keepSessionOn401`) → PIN → `unlockVault(…, extractable=true)` → new secret → envelope (other kinds
+kept) → key proof → `PUT recovery-vault` → secret shown once. A new secret replaces the old one.
+
+The RSA key pair never changes, so all `access_keys`/DEKs and shares stay valid after a recovery.
+
+## 6. Limits and residual risks
+
+- **Without the secret there is no rescue.** Forgotten PIN + no (or lost) recovery key = the data
+  cannot be decrypted, by anyone.
+- **Secret + fresh session = full control.** Whoever has the recovery secret and can complete a mail
+  code sign-in can set a new PIN. The secret is usually stored in the same mailbox that receives the
+  codes, so a compromised mailbox that still contains the recovery mail is enough. The notice mail
+  and the in-app hint make this visible; they do not prevent it.
+- **Operator view:** the operator sees `encrypted_vault`, pepper and `recovery_vault`. The PIN wrapping
+  is brute-forceable offline (5 digits); the recovery wrapping is not (160 bits). The recovery key
+  adds no operator access, but it does not fix the weak-PIN property either.
+- **Vandalism with key possession:** someone holding the private key can replace the vault (e.g. with
+  an unknown PIN). The 24 h cooldown and `encrypted_vault_prev` allow a manual rollback by an
+  operator; there is no rollback endpoint.
+- **Notice delivery:** only to the address of the same session's `verify-otp`, in memory for 15 min,
+  lost on server restart. Delivery failures are logged, not retried.
+- **In-memory state:** key challenges and session addresses live in process memory; a restart
+  drops them (users just request a new challenge). Several server instances would need shared state.
+- The legacy `users` table recreation path in `sqlite.go` does not add the new columns; they are added
+  by the regular `ALTER TABLE` list on the next start.
+
+## 7. Not implemented (despite earlier documentation)
+
+- BIP-39 mnemonic phrases.
+- Progressive client-side lockout for the vault PIN, inactivity auto-lock of the vault.
+- Account reset ("Konto leer neu starten"): only explained in the UI text.
+- An operator emergency key: deliberately not built.
+
+`web/src/components/Security/PinPromptModal.tsx`, `SecuritySettingsModal.tsx` and
+`web/src/lib/pinSecurity.ts` concern **item-level** PINs for single notes/folders, not the account
+vault described here.
+
+## 8. Passkeys (WebAuthn with PRF), optional
+
+Passkeys are an **option** next to mail code + PIN. Accounts without a passkey, and browsers
+without WebAuthn or PRF, keep the flows above unchanged.
+
+**What a passkey does:** (a) sign-in that replaces mail code **and** PIN: the passkey both proves
+the account to the server and unlocks the vault on the device; (b) a second recovery path in
+"PIN vergessen?" next to the recovery secret.
+
+**Server side** (`github.com/go-webauthn/webauthn` v0.18.2): table `webauthn_credentials`
+(migration 16: `credential_id`, `user_id`, `public_key`, `sign_count`, `transports`, `aaguid`, `name`,
+`credential_json` (library record, public data only), `created_at`, `last_used_at`). RP ID and
+origins come from `WEBAUTHN_RP_ID` (else the host of `APP_URL`) and `APP_URL`/`ALLOWED_ORIGINS`;
+origins must lie under the RP ID, plain http only for localhost; without configuration passkeys are
+off (503). Registration and sign-in require **user verification**; credentials are discoverable
+(resident). The user handle is the account UUID.
+
+| Endpoint | Guard | Effect |
+| :--- | :--- | :--- |
+| `GET /auth/passkeys` | session | list (name, created, last used), `enabled`, `max` (10) |
+| `POST /auth/passkey/register/options` | change session, IP rate limit | creation options, ceremony 5 min |
+| `POST /auth/passkey/register/finish` | change session + key proof | verifies attestation, requires a `passkey-prf` envelope for exactly this credential in the submitted recovery vault, stores credential + vault in one transaction |
+| `POST /auth/passkey/delete` | change session + key proof | deletes the credential and removes its envelope from `recovery_vault` |
+| `POST /auth/passkey/login/options` | none, IP rate limit | discoverable assertion options, ceremony 2 min |
+| `POST /auth/passkey/login/verify` | none, rate limit | verifies the assertion (challenge, origin, RP ID hash, UV, signature, sign counter); issues the same JWT/cookie and fields as `verify-otp` with `auth=passkey`, plus only the envelope of the used passkey |
+
+Ceremonies are one-time and live in memory, in **separate stores** for sign-in and registration,
+with a cap per client IP (sign-in, 10) and per user (registration, 3); an owner at its cap loses its
+own oldest ceremony, so one client cannot block others. A sign counter that goes backwards is
+treated as a possible clone and the sign-in is refused. Only accounts with a registered passkey can
+sign in this way.
+
+**Client side** (`web/src/lib/passkey/`): `create()`/`get()` ask for the PRF extension with one
+fixed app-wide input (`tide-vault-prf-v1`). A per-credential input is not possible for a
+discoverable sign-in (the browser does not know the passkey in advance, and `evalByCredential`
+needs an allow list); the PRF output is still secret and different per credential. The envelope:
+
+```json
+{ "kind": "passkey-prf", "credentialId": "<base64url>", "prfSalt": "…", "hkdfSalt": "…",
+  "iv": "…", "ciphertext": "…", "metaIv": "…", "metaCiphertext": "…" }
 ```
 
----
+Key = HKDF-SHA-256(PRF output, salt = 16 random bytes, info `tide-vault-passkey-v1`) → AES-256-GCM.
+`ciphertext` is the PKCS#8 private key, `metaCiphertext` the account e-mail (the server only has its
+blind index; a passkey sign-in has no e-mail step). The PRF output never leaves the device: all
+requests carry empty `clientExtensionResults`. If `create()` gives no PRF result the client asks once
+via a local `get()` (some platforms only evaluate PRF on assertion); without PRF the passkey is not
+registered (and the platform is told to forget it where `signalUnknownCredential` exists), and a
+sign-in without PRF sends nothing to the server.
 
-## 8. Component & Implementation Reference
+**Flows:** adding needs a mail code (change session) and the PIN (to open the private key
+extractably); removing needs a mail code and the stored key for the key proof. "Mit Passkey
+anmelden" on `/auth` (only shown with WebAuthn): assertion with PRF → `login/verify` → envelope opened
+→ key stored as before (non-extractable). If the envelope does not open, the session is logged out
+again and the user continues with mail code + PIN. "PIN vergessen?" → "Mit Passkey wiederherstellen"
+runs after the mail-code sign-in (so it is a change session) and then sets a new PIN like the
+recovery secret does.
 
-| Component / Function | File Location | Cryptographic Responsibility |
-| :--- | :--- | :--- |
-| `PinPromptModal` | [`web/src/components/Security/PinPromptModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/PinPromptModal.tsx) | PIN UI, lockout throttling, email OTP fallback, input masking |
-| `SecuritySettingsModal` | [`web/src/components/Security/SecuritySettingsModal.tsx`](file:///C:/Users/nicoh/projects/tide/web/src/components/Security/SecuritySettingsModal.tsx) | Frequency policy, recovery phrase generator, Passkey enrollment |
-| `deriveKeyFromPassword` | [`web/src/lib/crypto.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/crypto.ts) | PBKDF2 600k derivation of 256-bit AES-GCM KEK |
-| `encryptPrivateKey` | [`web/src/lib/crypto.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/crypto.ts) | Encrypts RSA-OAEP private key into user vault envelope |
-| `decryptPrivateKey` | [`web/src/lib/crypto.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/crypto.ts) | Decrypts and imports non-extractable Master Private Key |
-| `unwrapDEKData` | [`web/src/lib/cryptoV2.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/cryptoV2.ts) | Uses unwrapped Master Private Key to decrypt document DEKs |
-| `hashPin` / `verifyPin` | [`web/src/lib/pinSecurity.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/pinSecurity.ts) | Item-level PIN verification and frequency caching |
-| `isItemUnlocked` | [`web/src/lib/pinSecurity.ts`](file:///C:/Users/nicoh/projects/tide/web/src/lib/pinSecurity.ts) | Evaluates session, timeout, count, or once unlock states |
+**A passkey session can unlock and use the app, but cannot change** the vault, the recovery vault or
+passkeys: that needs one mail-code sign-in, so the notice mail always reaches the owner. The
+"Tresor-PIN neu gesetzt" hint at sign-in stays.
+
+**Risks:** a passkey sign-in replaces mail code **and** PIN (the user's choice). Whoever holds an
+unlocked device with the passkey, or a synced passkey account (iCloud Keychain, Google Password
+Manager), and passes its user verification (device PIN/biometrics), gets the whole vault. User
+verification is required for every passkey operation, which binds this to the device's own lock;
+it does not protect against someone who knows the device PIN. Removing a lost device's passkey needs
+a mail code. The operator only learns public credential keys; the PRF secret never reaches the server.

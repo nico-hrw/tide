@@ -4,14 +4,18 @@ import type { Range } from '@tiptap/core';
 import type { EditorState } from '@tiptap/pm/state';
 import tippy from 'tippy.js';
 import { useDataStore } from '@/store/useDataStore';
+import type { ContactItem } from '@/store/slices/types';
 import { useLinkStore } from '@/store/useLinkStore';
-import { forwardRef, useEffect, useImperativeHandle, useState, useRef } from 'react';
+import { Fragment, forwardRef, useEffect, useImperativeHandle, useMemo, useState, useRef } from 'react';
 import { FileText, Calendar as CalendarIcon, CheckSquare, Plus, ChevronRight, ArrowLeft, Paperclip } from 'lucide-react';
 import { getKnownQuicknotes, saveKnownQuicknote } from '@/lib/quicknotesApi';
 import { format } from 'date-fns';
 import { buildViewItems, capSuggestionItems } from './viewSuggestion';
 import { selectTags } from '@/lib/tags';
 import { parseTagQuery } from './tagQuery';
+import { buildContactItems, effectiveFilter, ensureContactsLoaded, resetContactsRequest, shouldOfferContacts, groupItems, groupKeyOf, type MentionFilter, type MentionGroupKey } from './mentionGroups';
+import { mentionFileIdOf, startContactMentionShare } from '@/lib/mentionShare';
+import { MentionContactRow, MentionMenuChrome, MentionMenuFooter, MentionSectionHeader } from './MentionMenuChrome';
 import { actionQueryFor, buildTagRows, cleanActionLabelQuery, filterByTagQuery, queryAfterTagPick } from './tagSuggestion';
 
 export function ensureSafeIsActive(safeName?: string | null) {
@@ -136,6 +140,25 @@ type MentionSuggestionItem =
           tagMode?: boolean;
       };
 
+// Displayed order == keyboard order: items flattened through the type groups.
+// Contacts that arrived after items() ran (async load) are merged in while the menu is open.
+function orderMenuItems(items: MentionSuggestionItem[], query: string, contacts: ContactItem[], filter: MentionFilter, isQuicknote: boolean) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let raw: any[] = items.map((i) => (i.id === 'NEW_TASK' ? { ...i, is_task: true } : i));
+    if (isQuicknote) {
+        return { displayList: raw.filter((i) => i.type !== 'contact'), counts: {} as Partial<Record<MentionGroupKey, number>>, activeFilter: 'all' as MentionFilter };
+    }
+    const tagMode = raw.some((i) => i.type === 'tag' || i.tagMode);
+    if (!raw.some((i) => i.type === 'contact') && shouldOfferContacts({ query, isQuicknote: false, tagMode })) {
+        raw = [...buildContactItems(contacts, query), ...raw];
+    }
+    const tagsFirst = raw.some((i) => i.type === 'tag');
+    const counts: Partial<Record<MentionGroupKey, number>> = {};
+    groupItems(raw, 'all').forEach((g) => { counts[g.key] = g.items.length; });
+    const activeFilter = effectiveFilter(filter, counts);
+    return { displayList: groupItems(raw, activeFilter, { tagsFirst }).flatMap((g) => g.items), counts, activeFilter };
+}
+
 const MentionList = forwardRef((props: any, ref) => {
     const [selectedIndex, setSelectedIndex] = useState(0);
     const [activeGroup, setActiveGroup] = useState<EventGroupItem | null>(null);
@@ -143,7 +166,25 @@ const MentionList = forwardRef((props: any, ref) => {
     const isCreatingRef = useRef(false);
     const itemRefs = useRef<(HTMLButtonElement | null)[]>([]);
 
-    const currentList = activeGroup ? activeGroup.events : (props.items || []);
+    const [filter, setFilter] = useState<MentionFilter>('all');
+    const isQuicknoteMenu = typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/');
+
+    // Displayed order == keyboard order: items flattened through the type groups.
+    const liveContacts = useDataStore((s) => s.contacts);
+    const { displayList, counts, activeFilter } = useMemo(
+        () => orderMenuItems(props.items || [], props.query || '', liveContacts || [], filter, isQuicknoteMenu),
+        [props.items, props.query, filter, isQuicknoteMenu, liveContacts],
+    );
+
+    useEffect(() => {
+        if (activeFilter !== filter) setFilter(activeFilter);
+    }, [activeFilter, filter]);
+
+    const currentList = activeGroup ? activeGroup.events : displayList;
+
+    useEffect(() => {
+        setSelectedIndex(0);
+    }, [filter]);
 
     useEffect(() => {
         setSelectedIndex(0);
@@ -162,6 +203,13 @@ const MentionList = forwardRef((props: any, ref) => {
             prevGroupIndexRef.current = index !== undefined ? index : selectedIndex;
             setActiveGroup(item as EventGroupItem);
             setSelectedIndex(0);
+            return;
+        }
+
+        if (item.type === 'contact') {
+            const contact = item as typeof item & { username?: string; shareable?: boolean };
+            props.command({ id: contact.id, label: contact.username || contact.label, type: 'contact', shareable: !!contact.shareable });
+            useLinkStore.getState().setPendingLinkSource(null);
             return;
         }
 
@@ -457,10 +505,14 @@ const MentionList = forwardRef((props: any, ref) => {
                 </>
             ) : (
                 <>
-                    {props.items.length ? (
-                        props.items.map((item: any, index: number) => (
+                    {!isQuicknoteMenu && <MentionMenuChrome filter={activeFilter} onFilterChange={setFilter} counts={counts} />}
+                    {displayList.length ? (
+                        displayList.map((item: any, index: number) => (
+                            <Fragment key={item.id || index}>
+                            {!isQuicknoteMenu && (index === 0 || groupKeyOf(displayList[index - 1]) !== groupKeyOf(item)) && (
+                                <MentionSectionHeader group={groupKeyOf(item)} />
+                            )}
                             <button
-                                key={item.id || index}
                                 ref={(el) => { itemRefs.current[index] = el; }}
                                 className={`flex items-center gap-2 px-2 py-1.5 text-left rounded-lg transition-colors w-full ${
                                     index === selectedIndex
@@ -472,7 +524,9 @@ const MentionList = forwardRef((props: any, ref) => {
                                     selectItem(item, index);
                                 }}
                             >
-                                {item.isGroup ? (
+                                {item.type === 'contact' && !isQuicknoteMenu ? (
+                                    <MentionContactRow id={item.id} username={item.username} avatar={item.avatar || {}} shareable={!!item.shareable} />
+                                ) : item.isGroup ? (
                                     <>
                                         <span
                                             className="w-2.5 h-2.5 rounded-full flex-shrink-0"
@@ -573,10 +627,12 @@ const MentionList = forwardRef((props: any, ref) => {
                                     </>
                                 )}
                             </button>
+                            </Fragment>
                         ))
                     ) : (
                         <div className="px-2 py-2 text-t2-ink-2 text-xs">No results</div>
                     )}
+                    {!isQuicknoteMenu && <MentionMenuFooter />}
                 </>
             )}
         </div>
@@ -998,15 +1054,16 @@ export default {
 
         const actionQuery = tagMode ? cleanActionLabelQuery(parsed) : query;
 
-        // 5. Return formatted
-        return capSuggestionItems<MentionSuggestionItem>(
+        // 5. Return formatted (people first; not offered in tag-filter mode)
+        const contactItems = shouldOfferContacts({ query, isQuicknote: false, tagMode }) ? buildContactItems(ensureContactsLoaded(), query) : [];
+        return [...contactItems, ...capSuggestionItems<MentionSuggestionItem>(
             [...buildTagRows(parsed.ambiguous).map((r) => ({ ...r, query })), ...noteItems, ...fileItems, ...eventItems, ...taskItems],
             viewItems,
             [
                 { id: 'NEW', label: `Create File '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
                 { id: 'NEW_TASK', label: `Create Todo '${actionQuery}'`, query: actionQuery, tagMode, type: 'action', isGhost: false },
             ],
-        );
+        )];
     },
 
     command: ({ editor, range, props }: any) => {
@@ -1022,6 +1079,22 @@ export default {
         if ((window as any).cancelLinkSelection) (window as any).cancelLinkSelection();
 
         if (props.isGroup) {
+            return;
+        }
+
+        if (props.type === 'contact') {
+            editor.chain().focus().deleteRange(range).insertContent({
+                type: 'mention',
+                attrs: { id: props.id, label: props.label, type: 'contact', shareable: props.shareable, isGhost: false },
+            }).run();
+            // The chip sits right before the caret; sharing re-checks contact and rights itself.
+            void startContactMentionShare({
+                fileId: mentionFileIdOf(editor),
+                contactId: String(props.id),
+                label: String(props.label ?? ''),
+                shareable: props.shareable === true,
+                chipPos: Math.max(0, editor.state.selection.from - 1),
+            });
             return;
         }
 
@@ -1146,6 +1219,7 @@ export default {
                     }
                 }
 
+                resetContactsRequest();
                 component = new ReactRenderer(MentionList, {
                     props,
                     editor: props.editor,
@@ -1166,8 +1240,9 @@ export default {
                     theme: 'headless',
                 });
                 
-                if (props.items && props.items.length > 0) {
-                    const topItem = props.items[0];
+                const ordered = orderMenuItems(props.items || [], props.query || '', useDataStore.getState().contacts || [], 'all', typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')).displayList;
+                if (ordered.length > 0) {
+                    const topItem = ordered[0];
                     const label = topItem.label || topItem.title || '';
                     const q = props.query || '';
                     if (q && label.toLowerCase().startsWith(q.toLowerCase())) {
@@ -1191,8 +1266,9 @@ export default {
                     getReferenceClientRect: props.clientRect,
                 });
                 
-                if (props.items && props.items.length > 0) {
-                    const topItem = props.items[0];
+                const ordered = orderMenuItems(props.items || [], props.query || '', useDataStore.getState().contacts || [], 'all', typeof window !== 'undefined' && window.location.pathname.startsWith('/notes/')).displayList;
+                if (ordered.length > 0) {
+                    const topItem = ordered[0];
                     const label = topItem.label || topItem.title || '';
                     const q = props.query || '';
                     if (q && label.toLowerCase().startsWith(q.toLowerCase())) {

@@ -189,7 +189,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
           }
           setOpen(!open);
         }}
-        className={`inline-flex items-center gap-1 ${compact ? 'px-2 py-0.5' : 'px-2.5 py-1'} rounded-full text-xs font-medium border border-t2-line bg-white dark:bg-t2-surface text-t2-ink-2 shadow-xs hover:text-t2-ink hover:border-t2-ink-3 hover:shadow-sm cursor-pointer transition-all`}
+        className={`inline-flex items-center gap-1 ${compact ? 'px-2 py-0.5' : 'px-2.5 py-1'} rounded-full text-xs font-medium border border-t2-line bg-t2-surface text-t2-ink-2 shadow-xs hover:text-t2-ink hover:border-t2-ink-3 hover:shadow-sm cursor-pointer transition-all`}
       >
         <Plus size={11} className="shrink-0" />
         Tag

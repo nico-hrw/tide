@@ -186,7 +186,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                       onClick={() => onStatusChange?.(isActive ? null : key)}
                       className={`rounded-xl text-[11px] font-bold px-3 py-1.5 transition-all ${
                         isActive
-                          ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                          ? 'bg-t2-ink text-t2-bg shadow-sm'
                           : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                       }`}
                     >
@@ -214,7 +214,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                         onClick={() => onTagChange?.(isActive ? null : tag)}
                         className={`rounded-xl text-[11px] font-bold px-3 py-1.5 transition-all ${
                           isActive
-                            ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                            ? 'bg-t2-ink text-t2-bg shadow-sm'
                             : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                         }`}
                       >
@@ -245,7 +245,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                   onClick={() => onDateFilterChange?.('all')}
                   className={`flex-1 rounded-lg py-1 px-3 text-[11px] font-bold transition-all text-center ${
                     dateFilter === 'all'
-                      ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                      ? 'bg-t2-ink text-t2-bg shadow-sm'
                       : 'text-t2-ink-2 hover:text-t2-ink '
                   }`}
                 >
@@ -260,7 +260,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                   onClick={() => onDateFilterChange?.('today')}
                   className={`flex-1 rounded-lg py-1 px-3 text-[11px] font-bold transition-all text-center ${
                     dateFilter === 'today'
-                      ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                      ? 'bg-t2-ink text-t2-bg shadow-sm'
                       : 'text-t2-ink-2 hover:text-t2-ink '
                   }`}
                 >
@@ -275,7 +275,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                   onClick={() => onDateFilterChange?.('tomorrow')}
                   className={`flex-1 rounded-lg py-1 px-3 text-[11px] font-bold transition-all text-center ${
                     dateFilter === 'tomorrow'
-                      ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                      ? 'bg-t2-ink text-t2-bg shadow-sm'
                       : 'text-t2-ink-2 hover:text-t2-ink '
                   }`}
                 >
@@ -288,7 +288,7 @@ export const MobileFilterPopover: React.FC<MobileFilterPopoverProps> = ({
                   title="Datum wählen"
                   className={`px-2.5 py-1 rounded-lg flex items-center justify-center transition-all relative cursor-pointer ${
                     isCustomDate
-                      ? 'bg-t2-ink text-white  dark:text-neutral-900 shadow-sm'
+                      ? 'bg-t2-ink text-t2-bg shadow-sm'
                       : 'text-t2-ink-2 hover:text-t2-ink '
                   }`}
                 >

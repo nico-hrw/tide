@@ -410,6 +410,12 @@ func (s *SQLiteStore) handleUserSchemaMigration() error {
 			"ALTER TABLE users ADD COLUMN pin_hash TEXT",
 			"ALTER TABLE users ADD COLUMN login_code TEXT",
 			"ALTER TABLE users ADD COLUMN username TEXT",
+			// Vault recovery (additive, nullable): a second, client-encrypted wrapping of the private
+			// key and one previous generation of encrypted_vault kept by replace-vault.
+			"ALTER TABLE users ADD COLUMN recovery_vault TEXT",
+			"ALTER TABLE users ADD COLUMN encrypted_vault_prev TEXT",
+			"ALTER TABLE users ADD COLUMN recovery_vault_prev TEXT",
+			"ALTER TABLE users ADD COLUMN vault_replaced_at INTEGER",
 		}
 		for _, stmt := range userCols {
 			if _, err := s.DB.Exec(stmt); err != nil && !isDuplicateColumnError(err) {
@@ -722,6 +728,36 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"ALTER TABLE todos ADD COLUMN is_archived INTEGER DEFAULT 0;",
 				"ALTER TABLE todos ADD COLUMN parent_id TEXT DEFAULT '';",
 				"ALTER TABLE todos ADD COLUMN sort_order INTEGER DEFAULT 0;",
+			},
+		},
+		{
+			// Passkeys (WebAuthn). Additive table only; credential_json holds the go-webauthn credential
+			// record (public data: public key, flags, counter), the other columns serve listing.
+			version: 16,
+			name:    "webauthn_credentials",
+			stmts: []string{
+				`CREATE TABLE IF NOT EXISTS webauthn_credentials (
+					credential_id TEXT PRIMARY KEY,
+					user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+					public_key BLOB NOT NULL,
+					sign_count INTEGER NOT NULL DEFAULT 0,
+					transports TEXT NOT NULL DEFAULT '[]',
+					aaguid TEXT NOT NULL DEFAULT '',
+					name TEXT NOT NULL DEFAULT '',
+					credential_json TEXT NOT NULL,
+					created_at INTEGER NOT NULL,
+					last_used_at INTEGER
+				);`,
+				"CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user ON webauthn_credentials(user_id);",
+			},
+		},
+		{
+			// Workspace membership for todos (same model as notes: home workspace + linked workspaces). Additive, nullable-like defaults.
+			version: 17,
+			name:    "todo_safes",
+			stmts: []string{
+				"ALTER TABLE todos ADD COLUMN safe TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN linked_safes TEXT DEFAULT '[]';",
 			},
 		},
 	}

@@ -21,17 +21,17 @@ export interface MobileTagFieldProps {
 
 /** Tag row of the mobile create modal: picker plus the inline "save without tag?" question. */
 export const MobileTagField: React.FC<MobileTagFieldProps> = ({
-  tags, value, onChange, isDark, showNoTagPrompt, onNoTagConfirm, onNoTagChoose, bordered,
+  tags, value, onChange, showNoTagPrompt, onNoTagConfirm, onNoTagChoose, bordered,
 }) => {
   const createTag = useTagCreate();
   return (
     <div
       className={`flex flex-col gap-2.5 px-4 py-3.5 ${bordered ? 'border-b' : ''}`}
-      style={{ borderColor: isDark ? '#262b38' : '#f3f4f6' }}
+      style={{ borderColor: 'var(--t2-line-soft)' }}
     >
       <div className="flex items-center gap-2.5">
         <TagIcon size={18} className="text-t2-ink-3" />
-        <span className="text-[16px]" style={{ color: isDark ? '#e5e7eb' : '#1f2937' }}>
+        <span className="text-[16px]" style={{ color: 'var(--t2-ink)' }}>
           Tags
         </span>
       </div>

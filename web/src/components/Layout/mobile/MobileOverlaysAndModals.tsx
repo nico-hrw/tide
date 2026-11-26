@@ -105,6 +105,7 @@ export interface MobileOverlaysAndModalsProps {
   resolvedThemes: MobileThemeItem[];
   onEventDelete?: (id: string) => void;
   onEventSave?: (id: string, updates: Record<string, unknown>) => void;
+  onSetEventPrivate?: (id: string, value: boolean) => Promise<void>;
   onEventUpdate?: (id: string, newStart: Date, newEnd: Date, meta?: MobileEventMeta) => void;
   onTaskComplete?: (id: string, completed: boolean) => void;
   contextMenu: MobileContextMenuTarget | null;
@@ -140,7 +141,7 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
     isFilterOpen, onCloseFilter, selectedPriority, onPriorityChange,
     selectedStatus, onStatusChange, dateFilter, onDateFilterChange, allTags, selectedTag, onTagChange,
     selectedEvent, onSelectEvent, editingEvent, onEditEvent, now, resolvedThemes,
-    onEventDelete, onEventSave, onEventUpdate, onTaskComplete,
+    onEventDelete, onEventSave, onSetEventPrivate, onEventUpdate, onTaskComplete,
     contextMenu, onCloseContextMenu, onNewNote, onStartEditingNote, onNewFolderIn, onStartRename, onDeleteNote,
     renamingId, renameValue, onRenameValueChange, onCloseRename,
     isCreateModalOpen, createModalMode, newEventDefaultDate, activeDate, onCloseCreateModal,
@@ -274,6 +275,7 @@ export const MobileOverlaysAndModals: React.FC<MobileOverlaysAndModalsProps> = (
             themes={resolvedThemes}
             onDelete={isDraftEvent(editingEvent) ? undefined : (id) => onEventDelete?.(id)}
             onSave={handleSaveEditedEvent}
+            onSetPrivate={onSetEventPrivate}
             onDismiss={() => onEditEvent(null)}
           />
         )}

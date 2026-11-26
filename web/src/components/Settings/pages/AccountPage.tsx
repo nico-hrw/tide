@@ -5,6 +5,9 @@ import { Button, Chip, ConfirmButton, Notice, TextField } from '../ui/Controls';
 import { useT } from '../useT';
 import { ProfileSections, type ProfileUser } from '../account/ProfileSections';
 import { useVaultBackup } from '../account/useVaultBackup';
+import { RecoverySection } from '../account/RecoverySection';
+import { PasskeySection } from '../account/PasskeySection';
+import { VaultExportSection } from '../account/VaultExportSection';
 
 export interface AccountPageProps {
     userProfile?: ProfileUser;
@@ -53,6 +56,12 @@ export function AccountPage({ userProfile, onClose, onLogout }: AccountPageProps
                     </SettingsCard>
                     {vault.status && <div className="mt-3"><Notice tone={vault.status.type}>{vault.status.msg}</Notice></div>}
                 </SettingsSection>
+
+                <RecoverySection email={userProfile?.email} />
+
+                <PasskeySection email={userProfile?.email} />
+
+                <VaultExportSection />
 
                 <SettingsSection title={t('danger.section')} hint={t('danger.sectionHint')} tone="danger">
                     <SettingsCard tone="danger">

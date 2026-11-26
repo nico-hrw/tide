@@ -10,6 +10,8 @@ export interface IslandActions {
     createEvent: ((start: Date, end: Date, title: string) => Promise<string | null>) | null;
     /** Öffnet den Termin-Editor für einen Entwurf. */
     editEvent: ((start: Date, end: Date, title: string) => void) | null;
+    /** Öffnet eine Notiz, einen Termin oder ein Todo aus den Suchergebnissen der Island. */
+    openItem: ((target: { id: string; type: string; title: string }) => void) | null;
 }
 
 interface IslandActionsState extends IslandActions {
@@ -20,6 +22,7 @@ interface IslandActionsState extends IslandActions {
 export const useIslandActionsStore = create<IslandActionsState>()((set) => ({
     createEvent: null,
     editEvent: null,
+    openItem: null,
     register: (actions) => set(actions),
-    unregister: () => set({ createEvent: null, editEvent: null }),
+    unregister: () => set({ createEvent: null, editEvent: null, openItem: null }),
 }));

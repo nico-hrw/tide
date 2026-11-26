@@ -99,7 +99,7 @@ export default function SidebarNavTree({
                         <div className="mb-1">
                             <button
                                 onClick={() => setIsRelatedFolderOpen(o => !o)}
-                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
+                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-t2-hover interactive-hover transition-colors"
                             >
                                 <div className="flex items-center gap-1.5 truncate flex-1">
                                     <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">
@@ -149,7 +149,7 @@ export default function SidebarNavTree({
                         <div className="mb-1">
                             <button
                                 onClick={() => setIsSharedFolderOpen(o => !o)}
-                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover transition-colors"
+                                className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-t2-hover interactive-hover transition-colors"
                             >
                                 <div className="flex items-center gap-1.5 truncate flex-1">
                                     <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">

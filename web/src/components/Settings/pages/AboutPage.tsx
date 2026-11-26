@@ -4,6 +4,7 @@ import { Button } from '../ui/Controls';
 import { useT } from '../useT';
 import { InstallGuide } from '../about/InstallGuide';
 import { DebugSections } from '../about/DebugSections';
+import { OfflineStorageSection } from '../about/OfflineStorageSection';
 
 export function AboutPage() {
     const t = useT();
@@ -35,6 +36,8 @@ export function AboutPage() {
                         <InstallGuide />
                     </SettingsCard>
                 </SettingsSection>
+
+                <OfflineStorageSection />
 
                 <SettingsSection title={t('about.debug')} hint={t('about.debugHint')}>
                     <SettingsCard>

@@ -18,6 +18,8 @@ import ReferenceEditPopover from './Editor/ReferenceEditPopover';
 import { TableCellBar } from './Editor/TableCellBar';
 import { FormatSearch } from './Editor/FormatSearch';
 import { EditorInlineSearch } from './Editor/EditorInlineSearch';
+import { MentionShareToast } from './Editor/MentionShareToast';
+import { MENTION_SHARE_SKIP_META } from '@/lib/mentionShare';
 import { useTipTapConfig } from './Editor/useTipTapConfig';
 import {
     InkStroke, InkToolType, PencilInputMode, setEditorInkStrokes,
@@ -325,7 +327,7 @@ function CollaborativeEditor(props: EditorProps) {
                         editor.commands.setContent(cleanJson, { emitUpdate: false });
                     }
                 } else {
-                    editor.commands.setContent(cleanJson);
+                    editor.chain().setMeta(MENTION_SHARE_SKIP_META, true).setContent(cleanJson).run();
                 }
                 const restoredStrokes = cleanJson?.attrs?.inkStrokes || [];
                 setInkStrokes(restoredStrokes);
@@ -336,7 +338,7 @@ function CollaborativeEditor(props: EditorProps) {
             } catch (err) {
                 console.error('Failed to restore via Yjs/setContent:', err);
                 try {
-                    editor.commands.setContent(content);
+                    editor.chain().setMeta(MENTION_SHARE_SKIP_META, true).setContent(content).run();
                     const parsedFallback = typeof content === 'string' ? JSON.parse(content) : content;
                     const fallbackStrokes = parsedFallback?.attrs?.inkStrokes || [];
                     setInkStrokes(fallbackStrokes);
@@ -371,7 +373,7 @@ function CollaborativeEditor(props: EditorProps) {
                     const parsedStr = parseUnencryptedNoteContent(rawText);
                     const doc = JSON.parse(parsedStr) as Parameters<typeof editor.commands.setContent>[0];
                     if (!cancelled && editor && !editor.isDestroyed) {
-                        editor.commands.setContent(doc);
+                        editor.chain().setMeta(MENTION_SHARE_SKIP_META, true).setContent(doc).run();
                     }
                 } catch (err) {
                     console.warn('[Editor] Failed to refresh external note update:', err);
@@ -724,6 +726,7 @@ function CollaborativeEditor(props: EditorProps) {
             )}
 
             <EditorInlineSearch editor={editor} />
+            <MentionShareToast editor={editor} fileId={activeTabId} />
             </div>
         </div>
     );

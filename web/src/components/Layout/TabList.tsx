@@ -50,6 +50,8 @@ interface TabListProps {
     onTabClose: (e: React.MouseEvent | null, id: string) => void;
     onTabsReorder?: (newTabs: Tab[]) => void;
     onNewTab?: () => void;
+    /** Toggles the Todos view (the fixed Todos tab); falls back to selecting it. */
+    onToggleTodos?: () => void;
     onOpenFolders?: () => void;
     isSidebarOpen?: boolean;
     onToggleSidebar?: () => void;
@@ -80,6 +82,7 @@ export default function TabList({
     onTabClose, 
     onTabsReorder, 
     onNewTab,
+    onToggleTodos,
     onOpenFolders,
     isSidebarOpen,
     onToggleSidebar,
@@ -191,22 +194,20 @@ export default function TabList({
                 className={`flex items-center min-w-0 py-1 ${navigationMode === 'folders' ? 'flex-1 justify-start overflow-x-auto no-scrollbar' : 'max-w-full overflow-x-auto no-scrollbar'}`}
             >
                 <div className={`flex items-center gap-1.5 shrink-0 ${navigationMode === 'folders' ? 'justify-start' : 'mx-auto'}`}>
-                    {/* Tablet (no sidebar): Todos is a fixed tab, otherwise it is only reachable through sub-menus */}
-                    {navigationMode === 'folders' && (
-                        <button
-                            type="button"
-                            onClick={() => onTabSelect('todos', 'todos')}
-                            style={{ borderRadius: DT.radius }}
-                            className={`mr-1 flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
-                                activeTabId === 'todos'
-                                    ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
-                                    : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
-                            }`}
-                        >
-                            <ListTodo size={13} />
-                            <span>Todos</span>
-                        </button>
-                    )}
+                    {/* Todos is a fixed tab in every desktop layout (the sidebar no longer lists it). */}
+                    <button
+                        type="button"
+                        onClick={navigationMode === 'folders' || !onToggleTodos ? () => onTabSelect('todos', 'todos') : onToggleTodos}
+                        style={{ borderRadius: DT.radius }}
+                        className={`mr-1 flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
+                            activeTabId === 'todos'
+                                ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
+                                : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
+                        }`}
+                    >
+                        <ListTodo size={13} />
+                        <span>Todos</span>
+                    </button>
                     <Reorder.Group
                         axis="x"
                         values={tabs}
@@ -215,7 +216,7 @@ export default function TabList({
                         layout
                     >
                         <AnimatePresence initial={false} mode="popLayout">
-                            {tabs.filter((tab) => !(navigationMode === 'folders' && tab.type === 'todos')).map((tab) => {
+                            {tabs.filter((tab) => tab.type !== 'todos').map((tab) => {
                                 const isActive = activeTabId === tab.id;
 
                                 return (
@@ -279,7 +280,7 @@ export default function TabList({
                                                     }}
                                                     style={{ borderRadius: DT.radiusSm }}
                                                     className={`p-1 text-t2-ink-3 hover:text-t2-ink  transition-all shrink-0
-                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-gray-300/50 '}
+                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-t2-line '}
                                                     `}
                                                     title="Tab schließen"
                                                 >

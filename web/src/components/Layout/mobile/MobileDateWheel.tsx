@@ -392,7 +392,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
             ref={monthLabelRef}
             className="text-[11px] font-black tracking-wider uppercase"
             style={{
-              color: theme === 'dark' ? '#ffffff' : '#000000',
+              color: 'var(--t2-ink)',
               fontWeight: 900,
             }}
           >
@@ -448,7 +448,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   background: 'transparent',
                   border: 'none',
                   color: isSelected
-                    ? (theme === 'dark' ? '#ffffff' : '#09090b')
+                    ? ('var(--t2-ink)')
                     : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                 }}
               >
@@ -456,7 +456,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   className="text-[11px] uppercase tracking-wider"
                   style={{
                     color: isTodayDate
-                      ? (theme === 'dark' ? '#ffffff' : '#000000')
+                      ? ('var(--t2-ink)')
                       : isSelected
                       ? (theme === 'dark' ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.7)')
                       : T.mut,
@@ -469,9 +469,9 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
                   className="text-lg leading-none mt-0.5"
                   style={{
                     color: isTodayDate
-                      ? (theme === 'dark' ? '#ffffff' : '#000000')
+                      ? ('var(--t2-ink)')
                       : isSelected
-                      ? (theme === 'dark' ? '#ffffff' : '#09090b')
+                      ? ('var(--t2-ink)')
                       : (theme === 'dark' ? 'rgba(255,255,255,0.7)' : 'rgba(0,0,0,0.6)'),
                     fontWeight: isTodayDate ? 900 : (isSelected ? 900 : 700),
                   }}
@@ -488,7 +488,7 @@ export const AppleDateWheel = React.memo(function AppleDateWheel({
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
             <path
               d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
-              fill={theme === 'dark' ? '#ffffff' : '#000000'}
+              fill="var(--t2-ink)"
             />
           </svg>
         </div>

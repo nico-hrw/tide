@@ -105,7 +105,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                 onMouseEnter={handleMouseEnter}
                 onMouseLeave={handleMouseLeave}
                 onClick={handleClick}
-                className="cursor-pointer underline decoration-gray-400 dark:decoration-gray-500 decoration-dotted underline-offset-4 hover:decoration-gray-600 dark:hover:decoration-gray-300 transition-colors"
+                className="cursor-pointer underline decoration-t2-ink-3 decoration-dotted underline-offset-4 hover:decoration-t2-ink-2 transition-colors"
                 style={{
                     display: 'inline',
                     fontSize: 'inherit',
@@ -128,7 +128,7 @@ const DateMentionNodeView: React.FC<NodeViewProps> = ({ node }) => {
                         top: popoverPos?.top ?? 0,
                         left: popoverPos?.left ?? 0,
                         zIndex: 9999,
-                        background: 'var(--popover-bg, light-dark(#fff, #1e293b))',
+                        background: 'var(--popover-bg, var(--t2-surface))',
                         border: '1px solid rgba(99,102,241,0.2)',
                         borderRadius: '12px',
                         boxShadow: '0 8px 30px rgba(0,0,0,0.12)',

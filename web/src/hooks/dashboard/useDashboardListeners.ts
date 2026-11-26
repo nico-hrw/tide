@@ -1,5 +1,6 @@
 "use client";
 
+import { routeOpenProfile, type OpenProfileDetail } from "./openProfile";
 import type React from "react";
 import { useCallback, useEffect, useRef } from "react";
 import { isSameDay } from "date-fns";
@@ -10,6 +11,7 @@ import { useDragGhost } from "@/store/useDragGhost";
 import type { IslandView } from "@/components/extensions/smart_island/useIslandStore";
 import { CALENDAR_DATE_STORAGE_KEY, serializeCalendarDate } from "@/lib/calendarWeeks";
 import { serializeTabsForStorage } from "@/lib/tabStorage";
+import { isFileListComplete, isTabStale, mayPersistSession, serializePersistedSession, sessionStateKey } from "@/lib/sessionState";
 import type { SearchIndexEntry } from "@/lib/searchIndex";
 import { handleViewMentionClick, type ViewMentionClickDetail } from "./viewMentionClick";
 import { selectTags } from "@/lib/tags";
@@ -63,6 +65,7 @@ export interface UseDashboardListenersOptions {
     noteLayout: NoteLayout;
     calendarDate: Date;
     setCalendarDate: React.Dispatch<React.SetStateAction<Date>>;
+    calendarViewMode: CalendarViewMode;
     setCalendarViewMode: (mode: CalendarViewMode) => void;
     setActiveEventId: React.Dispatch<React.SetStateAction<string | null>>;
     storeFiles: readonly DashboardListenerFile[];
@@ -84,6 +87,8 @@ export interface UseDashboardListenersOptions {
     handleNewNote: (parentIdOverride?: string | null) => Promise<void> | void;
     islandPush: (view: Omit<IslandView, "id">) => void;
     setIdlePayload: (payload: Record<string, unknown>) => void;
+    /** Mobile: show a profile overlay instead of opening a `profile:` tab. */
+    onOpenProfileOverlay?: (userId: string, username?: string) => void;
 }
 
 export interface UseDashboardListenersReturn {
@@ -129,7 +134,7 @@ export function useDashboardListeners({
     noteLayout,
     calendarDate,
     setCalendarDate,
-    setCalendarViewMode,
+    calendarViewMode, setCalendarViewMode,
     setActiveEventId,
     storeFiles,
     files,
@@ -150,7 +155,9 @@ export function useDashboardListeners({
     handleNewNote,
     islandPush,
     setIdlePayload,
+    onOpenProfileOverlay,
 }: UseDashboardListenersOptions): UseDashboardListenersReturn {
+    const loadedDirectories = useDataStore((s) => s.loadedDirectories);
     const remindedEventsRef = useRef<Set<string>>(new Set());
     const deletedBlocksTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -168,6 +175,8 @@ export function useDashboardListeners({
     latestSwitchTabRef.current = switchTab;
     const handleNewNoteRef = useRef(handleNewNote);
     handleNewNoteRef.current = handleNewNote;
+    const openProfileOverlayRef = useRef(onOpenProfileOverlay);
+    openProfileOverlayRef.current = onOpenProfileOverlay;
 
     // 1. Note/Event selection & reload window events
     useEffect(() => {
@@ -289,6 +298,9 @@ export function useDashboardListeners({
     // 5. Cleanup orphaned tabs when access is revoked or file is deleted
     useEffect(() => {
         if (!isRestored || !files || files.length === 0) return;
+        // Folders and shared files load lazily: only prune once the list is known complete.
+        const complete = isFileListComplete(useDataStore.getState().notes, loadedDirectories);
+        const knownFileIds = complete ? new Set(files.map((f) => f.id)) : null;
         setOpenTabs((prev) => {
             const next = prev.filter((tab) => {
                 if (
@@ -298,14 +310,26 @@ export function useDashboardListeners({
                     tab.id === "messages" ||
                     tab.id.startsWith("ext_") ||
                     tab.id.startsWith("chat-") ||
-                    tab.id.startsWith("profile:") ||
-                    tab.type !== "file"
+                    tab.id.startsWith("profile:")
                 ) {
                     return true;
                 }
-                return files.some((f) => f.id === tab.id);
+                return !isTabStale(tab, knownFileIds);
             });
             return next.length !== prev.length ? next : prev;
+        });
+    }, [files, isRestored, setOpenTabs, loadedDirectories]);
+
+    // 5b. Restored file tabs carry no title: fill it in once the note is known.
+    useEffect(() => {
+        if (!isRestored || !files || files.length === 0) return;
+        setOpenTabs((prev) => {
+            if (!prev.some((t) => t.type === "file" && !t.title)) return prev;
+            return prev.map((t) => {
+                if (t.type !== "file" || t.title) return t;
+                const f = files.find((x) => x.id === t.id);
+                return f?.title ? { ...t, title: f.title } : t;
+            });
         });
     }, [files, isRestored, setOpenTabs]);
 
@@ -319,6 +343,29 @@ export function useDashboardListeners({
         sessionStorage.setItem("tide_active_tab_id", activeTabId);
         localStorage.setItem("tide_note_layout", noteLayout);
     }, [openTabs, activeTabId, noteLayout, isRestored]);
+
+    // 6b. Durable session record (survives app restart): ids/types/order/active tab/calendar view mode.
+    const persistSession = useCallback(() => {
+        const key = sessionStateKey(myId);
+        if (!key || !mayPersistSession()) return;
+        try {
+            localStorage.setItem(
+                key,
+                serializePersistedSession({ tabs: openTabs, activeTabId, calendarViewMode })
+            );
+        } catch {
+            // Ignore quota or private-browsing errors
+        }
+    }, [openTabs, activeTabId, calendarViewMode, myId]);
+    useEffect(() => {
+        if (!isRestored) return;
+        const timer = window.setTimeout(persistSession, 250);
+        window.addEventListener("pagehide", persistSession);
+        return () => {
+            window.clearTimeout(timer);
+            window.removeEventListener("pagehide", persistSession);
+        };
+    }, [isRestored, persistSession]);
 
     // 7. Calendar date persistence
     useEffect(() => {
@@ -460,6 +507,18 @@ export function useDashboardListeners({
         };
         window.addEventListener("tide:navigate", handleNavigate);
         return () => window.removeEventListener("tide:navigate", handleNavigate);
+    }, [switchTabRef]);
+
+    // 13b. Contact mention chip: open the person's profile tab
+    useEffect(() => {
+        const handleOpenProfile = (e: Event) => {
+            routeOpenProfile((e as CustomEvent<OpenProfileDetail>).detail, {
+                openOverlay: openProfileOverlayRef.current,
+                switchTab: (id, type, title) => (switchTabRef?.current ?? latestSwitchTabRef.current)(id, type, title),
+            });
+        };
+        window.addEventListener("tide:open-profile", handleOpenProfile);
+        return () => window.removeEventListener("tide:open-profile", handleOpenProfile);
     }, [switchTabRef]);
 
     // 14. Calendar drag-ghost click consumer

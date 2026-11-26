@@ -1,10 +1,12 @@
 "use client";
 
+import { todoSafe } from '@/lib/todoSafes';
 import { useEffect, useRef, type MutableRefObject } from "react";
 import { format } from "date-fns";
 import { apiFetch } from "@/lib/api";
 import { getFolderColor, isTaskVisibleInCalendar, loadTodoFoldersMeta } from "@/lib/folderColors";
 import { useDataStore, type DataItem, type TaskItem } from "@/store/useDataStore";
+import { eventContentSignature, isNoneLikeRecurrenceRule, normalizeRecurrenceRule } from "@/lib/eventWriteGuard";
 import type { CalendarEventExtraMeta, CalendarEventUpdates } from "./useCalendarActions";
 
 interface LinkedCalendarEvent extends DataItem {
@@ -13,9 +15,35 @@ interface LinkedCalendarEvent extends DataItem {
     allDay?: boolean;
     isAllDay?: boolean;
     is_completed?: boolean;
+    completed_dates?: string[];
     linkedTaskId?: string;
     recurrence_rule?: string;
     recurrence_end?: string;
+}
+
+/**
+ * Completion as the calendar shows it: the flag, or the entry's own date in completed_dates
+ * (repeating entries store the tick there, and so did older "NONE" entries).
+ */
+export function isLinkedEventCompleted(event: { start?: string; is_completed?: boolean; completed_dates?: string[] }): boolean {
+    if (event.is_completed) return true;
+    if (!event.start || !Array.isArray(event.completed_dates)) return false;
+    const start = new Date(event.start);
+    return !isNaN(start.getTime()) && event.completed_dates.includes(format(start, "yyyy-MM-dd"));
+}
+
+/**
+ * Whether the entry's completion disagrees with the todo. A done todo accepts the calendar's own notion of
+ * "done"; an open todo only clears the flag (a ticked occurrence in completed_dates stays the user's choice).
+ */
+export function isLinkedCompletionDiff(event: { start?: string; is_completed?: boolean; completed_dates?: string[] }, taskCompleted?: boolean): boolean {
+    return taskCompleted ? !isLinkedEventCompleted(event) : Boolean(event.is_completed);
+}
+
+/** Whether the entry's repetition differs from the todo's (or still carries a stored "NONE" to clean up). */
+export function isLinkedRecurrenceDiff(eventRule?: string, taskRule?: string): boolean {
+    if (normalizeRecurrenceRule(eventRule) !== normalizeRecurrenceRule(taskRule)) return true;
+    return isNoneLikeRecurrenceRule(eventRule) && !isNoneLikeRecurrenceRule(taskRule);
 }
 
 interface EventTaskToggleDetail {
@@ -87,6 +115,8 @@ export function useTaskCalendarSync({
 }: UseTaskCalendarSyncOptions): void {
     const handleEventSaveRef = useLatestRef(handleEventSave);
     const handleEventCreateRef = useLatestRef(handleEventCreate);
+    /** Entry id -> signature of the todo-derived content last sent for it (this session). */
+    const attemptedRef = useRef(new Map<string, string>());
 
     useEffect(() => {
         const handleEventTaskToggle = (e: Event) => {
@@ -187,6 +217,8 @@ export function useTaskCalendarSync({
                             title: t.title,
                             is_task: true,
                             linkedTaskId: t.id,
+                            safe: todoSafe(t),
+                            linkedSafes: t.linkedSafes ?? [],
                             color:
                                 t.color ||
                                 (t.folder && foldersMeta[t.folder]?.color
@@ -209,22 +241,32 @@ export function useTaskCalendarSync({
                         ? !isSameTime(existingEvent.start, start.toISOString())
                         : !isSameTime(existingEvent.start, t.dueDate);
                     const isAllDayDiff = Boolean(existingEvent.allDay) !== isAllDay;
-                    const isCompletedDiff = (existingEvent.is_completed ?? false) !== (t.isCompleted ?? false);
-                    const isRecurrenceDiff = existingEvent.recurrence_rule !== t.recurrence_rule;
+                    const isCompletedDiff = isLinkedCompletionDiff(existingEvent, t.isCompleted);
+                    const isRecurrenceDiff = isLinkedRecurrenceDiff(existingEvent.recurrence_rule, t.recurrence_rule);
+                    const isSafeDiff = todoSafe(existingEvent) !== todoSafe(t) || (existingEvent.linkedSafes ?? []).join(',') !== (t.linkedSafes ?? []).join(',');
 
-                    if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff) {
+                    if (isTitleDiff || isStartDiff || isAllDayDiff || isCompletedDiff || isRecurrenceDiff || isSafeDiff) {
+                        const updates: CalendarEventUpdates = {
+                            title: t.title,
+                            start: start.toISOString(),
+                            end: end.toISOString(),
+                            allDay: isAllDay,
+                            isAllDay,
+                            is_completed: t.isCompleted,
+                            // "" (not undefined): a todo without repetition also clears the entry's rule.
+                            recurrence_rule: t.recurrence_rule ?? "",
+                            recurrence_end: t.recurrence_end,
+                            safe: todoSafe(t),
+                            linkedSafes: t.linkedSafes ?? [],
+                        };
+                        // One attempt per todo state and entry: if the entry still differs afterwards (another
+                        // client, another time zone, a rejected write), only a new todo state writes again.
+                        const desired = eventContentSignature({ ...updates });
+                        if (attemptedRef.current.get(existingEvent.id) === desired) continue;
+                        attemptedRef.current.set(existingEvent.id, desired);
                         syncingTaskIdsRef.current.add(t.id);
                         try {
-                            await handleEventSaveRef.current(existingEvent.id, {
-                                title: t.title,
-                                start: start.toISOString(),
-                                end: end.toISOString(),
-                                allDay: isAllDay,
-                                isAllDay,
-                                is_completed: t.isCompleted,
-                                recurrence_rule: t.recurrence_rule,
-                                recurrence_end: t.recurrence_end,
-                            });
+                            await handleEventSaveRef.current(existingEvent.id, updates);
                         } finally {
                             setTimeout(() => {
                                 syncingTaskIdsRef.current.delete(t.id);

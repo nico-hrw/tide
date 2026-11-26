@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/nicoh/tide/internal/db"
 	"github.com/nicoh/tide/internal/store"
 )
 
@@ -299,32 +300,47 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	resp, ok := h.issueSignIn(w, r, user, "VerifyOTP", authMethodOTP)
+	if !ok {
+		return
+	}
+	// Vault-change notices for this session go to the address just proven by the OTP (only kept in
+	// memory). The app shows the last replacement time at sign-in as a fallback.
+	h.rememberSessionEmail(user.ID, req.Email)
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(resp)
+}
+
+// issueSignIn decrypts the pepper, issues the session JWT (with iat) and cookie and returns the sign-in
+// fields shared by verify-otp and the passkey login. On failure it has written the error response.
+func (h *AuthHandler) issueSignIn(w http.ResponseWriter, r *http.Request, user *db.User, logTag, authMethod string) (map[string]interface{}, bool) {
 	// Decrypt Pepper
 	block, err := aes.NewCipher(h.ServerMasterKey)
 	if err != nil {
 		http.Error(w, "Decryption setup failed", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 	aesGCM, err := cipher.NewGCM(block)
 	if err != nil {
 		http.Error(w, "GCM setup failed", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 
 	nonceSize := aesGCM.NonceSize()
 	if len(user.EncryptedPepper) < nonceSize {
 		http.Error(w, "Corrupted pepper data", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 
 	nonce, ciphertext := user.EncryptedPepper[:nonceSize], user.EncryptedPepper[nonceSize:]
 	pepper, err := aesGCM.Open(nil, nonce, ciphertext, nil)
 	if err != nil {
-		log.Printf("VerifyOTP: Failed to decrypt pepper. Error: %v", err)
+		log.Printf("%s: Failed to decrypt pepper. Error: %v", logTag, err)
 		http.Error(w, "Failed to decrypt pepper", http.StatusUnauthorized)
-		return
+		return nil, false
 	}
-	log.Printf("VerifyOTP: Pepper successfully decrypted. Length: %d", len(pepper))
+	log.Printf("%s: Pepper successfully decrypted. Length: %d", logTag, len(pepper))
 
 	// Generate JWT
 	// [FIX MITTEL-1] JWT_SECRET is validated at startup (see main / middleware).
@@ -333,18 +349,20 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 	if jwtKeyStr == "" {
 		log.Printf("[SECURITY] JWT_SECRET is not set — refusing to issue token")
 		http.Error(w, "Server misconfiguration", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 	jwtKey := []byte(jwtKeyStr)
 	claims := jwt.MapClaims{
 		"sub": user.ID,
+		"iat": time.Now().Unix(), // lets vault-replacing endpoints require a fresh sign-in
+		"auth": authMethod, // "otp" or "passkey"; vault changes need a mail-code session
 		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(),
 	}
 	t := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	tokenString, err := t.SignedString(jwtKey)
 	if err != nil {
 		http.Error(w, "Failed to generate JWT", http.StatusInternalServerError)
-		return
+		return nil, false
 	}
 
 	// Set httpOnly cookie
@@ -367,7 +385,9 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		"public_key":      user.PublicKey,
 		"username":        user.Username,
 	}
+	if replacedAt, err := h.Store.GetVaultReplacedAt(r.Context(), user.ID); err == nil && !replacedAt.IsZero() {
+		resp["vault_replaced_at"] = replacedAt.UTC().Format(time.RFC3339)
+	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	return resp, true
 }

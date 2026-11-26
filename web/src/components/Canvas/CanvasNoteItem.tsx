@@ -187,7 +187,7 @@ function TextWidget({
                 boxShadow: isEditing ? '0 0 0 1.5px rgba(99,102,241,0.4)' : undefined,
             }}
         >
-            {item.content || (isEditing ? '' : <span style={{ color: '#aaa' }}>Text…</span>)}
+            {item.content || (isEditing ? '' : <span style={{ color: 'var(--t2-ink-3)' }}>Text…</span>)}
         </div>
     );
 }

@@ -333,9 +333,11 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                   <span className="text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 ">
                     {section.title}
                   </span>
-                  <span className="text-[11px] font-medium text-t2-ink-3 ">
-                    {section.tasks.length}
-                  </span>
+                  {(section.key === 'today' || section.key === 'tomorrow') && (
+                    <span className="text-[11px] font-medium text-t2-ink-3 ">
+                      {section.tasks.length}
+                    </span>
+                  )}
                   <div className="h-px flex-1 bg-t2-stage " />
                 </motion.button>
 
@@ -412,9 +414,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                 <span>Kürzlich erledigt</span>
                 <span className="text-[11px] text-t2-ink-3  font-normal">(letzte 7 Tage)</span>
               </div>
-              <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-t2-hover  text-t2-ink-2 ">
-                {recentlyCompletedTasks.length}
-              </span>
             </motion.button>
 
             <AnimatePresence initial={false}>
@@ -475,9 +474,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                     <span>Archiv</span>
                     <span className="text-[11px] text-t2-ink-3  font-normal">(&gt; 7 Tage)</span>
                   </div>
-                  <span className="px-2 py-0.5 rounded-full text-[11px] font-semibold bg-t2-hover  text-t2-ink-2 ">
-                    {archivedTasks.length}
-                  </span>
                 </button>
 
                 <AnimatePresence initial={false}>
@@ -523,9 +519,6 @@ export const TodoListSections: React.FC<TodoListSectionsProps> = ({
                                   </span>
                                 </div>
                               </div>
-                              <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-t2-surface  text-t2-ink-2  border border-t2-line  shadow-2xs">
-                                {tierTasks.length}
-                              </span>
                             </button>
 
                             {/* Tier Tasks List */}

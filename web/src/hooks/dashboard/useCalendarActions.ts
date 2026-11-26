@@ -12,9 +12,15 @@ import {
 } from "@/lib/recurrence";
 import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
 import { buildSecuredEventMeta } from "@/lib/securedEventMeta";
+import { getEventGroupIds } from "@/lib/calendarUtils";
+import { autoShareEventIntoGroups } from "@/lib/calendarShareActions";
+import { eventContentSignature, isUnchangedSinceLastWrite, normalizeRecurrenceRule, putEventGuarded } from "@/lib/eventWriteGuard";
 
 export interface CalendarEventExtraMeta {
     title?: string;
+    /** Workspace of the event ("main" when unset) and extra workspaces it is shown in. */
+    safe?: string;
+    linkedSafes?: string[];
     description?: string;
     color?: string;
     effect?: string;
@@ -26,6 +32,8 @@ export interface CalendarEventExtraMeta {
     isAllDay?: boolean;
     isGroup?: boolean;
     is_important?: boolean;
+    /** Event lock: excluded from calendar share rules (never auto-shared). */
+    private?: boolean;
     linkedTaskId?: string;
     recurrence?: "none" | "daily" | "weekly" | "monthly" | "yearly";
     recurrence_rule?: string;
@@ -63,7 +71,8 @@ export interface UseCalendarActionsReturn {
     handleEventUpdate: (id: string, start: Date, end: Date) => Promise<void>;
     handleEventRename: (id: string, newTitle: string) => Promise<void>;
     /** `strict`: Fehler werden geworfen statt verschluckt (Standard: unveraendert, still). */
-    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }) => Promise<void>;
+    /** `skipAutoShare`: adding a group does not trigger the calendar auto-share (tag migration). */
+    handleEventSave: (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope; skipAutoShare?: boolean }) => Promise<void>;
     handleDeleteEvent: (id: string) => Promise<void>;
 }
 
@@ -78,7 +87,8 @@ interface WindowWithTideSave {
 
 const FALLBACK_META_KEYS = [
     "title", "description", "allDay", "isGroup", "effect", "is_cancelled", "exdates", "removed_dates",
-    "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds",
+    "is_completed", "completed_dates", "is_task", "shading", "linkedTaskId", "tags", "is_important", "groupIds", "private",
+    "safe", "linkedSafes",
 ] as const;
 
 const isSameTime = (d1?: string, d2?: string): boolean => {
@@ -118,6 +128,10 @@ function buildEventMeta(event: CalendarEventRecord, updates: CalendarEventUpdate
     else if (event.recurrence_rule) meta.recurrence_rule = event.recurrence_rule;
     if (updates.recurrence_end !== undefined) meta.recurrence_end = updates.recurrence_end;
     else if (event.recurrence_end) meta.recurrence_end = event.recurrence_end;
+    // Todo entries: "NONE" (event popover) or "" means no repetition, but differed from the todo's missing rule
+    // and made the task sync rewrite the entry forever. Not stored at all; the key stays (as undefined) so the
+    // local copy and the metadata cache drop it too.
+    if (meta.linkedTaskId && "recurrence_rule" in meta && normalizeRecurrenceRule(meta.recurrence_rule) === "") meta.recurrence_rule = undefined;
     return meta;
 }
 
@@ -126,46 +140,6 @@ function syncVersionInStore(baseId: string, version: number): void {
         events: s.events.map((e) => (e.id === baseId ? { ...e, version } : e)),
         notes: s.notes.map((n) => (n.id === baseId ? { ...n, version } : n)),
     }));
-}
-
-async function putEventWithConflictRetry(baseId: string, event: CalendarEventRecord, body: Record<string, unknown>, strict = false): Promise<void> {
-    const res = await apiFetch(`/api/v1/files/${baseId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-    });
-    if (res.status === 409) {
-        try {
-            const conflictData = (await res.json()) as { current_version?: number };
-            if (typeof conflictData?.current_version === "number") {
-                event.version = conflictData.current_version;
-                syncVersionInStore(baseId, conflictData.current_version);
-                body.version = conflictData.current_version;
-                const retryRes = await apiFetch(`/api/v1/files/${baseId}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-                if (strict && !retryRes.ok) throw new Error(`Event save failed (${retryRes.status})`);
-                if (retryRes.ok) {
-                    const retryData = (await retryRes.json().catch(() => null)) as { version?: number } | null;
-                    if (typeof retryData?.version === "number") {
-                        event.version = retryData.version;
-                        syncVersionInStore(baseId, retryData.version);
-                    }
-                }
-            } else if (strict) {
-                throw new Error("Event save conflict without current version");
-            }
-        } catch (e) {
-            if (strict) throw e;
-            /* Silently ignore conflict resolution errors */
-        }
-    } else if (strict && !res.ok) {
-        throw new Error(`Event save failed (${res.status})`);
-    } else if (res.ok) {
-        const data = (await res.json().catch(() => null)) as { version?: number } | null;
-        if (typeof data?.version === "number") {
-            event.version = data.version;
-            syncVersionInStore(baseId, data.version);
-        }
-    }
 }
 
 /**
@@ -184,7 +158,11 @@ export function useCalendarActions({
 
             const title = extraMeta.title || "New Event";
             try {
-                const meta: Record<string, unknown> = { ...extraMeta, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
+                // New events land in the first active workspace unless the caller names one.
+                const defaultSafe = useDataStore.getState().activeSafes?.[0] ?? "main";
+                const safe = extraMeta.safe ?? defaultSafe;
+                const linkedSafes = extraMeta.linkedSafes ?? [];
+                const meta: Record<string, unknown> = { ...extraMeta, safe, linkedSafes, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
                 // RSA-OAEP only fits ~190 bytes: keep secured_meta small, the rest goes to `metadata` / the AES blob.
                 const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta({ title, start: meta.start as string, end: meta.end as string, allDay: isAllDay }), publicKey);
                 const bodyPayload: Record<string, unknown> = { type: "event", parent_id: null, public_meta: {} };
@@ -212,9 +190,13 @@ export function useCalendarActions({
                             ...extraMeta, id: newFile.id, type: "event", title,
                             start: meta.start as string, end: meta.end as string, allDay: isAllDay,
                             is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId,
+                            safe, linkedSafes,
                         };
                         applySetEvents([...storeState.events, createdEvent]);
                         setActiveEventId?.(newFile.id);
+                        // Calendar share rule: only groups with "Neue Termine automatisch teilen", never private events.
+                        const createdGroupIds = getEventGroupIds(createdEvent);
+                        if (createdGroupIds.length > 0 && extraMeta.private !== true) void autoShareEventIntoGroups(newFile.id, createdGroupIds).catch(() => undefined);
                         return newFile.id;
                     }
                 }
@@ -286,7 +268,7 @@ export function useCalendarActions({
     );
 
     const handleEventSave = useCallback(
-        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope }): Promise<void> => {
+        async (id: string, updates: CalendarEventUpdates, options?: { strict?: boolean; scope?: RecurrenceScope; skipAutoShare?: boolean }): Promise<void> => {
             const strict = options?.strict === true;
             if (!privateKey || !publicKey) {
                 if (strict) throw new Error("Event save failed: keys unavailable");
@@ -303,11 +285,13 @@ export function useCalendarActions({
                     return;
                 }
 
+                const groupIdsBefore = getEventGroupIds(event);
                 let occurrenceDateKey: string | null = null;
                 if (isOccurrence) {
                     const timestamp = parseInt(id.split("_")[1], 10);
                     if (!isNaN(timestamp)) occurrenceDateKey = format(new Date(timestamp), "yyyy-MM-dd");
-                } else if (event.recurrence_rule && event.recurrence_rule !== "none") {
+                } else if (normalizeRecurrenceRule(event.recurrence_rule) !== "") {
+                    // "NONE"/"FREQ=NONE" do not repeat: their completion is `is_completed`, not a date in completed_dates.
                     occurrenceDateKey = format(new Date(event.start || Date.now()), "yyyy-MM-dd");
                 }
 
@@ -347,6 +331,8 @@ export function useCalendarActions({
                             const createdId = await handleEventCreate(newStart, newEnd, !!(updates.allDay ?? event.allDay), {
                                 title: event.title, description: event.description, color: event.color, effect: event.effect,
                                 groupIds: event.groupIds, parent_id: event.parent_id ?? null, is_important: event.is_important, tags: event.tags,
+                                // The split-off copy keeps the lock, or it would be auto-shared at once.
+                                ...(event.private === true ? { private: true } : {}),
                                 ...rest,
                             });
                             if (!createdId) throw new Error("Could not create the moved occurrence");
@@ -369,6 +355,12 @@ export function useCalendarActions({
                             completed_dates: toggleDateInList(event.completed_dates, occurrenceDateKey, effectiveUpdates.is_completed),
                             is_completed: event.is_completed || false,
                         };
+                    }
+                } else if (effectiveUpdates.is_completed === false && effectiveUpdates.completed_dates === undefined && event.completed_dates?.length) {
+                    // Entries once treated as repeating keep their date in completed_dates; un-ticking must clear it too.
+                    const startKey = format(new Date(event.start || Date.now()), "yyyy-MM-dd");
+                    if (event.completed_dates.includes(startKey)) {
+                        effectiveUpdates = { ...effectiveUpdates, completed_dates: toggleDateInList(event.completed_dates, startKey, false) };
                     }
                 }
 
@@ -459,8 +451,38 @@ export function useCalendarActions({
                 const freshItemBeforeSend = (freshBeforeSend.events.find((e) => e.id === baseId) || freshBeforeSend.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
                 if (typeof freshItemBeforeSend?.version === "number") body.version = freshItemBeforeSend.version;
 
-                await putEventWithConflictRetry(baseId, event, body, strict);
+                // Same content as this client's last write and nobody wrote since: the server already has it.
+                const signature = eventContentSignature({ ...(body.metadata as Record<string, unknown>), __parent_id: body.parent_id });
+                if (isUnchangedSinceLastWrite(baseId, signature, freshItemBeforeSend?.version)) return;
+
+                // On a conflict these keys win over the fresh server state; the rest is taken from the server.
+                // title/description travel in the re-encrypted content, crypto keys belong to the new DEK.
+                const ownKeys = [
+                    ...Object.keys(effectiveUpdates), "title", "description",
+                    ...Object.keys(body.metadata as Record<string, unknown>).filter((k) => !(k in meta)),
+                    ...(meta.linkedTaskId ? ["recurrence_rule"] : []),
+                ];
+                await putEventGuarded(baseId, body, {
+                    strict,
+                    signature,
+                    ownKeys,
+                    onVersion: (version) => {
+                        event.version = version;
+                        syncVersionInStore(baseId, version);
+                    },
+                    currentVersion: () => {
+                        const now = useDataStore.getState().events.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
+                        return now?.version;
+                    },
+                });
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
+
+                // The event entered a group: that group's auto-share rule applies (checks ownership and "privat").
+                if (options?.skipAutoShare !== true && (effectiveUpdates.groupIds !== undefined || effectiveUpdates.parent_id !== undefined)) {
+                    const nextGroupIds = effectiveUpdates.groupIds ?? (effectiveUpdates.parent_id ? [effectiveUpdates.parent_id] : []);
+                    const added = nextGroupIds.filter((g) => !groupIdsBefore.includes(g));
+                    if (added.length > 0) void autoShareEventIntoGroups(baseId, added).catch(() => undefined);
+                }
             } catch (e) {
                 console.error(e);
                 if (strict) throw e;

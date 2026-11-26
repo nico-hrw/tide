@@ -192,6 +192,8 @@ type CreateTodoInput struct {
 	IsArchived     bool     `json:"is_archived,omitempty"`
 	ParentID       string   `json:"parent_id,omitempty"`
 	SortOrder      int      `json:"order,omitempty"`
+	Safe           string   `json:"safe,omitempty"`
+	LinkedSafes    []string `json:"linked_safes,omitempty"`
 }
 
 // Create handles POST /api/v1/todos.
@@ -246,6 +248,8 @@ func (h *TodosHandler) Create(w http.ResponseWriter, r *http.Request) {
 		IsArchived:     input.IsArchived,
 		ParentID:       strings.TrimSpace(input.ParentID),
 		SortOrder:      input.SortOrder,
+		Safe:           normalizeTodoSafe(input.Safe),
+		LinkedSafes:    normalizeTodoLinkedSafes(input.LinkedSafes),
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
@@ -311,6 +315,8 @@ type UpdateTodoInput struct {
 	IsArchived     *bool     `json:"is_archived,omitempty"`
 	ParentID       *string   `json:"parent_id,omitempty"`
 	SortOrder      *int      `json:"order,omitempty"`
+	Safe           *string   `json:"safe,omitempty"`
+	LinkedSafes    *[]string `json:"linked_safes,omitempty"`
 }
 
 // Update handles PUT and PATCH /api/v1/todos/{id}.
@@ -369,6 +375,12 @@ func (h *TodosHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 	if input.CompletedDates != nil {
 		existing.CompletedDates = nonNilStrings(*input.CompletedDates)
+	}
+	if input.Safe != nil {
+		existing.Safe = normalizeTodoSafe(*input.Safe)
+	}
+	if input.LinkedSafes != nil {
+		existing.LinkedSafes = normalizeTodoLinkedSafes(*input.LinkedSafes)
 	}
 	if input.ShowInCalendar != nil {
 		existing.ShowInCalendar = *input.ShowInCalendar
@@ -446,4 +458,37 @@ func (h *TodosHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	})
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+const maxTodoSafeLen = 64
+const maxTodoLinkedSafes = 20
+
+// normalizeTodoSafe trims a workspace id. Empty and the legacy "Standard" name map to "main".
+func normalizeTodoSafe(raw string) string {
+	s := strings.TrimSpace(raw)
+	if s == "" || s == "Standard" {
+		return "main"
+	}
+	if len(s) > maxTodoSafeLen {
+		s = s[:maxTodoSafeLen]
+	}
+	return s
+}
+
+// normalizeTodoLinkedSafes trims, de-duplicates and caps the extra workspaces a todo is shown in.
+func normalizeTodoLinkedSafes(raw []string) []string {
+	out := make([]string, 0, len(raw))
+	seen := map[string]bool{}
+	for _, r := range raw {
+		s := normalizeTodoSafe(r)
+		if seen[s] {
+			continue
+		}
+		seen[s] = true
+		out = append(out, s)
+		if len(out) == maxTodoLinkedSafes {
+			break
+		}
+	}
+	return out
 }

@@ -461,10 +461,10 @@ export default function WeekView({
 
                         {/* Current Time Line */}
                         <div
-                            className="absolute left-[60px] right-0 h-[1px] bg-[#EF4444] z-[95] pointer-events-none"
+                            className="absolute left-[60px] right-0 h-[1px] bg-t2-now z-[95] pointer-events-none"
                             style={{ top: `${currentTimeTop + 50}px` }}
                         >
-                            <div className="w-1.5 h-1.5 rounded-full bg-[#EF4444] absolute -left-[3px] -top-[2px]"></div>
+                            <div className="w-1.5 h-1.5 rounded-full bg-t2-now absolute -left-[3px] -top-[2px]"></div>
                         </div>
 
                         {/* Days */}
@@ -688,7 +688,7 @@ export default function WeekView({
 
                                             return (
                                                 <div
-                                                    className="absolute left-1 right-1 rounded-lg bg-gray-500/30 border-2 border-dashed border-t2-ink-3 z-50 backdrop-blur-sm pointer-events-none transition-all duration-75"
+                                                    className="absolute left-1 right-1 rounded-lg bg-[color-mix(in_srgb,var(--t2-ink-3)_30%,transparent)] border-2 border-dashed border-t2-ink-3 z-50 backdrop-blur-sm pointer-events-none transition-all duration-75"
                                                     style={{ top: `${top}px`, height: `${height}px` }}
                                                 >
                                                     <div className="text-xs font-medium text-t2-ink-2  p-1">New Event</div>
@@ -697,7 +697,7 @@ export default function WeekView({
                                         })()}
                                         {/* Spacer to allow scrolling past midnight */}
                                         <div className="h-[1px] w-full bg-t2-stage  mt-1"></div>
-                                        <div className="h-[150px] w-full bg-gradient-to-b from-gray-50/50 to-transparent dark:from-gray-900/50 dark:to-transparent pointer-events-none border-r border-t2-line-soft "></div>
+                                        <div className="h-[150px] w-full bg-gradient-to-b from-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)] to-transparent pointer-events-none border-r border-t2-line-soft "></div>
                                     </div>
                                 </div>
                             );

@@ -1,6 +1,6 @@
 "use client";
 
-import { X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, UserMinus, Loader2, ShieldCheck, Variable } from "lucide-react";
+import { ChevronDown, X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, Loader2, ShieldCheck, Variable } from "lucide-react";
 import { askConfirm, notifyError } from '@/lib/feedback';
 import { useState, useEffect, useCallback } from "react";
 import * as Y from "yjs";
@@ -13,6 +13,9 @@ import { encryptSnapshot } from "@/lib/e2eeFraming";
 import { getVariableRegistry } from "@/lib/variableRegistryInstance";
 import { findUsedGlobals, applySnapshotToDocJson, applySnapshotToEditor } from "@/lib/formula/usedGlobals";
 import type { Definition } from "@/lib/formula/scope";
+import { useT } from "@/components/Settings/useT";
+import { SharePeopleList } from "@/components/Share/SharePeopleList";
+import { useItemGroupIds } from "@/components/Share/ShareOriginLabel";
 
 export type SharePermission = 'view' | 'edit' | 'share';
 
@@ -28,6 +31,7 @@ interface ExistingShare {
     user_id: string;
     status: string;
     permission: 'view' | 'edit' | 'share';
+    can_reshare?: boolean;
     username?: string;
     email?: string;
     public_key?: string;
@@ -51,6 +55,8 @@ interface ShareModalProps {
     onShare: (recipientId: string, recipientEmail: string, recipientPubKey: string, permission: SharePermission, dependencyFileIds?: string[], canReshare?: boolean) => Promise<void>;
     myId: string;
     callerPermission?: 'owner' | 'view' | 'edit' | 'share';
+    /** Calendar groups (id -> title) for the "Aus Kalender" origin line. */
+    groups?: { id: string; title: string }[];
 }
 
 export default function ShareModal({
@@ -59,8 +65,12 @@ export default function ShareModal({
     onClose,
     onShare,
     myId,
-    callerPermission = 'owner'
+    callerPermission = 'owner',
+    groups
 }: ShareModalProps) {
+    const t = useT();
+    const groupIds = useItemGroupIds(fileId);
+    const groupTitles = Object.fromEntries((groups ?? []).map((g) => [g.id, g.title]));
     const [contacts, setContacts] = useState<Contact[]>([]);
     const [customEmail, setCustomEmail] = useState("");
     const [searchResult, setSearchResult] = useState<Contact | null>(null);
@@ -70,6 +80,7 @@ export default function ShareModal({
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
     const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
     const [canReshare, setCanReshare] = useState(false);
+    const [showMore, setShowMore] = useState(false);
 
     // Existing shares state for DEK rotation & live role management
     const [existingShares, setExistingShares] = useState<ExistingShare[]>([]);
@@ -115,9 +126,9 @@ export default function ShareModal({
         if (callerPermission !== 'owner') return;
         setLoadingShares(true);
         try {
-            let res = await apiFetch(`/api/v1/files/${fileId}/shares`);
+            let res = await apiFetch(`/api/v1/files/${fileId}/shares`, { offline: 'never' });
             if (res.status === 404) {
-                res = await apiFetch(`/api/files/${fileId}/shares`);
+                res = await apiFetch(`/api/files/${fileId}/shares`, { offline: 'never' });
             }
             if (res.ok) {
                 const data = await res.json().catch(() => []);
@@ -205,9 +216,9 @@ export default function ShareModal({
 
     const loadContacts = async () => {
         try {
-            let res = await apiFetch(`/api/v1/contacts`);
+            let res = await apiFetch(`/api/v1/contacts`, { offline: 'never' });
             if (res.status === 404) {
-                res = await apiFetch(`/api/contacts`);
+                res = await apiFetch(`/api/contacts`, { offline: 'never' });
             }
             if (res.ok) {
                 interface EnrichedContact {
@@ -244,12 +255,14 @@ export default function ShareModal({
 
         try {
             let res = await apiFetch(`/api/v1/contacts/search`, {
+                offline: 'never',
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email: customEmail.trim() })
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/contacts/search`, {
+                    offline: 'never',
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ email: customEmail.trim() })
@@ -343,12 +356,14 @@ export default function ShareModal({
 
             let res = await apiFetch(`/api/v1/files/${fileId}/shares/${targetUserId}`, {
                 method: "PATCH",
+                offline: 'never',
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ permission: newPerm }),
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/files/${fileId}/shares/${targetUserId}`, {
                     method: "PATCH",
+                    offline: 'never',
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ permission: newPerm }),
                 });
@@ -406,9 +421,9 @@ export default function ShareModal({
                 }
                 if (!pubKeySpki) {
                     try {
-                        let profRes = await apiFetch(`/api/v1/profiles/${rem.user_id}`);
+                        let profRes = await apiFetch(`/api/v1/profiles/${rem.user_id}`, { offline: 'never' });
                         if (profRes.status === 404) {
-                            profRes = await apiFetch(`/api/profiles/${rem.user_id}`);
+                            profRes = await apiFetch(`/api/profiles/${rem.user_id}`, { offline: 'never' });
                         }
                         if (profRes.ok) {
                             const profData = await profRes.json().catch(() => null);
@@ -482,12 +497,14 @@ export default function ShareModal({
             };
 
             let res = await apiFetch(`/api/v1/files/${fileId}/revoke-and-rotate`, {
+                offline: 'never',
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(rotatePayload),
             });
             if (res.status === 404) {
                 res = await apiFetch(`/api/files/${fileId}/revoke-and-rotate`, {
+                    offline: 'never',
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(rotatePayload),
@@ -521,16 +538,18 @@ export default function ShareModal({
     };
 
     return (
-        <div className="fixed inset-0 bg-[#111827]/20 flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
+        <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
                 className="bg-t2-surface  border border-t2-line  rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="share-modal-title"
                 onClick={(e) => e.stopPropagation()}
             >
                 {/* Header */}
                 <div className="p-6 border-b border-t2-line  flex items-center justify-between">
                     <div>
-                        <h2 className="text-base font-bold text-t2-ink ">Datei freigeben</h2>
-                        <p className="text-xs text-t2-ink-2  mt-0.5 truncate max-w-[340px]">{fileName}</p>
+                        <h2 id="share-modal-title" className="text-base font-bold text-t2-ink truncate max-w-[380px]">{t('share.title', { name: fileName })}</h2>
                     </div>
                     <button
                         onClick={onClose}
@@ -649,82 +668,40 @@ export default function ShareModal({
                         </div>
                     ) : (
                     <>
-                    {/* Existing Collaborators Section (Owner only) */}
+                    {/* People with access: owner sees rights menus, origin line for everyone listed */}
                     {callerPermission === 'owner' && existingShares.length > 0 && (
-                        <div className="p-6 border-b border-t2-line  bg-[#f9fafb]/50 dark:bg-zinc-800/30">
+                        <div className="p-6 border-b border-t2-line bg-t2-sub/50">
                             <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider flex items-center gap-1.5">
-                                    <ShieldCheck size={14} className="text-emerald-500" />
-                                    <span>Aktive Freigaben ({existingShares.length})</span>
+                                <h3 className="text-xs font-bold text-t2-ink-2 uppercase tracking-wider flex items-center gap-1.5">
+                                    <ShieldCheck size={14} className="text-t2-accent" />
+                                    <span>{t('share.people')} ({existingShares.length})</span>
                                 </h3>
                                 {loadingShares && <Loader2 size={12} className="animate-spin text-t2-ink-3" />}
                             </div>
-
-                            <div className="space-y-2">
-                                {existingShares.map(share => {
-                                    const isRevoking = revokingUserId === share.user_id;
-                                    const isUpdating = updatingRoleId === share.user_id;
-                                    return (
-                                        <div
-                                            key={share.user_id}
-                                            className="flex items-center justify-between p-3 rounded-[12px] bg-t2-surface  border border-t2-line "
-                                        >
-                                            <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                                <div className="w-8 h-8 rounded-full bg-[#111827] text-white dark:bg-zinc-700 dark:text-zinc-100 font-bold text-xs flex items-center justify-center shrink-0">
-                                                    {(share.username || 'U')[0]?.toUpperCase()}
-                                                </div>
-                                                <div className="min-w-0">
-                                                    <p className="text-xs font-semibold text-t2-ink  truncate">
-                                                        {share.username || share.email || "Nutzer"}
-                                                    </p>
-                                                    <p className="text-[11px] text-t2-ink-2 ">
-                                                        {share.status === "accepted" ? "Akzeptiert" : "Ausstehend"}
-                                                    </p>
-                                                </div>
-                                            </div>
-
-                                            <div className="flex items-center gap-2 shrink-0">
-                                                {/* Role change dropdown */}
-                                                <select
-                                                    value={share.permission}
-                                                    disabled={isUpdating || isRevoking}
-                                                    onChange={(e) => handleRoleChange(share.user_id, e.target.value as SharePermission)}
-                                                    className="text-xs bg-t2-sub  hover:bg-t2-hover  text-t2-ink  font-medium rounded-[8px] px-2.5 py-1.5 border border-t2-line  cursor-pointer outline-none focus:ring-1 focus:ring-[#111827] dark:focus:ring-white transition-colors"
-                                                >
-                                                    <option value="view">Lesen</option>
-                                                    <option value="edit">Bearbeiten</option>
-                                                    <option value="share">Vollzugriff</option>
-                                                </select>
-
-                                                {/* Revoke button */}
-                                                <button
-                                                    onClick={() => handleRevokeShare(share.user_id)}
-                                                    disabled={isRevoking}
-                                                    className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-[8px] border border-rose-200 dark:border-rose-900/40 transition-colors disabled:opacity-50"
-                                                    title="Zugriff widerrufen & DEK rotieren"
-                                                >
-                                                    {isRevoking ? (
-                                                        <Loader2 size={14} className="animate-spin text-rose-500" />
-                                                    ) : (
-                                                        <UserMinus size={14} />
-                                                    )}
-                                                </button>
-                                            </div>
-                                        </div>
-                                    );
-                                })}
-                            </div>
+                            <SharePeopleList
+                                fileId={fileId}
+                                shares={existingShares}
+                                isOwner
+                                groupIds={groupIds}
+                                groupTitles={groupTitles}
+                                updatingUserId={updatingRoleId}
+                                revokingUserId={revokingUserId}
+                                onRoleChange={handleRoleChange}
+                                onRevoke={handleRevokeShare}
+                            />
                         </div>
                     )}
 
                     {/* Permission Picker for new invites */}
                     <div className="px-6 pt-5">
-                        <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2.5">Berechtigung für neue Freigabe</h3>
-                        <div className="grid grid-cols-3 gap-2.5">
+                        <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2.5">{t('share.newPermission')}</h3>
+                        <div className={`grid ${callerPermission === 'owner' ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
                             {([
-                                { val: 'view' as const, icon: Eye, label: 'Ansehen', desc: 'Nur lesen' },
-                                { val: 'edit' as const, icon: Edit3, label: 'Bearbeiten', desc: 'Lesen + schreiben' },
-                                { val: 'share' as const, icon: Share2, label: 'Teilen', desc: 'Weiter teilen' },
+                                { val: 'view' as const, icon: Eye, label: t('share.view'), desc: t('share.viewDesc') },
+                                { val: 'edit' as const, icon: Edit3, label: t('share.edit'), desc: t('share.editDesc') },
+                                // Owners grant re-sharing via "Mehr > Darf weiterteilen" (canReshare). Invite equivalence: the old owner
+                                // tile "share" (share/false) is now edit + can_reshare=true; the tile stays for non-owners.
+                                ...(callerPermission === 'owner' ? [] : [{ val: 'share' as const, icon: Share2, label: t('share.shareTile'), desc: t('share.shareTileDesc') }]),
                             ]).map(opt => {
                                 const Icon = opt.icon;
                                 const disabled = isOptDisabled(opt.val);
@@ -739,10 +716,10 @@ export default function ShareModal({
                                         }}
                                         className={`p-3 rounded-[12px] border text-left transition-all ${
                                             disabled
-                                                ? 'border-t2-line  bg-[#f9fafb]/30 dark:bg-zinc-800/20 opacity-40 cursor-not-allowed'
+                                                ? 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_30%,transparent)] opacity-40 cursor-not-allowed'
                                                 : active
-                                                    ? 'border-[#111827] bg-[#111827] text-white dark:border-white dark:bg-white dark:text-zinc-900 shadow-sm'
-                                                    : 'border-t2-line  bg-[#f9fafb]/50 dark:bg-zinc-800/40 hover:bg-t2-sub  hover:border-t2-line '
+                                                    ? 'border-t2-accent bg-t2-accent text-t2-accent-ink shadow-sm'
+                                                    : 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)] hover:bg-t2-sub  hover:border-t2-line '
                                         }`}
                                     >
                                         <Icon size={16} className={active ? 'text-white  mb-1.5' : 'text-t2-ink-2  mb-1.5'} />
@@ -763,21 +740,24 @@ export default function ShareModal({
                         {/* Re-sharing checkbox for owners only */}
                         {callerPermission === 'owner' && (
                             <div className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
-                                <label className="flex items-start gap-3 cursor-pointer">
+                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')}<ChevronDown size={12} aria-hidden="true" className={`inline ml-1 transition-transform ${showMore ? 'rotate-180' : ''}`} /></button>
+                                {showMore && <label className="mt-2 flex items-start gap-3 cursor-pointer">
                                     <input
                                         type="checkbox"
                                         checked={canReshare}
                                         onChange={(e) => setCanReshare(e.target.checked)}
-                                        className="mt-0.5 w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
+                                        className="mt-0.5 w-4 h-4 rounded border-t2-line  text-t2-ink accent-t2-accent"
                                     />
                                     <div className="flex-1">
-                                        <div className="text-xs font-bold text-t2-ink ">Weiterleiten erlauben</div>
-                                        <div className="text-[11px] text-t2-ink-2  mt-0.5">Empfänger darf diese Notiz mit gleichen oder geringeren Rechten weiterleiten</div>
+                                        <div className="text-xs font-bold text-t2-ink ">{t('share.canReshare')}</div>
+                                        <div className="text-[11px] text-t2-ink-2  mt-0.5">{t('share.canReshareDesc')}</div>
                                     </div>
-                                </label>
+                                </label>}
                             </div>
                         )}
                     </div>
+
+                    <p className="px-6 pt-4 text-[11px] text-t2-ink-2">{t('share.addHint')}</p>
 
                     {/* Content Section */}
                     <div className="p-6 space-y-5">
@@ -818,7 +798,7 @@ export default function ShareModal({
                                                     else next.delete(dep.id);
                                                     setSelectedDepIds(next);
                                                 }}
-                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400 accent-[#111827] dark:accent-white"
+                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
                                             />
                                             <span className="truncate flex-1">{dep.title}</span>
                                         </label>
@@ -884,12 +864,12 @@ export default function ShareModal({
                                             value={customEmail}
                                             onChange={e => setCustomEmail(e.target.value)}
                                             placeholder="E-Mail-Adresse eingeben..."
-                                            className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  placeholder:text-t2-ink-2  outline-none focus:ring-2 focus:ring-[#111827] focus:ring-offset-2 dark:focus:ring-zinc-400"
+                                            className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  placeholder:text-t2-ink-2  outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
                                         />
                                         <button
                                             onClick={handleSearchEmail}
                                             disabled={loading || !customEmail.trim()}
-                                            className="bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-100 rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
+                                            className="bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
                                         >
                                             {loading ? '...' : 'Suchen'}
                                         </button>
@@ -897,7 +877,7 @@ export default function ShareModal({
                                     {searchResult && (
                                         <button
                                             onClick={() => handleShareWithContact(searchResult)}
-                                            className="w-full p-3 rounded-[12px] bg-t2-sub  border border-t2-line  hover:border-[#111827]/40 dark:hover:border-zinc-600 text-left flex items-center justify-between transition-colors"
+                                            className="w-full p-3 rounded-[12px] bg-t2-sub  border border-t2-line  hover:border-t2-ink-3 text-left flex items-center justify-between transition-colors"
                                         >
                                             <div>
                                                 <p className="font-semibold text-xs text-t2-ink ">{searchResult.username}</p>
@@ -913,6 +893,17 @@ export default function ShareModal({
                     </>
                     )}
                 </div>
+                {!pendingShareContact && (
+                    <div className="px-6 py-4 border-t border-t2-line flex justify-end">
+                        <button
+                            type="button"
+                            onClick={onClose}
+                            className="h-[44px] px-5 rounded-[8px] bg-t2-ink text-t2-surface font-semibold text-[14px] hover:opacity-90 transition-opacity"
+                        >
+                            {t('share.done')}
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

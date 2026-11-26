@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Calendar, Flag, Link2, Plus, Tag, Trash2 } from 'lucide-react';
+import { Calendar, Flag, Layers, Link2, Plus, Tag, Trash2 } from 'lucide-react';
+import { TodoWorkspacePicker } from './TodoWorkspacePicker';
 import { format } from 'date-fns';
 import { TaskItem, useDataStore } from '@/store/useDataStore';
 import { Priority, getTaskPriority, getPriorityColor, parseDateSafe } from './types';
@@ -11,6 +12,8 @@ import TagPicker from '@/components/Tags/TagPicker';
 import { useTagCreate } from '@/components/Tags/useTagCreate';
 import { useTagRegistry } from './useTodoTags';
 import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
+import { TodoRescheduleBar } from './TodoRescheduleBar';
+import { isOverdueOpen } from './reschedule';
 
 export interface TodoDetailPaneProps {
   task: TaskItem;
@@ -52,6 +55,8 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
   const createTag = useTagCreate();
 
   const maxDate = subtaskDateMax(task, parent);
+  // Quick reschedule only for open todos dated before today; each choice is one onUpdate call.
+  const overdue = isOverdueOpen(task);
 
   const commitDescription = () => {
     if (description !== (task.description ?? '')) onUpdate(task.id, { description });
@@ -116,7 +121,15 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
             aria-label="Fälligkeitsdatum"
             className="bg-transparent outline-none text-sm text-t2-ink cursor-pointer"
           />
+          {overdue && (
+            <span className="rounded-full bg-t2-late px-2 py-0.5 text-[11px] font-bold text-white">Überfällig</span>
+          )}
         </Row>
+        {overdue && (
+          <div className="pl-[calc(5rem+12px+15px+12px)] pb-2">
+            <TodoRescheduleBar task={task} max={maxDate} onReschedule={onUpdate} />
+          </div>
+        )}
         <Row label="Priorität" icon={<Flag size={15} />}>
           <div className="flex items-center gap-1">
             {PRIORITIES.map((p) => (
@@ -134,6 +147,11 @@ export const TodoDetailPane: React.FC<TodoDetailPaneProps> = ({
             ))}
           </div>
         </Row>
+        {!parent && (
+          <Row label="Workspace" icon={<Layers size={15} />}>
+            <TodoWorkspacePicker task={task} onUpdate={onUpdate} />
+          </Row>
+        )}
         <Row label="Tags" icon={<Tag size={15} />}>
           <TagPicker
             tags={allTags}

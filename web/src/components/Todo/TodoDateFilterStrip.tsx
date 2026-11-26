@@ -337,7 +337,7 @@ export const TodoDateFilterStrip: React.FC<TodoDateFilterStripProps> = ({
           <svg width="10" height="6" viewBox="0 0 10 6" fill="none">
             <path
               d="M4.15 0.85C4.55 0.25 5.45 0.25 5.85 0.85L9.15 5.2C9.6 5.8 9.15 6 8.35 6H1.65C0.85 6 0.4 5.8 0.85 5.2L4.15 0.85Z"
-              className="fill-zinc-900 dark:fill-white"
+              className="fill-t2-ink"
             />
           </svg>
         </div>

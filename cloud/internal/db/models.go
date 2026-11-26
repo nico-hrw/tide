@@ -108,6 +108,9 @@ type Todo struct {
 	IsArchived     bool       `json:"is_archived"`
 	ParentID       string     `json:"parent_id,omitempty"`
 	SortOrder      int        `json:"order"`
+	// Safe is the workspace the todo belongs to ("" means main); LinkedSafes lists extra workspaces it is shown in.
+	Safe           string     `json:"safe,omitempty"`
+	LinkedSafes    []string   `json:"linked_safes,omitempty"`
 	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
 	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
 }

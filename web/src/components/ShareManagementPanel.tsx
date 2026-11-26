@@ -5,6 +5,7 @@ import { askConfirm, notifyError } from '@/lib/feedback';
 import { Users, X, ShieldAlert, UserMinus, Loader2 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import Avatar from "@/components/Profile/Avatar";
+import { ShareOriginLabel, useItemGroupIds } from "@/components/Share/ShareOriginLabel";
 
 interface Share {
     file_id: string;
@@ -30,6 +31,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [revokingId, setRevokingId] = useState<string | null>(null);
+    const groupIds = useItemGroupIds(fileId);
 
     useEffect(() => {
         loadShares();
@@ -39,7 +41,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
         setLoading(true);
         setError(null);
         try {
-            const res = await apiFetch(`/api/v1/files/${fileId}/shares`);
+            const res = await apiFetch(`/api/v1/files/${fileId}/shares`, { offline: 'never' });
             if (res.ok) {
                 const data = await res.json();
                 setShares(data || []);
@@ -59,7 +61,8 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
         setRevokingId(userId);
         try {
             const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
-                method: "DELETE"
+                method: "DELETE",
+                offline: 'never'
             });
             if (res.ok) {
                 setShares(prev => prev.filter(s => s.user_id !== userId));
@@ -79,6 +82,7 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
             setShares(prev => prev.map(s => s.user_id === userId ? { ...s, permission: newPermission as any } : s));
             const res = await apiFetch(`/api/v1/files/${fileId}/shares/${userId}`, {
                 method: "PATCH",
+                offline: 'never',
                 body: JSON.stringify({ permission: newPermission })
             });
             if (!res.ok) throw new Error();
@@ -154,6 +158,9 @@ export default function ShareManagementPanel({ fileId, onClose, isOwner, myPermi
                                         </span>
                                         <span className="text-[11px] text-t2-ink-3">
                                             {share.status === 'accepted' ? 'Akzeptiert' : 'Ausstehend'}
+                                        </span>
+                                        <span className="text-[11px] text-t2-ink-3">
+                                            <ShareOriginLabel fileId={fileId} userId={share.user_id} groupIds={groupIds} />
                                         </span>
                                     </div>
                                 </div>

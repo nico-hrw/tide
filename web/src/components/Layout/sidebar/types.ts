@@ -84,9 +84,6 @@ export interface SidebarProps {
     onOpenSocial?: () => void;
     onOpenExams?: () => void;
     onNewCanvasNote?: () => void;
-    onOpenTodos?: () => void;
-    isTodosActive?: boolean;
-    onToggleTodos?: () => void;
     /** Profile picture and account menu at the top of the sidebar. */
     isAvatarMenuOpen?: boolean;
     setIsAvatarMenuOpen?: React.Dispatch<React.SetStateAction<boolean>>;

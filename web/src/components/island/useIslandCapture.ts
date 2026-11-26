@@ -31,10 +31,12 @@ export interface IslandCapture {
     chosen: boolean;
     /** Kommt aus der Datumserkennung im Editor (Fokus darf nicht gestohlen werden) */
     fromSuggestion: boolean;
+    /** Getippt statt Plus-Knopf: zuerst suchen, Anlegen ist zweitrangig */
+    searchFirst: boolean;
     setKind: (k: CaptureKind) => void;
     /** Start/Ende des Termins, der angelegt würde */
     times: { start: Date; end: Date };
-    start: (text?: string, suggestion?: CaptureSuggestion | null) => void;
+    start: (text?: string, suggestion?: CaptureSuggestion | null, searchFirst?: boolean) => void;
     cancel: () => void;
     confirm: () => Promise<CaptureResult | null>;
     edit: () => void;
@@ -44,6 +46,7 @@ export function useIslandCapture(now: Date, onFinish: () => void): IslandCapture
     const [open, setOpen] = useState(false);
     const [text, setText] = useState('');
     const [override, setOverride] = useState<CaptureKind | null>(null);
+    const [searchFirst, setSearchFirst] = useState(false);
     const suggestionRef = useRef<CaptureSuggestion | null>(null);
 
     const detection = useMemo(() => detectCapture(text, now), [text, now]);
@@ -58,11 +61,13 @@ export function useIslandCapture(now: Date, onFinish: () => void): IslandCapture
         setOpen(false);
         setText('');
         setOverride(null);
+        setSearchFirst(false);
         suggestionRef.current = null;
     }, []);
 
-    const start = useCallback((initial = '', suggestion: CaptureSuggestion | null = null) => {
+    const start = useCallback((initial = '', suggestion: CaptureSuggestion | null = null, search = false) => {
         suggestionRef.current = suggestion;
+        setSearchFirst(search && !suggestion);
         setText(initial);
         setOverride(null);
         setOpen(true);
@@ -137,6 +142,7 @@ export function useIslandCapture(now: Date, onFinish: () => void): IslandCapture
         kind,
         chosen: override !== null,
         fromSuggestion: suggestionRef.current !== null,
+        searchFirst,
         setKind: setOverride,
         times,
         start,

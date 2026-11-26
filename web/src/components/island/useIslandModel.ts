@@ -158,7 +158,7 @@ export function useIslandModel(layout: IslandLayout): IslandModel {
     // Markierter Text im Editor ("Smart Island"-Knopf) öffnet die Erfassung
     useEffect(() => {
         if (!smartIslandState?.show) return;
-        captureStart(smartIslandState.text ?? '');
+        captureStart(smartIslandState.text ?? '', null, !!smartIslandState.searchFirst);
         setOpen(true);
         setSmartIsland(null);
     }, [smartIslandState, setSmartIsland, captureStart]);

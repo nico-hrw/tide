@@ -208,7 +208,7 @@ export const FolderItem = ({ folder, allFiles, level, onSelect, onDelete, onRena
                     if (id && id !== folder.id && !isDescendant(id, folder.id)) onMoveItem?.(id, folder.id);
                 } : undefined}
                 onClick={handleToggle}
-                className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150 hover:bg-[var(--hover-bg)] dark:hover:bg-white/[0.06] interactive-hover`}
+                className={`group flex items-center justify-between w-full px-2 py-1 min-h-[28px] rounded-lg cursor-pointer transition-all duration-150 hover:bg-t2-hover interactive-hover`}
             >
                 <div className="flex items-center gap-1.5 truncate flex-1">
                     <span className="w-3.5 h-3.5 flex items-center justify-center shrink-0 text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors">

@@ -11,8 +11,9 @@ import {
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
+import { todoVisibleInSafes } from '@/lib/todoSafes';
 import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
-import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
 import TodoTagFilterPanel from './TodoTagFilterPanel';
 import TodoTreeItem from './TodoTreeItem';
@@ -23,6 +24,7 @@ import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
 import TodoFocusedGroupView from './TodoFocusedGroupView';
 import TodoDesktopView from './TodoDesktopView';
 import { buildTaskTree } from './treeUtils';
+import { filterTodoRoots } from './todoHierarchy';
 import {
   Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft, TaskWithChildren,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
@@ -40,7 +42,10 @@ export {
 const LINGER_DELAY_MS = 5000;
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
-  const { tasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
+  const { tasks: allTasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
+  const activeSafes = useDataStore((s) => s.activeSafes);
+  // Todos of the active workspaces (own or linked); the rest stays in its workspace.
+  const tasks = useMemo(() => allTasks.filter((t) => todoVisibleInSafes(t, activeSafes ?? [])), [allTasks, activeSafes]);
   const isDesktopVariant = variant === 'desktop';
 
   const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);
@@ -340,8 +345,6 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     });
   }, [tasks]);
 
-  const activeCycleTotal = activeCycleTasks.length;
-  const activeCycleCompletedCount = useMemo(() => activeCycleTasks.filter((t) => t.isCompleted).length, [activeCycleTasks]);
   const activeCycleInProgressCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status === 'in_progress').length, [activeCycleTasks]);
   const activeCycleOpenCount = useMemo(() => activeCycleTasks.filter((t) => !t.isCompleted && t.status !== 'in_progress').length, [activeCycleTasks]);
   const activeCycleOverdueCount = useMemo(() => {
@@ -350,8 +353,15 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   }, [activeCycleTasks]);
   const activeCycleOpenNonOverdueCount = Math.max(0, activeCycleOpenCount - activeCycleOverdueCount);
 
-  const archivedCount = useMemo(() => tasks.filter((t) => isTaskArchived(t)).length, [tasks]);
-  const totalCount = tasks.length;
+  // The header ring only tracks today, so a long backlog never shows up as a big number.
+  const todayProgress = useMemo(() => {
+    const todays = activeCycleTasks.filter((t) => {
+      const d = parseDateSafe(t.dueDate || t.scheduledDate);
+      return d !== null && isSameDay(d, new Date());
+    });
+    return { total: todays.length, done: todays.filter((t) => t.isCompleted).length };
+  }, [activeCycleTasks]);
+
 
   const executeToggleTask = (task: TaskItem) => {
     if (task.isCompleted) {
@@ -520,33 +530,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
   };
 
-  const filteredTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-
-    const matchesSearch = (t: TaskWithChildren): boolean => {
-      if (t.title.toLowerCase().includes(q)) return true;
-      if ((t.description || '').toLowerCase().includes(q)) return true;
-      if (resolveTags(t.tags).some((tag) => tag.title.toLowerCase().includes(q))) return true;
-      if (t.children && t.children.some(matchesSearch)) return true;
-      return false;
-    };
-
-    return taskTree.filter((t) => {
-      if (!matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds)) return false;
-      const archived = isTaskArchived(t);
-      if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
-      if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress' || archived)) return false;
-      if (filterStatus === 'completed' && (!t.isCompleted || archived)) return false;
-      if (filterStatus === 'archived' && !archived) return false;
-      if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
-      if (selectedDateFilter !== null) {
-        const d = parseDateSafe(t.dueDate || t.scheduledDate);
-        if (!d || !isSameDay(d, selectedDateFilter)) return false;
-      }
-      if (q && !matchesSearch(t)) return false;
-      return true;
-    });
-  }, [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
+  // Filters apply to top-level todos; subtodos always stay with their parent (todoHierarchy.ts).
+  const filteredTasks = useMemo(() => filterTodoRoots(taskTree, {
+    tagFilter, knownTagIds, tagTitles: (ids) => resolveTags(ids).map((tag) => tag.title),
+    filterStatus, filterPriority, searchQuery, selectedDateFilter,
+  }), [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;
@@ -668,14 +656,14 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   ]);
 
   return (
-    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-[#f8f9fa] '} relative overflow-hidden ${className || ''}`}>
+    <div className={`w-full h-full flex flex-col ${isDesktopVariant ? 'bg-t2-bg' : 'bg-t2-sub'} relative overflow-hidden ${className || ''}`}>
       <TodoListHeader
-        activeCycleTotal={activeCycleTotal}
-        activeCycleCompletedCount={activeCycleCompletedCount}
+        activeCycleTotal={todayProgress.total}
+        activeCycleCompletedCount={todayProgress.done}
         activeCycleInProgressCount={activeCycleInProgressCount}
         activeCycleOverdueCount={activeCycleOverdueCount}
         activeCycleOpenNonOverdueCount={activeCycleOpenNonOverdueCount}
-        archivedCount={archivedCount}
+        archivedCount={0}
         tasks={tasks}
         setDraft={setDraft}
         setIsCreateOpen={setIsCreateOpen}
@@ -924,7 +912,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`px-2.5 py-1 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterStatus === item.id
-                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                  ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                   : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                               }`}
                             >
@@ -955,7 +943,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                               }}
                               className={`flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                                 filterPriority === item.id
-                                  ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                  ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                   : 'bg-t2-hover  text-t2-ink  hover:bg-t2-stage '
                               }`}
                             >
@@ -998,7 +986,7 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                             }}
                             className={`px-2 py-1.5 rounded-lg text-xs font-medium transition-all cursor-pointer ${
                               selectedDateFilter === null
-                                ? 'bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] shadow-xs font-semibold'
+                                ? 'bg-t2-accent text-t2-accent-ink shadow-xs font-semibold'
                                 : 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage '
                             }`}
                           >

@@ -51,7 +51,7 @@ export default function ConfirmModal({
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
                         exit={{ opacity: 0 }}
-                        className="absolute inset-0 bg-[#111827]/20"
+                        className="absolute inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)]"
                         onClick={onCancel}
                     />
                     <motion.div
@@ -85,7 +85,7 @@ export default function ConfirmModal({
                                     className={`flex-1 rounded-ui h-[44px] px-5 font-semibold text-[14px] transition-colors ${
                                         isDestructive 
                                         ? 'bg-[#b42318] hover:bg-[#91180e] text-white' 
-                                        : 'bg-[#111827] hover:bg-[#2c2c2c] text-white dark:bg-white dark:text-zinc-900'
+                                        : 'bg-t2-accent hover:opacity-90 text-t2-accent-ink'
                                     }`}
                                 >
                                     {confirmText}

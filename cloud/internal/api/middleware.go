@@ -109,6 +109,13 @@ func AuthMiddleware(next http.Handler) http.Handler {
 
 		// Securely inject the verified User ID into the request context
 		ctx := context.WithValue(r.Context(), "user_id", userID)
+		// Issue time of the session (only tokens that carry `iat`); used by fresh-session checks.
+		if iat, err := claims.GetIssuedAt(); err == nil && iat != nil {
+			ctx = context.WithValue(ctx, tokenIssuedAtKey, iat.Time)
+		}
+		if method, ok := claims["auth"].(string); ok {
+			ctx = context.WithValue(ctx, tokenAuthMethodKey, method)
+		}
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }

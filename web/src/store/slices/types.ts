@@ -31,6 +31,10 @@ export interface TaskItem {
     recurrence_end?: string;
     completed_dates?: string[];
     folder?: string;
+    /** Workspace the todo belongs to ("main" when unset). */
+    safe?: string;
+    /** Extra workspaces the todo is shown in. */
+    linkedSafes?: string[];
     tags?: string[];
     showInCalendar?: boolean;
     createdAt?: string;
@@ -46,6 +50,8 @@ export interface SmartIslandState {
     show: boolean;
     parsedData?: any;
     text?: string;
+    /** Opened by typing anywhere: the island searches first, creating is secondary */
+    searchFirst?: boolean;
     sourceNodePos?: number;
     anchorElement?: HTMLElement | null;
 }
@@ -245,6 +251,7 @@ export interface ContactItem {
     avatar_salt?: string;
     avatar_style?: string;
     status?: string;
+    public_key?: string;
 }
 
 export interface ContactsSlice {
@@ -252,7 +259,8 @@ export interface ContactsSlice {
     contactsList?: ContactItem[];
     setContactsList?: (contacts: ContactItem[]) => void;
     setContacts?: (contacts: ContactItem[]) => void;
-    fetchContacts: () => Promise<void>;
+    /** Resolves false when the load failed (network/HTTP error), true/undefined otherwise. */
+    fetchContacts: () => Promise<boolean | void>;
 }
 
 export interface SafesSlice {

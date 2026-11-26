@@ -95,8 +95,8 @@ function ProfileTree({ items, parentId, onSelect, level = 0 }: ProfileTreeProps)
                         className="flex items-center gap-2 p-1 hover:bg-t2-hover  rounded cursor-pointer group"
                         style={{ paddingLeft: `${level * 12 + 20}px` }}
                     >
-                        <FileText size={14} className="text-t2-ink-3 group-hover:text-black dark:group-hover:text-white" />
-                        <span className="text-xs truncate group-hover:text-black dark:group-hover:text-white">{title}</span>
+                        <FileText size={14} className="text-t2-ink-3 group-hover:text-t2-ink" />
+                        <span className="text-xs truncate group-hover:text-t2-ink">{title}</span>
                     </div>
                 );
             })}
@@ -969,7 +969,7 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
                                     <div
                                         key={c.contact_row_id}
                                         className={`p-3 mb-1 rounded-lg cursor-pointer transition-all ${partner?.id === c.partner.id
-                                            ? 'bg-gray-800/90 dark:bg-gray-200/90 text-t2-bg'
+                                            ? 'bg-[color-mix(in_srgb,var(--t2-ink)_90%,transparent)] text-t2-bg'
                                             : 'hover:bg-t2-hover '
                                             }`}
                                     >

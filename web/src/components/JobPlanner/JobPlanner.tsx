@@ -166,7 +166,7 @@ export default function JobPlanner({
         : (mode === 'study' ? 'Studienplaner' : 'Job & Studienplaner');
 
     return (
-        <div className="flex-1 h-full flex flex-col bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto relative select-none">
+        <div className="flex-1 h-full flex flex-col bg-t2-sub overflow-y-auto relative select-none">
             {/* Clean, uncluttered Sticky Header */}
             <div className="sticky top-0 z-30 flex items-center justify-between px-6 md:px-10 py-5 border-b border-t2-line  bg-t2-surface  backdrop-blur-md">
                 <h1 className="text-xl font-bold text-t2-ink  leading-tight">

@@ -9,6 +9,8 @@ import { TagPicker } from "@/components/Tags/TagPicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
 import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
+import { EventPrivateToggle } from "./EventPrivateToggle";
+import { EventMentionField } from "./EventMentionField";
 
 interface CustomDropdownOption {
     value: string;
@@ -115,13 +117,15 @@ export interface EventPopoverEvent {
     is_cancelled?: boolean;
     shading?: number;
     tags?: string[];
+    /** Event lock: excluded from calendar share rules. */
+    private?: boolean;
 }
 
 export interface EventPopoverProps {
     event: EventPopoverEvent;
     rect: DOMRect;
     themes: Array<{ id: string; title: string; effect?: string; color?: string }>;
-    onEventSave: (id: string, updates: Partial<EventPopoverEvent>) => void;
+    onEventSave: (id: string, updates: Partial<EventPopoverEvent>, options?: { strict?: boolean }) => void | Promise<void>;
     onEventDelete?: (id: string) => void;
     /** Opens the share dialog for this event. */
     onEventShare?: (e: React.MouseEvent, id: string) => void;
@@ -400,7 +404,7 @@ export default function EventPopover({
                         <button
                             key={c}
                             onClick={() => setColor(c)}
-                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1C1C1C] scale-110' : 'hover:scale-110'}`}
+                            className={`w-5 h-5 rounded-full transition-all ${color === c ? 'ring-2 ring-t2-accent ring-offset-1 ring-offset-t2-surface scale-110' : 'hover:scale-110'}`}
                             style={{ backgroundColor: categoryVar(c) }}
                             title={CALENDAR_CATEGORIES.find(cat => cat.key === c)?.name}
                         />
@@ -542,12 +546,16 @@ export default function EventPopover({
             )}
 
             {/* Description */}
-            <textarea
+            <EventMentionField
+                key={event.id}
+                eventId={event.id}
                 value={description}
-                onChange={(e) => setDescription(e.target.value)}
+                onChange={setDescription}
                 onBlur={() => handleSave()}
+                isPrivate={!!event.private}
                 placeholder="Notizen hinzufügen…"
                 rows={2}
+                toastZIndex={1100}
                 className="w-full bg-[color-mix(in_srgb,var(--ev)_16%,var(--t2-surface))] border border-[color-mix(in_srgb,var(--ev)_32%,transparent)]  rounded-2xl p-3 text-xs leading-relaxed text-t2-ink-2  focus:ring-1 focus:ring-t2-accent outline-none resize-none transition-all placeholder:text-t2-ink-3 "
             />
 
@@ -603,6 +611,7 @@ export default function EventPopover({
                             </div>
                         )}
                     </div>
+                    <EventPrivateToggle eventId={event.id} isPrivate={!!event.private} onChange={(next) => onEventSave(event.id, { private: next }, { strict: true })} />
                 </div>
             )}
         </div>,

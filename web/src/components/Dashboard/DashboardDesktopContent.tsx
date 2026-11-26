@@ -217,6 +217,7 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                 onTabClose={handleTabClose}
                 onTabsReorder={setOpenTabs}
                 onNewTab={() => handleNewNote()}
+                onToggleTodos={handleToggleTodos}
                 onOpenFolders={() => switchTab("folders", "folders", "Notizen")}
                 userProfile={userProfile}
                 myId={myId}
@@ -329,7 +330,7 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                     onOpenSettings={(tab?: SettingsModalTab) => setSettingsModalOpen(true, tab || "extensions")}
                 />
 
-                <div className={`absolute inset-0 z-10 bg-[#f8f9fa] dark:bg-[#121212] overflow-y-auto ${activeTabId === "todos" ? "block" : "hidden"}`}>
+                <div className={`absolute inset-0 z-10 bg-t2-sub overflow-y-auto ${activeTabId === "todos" ? "block" : "hidden"}`}>
                     {activeTabId === "todos" && (!enabledExtensions || enabledExtensions.includes("todos")) && (
                         <TodoList variant="desktop" initialTaskId={selectedTodoId} onCreateTag={(title) => handleCreateEventGroup(title)} />
                     )}

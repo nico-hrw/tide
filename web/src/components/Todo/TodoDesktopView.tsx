@@ -2,12 +2,13 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { addDays, isBefore, isSameDay, startOfDay } from 'date-fns';
 import { TaskItem } from '@/store/useDataStore';
-import { ArchiveTier, ARCHIVE_TIER_CONFIG, FilterStatus, TaskWithChildren, parseDateSafe } from './types';
+import { ArchiveTier, ARCHIVE_TIER_CONFIG, FilterStatus, TaskWithChildren } from './types';
+import { groupRootsByDay } from './todoHierarchy';
 import { TodoCard } from './TodoCard';
 import { TodoDetailPane } from './TodoDetailPane';
 import { TodoWeekStats } from './TodoWeekStats';
+import type { ReschedulePatch } from './reschedule';
 
 type Node = TaskWithChildren | TaskItem;
 
@@ -36,7 +37,10 @@ export interface TodoDesktopViewProps {
 
 const asTree = (n: Node): TaskWithChildren => n as TaskWithChildren;
 
-const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void; open?: boolean }> = ({ label, count, onClick, open }) => {
+// Only today and tomorrow carry a number; totals for older/later/archived lists only add pressure.
+const showsCount = (key: string) => key === 'today' || key === 'tomorrow';
+
+const GroupHeader: React.FC<{ label: string; count?: number; onClick?: () => void; open?: boolean }> = ({ label, count, onClick, open }) => {
   const Chevron = open === false ? ChevronRight : ChevronDown;
   return (
     <button
@@ -47,7 +51,7 @@ const GroupHeader: React.FC<{ label: string; count: number; onClick?: () => void
     >
       <Chevron size={13} />
       {label}
-      <em className="not-italic font-medium">{count}</em>
+      {count !== undefined && <em className="not-italic font-medium">{count}</em>}
       <span className="flex-1 h-px bg-t2-line-soft" />
     </button>
   );
@@ -61,6 +65,11 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /** Card whose quick reschedule options are open (one at a time). */
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const toggleReschedule = (id: string) => setRescheduleId((cur) => (cur === id ? null : id));
+  // Exactly one updateTask per choice; the calendar sync then moves a linked entry once (useTaskCalendarSync).
+  const reschedule = (id: string, patch: ReschedulePatch) => onUpdateTask(id, patch);
 
   const [lastInitialId, setLastInitialId] = useState(initialTaskId);
   if (initialTaskId !== lastInitialId) {
@@ -68,26 +77,8 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
     if (initialTaskId) setSelectedId(initialTaskId);
   }
 
-  const groups = useMemo(() => {
-    const today = startOfDay(new Date());
-    const tomorrow = addDays(today, 1);
-    const g = { overdue: [] as Node[], today: [] as Node[], tomorrow: [] as Node[], upcoming: [] as Node[], none: [] as Node[] };
-    for (const t of tasksToRender) {
-      const d = parseDateSafe(t.dueDate || t.scheduledDate);
-      if (!d) g.none.push(t);
-      else if (isBefore(startOfDay(d), today)) g.overdue.push(t);
-      else if (isSameDay(d, today)) g.today.push(t);
-      else if (isSameDay(d, tomorrow)) g.tomorrow.push(t);
-      else g.upcoming.push(t);
-    }
-    return [
-      { key: 'overdue', title: 'Überfällig', items: g.overdue },
-      { key: 'today', title: 'Heute', items: g.today },
-      { key: 'tomorrow', title: 'Morgen', items: g.tomorrow },
-      { key: 'upcoming', title: 'Demnächst', items: g.upcoming },
-      { key: 'none', title: 'Ohne Datum', items: g.none },
-    ].filter((s) => s.items.length > 0);
-  }, [tasksToRender]);
+  // tasksToRender holds top-level todos only; subtodos stay inside their parent's card (todoHierarchy.ts).
+  const groups = useMemo(() => groupRootsByDay(tasksToRender), [tasksToRender]);
 
   // Opening the list scrolls to today's todos once, so overdue ones above do not push them out of sight.
   const listRef = useRef<HTMLDivElement>(null);
@@ -132,6 +123,9 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
       onActivate={activate}
       onToggleTask={onToggleTask}
       onToggleSubtask={onToggleSubtask}
+      rescheduleOpen={n.id === rescheduleId}
+      onToggleReschedule={toggleReschedule}
+      onReschedule={reschedule}
     />
   );
 
@@ -150,7 +144,7 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
                 <div id={s.key === 'today' ? 'todo-section-today' : undefined}>
                   <GroupHeader
                     label={s.title}
-                    count={s.items.length}
+                    count={showsCount(s.key) ? s.items.length : undefined}
                     open={!isCollapsed}
                     onClick={() => setCollapsed((p) => ({ ...p, [s.key]: !p[s.key] }))}
                   />
@@ -164,13 +158,13 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
           )}
           {showRecent && (
             <>
-              <GroupHeader label="Kürzlich erledigt" count={recentlyCompletedTasks.length} open={showCompleted} onClick={() => setShowCompleted((p) => !p)} />
+              <GroupHeader label="Kürzlich erledigt" open={showCompleted} onClick={() => setShowCompleted((p) => !p)} />
               {showCompleted && recentlyCompletedTasks.map(card)}
             </>
           )}
           {archivedTasks.length > 0 && filterStatus !== 'completed' && (
             <>
-              <GroupHeader label="Archiv" count={archivedTasks.length} open={archiveOpen} onClick={() => setShowArchive((p) => !p)} />
+              <GroupHeader label="Archiv" open={archiveOpen} onClick={() => setShowArchive((p) => !p)} />
               {archiveOpen && ARCHIVE_TIER_CONFIG.map((tier) => {
                 const items = archivedByTier[tier.key];
                 if (!items.length) return null;

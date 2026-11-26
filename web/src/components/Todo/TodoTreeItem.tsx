@@ -8,11 +8,14 @@ import {
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
+import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
+import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import TodoSplitModal from './TodoSplitModal';
 import { useTagRegistry, DEFAULT_TAG_COLOR } from './useTodoTags';
 import { toggleTagInFilter } from '@/lib/tagFilter';
 import { useMobileTodoStyle, mobileCardStyle, MobilePriorityIcon, MobileOverdue } from './MobileTodoStyle';
 import { TodoPriorityBadge } from './TodoPriorityBadge';
+import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
 import {
   RecurrenceType, TaskWithChildren, TaskEditDraft,
   RECURRENCE_OPTIONS, getTaskPriority, getDeadlineInfo, parseDateSafe,
@@ -49,10 +52,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   onFocusGroup, parentDueDate,
 }) {
   const addTask = useDataStore((s) => s.addTask);
+  const activeSafes = useDataStore((s) => s.activeSafes);
   const { resolve: resolveTags, ensureTag } = useTagRegistry(handleCreateTag);
   const tagFilter = useDataStore((s) => s.todoTagFilter);
   const setTodoTagFilter = useDataStore((s) => s.setTodoTagFilter);
   const updateTask = useDataStore((s) => s.updateTask);
+  const myId = useDataStore((s) => s.myId);
+  const isSharedWithMe = !!task.owner_id && !!myId && task.owner_id !== myId;
   const parentTask = useDataStore((s) => task.parentId ? s.tasks.find((t) => t.id === task.parentId) : undefined);
   const effectiveParentDueDate = (parentDueDate || parentTask?.dueDate || parentTask?.scheduledDate || '').slice(0, 10);
   const [isParentMinimized, setIsParentMinimized] = useState(false);
@@ -304,7 +310,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                   : isMobileT2
                     ? (isTodayActive ? 'tide-m-today' : '')
                   : isTodayActive
-                    ? 'bg-[#27272a] text-white border border-[#27272a] shadow-md dark:bg-white dark:text-black dark:border-white dark:shadow-md'
+                    ? 'bg-t2-accent text-t2-accent-ink border border-t2-accent shadow-md'
                     : 'bg-t2-surface  text-t2-ink  border border-t2-line  hover:border-t2-line  shadow-[0_1px_3px_rgba(0,0,0,0.03)] dark:shadow-none'
               }`}
             >
@@ -379,6 +385,8 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     >
                       {task.title}
                     </span>
+                    <VisibilityBadge kind={isSharedWithMe ? 'shared-with-me' : 'private'} size={12} hideWhenPrivate />
+                    {todoIsExternal(task, activeSafes ?? []) && <ExternalSafeBadge safe={todoSafe(task)} />}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -444,7 +452,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                 {/* Main Info Card */}
                 <div className={`p-4 sm:p-5 rounded-2xl border flex flex-col shrink-0 z-20 ${
                   isTodayActive
-                    ? 'bg-[#27272a] text-white border border-[#27272a] dark:bg-white dark:text-black dark:border-white shadow-md'
+                    ? 'bg-t2-accent text-t2-accent-ink border border-t2-accent shadow-md'
                     : 'bg-t2-surface  text-t2-ink  border-t2-line  shadow-sm'
                 }`}>
                   <div className="flex items-center justify-between mb-2">
@@ -454,7 +462,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       </span>
                     ) : (
                       <span className={`text-[11px] font-semibold uppercase tracking-wider ${
-                        isTodayActive ? 'text-white/60 ' : 'text-t2-ink-3 '
+                        isTodayActive ? 'text-[color-mix(in_srgb,var(--t2-bg)_60%,transparent)] ' : 'text-t2-ink-3 '
                       }`}>
                         {isParentMinimized ? 'Aufgabe minimiert' : 'Aufgabe bearbeiten'}
                       </span>
@@ -465,13 +473,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         onClick={() => setIsParentMinimized((p) => !p)}
                         className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
                           isTodayActive
-                            ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
+                            ? 'text-[color-mix(in_srgb,var(--t2-bg)_80%,transparent)] hover:text-t2-bg hover:bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)]'
                             : 'text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover '
                         }`}
                         title={isParentMinimized ? "Details anzeigen" : "Details minimieren"}
                       >
                         <span className={`text-[11px] font-medium ${
-                          isTodayActive ? 'text-white/80 ' : 'text-t2-ink-2 '
+                          isTodayActive ? 'text-[color-mix(in_srgb,var(--t2-bg)_80%,transparent)] ' : 'text-t2-ink-2 '
                         }`}>
                           {isParentMinimized ? 'Details einblenden' : 'Minimieren'}
                         </span>
@@ -485,13 +493,13 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         }}
                         className={`p-1 rounded-lg transition-colors cursor-pointer flex items-center gap-1 text-xs ${
                           isTodayActive
-                            ? 'text-white/80 hover:text-white dark:text-black/80 dark:hover:text-black hover:bg-white/10 dark:hover:bg-black/10'
+                            ? 'text-[color-mix(in_srgb,var(--t2-bg)_80%,transparent)] hover:text-t2-bg hover:bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)]'
                             : 'text-t2-ink-3 hover:text-t2-ink-2  hover:bg-t2-hover '
                         }`}
                         title="Zuklappen"
                       >
                         <span className={`text-[11px] font-medium ${
-                          isTodayActive ? 'text-white/80 ' : 'text-t2-ink-2 '
+                          isTodayActive ? 'text-[color-mix(in_srgb,var(--t2-bg)_80%,transparent)] ' : 'text-t2-ink-2 '
                         }`}>
                           Zuklappen
                         </span>
@@ -505,7 +513,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                     isParentMinimized
                       ? ''
                       : isTodayActive
-                        ? 'border-b border-white/20 dark:border-black/20 pb-2 mb-3'
+                        ? 'border-b border-[color-mix(in_srgb,var(--t2-bg)_20%,transparent)] pb-2 mb-3'
                         : 'border-b border-t2-line  pb-2 mb-3'
                   }`}>
                     <input
@@ -540,7 +548,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       placeholder="Titel der Aufgabe..."
                       className={`text-lg font-bold bg-transparent outline-none flex-1 min-w-0 ${
                         isTodayActive
-                          ? 'text-t2-bg placeholder-white/40 dark:placeholder-black/40'
+                          ? 'text-t2-bg placeholder-[color-mix(in_srgb,var(--t2-bg)_40%,transparent)]'
                           : 'text-t2-ink  placeholder-t2-ink-3 '
                       }`}
                     />
@@ -554,9 +562,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'low'
-                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-emerald-500 text-white ring-2 ring-emerald-500 ring-offset-1 ${isTodayActive ? 'ring-offset-t2-accent' : 'ring-offset-t2-surface'} shadow-xs scale-105`
                               : isTodayActive
-                                ? 'bg-white/10 dark:bg-black/10 text-emerald-300 dark:text-emerald-700 hover:opacity-100 opacity-70'
+                                ? 'bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] text-emerald-300 dark:text-emerald-700 hover:opacity-100 opacity-70'
                                 : 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Niedrige Priorität"
@@ -571,9 +579,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'medium'
-                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-amber-500 text-white ring-2 ring-amber-500 ring-offset-1 ${isTodayActive ? 'ring-offset-t2-accent' : 'ring-offset-t2-surface'} shadow-xs scale-105`
                               : isTodayActive
-                                ? 'bg-white/10 dark:bg-black/10 text-amber-300 dark:text-amber-700 hover:opacity-100 opacity-70'
+                                ? 'bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] text-amber-300 dark:text-amber-700 hover:opacity-100 opacity-70'
                                 : 'bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Mittlere Priorität"
@@ -588,9 +596,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           }}
                           className={`p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center ${
                             draft.priority === 'high'
-                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-[#27272a] dark:ring-offset-white' : 'dark:ring-offset-[#1a1a1a]'} shadow-xs scale-105`
+                              ? `bg-rose-500 text-white ring-2 ring-rose-500 ring-offset-1 ${isTodayActive ? 'ring-offset-t2-accent' : 'ring-offset-t2-surface'} shadow-xs scale-105`
                               : isTodayActive
-                                ? 'bg-white/10 dark:bg-black/10 text-rose-300 dark:text-rose-700 hover:opacity-100 opacity-70'
+                                ? 'bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] text-rose-300 dark:text-rose-700 hover:opacity-100 opacity-70'
                                 : 'bg-rose-50 dark:bg-rose-950/40 text-rose-600 dark:text-rose-400 hover:opacity-100 opacity-60'
                           }`}
                           title="Hohe Priorität"
@@ -612,10 +620,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftNow
-                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
-                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                                ? 'bg-t2-surface text-t2-ink shadow-xs'
+                                : 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] text-t2-bg hover:bg-[color-mix(in_srgb,var(--t2-bg)_20%,transparent)]'
                               : isDraftNow
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -627,10 +635,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftToday
-                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
-                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                                ? 'bg-t2-surface text-t2-ink shadow-xs'
+                                : 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] text-t2-bg hover:bg-[color-mix(in_srgb,var(--t2-bg)_20%,transparent)]'
                               : isDraftToday
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -642,10 +650,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           className={`px-2.5 py-1 text-xs font-medium rounded-lg transition-colors cursor-pointer ${
                             isTodayActive
                               ? isDraftTomorrow
-                                ? 'bg-t2-surface text-black  dark:text-white shadow-xs'
-                                : 'bg-white/15 text-white hover:bg-white/20 dark:bg-black/10 dark:text-black dark:hover:bg-black/15'
+                                ? 'bg-t2-surface text-t2-ink shadow-xs'
+                                : 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] text-t2-bg hover:bg-[color-mix(in_srgb,var(--t2-bg)_20%,transparent)]'
                               : isDraftTomorrow
-                                ? 'bg-t2-ink text-white  dark:text-gray-900 shadow-xs'
+                                ? 'bg-t2-ink text-t2-bg shadow-xs'
                                 : 'bg-t2-hover hover:bg-t2-stage   text-t2-ink '
                           }`}
                         >
@@ -670,7 +678,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             }}
                             className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-t2-accent focus:outline-none cursor-pointer ${
                               isTodayActive
-                                ? 'bg-white/15 dark:bg-black/10 text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                ? 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
                                 : 'bg-t2-hover  text-t2-ink  border-transparent'
                             }`}
                             aria-label="Fälligkeitsdatum auswählen"
@@ -681,7 +689,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               onClick={() => handleQuickDate('none')}
                               className={`ml-1 p-0.5 cursor-pointer ${
                                 isTodayActive
-                                  ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
+                                  ? 'text-[color-mix(in_srgb,var(--t2-bg)_60%,transparent)] hover:text-t2-bg'
                                   : 'text-t2-ink-3 hover:text-t2-ink-2 '
                               }`}
                               title="Datum entfernen"
@@ -712,7 +720,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             }}
                             className={`px-2 py-1 text-xs font-medium rounded-lg border focus:border-t2-accent focus:outline-none cursor-pointer ${
                               isTodayActive
-                                ? 'bg-white/15 dark:bg-black/10 text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
+                                ? 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] text-t2-bg border-transparent [color-scheme:dark] dark:[color-scheme:light]'
                                 : 'bg-t2-hover  text-t2-ink  border-transparent'
                             }`}
                             aria-label="Fälligkeitszeit auswählen"
@@ -727,7 +735,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                               }}
                               className={`ml-1 p-0.5 cursor-pointer ${
                                 isTodayActive
-                                  ? 'text-white/60 hover:text-white dark:text-black/60 dark:hover:text-black'
+                                  ? 'text-[color-mix(in_srgb,var(--t2-bg)_60%,transparent)] hover:text-t2-bg'
                                   : 'text-t2-ink-3 hover:text-t2-ink-2 '
                               }`}
                               title="Uhrzeit entfernen"
@@ -742,9 +750,9 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {(!depth || depth < 1) && (
                         <div className="grid grid-cols-1 gap-2">
                           <div className={`flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 min-w-0 ${
-                            isTodayActive ? 'bg-white/15 ' : 'bg-t2-hover '
+                            isTodayActive ? 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] ' : 'bg-t2-hover '
                           }`}>
-                            <Repeat size={14} className={isTodayActive ? 'text-white/60  shrink-0' : 'text-t2-ink-3 shrink-0'} />
+                            <Repeat size={14} className={isTodayActive ? 'text-[color-mix(in_srgb,var(--t2-bg)_60%,transparent)]  shrink-0' : 'text-t2-ink-3 shrink-0'} />
                             <select
                               value={draft.recurrence}
                               onChange={(e) => {
@@ -767,7 +775,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {/* Tags section - full width with comfortable padding */}
                       <div className={`w-full flex flex-wrap items-center gap-2 p-2.5 rounded-xl border ${
                         isTodayActive
-                          ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10'
+                          ? 'bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] border-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)]'
                           : 'bg-t2-sub  border-t2-line-soft '
                       }`}>
                         {resolveTags(draft.tags).map((tag) => (
@@ -793,10 +801,10 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         ))}
                         <div className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs border ${
                           isTodayActive
-                            ? 'bg-white/15 dark:bg-black/10 border-white/20 dark:border-black/10'
+                            ? 'bg-[color-mix(in_srgb,var(--t2-bg)_15%,transparent)] border-[color-mix(in_srgb,var(--t2-bg)_20%,transparent)]'
                             : 'bg-t2-surface  border-t2-line '
                         }`}>
-                          <Tag size={13} className={isTodayActive ? 'text-white/60 ' : 'text-t2-ink-3'} />
+                          <Tag size={13} className={isTodayActive ? 'text-[color-mix(in_srgb,var(--t2-bg)_60%,transparent)] ' : 'text-t2-ink-3'} />
                           <input
                             type="text"
                             value={tagInput}
@@ -811,7 +819,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                             placeholder="Tag hinzufügen..."
                             className={`w-28 bg-transparent text-xs focus:outline-none ${
                               isTodayActive
-                                ? 'text-t2-bg placeholder-white/50 dark:placeholder-black/50'
+                                ? 'text-t2-bg placeholder-[color-mix(in_srgb,var(--t2-bg)_50%,transparent)]'
                                 : 'text-t2-ink  placeholder-t2-ink-3'
                             }`}
                           />
@@ -846,7 +854,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         rows={1}
                         className={`w-full text-xs sm:text-sm rounded-lg p-2.5 border outline-none resize-none transition-colors ${
                           isTodayActive
-                            ? 'bg-white/10 dark:bg-black/5 border-white/10 dark:border-black/10 text-t2-bg placeholder-white/40 dark:placeholder-black/40 focus:border-white/30 dark:focus:border-black/30'
+                            ? 'bg-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] border-[color-mix(in_srgb,var(--t2-bg)_10%,transparent)] text-t2-bg placeholder-[color-mix(in_srgb,var(--t2-bg)_40%,transparent)] focus:border-[color-mix(in_srgb,var(--t2-bg)_30%,transparent)]'
                             : 'bg-t2-sub  border-t2-line-soft  text-t2-ink  placeholder-t2-ink-3  focus:border-t2-line '
                         }`}
                       />
@@ -875,7 +883,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                         }
                         if (isControlledExpanded === undefined) setLocalExpanded(false);
                       }}
-                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-medium rounded-lg bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-colors cursor-pointer"
                       title="Fertig"
                     >
                       <Check size={13} strokeWidth={2.5} />
@@ -931,7 +939,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                           type="button"
                           onClick={() => void handleAddSubtask()}
                           disabled={!newSubtaskTitle.trim()}
-                          className="p-1.5 bg-[#18181b] dark:bg-white text-white dark:text-[#09090b] rounded-lg hover:bg-[#09090b] dark:hover:bg-gray-100 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                          className="p-1.5 bg-t2-accent text-t2-accent-ink rounded-lg hover:opacity-90 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
                           title="Unteraufgabe hinzufügen"
                         >
                           <Plus size={14} />
@@ -1052,7 +1060,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       }
                       if (isControlledExpanded === undefined) setLocalExpanded(false);
                     }}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-[#18181b] hover:bg-[#09090b] text-white dark:bg-white dark:text-[#09090b] dark:hover:bg-gray-100 transition-colors cursor-pointer shadow-xs"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 text-xs font-medium rounded-xl bg-t2-accent hover:opacity-90 text-t2-accent-ink transition-colors cursor-pointer shadow-xs"
                     title="Speichern"
                   >
                     <Check size={14} strokeWidth={2.5} />
