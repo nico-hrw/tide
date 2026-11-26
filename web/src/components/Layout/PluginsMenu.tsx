@@ -32,6 +32,17 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
     const [open, setOpen] = useState(false);
     const [pos, setPos] = useState<{ top: number; left: number } | null>(null);
     const ref = useRef<HTMLDivElement>(null);
+    const leaveTimer = useRef<number | null>(null);
+
+    // Sidebar row: the dropdown closes when the pointer has been away for a moment (the gap to the popover is short).
+    const cancelClose = () => {
+        if (leaveTimer.current !== null) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+    };
+    const scheduleClose = () => {
+        cancelClose();
+        leaveTimer.current = window.setTimeout(() => setOpen(false), 350);
+    };
+    useEffect(() => cancelClose, []);
 
     useEffect(() => {
         if (!open) return;
@@ -53,7 +64,12 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
     ];
 
     return (
-        <div ref={ref} className={variant === 'row' ? 'relative w-full' : 'relative shrink-0 flex items-center'}>
+        <div
+            ref={ref}
+            className={variant === 'row' ? 'relative w-full' : 'relative shrink-0 flex items-center'}
+            onMouseEnter={variant === 'row' ? cancelClose : undefined}
+            onMouseLeave={variant === 'row' ? scheduleClose : undefined}
+        >
             <button
                 type="button"
                 onClick={(e) => {

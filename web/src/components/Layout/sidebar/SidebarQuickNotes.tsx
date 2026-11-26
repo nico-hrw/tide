@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
 import { CALENDAR_CATEGORIES } from "@/lib/calendarColors";
@@ -55,6 +55,16 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
+    const leaveTimer = useRef<number | null>(null);
+    const cancelClose = useCallback(() => {
+        if (leaveTimer.current !== null) { window.clearTimeout(leaveTimer.current); leaveTimer.current = null; }
+    }, []);
+    // Compact (sidebar row): the list closes when the pointer has been away for a moment; not while a context menu is open.
+    const scheduleClose = useCallback(() => {
+        cancelClose();
+        leaveTimer.current = window.setTimeout(() => setIsOpen(false), 350);
+    }, [cancelClose]);
+    useEffect(() => cancelClose, [cancelClose]);
     const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
     const [listPos, setListPos] = useState<{ top: number; left: number } | null>(null);
     const defaultSafe = useDataStore((s) => s.defaultSafe);
@@ -118,7 +128,10 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     );
 
     return (
-        <div className={compact ? 'relative w-full' :(className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
+        <div
+            onMouseEnter={compact ? cancelClose : undefined}
+            onMouseLeave={compact && !ctxMenu ? scheduleClose : undefined}
+            className={compact ? 'relative w-full px-2' :(className ||"flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
             {toggleButton}
             {ctxMenu && (
                 <WorkspaceContextMenu

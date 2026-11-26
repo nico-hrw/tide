@@ -33,6 +33,15 @@ describe('moveTab', () => {
   it('removes an empty group and an empty row when a tab leaves them', () => {
     expect(moveTab([[['a']], [['b', 'c']]], 'a', { kind: 'intoGroup', ref: 'c' })).toEqual([[['b', 'c', 'a']]]);
   });
+  it('drops the last tab of a row to the right edge as its own group', () => {
+    expect(moveTab(one, 'b', { kind: 'rowEnd', ref: 'b' })).toEqual([[['todos', 'a'], ['b']]]);
+  });
+  it('drops the last tab of a row to the left edge as its own group', () => {
+    expect(moveTab(one, 'b', { kind: 'rowStart', ref: 'b' })).toEqual([[['b'], ['todos', 'a']]]);
+  });
+  it('drops a tab below its own row as a new row', () => {
+    expect(moveTab(one, 'b', { kind: 'rowBelow', ref: 'b' })).toEqual([[['todos', 'a']], [['b']]]);
+  });
   it('keeps the layout when the target is missing or the tab drops on itself', () => {
     expect(moveTab(one, 'a', { kind: 'after', ref: 'a' })).toEqual(one);
     expect(moveTab(one, 'a', { kind: 'after', ref: 'zz' })).toEqual(one);

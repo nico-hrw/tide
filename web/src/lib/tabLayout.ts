@@ -53,10 +53,54 @@ function removeId(rows: TabRows, id: string): TabRows {
   return cleanup(rows.map((row) => row.map((group) => group.filter((x) => x !== id))));
 }
 
+/**
+ * A tab dropped on a zone that names the tab itself (the last or first tab of a row). It leaves its group
+ * and becomes a group of its own at the row edge, or in a new row above or below. Its group is split first,
+ * so the neighbours stay where they are.
+ */
+function moveIsolated(rows: TabRows, id: string, kind: DropTarget['kind']): TabRows {
+  const at = locate(rows, id);
+  if (!at) return rows;
+  const iso = rows.map((row) => row.map((group) => [...group]));
+  const group = iso[at.r][at.g];
+  const idx = group.indexOf(id);
+  const left = group.slice(0, idx);
+  const right = group.slice(idx + 1);
+  iso[at.r].splice(at.g, 1, ...[left, [id], right].filter((g) => g.length > 0));
+
+  const pos = locate(iso, id);
+  if (!pos) return rows;
+  const row = iso[pos.r];
+  const [own] = row.splice(pos.g, 1);
+  switch (kind) {
+    case 'rowStart':
+      row.unshift(own);
+      break;
+    case 'rowEnd':
+      row.push(own);
+      break;
+    case 'rowAbove':
+      iso.splice(pos.r, 0, [own]);
+      break;
+    case 'rowBelow':
+      iso.splice(pos.r + 1, 0, [own]);
+      break;
+    default:
+      // groupBefore / groupAfter onto its own group: it stays a group of its own, in place.
+      row.splice(pos.g, 0, own);
+      break;
+  }
+  return cleanup(iso);
+}
+
 /** Moves a tab to a drop target. An unknown target leaves the layout as it was. */
 export function moveTab(rows: TabRows, id: string, target: DropTarget): TabRows {
-  if (target.ref === id) return rows;
   if (locate(rows, id) === null) return rows;
+  if (target.ref === id) {
+    // Dropping a tab next to itself: inside its own group nothing changes; edges and new groups move it out.
+    if (target.kind === 'before' || target.kind === 'after' || target.kind === 'intoGroup') return rows;
+    return moveIsolated(rows, id, target.kind);
+  }
   const before = rows;
   const r = removeId(rows, id);
   const pos = locate(r, target.ref);
