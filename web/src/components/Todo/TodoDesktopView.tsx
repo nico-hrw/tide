@@ -8,6 +8,7 @@ import { groupRootsByDay } from './todoHierarchy';
 import { TodoCard } from './TodoCard';
 import { TodoDetailPane } from './TodoDetailPane';
 import { TodoWeekStats } from './TodoWeekStats';
+import type { ReschedulePatch } from './reschedule';
 
 type Node = TaskWithChildren | TaskItem;
 
@@ -64,6 +65,11 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(initialTaskId ?? null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
+  /** Card whose quick reschedule options are open (one at a time). */
+  const [rescheduleId, setRescheduleId] = useState<string | null>(null);
+  const toggleReschedule = (id: string) => setRescheduleId((cur) => (cur === id ? null : id));
+  // Exactly one updateTask per choice; the calendar sync then moves a linked entry once (useTaskCalendarSync).
+  const reschedule = (id: string, patch: ReschedulePatch) => onUpdateTask(id, patch);
 
   const [lastInitialId, setLastInitialId] = useState(initialTaskId);
   if (initialTaskId !== lastInitialId) {
@@ -117,6 +123,9 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
       onActivate={activate}
       onToggleTask={onToggleTask}
       onToggleSubtask={onToggleSubtask}
+      rescheduleOpen={n.id === rescheduleId}
+      onToggleReschedule={toggleReschedule}
+      onReschedule={reschedule}
     />
   );
 
