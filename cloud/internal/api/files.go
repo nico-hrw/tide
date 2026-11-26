@@ -454,6 +454,18 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		file.AccessKeys = req.AccessKeys
 	}
 	if req.ContentCiphertext != nil {
+		// Reject a stale write BEFORE touching the blob: the OCC check below only guards the row, so a
+		// conflicting PUT used to overwrite the stored content and then answer 409.
+		if req.Version != nil && *req.Version != file.Version {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"error":           "conflict",
+				"message":         "File has been modified by another session",
+				"current_version": file.Version,
+			})
+			return
+		}
 		const maxBackupCascadeBytes = 10 * 1024 * 1024
 		var oldBlobBytes []byte
 		if oldSize, sizeErr := h.BlobStore.GetSize(r.Context(), id); sizeErr == nil && oldSize > 0 && oldSize <= maxBackupCascadeBytes {

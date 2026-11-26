@@ -465,3 +465,31 @@ func TestNormalizedJSONEqual(t *testing.T) {
 		}
 	}
 }
+
+// A write that is rejected for a stale version must leave the stored blob untouched.
+func TestUpdateFile_StaleVersionDoesNotOverwriteBlob(t *testing.T) {
+	e := setupGuardTest(t, nil)
+	owner := createSecurityTestUser(t, e.s, "stale-blob-owner")
+	id := e.createFile(t, owner, `{"title":"A"}`, nil)
+
+	rec := e.do(t, http.MethodPut, "/"+id, owner, `{"version":1,"metadata":{"title":"A"},"content_ciphertext":"first"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first write: expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rec = e.do(t, http.MethodPut, "/"+id, owner, `{"version":1,"metadata":{"title":"B"},"content_ciphertext":"stale-overwrite"}`)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("stale write: expected 409, got %d: %s", rec.Code, rec.Body.String())
+	}
+	rc, err := e.bs.Get(context.Background(), id)
+	if err != nil {
+		t.Fatalf("blob missing: %v", err)
+	}
+	data, _ := io.ReadAll(rc)
+	rc.Close()
+	if string(data) != "first" {
+		t.Fatalf("a rejected write must not change the blob, got %q", data)
+	}
+	if got := e.stored(t, id); got.Version != 2 {
+		t.Fatalf("expected version 2 after one real write, got %d", got.Version)
+	}
+}
