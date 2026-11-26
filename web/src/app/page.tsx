@@ -23,6 +23,7 @@ import { useGlobalShortcuts } from "@/hooks/useGlobalShortcuts";
 import { useSplitViewDrag } from "@/hooks/useSplitViewDrag";
 import { useAutoSaveSync } from "@/hooks/useAutoSaveSync";
 import Sidebar from "@/components/Layout/Sidebar";
+import WorkspaceTimeTracker from "@/components/Layout/WorkspaceTimeTracker";
 import MobileLayout from "@/components/Layout/MobileLayout";
 import { filterFilesBySafe } from "@/components/Layout/sidebar/SidebarFiles";
 import { DashboardDesktopContent, type DashboardCollaborator, type DashboardDesktopContentProps } from "@/components/Dashboard/DashboardDesktopContent";
@@ -513,6 +514,7 @@ export default function Dashboard() {
                         )}
                     </div>
                     <DashboardDesktopContent {...desktopContentProps} />
+                    <WorkspaceTimeTracker />
                 </>
             )}
             {isMobile && mobileProfileId && (
