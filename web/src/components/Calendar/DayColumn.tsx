@@ -755,7 +755,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                                         </button>
                                                         <span className={`truncate pr-1 ${isCompleted ? 'line-through opacity-70' : ''}`}>{event.title}</span>
                                                         {parentTitle && (
-                                                            <span className="shrink min-w-0 truncate pr-1 text-[10px] font-normal opacity-70">↳ {parentTitle}</span>
+                                                            <span className="shrink min-w-0 truncate pr-1 text-[11px] font-normal opacity-70">↳ {parentTitle}</span>
                                                         )}
                                                     </div>
                                                     {onEventDelete && (
