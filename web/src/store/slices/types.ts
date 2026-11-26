@@ -217,6 +217,9 @@ export interface UiSlice {
     /** Calendar tag filter (multi-select, OR). Not persisted. */
     calendarTagFilter: TagFilter;
     setCalendarTagFilter: (filter: TagFilter) => void;
+    /** Tags hidden by default in calendar and todo lists (stored on this device). */
+    hiddenTagIds: string[];
+    toggleHiddenTag: (tagId: string) => void;
 }
 
 export interface FsSlice {

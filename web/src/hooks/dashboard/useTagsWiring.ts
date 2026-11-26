@@ -24,8 +24,10 @@ export function useTagCalendarView(files: DecryptedFile[], events: CalendarEvent
     );
     const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));
     const colorOverrideIds = useDataStore((s) => s.calendarTagColorOverrideIds);
+    const hiddenList = useDataStore((s) => s.hiddenTagIds);
+    const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
     const filteredCalendarEvents = useMemo(
-        () => filterEventsByTags(events, calendarTagFilter, mobileThemes)
+        () => filterEventsByTags(events, calendarTagFilter, mobileThemes, hiddenTagIds)
             .map((e) => ({ ...e, effect: files?.find((f) => f.id === getEventGroupIds(e)[0])?.effect || 'none' }))
             .map((e) => applyTagColorOverride(e, mobileThemes, colorOverrideIds))
             .filter((e) => {

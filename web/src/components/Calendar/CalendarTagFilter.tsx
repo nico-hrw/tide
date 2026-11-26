@@ -5,6 +5,7 @@ import { useDataStore } from '@/store/useDataStore';
 import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
 import { EMPTY_TAG_FILTER, isTagFilterActive, toggleTagInFilter, toggleUntaggedInFilter } from '@/lib/tagFilter';
 import { filterTagsByQuery } from '@/lib/tags';
+import { HiddenTagModeControl } from '@/components/Tags/HiddenTagModeControl';
 
 interface CalendarTagFilterProps {
     tags: { id: string; title: string; color?: string }[];
@@ -75,6 +76,9 @@ export function CalendarTagFilter({ tags, className = '' }: CalendarTagFilterPro
                                 />
                             </div>
                         )}
+                        <div className="px-2 pt-2">
+                            <HiddenTagModeControl filter={filter} onChange={setFilter} />
+                        </div>
                         <div role="listbox" aria-multiselectable="true" className="max-h-72 overflow-y-auto p-1.5">
                             {visible.map((tag) => {
                                 const on = filter.tagIds.includes(tag.id);

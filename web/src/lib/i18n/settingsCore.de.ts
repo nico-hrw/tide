@@ -305,6 +305,7 @@ export const settingsCoreDe = {
     'cal.deleteEventsNone': 'Mit diesem Tag gibt es keine Termine.',
     'cal.deleteEventsFailed': '{count} Termine konnten nicht gelöscht werden.',
     'cal.colorOverrideOf': '{name} bestimmt die Farbe (als Neben-Tag)',
+    'cal.hiddenByDefaultOf': '{name} standardmäßig aus Listen ausblenden (über Filter wieder einblendbar)',
     'cal.deleteEventsOf': 'Alle Termine mit {name} löschen',
     'cal.colorOverride': 'Überschreibt Farbe des Haupt-Tags',
     'cal.colorOverrideDesc': 'Als Neben-Tag an einem Termin bestimmt dieser Tag die Farbe statt des ersten Tags.',

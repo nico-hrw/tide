@@ -52,6 +52,8 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
   const rawTagFilter = useDataStore((st) => st.todoTagFilter);
   // Deleted tags are treated as absent
   const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
+  const hiddenList = useDataStore((s) => s.hiddenTagIds);
+  const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
   const setTagFilter = useDataStore((st) => st.setTodoTagFilter);
   const tagFilterActive = isTagFilterActive(tagFilter);
   const tagFilterLabel = useMemo(() => {
@@ -532,9 +534,9 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
 
   // Filters apply to top-level todos; subtodos always stay with their parent (todoHierarchy.ts).
   const filteredTasks = useMemo(() => filterTodoRoots(taskTree, {
-    tagFilter, knownTagIds, tagTitles: (ids) => resolveTags(ids).map((tag) => tag.title),
+    tagFilter, knownTagIds, hiddenTagIds, tagTitles: (ids) => resolveTags(ids).map((tag) => tag.title),
     filterStatus, filterPriority, searchQuery, selectedDateFilter,
-  }), [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
+  }), [taskTree, tagFilter, knownTagIds, hiddenTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;

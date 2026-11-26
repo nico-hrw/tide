@@ -49,6 +49,8 @@ export function groupRootsByDay<T extends Dated>(roots: T[], now: Date = new Dat
 export interface TodoRootFilter {
   tagFilter: TagFilter;
   knownTagIds: Set<string>;
+  /** Tags hidden in settings (filtered by default, see the tag filter's hidden mode). */
+  hiddenTagIds?: ReadonlySet<string>;
   /** Titles of the todo's tags, for the search. */
   tagTitles: (tagIds: string[] | undefined) => string[];
   filterStatus: FilterStatus;
@@ -67,7 +69,7 @@ export function filterTodoRoots(tree: TaskWithChildren[], f: TodoRootFilter): Ta
     return Boolean(t.children && t.children.some(matchesSearch));
   };
   return tree.filter((t) => {
-    if (!matchesTagFilter(t.tags ?? [], f.tagFilter, f.knownTagIds)) return false;
+    if (!matchesTagFilter(t.tags ?? [], f.tagFilter, f.knownTagIds, f.hiddenTagIds)) return false;
     const archived = isTaskArchived(t);
     if (f.filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
     if (f.filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress' || archived)) return false;

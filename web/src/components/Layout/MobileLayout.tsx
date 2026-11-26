@@ -160,9 +160,11 @@ export default function MobileLayout({
   }, [themes, files]);
 
   const calendarTagFilter = useCalendarTagFilter(resolvedThemes.map((t) => t.id));
+  const hiddenList = useDataStore((s) => s.hiddenTagIds);
+  const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
   const filteredEvents = useMemo(
-    () => filterEventsByTags(events, calendarTagFilter, resolvedThemes),
-    [events, calendarTagFilter, resolvedThemes]
+    () => filterEventsByTags(events, calendarTagFilter, resolvedThemes, hiddenTagIds),
+    [events, calendarTagFilter, resolvedThemes, hiddenTagIds]
   );
   const expandedEvents = useMemo(
     () => expandMobileEvents(filteredEvents, activeDate, resolvedThemes),

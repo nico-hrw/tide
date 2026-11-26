@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { CalendarX2, Eye, EyeOff, Lock, Palette, Pipette, Plus, Share2, Trash2 } from 'lucide-react';
+import { CalendarX2, Eye, EyeOff, ListX, Lock, Palette, Pipette, Plus, Share2, Trash2 } from 'lucide-react';
 import { SettingsCard, SettingsEmpty, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { Button, IconButton, TextField } from '../ui/Controls';
 import { cx } from '../ui/cx';
@@ -29,13 +29,15 @@ interface GroupRowProps {
     onToggleVisibility?: (id: string) => void;
     colorOverride: boolean;
     onToggleColorOverride?: (id: string) => void;
+    hiddenByDefault: boolean;
+    onToggleHiddenByDefault?: (id: string) => void;
     onUpdate?: (id: string, updates: Partial<CalendarGroup>) => void;
     onShare?: (e: React.MouseEvent, id: string) => void;
     onDelete?: (e: React.MouseEvent, id: string) => void;
     onDeleteEvents?: (id: string) => void;
 }
 
-function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOverride, onToggleVisibility, onUpdate, onShare, onDelete, onDeleteEvents }: GroupRowProps) {
+function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOverride, hiddenByDefault, onToggleHiddenByDefault, onToggleVisibility, onUpdate, onShare, onDelete, onDeleteEvents }: GroupRowProps) {
     const t = useT();
     // Entwurf des Namens, solange getippt wird; null = der gespeicherte Name wird gezeigt.
     const [draft, setDraft] = useState<string | null>(null);
@@ -78,6 +80,13 @@ function GroupRow({ group, hidden, isProtected, colorOverride, onToggleColorOver
                     onClick={() => onToggleColorOverride?.(group.id)}
                 >
                     <Pipette className="h-[15px] w-[15px]" />
+                </IconButton>
+                <IconButton
+                    label={t('cal.hiddenByDefaultOf', { name: group.title })}
+                    pressed={hiddenByDefault}
+                    onClick={() => onToggleHiddenByDefault?.(group.id)}
+                >
+                    <ListX className="h-[15px] w-[15px]" />
                 </IconButton>
                 {onDeleteEvents && (
                     <IconButton label={t('cal.deleteEventsOf', { name: group.title })} tone="danger" onClick={() => onDeleteEvents(group.id)}>
@@ -151,6 +160,8 @@ export interface CalendarGroupsSectionProps {
     protectedGroupId?: string | null;
     colorOverrideIds?: string[];
     onToggleColorOverride?: (id: string) => void;
+    hiddenByDefaultIds?: string[];
+    onToggleHiddenByDefault?: (id: string) => void;
     onToggleGroupVisibility?: (id: string) => void;
     onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
     /** No longer used here: the share button opens CalendarShareDialog. Kept for callers. */
@@ -161,7 +172,7 @@ export interface CalendarGroupsSectionProps {
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, colorOverrideIds = [], onToggleColorOverride, onToggleGroupVisibility, onUpdateGroup, onDeleteGroup, onDeleteGroupEvents, onCreateGroup }: CalendarGroupsSectionProps) {
+export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId, colorOverrideIds = [], onToggleColorOverride, hiddenByDefaultIds = [], onToggleHiddenByDefault, onToggleGroupVisibility, onUpdateGroup, onDeleteGroup, onDeleteGroupEvents, onCreateGroup }: CalendarGroupsSectionProps) {
     const t = useT();
     const [newName, setNewName] = useState('');
     const [shareGroupId, setShareGroupId] = useState<string | null>(null);
@@ -188,6 +199,8 @@ export function CalendarGroupsSection({ groups, hiddenGroupIds, protectedGroupId
                         isProtected={Boolean(protectedGroupId && g.id === protectedGroupId)}
                         colorOverride={colorOverrideIds.includes(g.id)}
                         onToggleColorOverride={onToggleColorOverride}
+                        hiddenByDefault={hiddenByDefaultIds.includes(g.id)}
+                        onToggleHiddenByDefault={onToggleHiddenByDefault}
                         onToggleVisibility={onToggleGroupVisibility}
                         onUpdate={onUpdateGroup}
                         onShare={(_e, id) => setShareGroupId(id)}

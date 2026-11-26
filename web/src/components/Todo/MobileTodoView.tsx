@@ -91,13 +91,15 @@ export const MobileTodoView: React.FC = () => {
   const rawTagFilter = useDataStore((s) => s.todoTagFilter);
   const setTagFilter = useDataStore((s) => s.setTodoTagFilter);
   const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
+  const hiddenList = useDataStore((s) => s.hiddenTagIds);
+  const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
   const tagFilterActive = isTagFilterActive(tagFilter);
 
   const roots = useMemo<TaskWithChildren[]>(
     () => buildTaskTree(tasks)
-      .filter((t) => matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds))
+      .filter((t) => matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds, hiddenTagIds))
       .map((t) => ({ ...t, children: kids(t) ?? [] })),
-    [tasks, tagFilter, knownTagIds],
+    [tasks, tagFilter, knownTagIds, hiddenTagIds],
   );
   const sections = useMemo(() => groupOpenTodos(roots), [roots]);
   const todayAll = useMemo(() => roots.filter(isDueToday), [roots]);

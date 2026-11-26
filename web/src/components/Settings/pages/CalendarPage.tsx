@@ -19,7 +19,7 @@ export function CalendarPage({ enabledExtensions = [], ...groupProps }: Calendar
         calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode,
         calendarScrollMode, setCalendarScrollMode, weekStartsOn, setWeekStartsOn,
         calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage,
-        calendarTagColorOverrideIds, toggleCalendarTagColorOverride,
+        calendarTagColorOverrideIds, toggleCalendarTagColorOverride, hiddenTagIds, toggleHiddenTag,
     } = useDataStore();
     const plannerGroupId = useJobPlannerStore((s) => s.pluginGroupId);
     const [importOpen, setImportOpen] = useState(false);
@@ -126,6 +126,8 @@ export function CalendarPage({ enabledExtensions = [], ...groupProps }: Calendar
                     protectedGroupId={plannerActive ? plannerGroupId : null}
                     colorOverrideIds={calendarTagColorOverrideIds}
                     onToggleColorOverride={toggleCalendarTagColorOverride}
+                    hiddenByDefaultIds={hiddenTagIds}
+                    onToggleHiddenByDefault={toggleHiddenTag}
                 />
             </SettingsPage>
 
