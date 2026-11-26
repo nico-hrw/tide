@@ -8,6 +8,7 @@ import { useDataStore } from "@/store/useDataStore";
 import { extractTimeFromText } from "@/lib/timeParser";
 import { getHolidayForDate } from "@/lib/holidays";
 import { CheckSquare, ChevronDown } from "lucide-react";
+import { placeDayTodos } from "@/components/Todo/todoHierarchy";
 
 interface CalendarEvent {
     id: string;
@@ -337,49 +338,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
         }).length;
     }, [allDayTodos, tasks]);
 
-    const sortedAllDayTodos = useMemo(() => {
-        const rootTodos: CalendarEvent[] = [];
-        const childrenMap = new Map<string, CalendarEvent[]>();
-
-        allDayTodos.forEach(e => {
-            const task = e.linkedTaskId ? tasks?.find(t => t.id === e.linkedTaskId) : undefined;
-            const parentId = task?.parentId || e.parent_id;
-            if (parentId) {
-                if (!childrenMap.has(parentId)) {
-                    childrenMap.set(parentId, []);
-                }
-                childrenMap.get(parentId)!.push(e);
-            } else {
-                rootTodos.push(e);
-            }
-        });
-
-        const result: CalendarEvent[] = [];
-        const visited = new Set<string>();
-
-        rootTodos.forEach(root => {
-            result.push(root);
-            visited.add(root.id);
-            const taskId = root.linkedTaskId || root.id;
-            const children = (childrenMap.get(taskId) || []).concat(childrenMap.get(root.id) || []);
-            const uniqueChildren = Array.from(new Set(children));
-            uniqueChildren.forEach(child => {
-                if (!visited.has(child.id)) {
-                    result.push(child);
-                    visited.add(child.id);
-                }
-            });
-        });
-
-        allDayTodos.forEach(e => {
-            if (!visited.has(e.id)) {
-                result.push(e);
-                visited.add(e.id);
-            }
-        });
-
-        return result;
-    }, [allDayTodos, tasks]);
+    // Subtodos sit directly under their own parent; without the parent on this day they stand alone (todoHierarchy.ts).
+    const sortedAllDayTodos = useMemo(() => placeDayTodos(allDayTodos, tasks), [allDayTodos, tasks]);
 
     const calendarOverlapMode = useDataStore(s => s.calendarOverlapMode || 'stack');
     const calendarColorPalette = useDataStore(s => s.calendarColorPalette || 'modern-dark');
@@ -711,9 +671,8 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                 </button>
                                 {todosExpanded && (
                                     <div className="flex flex-col gap-1 w-full">
-                                        {sortedAllDayTodos.map(event => {
+                                        {sortedAllDayTodos.map(({ entry: event, depth, parentTitle }) => {
                                             const task = event.linkedTaskId ? tasks?.find(t => t.id === event.linkedTaskId) : undefined;
-                                            const isSubtask = !!task?.parentId || !!event.parent_id;
                                             const isCompleted = task ? !!task.isCompleted : !!event.is_completed;
                                             const theme = getEventTheme(event, calendarColorPalette);
                                             const isHighlightedEvent = isHighlighted(event.id, 'event');
@@ -749,7 +708,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                                     className={`
                                                     group flex items-center justify-between relative overflow-hidden
                                                     text-xs font-semibold px-2 py-1 rounded cursor-pointer transition-all
-                                                    ${isSubtask ? 'pl-4 ml-2 border-l-2 border-t2-accent  w-[calc(100%-8px)]' : 'w-full'}
+                                                    ${depth >= 2 ? 'pl-4 ml-4 border-l-2 border-t2-accent w-[calc(100%-16px)]' : depth === 1 ? 'pl-4 ml-2 border-l-2 border-t2-accent  w-[calc(100%-8px)]' : 'w-full'}
                                                     ${isHighlightedEvent ? 'ring-2 ring-t2-accent ring-offset-1 dark:ring-offset-[#1A1A1A]' : 'opacity-90 hover:opacity-100'}
                                                     ${event.is_cancelled ? 'opacity-40 line-through grayscale font-normal' : ''}
                                                     ${isCompleted ? 'opacity-60' : ''}
@@ -759,7 +718,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                                         color: theme.text, 
                                                         border: 'none' 
                                                     }}
-                                                    title={event.title}
+                                                    title={parentTitle ? `${event.title} (Untertodo von ${parentTitle})` : event.title}
                                                 >
                                                     {/* Shading Overlay Layer */}
                                                     {event.shading && event.shading > 0 && (
@@ -795,6 +754,9 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                                                             )}
                                                         </button>
                                                         <span className={`truncate pr-1 ${isCompleted ? 'line-through opacity-70' : ''}`}>{event.title}</span>
+                                                        {parentTitle && (
+                                                            <span className="shrink min-w-0 truncate pr-1 text-[10px] font-normal opacity-70">↳ {parentTitle}</span>
+                                                        )}
                                                     </div>
                                                     {onEventDelete && (
                                                         <button

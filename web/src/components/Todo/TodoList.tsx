@@ -12,7 +12,7 @@ import {
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
 import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
-import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
 import TodoTagFilterPanel from './TodoTagFilterPanel';
 import TodoTreeItem from './TodoTreeItem';
@@ -23,6 +23,7 @@ import TodoCreateCard, { TaskCreateDraft } from './TodoCreateCard';
 import TodoFocusedGroupView from './TodoFocusedGroupView';
 import TodoDesktopView from './TodoDesktopView';
 import { buildTaskTree } from './treeUtils';
+import { filterTodoRoots } from './todoHierarchy';
 import {
   Priority, FilterStatus, SortOption, RecurrenceType, ArchiveTier, TodoListProps, TaskEditDraft, TaskWithChildren,
   PRIORITY_WEIGHT, ARCHIVE_TIER_CONFIG,
@@ -525,33 +526,11 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
     }
   };
 
-  const filteredTasks = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-
-    const matchesSearch = (t: TaskWithChildren): boolean => {
-      if (t.title.toLowerCase().includes(q)) return true;
-      if ((t.description || '').toLowerCase().includes(q)) return true;
-      if (resolveTags(t.tags).some((tag) => tag.title.toLowerCase().includes(q))) return true;
-      if (t.children && t.children.some(matchesSearch)) return true;
-      return false;
-    };
-
-    return taskTree.filter((t) => {
-      if (!matchesTagFilter(t.tags ?? [], tagFilter, knownTagIds)) return false;
-      const archived = isTaskArchived(t);
-      if (filterStatus === 'active' && (t.isCompleted || t.status === 'in_progress' || archived)) return false;
-      if (filterStatus === 'in_progress' && (t.isCompleted || t.status !== 'in_progress' || archived)) return false;
-      if (filterStatus === 'completed' && (!t.isCompleted || archived)) return false;
-      if (filterStatus === 'archived' && !archived) return false;
-      if (filterPriority !== 'all' && getTaskPriority(t) !== filterPriority) return false;
-      if (selectedDateFilter !== null) {
-        const d = parseDateSafe(t.dueDate || t.scheduledDate);
-        if (!d || !isSameDay(d, selectedDateFilter)) return false;
-      }
-      if (q && !matchesSearch(t)) return false;
-      return true;
-    });
-  }, [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
+  // Filters apply to top-level todos; subtodos always stay with their parent (todoHierarchy.ts).
+  const filteredTasks = useMemo(() => filterTodoRoots(taskTree, {
+    tagFilter, knownTagIds, tagTitles: (ids) => resolveTags(ids).map((tag) => tag.title),
+    filterStatus, filterPriority, searchQuery, selectedDateFilter,
+  }), [taskTree, tagFilter, knownTagIds, resolveTags, filterStatus, filterPriority, searchQuery, selectedDateFilter]);
 
   const sortedTasks = useMemo(() => [...filteredTasks].sort((a, b) => {
     if (a.isCompleted !== b.isCompleted) return a.isCompleted ? 1 : -1;

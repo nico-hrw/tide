@@ -2,9 +2,9 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
-import { addDays, isBefore, isSameDay, startOfDay } from 'date-fns';
 import { TaskItem } from '@/store/useDataStore';
-import { ArchiveTier, ARCHIVE_TIER_CONFIG, FilterStatus, TaskWithChildren, parseDateSafe } from './types';
+import { ArchiveTier, ARCHIVE_TIER_CONFIG, FilterStatus, TaskWithChildren } from './types';
+import { groupRootsByDay } from './todoHierarchy';
 import { TodoCard } from './TodoCard';
 import { TodoDetailPane } from './TodoDetailPane';
 import { TodoWeekStats } from './TodoWeekStats';
@@ -71,26 +71,8 @@ export const TodoDesktopView: React.FC<TodoDesktopViewProps> = ({
     if (initialTaskId) setSelectedId(initialTaskId);
   }
 
-  const groups = useMemo(() => {
-    const today = startOfDay(new Date());
-    const tomorrow = addDays(today, 1);
-    const g = { overdue: [] as Node[], today: [] as Node[], tomorrow: [] as Node[], upcoming: [] as Node[], none: [] as Node[] };
-    for (const t of tasksToRender) {
-      const d = parseDateSafe(t.dueDate || t.scheduledDate);
-      if (!d) g.none.push(t);
-      else if (isBefore(startOfDay(d), today)) g.overdue.push(t);
-      else if (isSameDay(d, today)) g.today.push(t);
-      else if (isSameDay(d, tomorrow)) g.tomorrow.push(t);
-      else g.upcoming.push(t);
-    }
-    return [
-      { key: 'overdue', title: 'Überfällig', items: g.overdue },
-      { key: 'today', title: 'Heute', items: g.today },
-      { key: 'tomorrow', title: 'Morgen', items: g.tomorrow },
-      { key: 'upcoming', title: 'Demnächst', items: g.upcoming },
-      { key: 'none', title: 'Ohne Datum', items: g.none },
-    ].filter((s) => s.items.length > 0);
-  }, [tasksToRender]);
+  // tasksToRender holds top-level todos only; subtodos stay inside their parent's card (todoHierarchy.ts).
+  const groups = useMemo(() => groupRootsByDay(tasksToRender), [tasksToRender]);
 
   // Opening the list scrolls to today's todos once, so overdue ones above do not push them out of sight.
   const listRef = useRef<HTMLDivElement>(null);
