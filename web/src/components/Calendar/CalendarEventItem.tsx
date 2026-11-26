@@ -10,6 +10,8 @@ import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
 import { resolveCategory } from '@/lib/calendarColors';
 import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
+import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
+import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
 import { getVisibilityState } from '@/components/Visibility/visibilityState';
 
 // Assuming types and getEventTheme are available here, either imported or defined
@@ -33,6 +35,8 @@ interface CalendarEvent {
     is_public?: boolean;
     parent_id?: string | null;
     groupIds?: string[];
+    safe?: string;
+    linkedSafes?: string[];
     owner_id?: string;
     share_status?: string;
     permission?: string;
@@ -190,6 +194,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
 }) => {
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
+    const activeSafes = useDataStore(state => state.activeSafes);
+    const eventIsExternal = todoIsExternal(event, activeSafes ?? []);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
     const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
     const ownerPartnerUsername = useSocialStore(
@@ -680,6 +686,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     <div className="opacity-75 flex-shrink-0" title={isShared && !event.is_public ? attributionText : undefined}>
                         <VisibilityBadge kind={visibilityKind} size={12} hideWhenPrivate />
                     </div>
+                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} className="hidden sm:inline-flex" />}
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
                     <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}

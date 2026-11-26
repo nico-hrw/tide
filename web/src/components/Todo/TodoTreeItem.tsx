@@ -8,6 +8,8 @@ import {
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
+import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
+import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import TodoSplitModal from './TodoSplitModal';
 import { useTagRegistry, DEFAULT_TAG_COLOR } from './useTodoTags';
 import { toggleTagInFilter } from '@/lib/tagFilter';
@@ -50,6 +52,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
   onFocusGroup, parentDueDate,
 }) {
   const addTask = useDataStore((s) => s.addTask);
+  const activeSafes = useDataStore((s) => s.activeSafes);
   const { resolve: resolveTags, ensureTag } = useTagRegistry(handleCreateTag);
   const tagFilter = useDataStore((s) => s.todoTagFilter);
   const setTodoTagFilter = useDataStore((s) => s.setTodoTagFilter);
@@ -383,6 +386,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {task.title}
                     </span>
                     <VisibilityBadge kind={isSharedWithMe ? 'shared-with-me' : 'private'} size={12} hideWhenPrivate />
+                    {todoIsExternal(task, activeSafes ?? []) && <ExternalSafeBadge safe={todoSafe(task)} />}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
