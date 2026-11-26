@@ -36,6 +36,7 @@ const todoSelectColumns = `
 	COALESCE(recurrence, 'none'), COALESCE(recurrence_rule, ''), COALESCE(recurrence_end, ''),
 	COALESCE(completed_dates, '[]'), COALESCE(show_in_calendar, 0), COALESCE(is_archived, 0),
 	COALESCE(parent_id, ''), COALESCE(sort_order, 0),
+	COALESCE(safe, ''), COALESCE(linked_safes, '[]'),
 	created_at, updated_at`
 
 func boolToInt(b bool) int {
@@ -72,6 +73,7 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 		todo               db.Todo
 		tagsJSON           string
 		completedDatesJSON string
+		linkedSafesJSON   string
 		isCompInt          int
 		showInCalendarInt  int
 		isArchivedInt      int
@@ -101,6 +103,8 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 		&isArchivedInt,
 		&todo.ParentID,
 		&todo.SortOrder,
+		&todo.Safe,
+		&linkedSafesJSON,
 		&todo.CreatedAt,
 		&todo.UpdatedAt,
 	)
@@ -118,6 +122,7 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 
 	todo.Tags = unmarshalStringSlice(tagsJSON)
 	todo.CompletedDates = unmarshalStringSlice(completedDatesJSON)
+	todo.LinkedSafes = unmarshalStringSlice(linkedSafesJSON)
 	todo.IsOverdue = computeIsOverdue(&todo, todayStr)
 
 	return &todo, nil
@@ -267,9 +272,10 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 		todo.Recurrence = "none"
 	}
 
-	var tagsJSON, completedDatesJSON string
+	var tagsJSON, completedDatesJSON, linkedSafesJSON string
 	todo.Tags, tagsJSON = marshalStringSlice(todo.Tags)
 	todo.CompletedDates, completedDatesJSON = marshalStringSlice(todo.CompletedDates)
+	todo.LinkedSafes, linkedSafesJSON = marshalStringSlice(todo.LinkedSafes)
 
 	if todo.IsCompleted || todo.Status == "completed" {
 		todo.IsCompleted = true
@@ -293,9 +299,9 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 			due_date, scheduled_date, tags, color, is_completed,
 			completed_at, folder, linked_note_id, recurrence,
 			recurrence_rule, recurrence_end, completed_dates,
-			show_in_calendar, is_archived, parent_id, sort_order,
+			show_in_calendar, is_archived, parent_id, sort_order, safe, linked_safes,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.DB.ExecContext(ctx, query,
@@ -321,6 +327,8 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 		boolToInt(todo.IsArchived),
 		todo.ParentID,
 		todo.SortOrder,
+		todo.Safe,
+		linkedSafesJSON,
 		todo.CreatedAt,
 		todo.UpdatedAt,
 	)
@@ -352,9 +360,10 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 		todo.Recurrence = "none"
 	}
 
-	var tagsJSON, completedDatesJSON string
+	var tagsJSON, completedDatesJSON, linkedSafesJSON string
 	todo.Tags, tagsJSON = marshalStringSlice(todo.Tags)
 	todo.CompletedDates, completedDatesJSON = marshalStringSlice(todo.CompletedDates)
+	todo.LinkedSafes, linkedSafesJSON = marshalStringSlice(todo.LinkedSafes)
 
 	query := `
 		UPDATE todos SET
@@ -378,6 +387,8 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 			is_archived = ?,
 			parent_id = ?,
 			sort_order = ?,
+			safe = ?,
+			linked_safes = ?,
 			updated_at = ?
 		WHERE id = ? AND user_id = ?
 	`
@@ -403,6 +414,8 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 		boolToInt(todo.IsArchived),
 		todo.ParentID,
 		todo.SortOrder,
+		todo.Safe,
+		linkedSafesJSON,
 		todo.UpdatedAt,
 		todo.ID,
 		todo.UserID,

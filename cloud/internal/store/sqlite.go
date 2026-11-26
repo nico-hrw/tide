@@ -751,6 +751,15 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 				"CREATE INDEX IF NOT EXISTS idx_webauthn_credentials_user ON webauthn_credentials(user_id);",
 			},
 		},
+		{
+			// Workspace membership for todos (same model as notes: home workspace + linked workspaces). Additive, nullable-like defaults.
+			version: 17,
+			name:    "todo_safes",
+			stmts: []string{
+				"ALTER TABLE todos ADD COLUMN safe TEXT DEFAULT '';",
+				"ALTER TABLE todos ADD COLUMN linked_safes TEXT DEFAULT '[]';",
+			},
+		},
 	}
 
 	for _, m := range migrations {
