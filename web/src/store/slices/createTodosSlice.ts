@@ -66,7 +66,8 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
                 : undefined;
         // Workspace: explicit, else the parent's (sub-todos stay with their parent), else the first active one.
         const parent = taskDraft.parentId ? state.tasks.find((t) => t.id === taskDraft.parentId) : undefined;
-        const defaultSafe = parent?.safe ?? (state as { activeSafes?: string[] }).activeSafes?.[0] ?? 'main';
+        const st = state as { activeSafes?: string[]; defaultSafe?: string | null };
+        const defaultSafe = parent?.safe ?? st.defaultSafe ?? st.activeSafes?.[0] ?? 'main';
         const newTask: TaskItem = {
             id: fallbackId,
             ...taskDraft,

@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import SidebarIsland from "./sidebar/SidebarIsland";
 import AvatarMenu from "./AvatarMenu";
-import { GraduationCap } from "lucide-react";
+import PluginsMenu from "./PluginsMenu";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
@@ -331,14 +331,15 @@ export default function Sidebar({
             )}
             <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <nav aria-label="Bereiche" className={`flex flex-col gap-0.5 px-2 pt-0.5 transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
-                <button
-                    type="button"
-                    onClick={() => (onOpenStudium ? onOpenStudium() : onOpenCalendar?.())}
-                    className="flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover"
-                >
-                    <GraduationCap size={16} />
-                    Studium
-                </button>
+                <PluginsMenu
+                    variant="row"
+                    activeTabId={activeTabId ?? ''}
+                    enabledExtensions={enabledExtensions}
+                    onTabSelect={(id, type) => onTabSelect?.(id, type)}
+                    onOpenSocial={onOpenSocial}
+                    onOpenSettings={onOpenSettings}
+                    onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
+                />
             </nav>
             <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>

@@ -23,7 +23,8 @@ import {
     Variable
 } from 'lucide-react';
 import { useHighlight } from '../HighlightContext';
-import { motion, Reorder, AnimatePresence } from 'framer-motion';
+import { TabLayoutView } from './TabLayoutView';
+import { flatten, moveTab, reconcileRows, type TabRows } from '@/lib/tabLayout';
 import AvatarMenu from './AvatarMenu';
 import { useSocialStore } from '@/store/useSocialStore';
 import { useDataStore } from '@/store/useDataStore';
@@ -73,6 +74,21 @@ interface TabListProps {
     onOpenTrash?: () => void;
     onLogout?: () => void;
     pluginSlot?: React.ReactNode;
+}
+
+const TAB_LAYOUT_KEY = 'tide_tab_layout';
+
+function loadTabRows(): TabRows {
+    try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(TAB_LAYOUT_KEY) || '[]');
+        return Array.isArray(parsed) ? (parsed as TabRows) : [];
+    } catch {
+        return [];
+    }
+}
+
+function saveTabRows(rows: TabRows): void {
+    try { localStorage.setItem(TAB_LAYOUT_KEY, JSON.stringify(rows)); } catch { /* private mode */ }
 }
 
 export default function TabList({ 
@@ -168,6 +184,99 @@ export default function TabList({
         }
     };
 
+    // Tab layout: rows of groups, saved on this device. Todos is a fixed member: movable, not closable.
+    const tabsById = new Map(tabs.map((t) => [t.id, t] as const));
+    const tabIds = ['todos', ...tabs.filter((t) => t.id !== 'todos' && t.type !== 'todos').map((t) => t.id)];
+    const [storedRows, setStoredRows] = useState<TabRows>(() => loadTabRows());
+    const rows = reconcileRows(storedRows, tabIds);
+    const applyRows = (next: TabRows) => {
+        setStoredRows(next);
+        saveTabRows(next);
+        onTabsReorder?.(flatten(next).map((id) => tabsById.get(id)).filter((t): t is Tab => Boolean(t)));
+    };
+
+    const renderTab = (id: string) => {
+        if (id === 'todos') {
+            return (
+                <button
+                    type="button"
+                    onClick={navigationMode === 'folders' || !onToggleTodos ? () => onTabSelect('todos', 'todos') : onToggleTodos}
+                    style={{ borderRadius: DT.radius }}
+                    className={`flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
+                        activeTabId === 'todos'
+                            ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
+                            : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
+                    }`}
+                >
+                    <ListTodo size={13} />
+                    <span>Todos</span>
+                </button>
+            );
+        }
+        const tab = tabsById.get(id);
+        if (!tab) return null;
+        const isActive = activeTabId === tab.id;
+        return (
+                <div
+                    role="tab"
+                    aria-selected={isActive}
+                    onClick={(e) => {
+                        if (highlight.isSelectingLink && highlight.onLinkSelect) {
+                            highlight.onLinkSelect({ 
+                                id: tab.id, 
+                                title: tab.title, 
+                                type: tab.type as any, 
+                                rect: e.currentTarget.getBoundingClientRect() 
+                            });
+                        } else {
+                            onTabSelect(tab.id, tab.type);
+                        }
+                    }}
+                    onMouseEnter={(e) => schedulePreview(tab, e.currentTarget)}
+                    onMouseLeave={hidePreview}
+                    onPointerDown={hidePreview}
+                    style={{ borderRadius: DT.radius }}
+                    className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[100px] border
+                        ${isActive
+                            ? 'bg-t2-surface  text-t2-ink  shadow-sm border-t2-line  font-semibold'
+                            : 'text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-stage  border-transparent'
+                        }`}
+                >
+                    {/* Icon */}
+                    <div className={`shrink-0 ${isActive ? 'text-t2-ink  font-semibold' : 'text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors'}`}>
+                        {getTabIcon(tab.type)}
+                    </div>
+
+                    {/* Title */}
+                    <span className="truncate flex-1 min-w-0">
+                        {getTabLabel(tab)}
+                    </span>
+
+                    {/* Unsaved indicator dot */}
+                    {tab._saveStatus === 'unsaved' && (
+                        <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Ungespeichert" />
+                    )}
+
+                    {/* Close Button */}
+                    {!(tab.id === 'calendar' || tab.type === 'calendar' || (navigationMode === 'folders' && (tab.id === 'folders' || tab.type === 'folders'))) && (
+                        <button
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                onTabClose(e, tab.id);
+                            }}
+                            style={{ borderRadius: DT.radiusSm }}
+                            className={`p-1 text-t2-ink-3 hover:text-t2-ink  transition-all shrink-0
+                                ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-t2-line '}
+                            `}
+                            title="Tab schließen"
+                        >
+                            <X size={12} strokeWidth={2.5} />
+                        </button>
+                    )}
+                </div>
+        );
+    };
+
     return (
         <div 
             className="wco-drag w-full flex-shrink-0 min-h-[calc(4rem+env(safe-area-inset-top,0px))] bg-t2-bg border-b border-t2-line-soft flex items-center justify-between px-4 gap-3 select-none z-30 pt-[calc(0.625rem+env(safe-area-inset-top,0px))] pb-2"
@@ -194,105 +303,7 @@ export default function TabList({
                 className={`flex items-center min-w-0 py-1 ${navigationMode === 'folders' ? 'flex-1 justify-start overflow-x-auto no-scrollbar' : 'max-w-full overflow-x-auto no-scrollbar'}`}
             >
                 <div className={`flex items-center gap-1.5 shrink-0 ${navigationMode === 'folders' ? 'justify-start' : 'mx-auto'}`}>
-                    {/* Todos is a fixed tab in every desktop layout (the sidebar no longer lists it). */}
-                    <button
-                        type="button"
-                        onClick={navigationMode === 'folders' || !onToggleTodos ? () => onTabSelect('todos', 'todos') : onToggleTodos}
-                        style={{ borderRadius: DT.radius }}
-                        className={`mr-1 flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
-                            activeTabId === 'todos'
-                                ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
-                                : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
-                        }`}
-                    >
-                        <ListTodo size={13} />
-                        <span>Todos</span>
-                    </button>
-                    <Reorder.Group
-                        axis="x"
-                        values={tabs}
-                        onReorder={(newTabs) => onTabsReorder?.(newTabs)}
-                        className="flex items-center gap-1 m-0 p-0 list-none"
-                        layout
-                    >
-                        <AnimatePresence initial={false} mode="popLayout">
-                            {tabs.filter((tab) => tab.type !== 'todos').map((tab) => {
-                                const isActive = activeTabId === tab.id;
-
-                                return (
-                                    <Reorder.Item
-                                        key={tab.id}
-                                        value={tab}
-                                        id={tab.id}
-                                        initial={{ opacity: 0, scale: 0.92, y: -2 }}
-                                        animate={{ opacity: 1, scale: 1, y: 0 }}
-                                        exit={{ opacity: 0, scale: 0.85, transition: { duration: 0.12 } }}
-                                        whileDrag={{ scale: 1.03, zIndex: 60, boxShadow: DT.shadowFloat }}
-                                        transition={{ type: "spring", stiffness: 450, damping: 35 }}
-                                        className="list-none shrink-0"
-                                    >
-                                        <div
-                                            role="tab"
-                                            aria-selected={isActive}
-                                            onClick={(e) => {
-                                                if (highlight.isSelectingLink && highlight.onLinkSelect) {
-                                                    highlight.onLinkSelect({ 
-                                                        id: tab.id, 
-                                                        title: tab.title, 
-                                                        type: tab.type as any, 
-                                                        rect: e.currentTarget.getBoundingClientRect() 
-                                                    });
-                                                } else {
-                                                    onTabSelect(tab.id, tab.type);
-                                                }
-                                            }}
-                                            onMouseEnter={(e) => schedulePreview(tab, e.currentTarget)}
-                                            onMouseLeave={hidePreview}
-                                            onPointerDown={hidePreview}
-                                            style={{ borderRadius: DT.radius }}
-                                            className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[100px] border
-                                                ${isActive
-                                                    ? 'bg-t2-surface  text-t2-ink  shadow-sm border-t2-line  font-semibold'
-                                                    : 'text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-stage  border-transparent'
-                                                }`}
-                                        >
-                                            {/* Icon */}
-                                            <div className={`shrink-0 ${isActive ? 'text-t2-ink  font-semibold' : 'text-t2-ink-3  group-hover:text-t2-ink-2  transition-colors'}`}>
-                                                {getTabIcon(tab.type)}
-                                            </div>
-
-                                            {/* Title */}
-                                            <span className="truncate flex-1 min-w-0">
-                                                {getTabLabel(tab)}
-                                            </span>
-
-                                            {/* Unsaved indicator dot */}
-                                            {tab._saveStatus === 'unsaved' && (
-                                                <div className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" title="Ungespeichert" />
-                                            )}
-
-                                            {/* Close Button */}
-                                            {!(tab.id === 'calendar' || tab.type === 'calendar' || (navigationMode === 'folders' && (tab.id === 'folders' || tab.type === 'folders'))) && (
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        onTabClose(e, tab.id);
-                                                    }}
-                                                    style={{ borderRadius: DT.radiusSm }}
-                                                    className={`p-1 text-t2-ink-3 hover:text-t2-ink  transition-all shrink-0
-                                                        ${isActive ? 'opacity-70 hover:opacity-100 hover:bg-t2-hover ' : 'opacity-0 group-hover:opacity-100 hover:bg-t2-line '}
-                                                    `}
-                                                    title="Tab schließen"
-                                                >
-                                                    <X size={12} strokeWidth={2.5} />
-                                                </button>
-                                            )}
-                                        </div>
-                                    </Reorder.Item>
-                                );
-                            })}
-                        </AnimatePresence>
-                    </Reorder.Group>
+                    <TabLayoutView rows={rows} renderTab={renderTab} onMove={(id, target) => applyRows(moveTab(rows, id, target))} />
 
                     {/* "+" New Note Tab Button */}
                     {onNewTab && (
@@ -316,14 +327,17 @@ export default function TabList({
                 {/* Optional external plugin slot */}
                 {pluginSlot}
 
-                <PluginsMenu
-                    activeTabId={activeTabId}
-                    enabledExtensions={enabledExtensions}
-                    onTabSelect={onTabSelect}
-                    onOpenSocial={onOpenSocial}
-                    onOpenSettings={onOpenSettings}
-                    onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
-                />
+                {/* With the sidebar open, plugins live in the sidebar. */}
+                {!isSidebarOpen && (
+                    <PluginsMenu
+                        activeTabId={activeTabId}
+                        enabledExtensions={enabledExtensions}
+                        onTabSelect={onTabSelect}
+                        onOpenSocial={onOpenSocial}
+                        onOpenSettings={onOpenSettings}
+                        onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
+                    />
+                )}
 
                 {/* Profile lives in the sidebar; it only shows here while the sidebar is hidden */}
                 {setIsAvatarMenuOpen && avatarMenuRef && !(isSidebarOpen && navigationMode !== 'folders') && (

@@ -159,7 +159,8 @@ export function useCalendarActions({
             const title = extraMeta.title || "New Event";
             try {
                 // New events land in the first active workspace unless the caller names one.
-                const defaultSafe = useDataStore.getState().activeSafes?.[0] ?? "main";
+                const dataState = useDataStore.getState();
+                const defaultSafe = dataState.defaultSafe ?? dataState.activeSafes?.[0] ?? "main";
                 const safe = extraMeta.safe ?? defaultSafe;
                 const linkedSafes = extraMeta.linkedSafes ?? [];
                 const meta: Record<string, unknown> = { ...extraMeta, safe, linkedSafes, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };

@@ -274,6 +274,9 @@ export interface SafesSlice {
     toggleSafe: (safe: string) => void;
     createSafe: (name: string) => void;
     deleteSafe: (name: string) => void;
+    /** Workspace new todos and events land in (null: the first active one). Stored on this device. */
+    defaultSafe: string | null;
+    setDefaultSafe: (name: string | null) => void;
     setNoteSafe: (noteId: string, safeName: string) => Promise<void>;
     linkNoteToSafe: (noteId: string, targetSafe: string) => Promise<void> | void;
 }
