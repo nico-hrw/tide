@@ -307,6 +307,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'cal.deleteEventsNone': 'There are no events with this tag.',
     'cal.deleteEventsFailed': '{count} events could not be deleted.',
     'cal.colorOverrideOf': '{name} sets the color (as a secondary tag)',
+    'cal.hiddenByDefaultOf': '{name} hidden in lists by default (show again via the filter)',
     'cal.deleteEventsOf': 'Delete all events with {name}',
     'cal.colorOverride': 'Overrides the main tag color',
     'cal.colorOverrideDesc': 'As a secondary tag on an event, this tag sets the color instead of the first tag.',

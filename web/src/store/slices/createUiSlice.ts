@@ -24,6 +24,18 @@ const DEFAULT_ENABLED_EXTENSIONS: string[] = [
     'varsheet',
 ];
 
+const HIDDEN_TAGS_KEY = 'tide_hidden_tag_ids';
+
+function loadHiddenTagIds(): string[] {
+    if (typeof window === 'undefined') return [];
+    try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(HIDDEN_TAGS_KEY) || '[]');
+        return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+    } catch {
+        return [];
+    }
+}
+
 function applyThemeClass(theme: AppTheme): void {
     if (typeof document === 'undefined') return;
     const cl = document.documentElement.classList;
@@ -133,7 +145,7 @@ function readFlag(key: string): boolean {
     try { return localStorage.getItem(key) !== 'false'; } catch { return true; }
 }
 
-export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
+export const createUiSlice: DataStoreSlice<UiSlice> = (set, get) => ({
     isSettingsModalOpen: false,
     settingsModalTab: 'account',
     isVariablesModalOpen: false,
@@ -147,6 +159,13 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set) => ({
     setTodoTagFilter: (filter) => set({ todoTagFilter: filter }),
     calendarTagFilter: { tagIds: [], untagged: false },
     setCalendarTagFilter: (filter) => set({ calendarTagFilter: filter }),
+    hiddenTagIds: loadHiddenTagIds(),
+    toggleHiddenTag: (tagId) => {
+        const current = get().hiddenTagIds;
+        const next = current.includes(tagId) ? current.filter((id) => id !== tagId) : [...current, tagId];
+        try { localStorage.setItem(HIDDEN_TAGS_KEY, JSON.stringify(next)); } catch { /* private mode */ }
+        set({ hiddenTagIds: next });
+    },
     enabledExtensions: getInitialExtensions(),
     theme: getInitialTheme(),
     themePreference: getInitialThemePreference(),

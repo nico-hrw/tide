@@ -5,6 +5,7 @@ import { Tag as TagIcon } from 'lucide-react';
 import type { Tag } from '@/lib/tags';
 import { isTagFilterActive, toggleTagInFilter, toggleUntaggedInFilter, EMPTY_TAG_FILTER, type TagFilter } from '@/lib/tagFilter';
 import { DEFAULT_TAG_COLOR } from './useTodoTags';
+import { HiddenTagModeControl } from '@/components/Tags/HiddenTagModeControl';
 
 interface TodoTagFilterPanelProps {
   tags: Tag[];
@@ -33,6 +34,7 @@ export const TodoTagFilterPanel: React.FC<TodoTagFilterPanelProps> = ({ tags, fi
         </button>
       )}
     </div>
+    <HiddenTagModeControl filter={filter} onChange={onChange} />
     {tags.length === 0 ? (
       <p className="text-[11px] text-t2-ink-3  italic py-1">Keine Tags vorhanden</p>
     ) : (

@@ -147,8 +147,10 @@ export function filterEventsByTags<E extends { groupIds?: string[]; parent_id?: 
     events: E[],
     filter: TagFilter,
     tags: Tag[],
+    hiddenTagIds: ReadonlySet<string> = new Set(),
 ): E[] {
-    if (!isTagFilterActive(filter)) return events;
+    // Tags hidden in settings also filter when no tag filter is set.
+    if (!isTagFilterActive(filter) && hiddenTagIds.size === 0) return events;
     const known = new Set(tags.map((t) => t.id));
-    return events.filter((e) => matchesTagFilter(getEventGroupIds(e), filter, known));
+    return events.filter((e) => matchesTagFilter(getEventGroupIds(e), filter, known, hiddenTagIds));
 }

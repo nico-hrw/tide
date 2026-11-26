@@ -1,20 +1,45 @@
+/**
+ * How tags the user hides by default are treated: "default" hides them, "include" shows them too,
+ * "only" shows just the hidden ones.
+ */
+export type HiddenTagMode = 'default' | 'include' | 'only';
+
 export interface TagFilter {
     tagIds: string[];
     untagged: boolean;
+    /** Missing means "default". */
+    hidden?: HiddenTagMode;
 }
 
 export const EMPTY_TAG_FILTER: TagFilter = { tagIds: [], untagged: false };
 
 export function isTagFilterActive(filter: TagFilter): boolean {
-    return filter.tagIds.length > 0 || filter.untagged;
+    return filter.tagIds.length > 0 || filter.untagged || (filter.hidden ?? 'default') !== 'default';
 }
+
+/**
+ * An item is hidden by default when it has known tags and every one of them is hidden in settings.
+ * An item with at least one visible tag, or without tags, stays visible.
+ */
+export function isHiddenByDefault(tagIdsOfItem: string[], knownTagIds: Set<string>, hiddenTagIds: ReadonlySet<string>): boolean {
+    const known = tagIdsOfItem.filter((id) => knownTagIds.has(id));
+    return known.length > 0 && known.every((id) => hiddenTagIds.has(id));
+}
+
+const NO_HIDDEN: ReadonlySet<string> = new Set();
 
 export function matchesTagFilter(
     tagIdsOfItem: string[],
     filter: TagFilter,
     knownTagIds: Set<string>,
+    hiddenTagIds: ReadonlySet<string> = NO_HIDDEN,
 ): boolean {
+    const mode = filter.hidden ?? 'default';
+    const hidden = isHiddenByDefault(tagIdsOfItem, knownTagIds, hiddenTagIds);
+    if (mode === 'default' && hidden) return false;
+    if (mode === 'only' && !hidden) return false;
     if (!isTagFilterActive(filter)) return true;
+    if (filter.tagIds.length === 0 && !filter.untagged) return true;
     const known = tagIdsOfItem.filter((id) => knownTagIds.has(id));
     if (filter.untagged && known.length === 0) return true;
     return filter.tagIds.some((id) => known.includes(id));
