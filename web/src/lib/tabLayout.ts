@@ -143,3 +143,73 @@ export function moveTab(rows: TabRows, id: string, target: DropTarget): TabRows 
 export function flatten(rows: TabRows): string[] {
   return rows.flat(2);
 }
+
+/** A tab's horizontal extent on screen and the index of its group inside the row. */
+export interface TabBox {
+  id: string;
+  left: number;
+  right: number;
+  group: number;
+}
+
+/** One row on screen: its vertical extent and its tabs from left to right. */
+export interface RowBox {
+  top: number;
+  bottom: number;
+  tabs: TabBox[];
+}
+
+/** How far past a tab or row the pointer must go before it counts as "away": a new group or row. */
+export const DROP_MARGIN = { x: 12, y: 8, between: 6 } as const;
+
+/**
+ * Where a dragged tab lands for a pointer position, from the layout as it was when the drag started
+ * (so the answer does not change while the tabs make room). Next to a tab it joins that tab's group;
+ * in the gap between two groups, past the ends of a row, or above, below or between rows it makes a
+ * new group or row. Returns null when there is nothing to drop on.
+ */
+export function resolveDrop(rows: RowBox[], dragId: string, x: number, y: number): DropTarget | null {
+  const rowsWithTabs = rows.filter((r) => r.tabs.length > 0);
+  if (rowsWithTabs.length === 0) return null;
+  const first = rowsWithTabs[0];
+  const last = rowsWithTabs[rowsWithTabs.length - 1];
+
+  if (y < first.top - DROP_MARGIN.y) return { kind: 'rowAbove', ref: first.tabs[0].id };
+  if (y > last.bottom + DROP_MARGIN.y) return { kind: 'rowBelow', ref: last.tabs[0].id };
+  for (let i = 0; i < rowsWithTabs.length - 1; i++) {
+    if (y > rowsWithTabs[i].bottom - DROP_MARGIN.between && y < rowsWithTabs[i + 1].top + DROP_MARGIN.between) {
+      return { kind: 'rowBelow', ref: rowsWithTabs[i].tabs[0].id };
+    }
+  }
+
+  // The row the pointer is in (or the nearest one).
+  let row = rowsWithTabs[0];
+  let best = Infinity;
+  for (const r of rowsWithTabs) {
+    const d = y < r.top ? r.top - y : y > r.bottom ? y - r.bottom : 0;
+    if (d < best) {
+      best = d;
+      row = r;
+    }
+  }
+
+  const tabs = row.tabs;
+  const lastTab = tabs[tabs.length - 1];
+  if (x < tabs[0].left - DROP_MARGIN.x) return { kind: 'rowStart', ref: tabs[0].id };
+  if (x > lastTab.right + DROP_MARGIN.x) return { kind: 'rowEnd', ref: lastTab.id };
+
+  for (let i = 0; i < tabs.length; i++) {
+    const t = tabs[i];
+    if (x >= t.left && x <= t.right) {
+      // On the dragged tab itself nothing changes.
+      if (t.id === dragId) return { kind: 'before', ref: dragId };
+      return { kind: x < (t.left + t.right) / 2 ? 'before' : 'after', ref: t.id };
+    }
+    const next = tabs[i + 1];
+    if (next && x > t.right && x < next.left) {
+      return t.group === next.group ? { kind: 'before', ref: next.id } : { kind: 'groupBefore', ref: next.id };
+    }
+  }
+  // Just outside the first or last tab, inside the margin: next to that tab, same group.
+  return x < tabs[0].left ? { kind: 'before', ref: tabs[0].id } : { kind: 'after', ref: lastTab.id };
+}

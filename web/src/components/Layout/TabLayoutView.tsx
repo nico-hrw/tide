@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
-import type { DropTarget, TabRows } from '@/lib/tabLayout';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { moveTab, resolveDrop, type DropTarget, type RowBox, type TabBox, type TabRows } from '@/lib/tabLayout';
 
 interface TabLayoutViewProps {
   rows: TabRows;
@@ -12,70 +12,119 @@ interface TabLayoutViewProps {
 
 /** Pointer distance before a press turns into a drag (a plain click must still click). */
 const DRAG_THRESHOLD = 6;
+const MOVE_MS = 180;
 
-interface Resolved {
-  target: DropTarget;
-  /** Key of the element that shows the drop hint. */
-  hint: string;
+/** Where every tab is on screen right now, row by row (taken when a drag starts). */
+function measureRows(root: HTMLElement, rows: TabRows): RowBox[] {
+  const els = new Map<string, HTMLElement>();
+  root.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el) => {
+    if (el.dataset.tabId) els.set(el.dataset.tabId, el);
+  });
+  return rows.map((row) => {
+    const tabs: TabBox[] = [];
+    let top = Infinity;
+    let bottom = -Infinity;
+    row.forEach((group, g) =>
+      group.forEach((id) => {
+        const el = els.get(id);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        tabs.push({ id, left: r.left, right: r.right, group: g });
+        top = Math.min(top, r.top);
+        bottom = Math.max(bottom, r.bottom);
+      }),
+    );
+    return { top, bottom, tabs };
+  });
 }
 
-/** Finds the drop target under the pointer from the data attributes of the elements there. */
-function resolveTarget(x: number, y: number, dragId: string): Resolved | null {
-  const el = document.elementFromPoint(x, y);
-  if (!el) return null;
-
-  const zone = el.closest<HTMLElement>('[data-drop-zone]');
-  if (zone?.dataset.kind && zone.dataset.ref) {
-    return { target: { kind: zone.dataset.kind as DropTarget['kind'], ref: zone.dataset.ref }, hint: zone.dataset.dropZone ?? '' };
-  }
-
-  const tab = el.closest<HTMLElement>('[data-tab-id]');
-  if (tab?.dataset.tabId) {
-    if (tab.dataset.tabId === dragId) return null;
-    const rect = tab.getBoundingClientRect();
-    const side = x < rect.left + rect.width / 2 ? 'before' : 'after';
-    return { target: { kind: side, ref: tab.dataset.tabId }, hint: `${side}-${tab.dataset.tabId}` };
-  }
-
-  const group = el.closest<HTMLElement>('[data-group-ref]');
-  if (group?.dataset.groupRef) {
-    return { target: { kind: 'intoGroup', ref: group.dataset.groupRef }, hint: `group-${group.dataset.groupKey ?? ''}` };
-  }
-  return null;
+/** The translation a running animation currently applies to an element. */
+function currentTranslate(el: HTMLElement): { x: number; y: number } {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === 'none') return { x: 0, y: 0 };
+  const m = new DOMMatrixReadOnly(t);
+  return { x: m.m41, y: m.m42 };
 }
 
 /**
  * Tab bar layout: rows of small groups. A tab is dragged with the mouse (pointer events, so it behaves the
- * same in every browser): the drop zones show a thin line while dragging, at the row edges (new group),
- * between groups (new group) and above or below a row (new row); on a tab's left or right half it is placed
- * next to it. Empty groups and rows are removed by moveTab.
+ * same in every browser). While it is dragged the other tabs make room: next to a tab it joins that tab's
+ * group; further away (in the gap between groups, past the end of a row, above, below or between rows) a
+ * new group or row appears. The result is shown live and the tabs slide to their new places. Empty groups
+ * and rows are removed by moveTab.
  */
 export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
   const [dragId, setDragId] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
+  const [preview, setPreview] = useState<TabRows | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
   const onMoveRef = useRef(onMove);
+  const rowsRef = useRef(rows);
   useEffect(() => {
     onMoveRef.current = onMove;
+    rowsRef.current = rows;
   });
 
-  const startDrag = (e: React.PointerEvent, id: string) => {
+  // Tabs slide to their new place (FLIP): each render, compare layout positions with the previous ones.
+  const lastPos = useRef(new Map<string, { x: number; y: number }>());
+  const running = useRef(new WeakMap<HTMLElement, Animation>());
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const next = new Map<string, { x: number; y: number }>();
+    root.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el) => {
+      const id = el.dataset.tabId;
+      if (!id) return;
+      const pos = { x: el.offsetLeft, y: el.offsetTop };
+      next.set(id, pos);
+      const prev = lastPos.current.get(id);
+      if (reduce || !prev || (prev.x === pos.x && prev.y === pos.y)) return;
+      const cur = currentTranslate(el);
+      running.current.get(el)?.cancel();
+      running.current.set(
+        el,
+        el.animate(
+          [
+            { transform: `translate(${prev.x - pos.x + cur.x}px, ${prev.y - pos.y + cur.y}px)` },
+            { transform: 'translate(0px, 0px)' },
+          ],
+          { duration: MOVE_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+        ),
+      );
+    });
+    lastPos.current = next;
+  });
+
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
     if (e.button !== 0 || e.pointerType === 'touch') return;
     const startX = e.clientX;
     const startY = e.clientY;
+    const box = e.currentTarget.getBoundingClientRect();
+    const grabX = startX - box.left;
+    const grabY = startY - box.top;
     let active = false;
-    let current: Resolved | null = null;
+    let geometry: RowBox[] = [];
+    let current: DropTarget | null = null;
+    let currentKey = '';
 
     const move = (ev: PointerEvent) => {
       if (!active) {
         if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
         active = true;
+        // Measured before anything moves: the answer for a pointer position stays the same while tabs make room.
+        if (rootRef.current) geometry = measureRows(rootRef.current, rowsRef.current);
         setDragId(id);
         document.body.style.userSelect = 'none';
       }
-      setGhost({ x: ev.clientX, y: ev.clientY });
-      current = resolveTarget(ev.clientX, ev.clientY, id);
-      setHint(current?.hint ?? null);
+      setGhost({ x: ev.clientX - grabX, y: ev.clientY - grabY });
+      const target = resolveDrop(geometry, id, ev.clientX, ev.clientY);
+      const key = target ? `${target.kind}:${target.ref}` : '';
+      if (key === currentKey) return;
+      currentKey = key;
+      current = target;
+      const next = target ? moveTab(rowsRef.current, id, target) : rowsRef.current;
+      setPreview(next === rowsRef.current ? null : next);
     };
 
     const finish = (commit: boolean) => {
@@ -92,10 +141,10 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
         };
         window.addEventListener('click', swallow, { capture: true, once: true });
         window.setTimeout(() => window.removeEventListener('click', swallow, true), 100);
-        if (commit && current) onMoveRef.current(id, current.target);
+        if (commit && current) onMoveRef.current(id, current);
       }
       setDragId(null);
-      setHint(null);
+      setPreview(null);
       setGhost(null);
     };
     const up = () => finish(true);
@@ -110,75 +159,36 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
     window.addEventListener('keydown', key);
   };
 
-  // A drop zone keeps its space all the time (no jump when dragging starts); it shows a thin line while dragging.
-  const zone = (key: string, target: DropTarget, box: string, vertical: boolean) => (
-    <div
-      key={key}
-      data-drop-zone={key}
-      data-kind={target.kind}
-      data-ref={target.ref}
-      className={`relative shrink-0 ${box}`}
-      aria-hidden="true"
-    >
-      {dragId && (
-        <span
-          className={`pointer-events-none absolute rounded-full transition-colors ${
-            vertical ? 'inset-y-1 left-1/2 w-[2px] -translate-x-1/2' : 'inset-x-1 top-1/2 h-[2px] -translate-y-1/2'
-          } ${hint === key ? 'bg-t2-accent' : 'bg-t2-line'}`}
-        />
-      )}
-    </div>
-  );
+  const shown = preview ?? rows;
 
   return (
-    <div className="flex flex-col min-w-0">
-      {rows.map((row, r) => {
-        const firstRef = row[0][0];
-        const lastGroup = row[row.length - 1];
-        const lastRef = lastGroup[lastGroup.length - 1];
-        return (
-          <React.Fragment key={`row-${r}`}>
-            {r === 0 && zone(`rowAbove-${r}`, { kind: 'rowAbove', ref: firstRef }, 'h-5 w-full', false)}
-            <div className="flex items-stretch">
-              {zone(`rowStart-${r}`, { kind: 'rowStart', ref: firstRef }, 'w-6 min-h-[34px]', true)}
-              {row.map((group, g) => (
-                <React.Fragment key={`group-${r}-${g}`}>
-                  {g > 0 && zone(`groupBefore-${r}-${g}`, { kind: 'groupBefore', ref: group[0] }, 'w-6 min-h-[34px]', true)}
+    <div ref={rootRef} className="relative flex flex-col gap-2.5 min-w-0">
+      {shown.map((row, r) => (
+        <div key={`row-${r}`} className="flex items-center">
+          {row.map((group, g) => (
+            <React.Fragment key={`group-${r}-${g}`}>
+              {g > 0 && <div className="w-5 shrink-0" aria-hidden="true" />}
+              <div className="flex items-center gap-1">
+                {group.map((id) => (
                   <div
-                    className="flex items-center gap-1"
-                    data-group-ref={group[group.length - 1]}
-                    data-group-key={`${r}-${g}`}
+                    key={id}
+                    data-tab-id={id}
+                    onPointerDown={(e) => startDrag(e, id)}
+                    onDragStart={(e) => e.preventDefault()}
+                    className={`relative flex items-center ${dragId === id ? 'opacity-40' : ''}`}
                   >
-                    {group.map((id) => (
-                      <div
-                        key={id}
-                        data-tab-id={id}
-                        onPointerDown={(e) => startDrag(e, id)}
-                        onDragStart={(e) => e.preventDefault()}
-                        className={`relative flex items-center ${dragId === id ? 'opacity-50' : ''}`}
-                      >
-                        {dragId && dragId !== id && hint === `before-${id}` && (
-                          <span className="pointer-events-none absolute -left-1 top-1 bottom-1 w-[3px] rounded-full bg-t2-accent" aria-hidden="true" />
-                        )}
-                        {dragId && dragId !== id && hint === `after-${id}` && (
-                          <span className="pointer-events-none absolute -right-1 top-1 bottom-1 w-[3px] rounded-full bg-t2-accent" aria-hidden="true" />
-                        )}
-                        {renderTab(id)}
-                      </div>
-                    ))}
+                    {renderTab(id)}
                   </div>
-                </React.Fragment>
-              ))}
-              {zone(`rowEnd-${r}`, { kind: 'rowEnd', ref: lastRef }, 'w-6 min-h-[34px]', true)}
-            </div>
-            {zone(`rowBelow-${r}`, { kind: 'rowBelow', ref: firstRef }, 'h-5 w-full', false)}
-          </React.Fragment>
-        );
-      })}
+                ))}
+              </div>
+            </React.Fragment>
+          ))}
+        </div>
+      ))}
       {dragId && ghost && (
         <div
-          className="pointer-events-none fixed z-[900] flex items-center rounded-lg border border-t2-line bg-t2-surface opacity-90 shadow-lg"
-          style={{ left: ghost.x + 12, top: ghost.y + 12 }}
+          className="pointer-events-none fixed z-[900] flex items-center rounded-lg border border-t2-line bg-t2-surface opacity-95 shadow-lg"
+          style={{ left: ghost.x, top: ghost.y }}
           aria-hidden="true"
         >
           {renderTab(dragId)}
