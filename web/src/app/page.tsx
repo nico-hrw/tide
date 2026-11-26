@@ -503,7 +503,6 @@ export default function Dashboard() {
                                 onOpenCalendar={() => handleTabSelect("calendar", "calendar")} onOpenSocial={() => setActiveTabId("social")}
                                 onOpenExams={() => handleTabSelect("job_planner", "job_planner")}
                                 onOpenStudium={() => handleTabSelect("job_planner", "job_planner")}
-                                onOpenTodos={handleToggleTodos} isTodosActive={activeTabId === "todos"} onToggleTodos={handleToggleTodos}
                                 isAvatarMenuOpen={isAvatarMenuOpen} setIsAvatarMenuOpen={shouldShowSidebar ? setIsAvatarMenuOpen : undefined} avatarMenuRef={avatarMenuRef}
                                 onOpenSettings={() => setSettingsModalOpen(true)} onOpenTrash={() => setActiveTabId("trash")}
                                 onLogout={handleAvatarLogout} />

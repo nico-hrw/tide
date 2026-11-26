@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import SidebarIsland from "./sidebar/SidebarIsland";
 import AvatarMenu from "./AvatarMenu";
-import { GraduationCap, ListTodo } from "lucide-react";
+import { GraduationCap } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import { apiFetch } from "@/lib/api";
 import SecuritySettingsModal from "@/components/Security/SecuritySettingsModal";
@@ -81,9 +81,6 @@ export default function Sidebar({
     onLogout,
     onOpenExams,
     onNewCanvasNote,
-    onOpenTodos,
-    isTodosActive,
-    onToggleTodos,
 }: SidebarProps) {
     const { orderedNoteIds, setOrderedNoteIds, navigationMode } = useDataStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -341,16 +338,6 @@ export default function Sidebar({
                 >
                     <GraduationCap size={16} />
                     Studium
-                </button>
-                <button
-                    type="button"
-                    onClick={() => (onToggleTodos ? onToggleTodos() : onOpenTodos?.())}
-                    className={`flex items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] transition-colors hover:bg-t2-hover ${
-                        isTodosActive || activeTabId === 'todos' ? 'bg-t2-hover font-semibold text-t2-ink' : 'text-t2-ink-2'
-                    }`}
-                >
-                    <ListTodo size={16} />
-                    Todos
                 </button>
             </nav>
             <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />

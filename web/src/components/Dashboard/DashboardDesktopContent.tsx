@@ -217,6 +217,7 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                 onTabClose={handleTabClose}
                 onTabsReorder={setOpenTabs}
                 onNewTab={() => handleNewNote()}
+                onToggleTodos={handleToggleTodos}
                 onOpenFolders={() => switchTab("folders", "folders", "Notizen")}
                 userProfile={userProfile}
                 myId={myId}
