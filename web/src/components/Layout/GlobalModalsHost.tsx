@@ -39,6 +39,7 @@ export interface GlobalModalsHostProps {
     onUpdateGroup: (id: string, updates: any) => void;
     onShareGroup: (e: any, id: string) => void;
     onDeleteGroup: (e: any, id: string) => void;
+    onDeleteGroupWithOptions?: (id: string, options: { deleteTodos: boolean; deleteEvents: boolean; deleteNotes: boolean }) => void;
     onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 
@@ -155,6 +156,7 @@ export function GlobalModalsHost(props: GlobalModalsHostProps) {
             onUpdateGroup={props.onUpdateGroup}
             onShareGroup={props.onShareGroup}
             onDeleteGroup={props.onDeleteGroup}
+            onDeleteGroupWithOptions={props.onDeleteGroupWithOptions}
             onDeleteGroupEvents={props.onDeleteGroupEvents}
             onCreateGroup={props.onCreateGroup}
             scheduleModalOpen={scheduleModalOpen}

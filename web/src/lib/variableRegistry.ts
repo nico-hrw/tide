@@ -102,6 +102,13 @@ export class VariableRegistry {
 
     async removeNote(noteId: string): Promise<void> {
         await this.ensureLoaded();
+        if (
+            this.loaded &&
+            !this.entries.some((e) => e.sourceNoteId === noteId) &&
+            !this.pending.some((op) => op.t === 'note' && op.noteId === noteId)
+        ) {
+            return;
+        }
         this.queue({ t: 'removeNote', noteId });
     }
 
@@ -129,6 +136,12 @@ export class VariableRegistry {
         try {
             const remote = await this.storage.load();
             const merged = ops.reduce(applyOp, remote);
+            if (JSON.stringify(merged) === JSON.stringify(remote)) {
+                this.entries = this.pending.reduce(applyOp, merged);
+                this.loaded = true;
+                this.notify();
+                return;
+            }
             await this.storage.save(merged);
             this.entries = this.pending.reduce(applyOp, merged); // edits made while saving stay visible
             this.loaded = true;

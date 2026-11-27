@@ -108,6 +108,15 @@ describe('VariableRegistry', () => {
     expect(state.remote.filter((e) => e.name === 'm')).toHaveLength(2);
   });
 
+  it('removeNote does not save when the registry has no entries for that note', async () => {
+    const { storage } = fakeStorage([entry('a', 'n1')]);
+    const saveSpy = vi.spyOn(storage, 'save');
+    const reg = new VariableRegistry(storage, 10);
+    await reg.removeNote('non-existent');
+    await vi.advanceTimersByTimeAsync(20);
+    expect(saveSpy).not.toHaveBeenCalled();
+  });
+
   it('setManual and removeManual edit entries without a note', async () => {
     const { state, storage } = fakeStorage();
     const reg = new VariableRegistry(storage, 10);

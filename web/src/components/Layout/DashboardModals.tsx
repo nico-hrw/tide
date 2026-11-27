@@ -47,7 +47,7 @@ export interface DashboardModalsProps {
     // Settings Modal
     isSettingsModalOpen: boolean;
     onCloseSettingsModal: () => void;
-    initialSettingsTab?: 'account' | 'calendar' | 'extensions' | 'appearance' | 'notes' | 'todos' | 'about' | 'info' | 'access' | 'debug';
+    initialSettingsTab?: 'account' | 'calendar' | 'tags' | 'extensions' | 'appearance' | 'notes' | 'todos' | 'about' | 'info' | 'access' | 'debug';
     enabledExtensions: string[];
     onToggleExtension: (extensionId: string, enabled: boolean) => void;
     userProfile?: {
@@ -72,6 +72,7 @@ export interface DashboardModalsProps {
     onUpdateGroup: (id: string, updates: any) => void;
     onShareGroup: (e: any, id: string) => void;
     onDeleteGroup: (e: any, id: string) => void;
+    onDeleteGroupWithOptions?: (id: string, options: { deleteTodos: boolean; deleteEvents: boolean; deleteNotes: boolean }) => void;
     onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 
@@ -133,6 +134,7 @@ export function DashboardModals({
     onUpdateGroup,
     onShareGroup,
     onDeleteGroup,
+    onDeleteGroupWithOptions,
     onDeleteGroupEvents,
     onCreateGroup,
 
@@ -197,6 +199,7 @@ export function DashboardModals({
                 onUpdateGroup={onUpdateGroup}
                 onShareGroup={onShareGroup}
                 onDeleteGroup={onDeleteGroup}
+                onDeleteGroupWithOptions={onDeleteGroupWithOptions}
                 onDeleteGroupEvents={onDeleteGroupEvents}
                 onCreateGroup={onCreateGroup}
             />
