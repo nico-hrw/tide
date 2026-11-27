@@ -20,10 +20,10 @@ export function AboutPage() {
                             <span className="font-mono text-[12.5px] text-t2-ink-2">inside tide</span>
                         </SettingsRow>
                         <SettingsRow title={t('about.web')} description={t('about.webDesc')}>
-                            <span className="font-mono text-[12.5px] text-t2-ink-2">v1.2.0-alpha</span>
+                            <span className="font-mono text-[12.5px] text-t2-ink-2">v2.1.0</span>
                         </SettingsRow>
                         <SettingsRow title={t('about.cloud')} description={t('about.cloudDesc')}>
-                            <span className="font-mono text-[12.5px] text-t2-ink-2">Go v1.3 Core</span>
+                            <span className="font-mono text-[12.5px] text-t2-ink-2">Go v2.1 Core</span>
                         </SettingsRow>
                         <SettingsRow title={t('about.database')} description={t('about.databaseDesc')}>
                             <span className="font-mono text-[12.5px] text-t2-ink-2">SQLite 3</span>

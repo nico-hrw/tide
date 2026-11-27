@@ -8,7 +8,7 @@ import { Layers, Globe, Lock, Users } from 'lucide-react';
 import { useSocialStore } from '@/store/useSocialStore';
 import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
-import { resolveCategory } from '@/lib/calendarColors';
+import { resolveCategory, resolveCategoryForPalette } from '@/lib/calendarColors';
 import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
 import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
@@ -94,9 +94,9 @@ export const resolveEventColor = (rawColor?: string): string | undefined => {
     return undefined;
 };
 
-/** Colour of an event: one of the five calendar categories (lib/calendarColors). The palette setting is kept for old data only. */
-export const getEventTheme = (evt: CalendarEvent, _palette: CalendarColorPalette = 'balsam') => {
-    const cat = resolveCategory(resolveEventColor(evt.color) ?? evt.color);
+/** Colour of an event: resolved for the selected calendar palette (lib/calendarColors). */
+export const getEventTheme = (evt: CalendarEvent, palette: CalendarColorPalette = 'balsam') => {
+    const cat = resolveCategoryForPalette(resolveEventColor(evt.color) ?? evt.color, palette);
     return { bg: cat.bg, text: cat.ink, border: cat.bg };
 };
 
@@ -108,6 +108,7 @@ interface CalendarEventItemProps {
     timedEvents: CalendarEvent[];
     allEvents?: CalendarEvent[];
     isParent?: boolean;
+    isSelected?: boolean;
     draggingId?: string | null;
     resizingId?: string | null;
     dayIndexOffset?: number;
@@ -174,6 +175,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     timedEvents,
     allEvents,
     isParent,
+    isSelected,
     draggingId,
     resizingId,
     dayIndexOffset,
@@ -686,7 +688,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     <div className="opacity-75 flex-shrink-0" title={isShared && !event.is_public ? attributionText : undefined}>
                         <VisibilityBadge kind={visibilityKind} size={12} hideWhenPrivate />
                     </div>
-                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} className="hidden sm:inline-flex" />}
+                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} tags={(themes ?? []).filter((t) => (event.groupIds ?? []).includes(t.id)).map((t) => t.title)} className="hidden sm:inline-flex" />}
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
                     <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
@@ -804,7 +806,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             )} {/* end isTimePoint conditional */}
 
             {/* Resize handles: top edge changes the start, bottom edge the end (the card body moves the whole event) */}
-            {!isDragging && !isCancelled && durationMinutes >= 15 && (
+            {/* Handles only appear once the event was clicked (selected / popover open), not on mere hover */}
+            {(popoverOpen || isSelected || isResizing) && !isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
                     className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle-top"
                     onMouseDown={(e) => {
@@ -813,7 +816,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     }}
                 />
             )}
-            {!isDragging && !isCancelled && durationMinutes >= 15 && (
+            {(popoverOpen || isSelected || isResizing) && !isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
                     className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
                     onMouseDown={(e) => {
@@ -882,6 +885,7 @@ const areEventPropsEqual = (prev: CalendarEventItemProps, next: CalendarEventIte
 
     // 4. Parent state
     if (prev.isParent !== next.isParent) return false;
+    if (prev.isSelected !== next.isSelected) return false;
 
     // 5. Day offset & day timestamp
     if (prev.dayIndexOffset !== next.dayIndexOffset) return false;

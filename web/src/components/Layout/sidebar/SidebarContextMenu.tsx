@@ -1,13 +1,14 @@
 import { useState } from "react";
 import { createPortal } from "react-dom";
-import { FileText, Plus, FolderPlus, Lock, LogOut, Share2, Edit3, Trash2, Upload, Download, Layout, ShieldCheck, Copy, Archive, ChevronRight, Check } from "lucide-react";
+import { FileText, Plus, FolderPlus, Lock, LogOut, Share2, Edit3, Trash2, Upload, Download, ShieldCheck, Copy, Archive, ChevronRight, Check } from "lucide-react";
 import { useDataStore } from "@/store/useDataStore";
 import type { DecryptedFile, SidebarProps } from "./types";
+import PullFromWorkspace from "./PullFromWorkspace";
 
 export type FileContextMenuState = { x: number; y: number; id: string; type: 'file' | 'folder' };
 export type SidebarContextMenuState = { x: number; y: number };
 
-type ContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote' | 'onNewCanvasNote'> & {
+type ContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote'> & {
     contextMenu: FileContextMenuState | null;
     setContextMenu: (v: FileContextMenuState | null) => void;
     sidebarContextMenu: SidebarContextMenuState | null;
@@ -20,7 +21,7 @@ type ContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFold
 };
 
 export default function SidebarContextMenu({
-    files, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote, onNewCanvasNote,
+    files, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote,
     contextMenu, setContextMenu, sidebarContextMenu, setSidebarContextMenu, myId,
     handleOpenSecuritySettings, handleExport, handleImport, handleCopyToMyNotes,
 }: ContextMenuProps) {
@@ -304,15 +305,6 @@ export default function SidebarContextMenu({
                             <Plus size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Neue Notiz</span>
                         </button>
-                        {onNewCanvasNote && (
-                            <button
-                                onClick={() => { setSidebarContextMenu(null); onNewCanvasNote(); }}
-                                className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
-                            >
-                                <Layout size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
-                                <span className="font-medium">Neue Leinwand</span>
-                            </button>
-                        )}
                         <button
                             onClick={() => { setSidebarContextMenu(null); onCreateFolder && onCreateFolder(null); }}
                             className="w-full flex items-center gap-3 px-3 py-2 text-sm text-t2-ink hover:bg-t2-hover rounded-lg transition-colors group"
@@ -320,6 +312,7 @@ export default function SidebarContextMenu({
                             <FolderPlus size={16} className="text-t2-ink-3 group-hover:text-t2-accent" />
                             <span className="font-medium">Neuer Ordner</span>
                         </button>
+                        <PullFromWorkspace onDone={() => setSidebarContextMenu(null)} />
                         <div className="h-px bg-t2-hover my-1" />
                         <button
                             onClick={() => { setSidebarContextMenu(null); handleImport(); }}

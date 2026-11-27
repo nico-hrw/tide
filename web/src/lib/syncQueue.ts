@@ -56,7 +56,19 @@ export async function addToSyncQueue(item: Omit<QueueItem, 'id' | 'timestamp'>):
         
         // If an update for the exact same fileId and URL already exists in the queue, replace it to avoid duplicate writes
         let nextQueue: QueueItem[];
-        if (fullItem.fileId && (fullItem.method === 'PUT' || fullItem.method === 'POST')) {
+        if (fullItem.fileId && fullItem.method === 'DELETE') {
+            const hasUnsyncedCreate = queue.some(
+                q => q.fileId === fullItem.fileId && q.method === 'POST' && q.url === '/api/v1/files'
+            );
+            const filtered = queue.filter(q => q.fileId !== fullItem.fileId);
+            if (hasUnsyncedCreate) {
+                await idb.set(SYNC_QUEUE_KEY, filtered);
+                notifyQueueChanged(filtered.length);
+                console.log(`[SyncQueue] Removed un-synced items for deleted file (${filtered.length} pending):`, fullItem.fileId);
+                return fullItem;
+            }
+            nextQueue = [...filtered, fullItem];
+        } else if (fullItem.fileId && (fullItem.method === 'PUT' || fullItem.method === 'POST')) {
             const filtered = queue.filter(q => !(q.fileId === fullItem.fileId && q.url === fullItem.url));
             nextQueue = [...filtered, fullItem];
         } else {
@@ -81,6 +93,19 @@ export async function removeFromSyncQueue(id: string): Promise<void> {
         notifyQueueChanged(nextQueue.length);
     } catch (e) {
         console.error('[SyncQueue] Failed to remove item from sync queue', e);
+    }
+}
+
+export async function removeQueuedItemsForFile(fileId: string): Promise<void> {
+    try {
+        const queue = await getSyncQueue();
+        const nextQueue = queue.filter(q => q.fileId !== fileId);
+        if (nextQueue.length !== queue.length) {
+            await idb.set(SYNC_QUEUE_KEY, nextQueue);
+            notifyQueueChanged(nextQueue.length);
+        }
+    } catch (e) {
+        console.error('[SyncQueue] Failed to remove queued items for file', e);
     }
 }
 

@@ -80,7 +80,6 @@ export default function Sidebar({
     onOpenTrash,
     onLogout,
     onOpenExams,
-    onNewCanvasNote,
 }: SidebarProps) {
     const { orderedNoteIds, setOrderedNoteIds, navigationMode } = useDataStore();
     const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -449,7 +448,6 @@ export default function Sidebar({
                 onShare={onShare}
                 onDeleteNote={onDeleteNote}
                 onRenameNote={onRenameNote}
-                onNewCanvasNote={onNewCanvasNote}
                 contextMenu={contextMenu}
                 setContextMenu={setContextMenu}
                 sidebarContextMenu={sidebarContextMenu}
