@@ -1,7 +1,7 @@
-import { pushSettingsPatch } from './settingsSync';
 'use client';
 
 import { useSyncExternalStore } from 'react';
+import { pushSettingsPatch } from './settingsSync';
 
 /**
  * Animierte Emojis aus dem Fluent-Emoji-Set von Microsoft (MIT).
