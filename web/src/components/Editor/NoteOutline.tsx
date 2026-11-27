@@ -18,11 +18,15 @@ function readHeadings(editor: Editor): OutlineItem[] {
     return items;
 }
 
+/**
+ * The element that really scrolls. `overflow-x: hidden` turns `overflow-y` into `auto` as well, so a plain
+ * overflow check also picks containers that never scroll: those need content taller than their box.
+ */
 function findScrollParent(el: HTMLElement | null): HTMLElement | null {
     let cur = el?.parentElement ?? null;
     while (cur) {
         const oy = getComputedStyle(cur).overflowY;
-        if (oy === "auto" || oy === "scroll") return cur;
+        if ((oy === "auto" || oy === "scroll") && cur.scrollHeight > cur.clientHeight) return cur;
         cur = cur.parentElement;
     }
     return null;
@@ -65,10 +69,10 @@ export default function NoteOutline({ editor }: NoteOutlineProps) {
 
     useEffect(() => {
         if (!editor || editor.isDestroyed) return;
-        const sc = findScrollParent(editor.view.dom as HTMLElement);
         const raf = requestAnimationFrame(spy);
-        sc?.addEventListener("scroll", spy, { passive: true });
-        return () => { cancelAnimationFrame(raf); sc?.removeEventListener("scroll", spy); };
+        // Scroll events do not bubble, but the capture phase on the window sees the scroll of every container.
+        window.addEventListener("scroll", spy, { capture: true, passive: true });
+        return () => { cancelAnimationFrame(raf); window.removeEventListener("scroll", spy, { capture: true }); };
     }, [editor, spy]);
 
     const goTo = (it: OutlineItem) => {
