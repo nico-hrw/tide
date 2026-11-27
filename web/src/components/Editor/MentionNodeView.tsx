@@ -94,6 +94,19 @@ const GenericMentionNodeView = ({ node }: any) => {
         '--chip': tint,
     };
 
+    const taskCheckbox = isEvent && liveFile?.is_task ? (
+        <input
+            type="checkbox"
+            checked={isCompleted}
+            onChange={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
+            }}
+            className="w-3.5 h-3.5 rounded-sm cursor-pointer m-0 shrink-0"
+            style={{ accentColor: tint, marginTop: '-1px' }}
+        />
+    ) : null;
+
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
         e.preventDefault();
@@ -146,7 +159,7 @@ const GenericMentionNodeView = ({ node }: any) => {
                 </>
             ) : isAlwaysBox ? (
                 <>
-                    <Calendar className="w-3.5 h-3.5 shrink-0" />
+                    {isEvent && liveFile?.is_task ? taskCheckbox : <Calendar className="w-3.5 h-3.5 shrink-0" />}
                     <span className="font-semibold text-xs truncate max-w-[160px]">{title}</span>
                     {eventDateStr && (
                         <span className="text-[11px] opacity-70 truncate font-normal">
@@ -156,18 +169,7 @@ const GenericMentionNodeView = ({ node }: any) => {
                 </>
             ) : (
                 <>
-                    {isEvent && liveFile?.is_task && (
-                        <input
-                            type="checkbox"
-                            checked={isCompleted}
-                            onChange={(e) => {
-                                e.stopPropagation();
-                                window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
-                            }}
-                            className="w-3.5 h-3.5 rounded-sm cursor-pointer border-t2-line  focus:ring-0 m-0"
-                            style={(ev?.color || liveFile?.color) ? { accentColor: ev?.color || liveFile?.color, marginTop: '-1px' } : { marginTop: '-1px' }}
-                        />
-                    )}
+                    {taskCheckbox}
                     <span className={isEvent && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
                         @{safePrefix ? (
                             <>
