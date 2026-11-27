@@ -688,7 +688,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     <div className="opacity-75 flex-shrink-0" title={isShared && !event.is_public ? attributionText : undefined}>
                         <VisibilityBadge kind={visibilityKind} size={12} hideWhenPrivate />
                     </div>
-                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} className="hidden sm:inline-flex" />}
+                    {eventIsExternal && <ExternalSafeBadge safe={todoSafe(event)} tags={(themes ?? []).filter((t) => (event.groupIds ?? []).includes(t.id)).map((t) => t.title)} className="hidden sm:inline-flex" />}
                     {/* leading-none + truncate (overflow hidden) cut off ascenders/descenders; use a real line height */}
                     <span className={`text-[11px] font-bold leading-[16px] truncate shrink min-w-0 pointer-events-none ${isCancelled || isCompleted ? 'line-through opacity-60' : ''}`}>
                         {event.title || 'Untitled'}
