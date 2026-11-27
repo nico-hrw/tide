@@ -125,13 +125,14 @@ describe('DbTimelineDay proportional layout and now-line', () => {
     expect(parseFloat(line.style.top)).toBeCloseTo(200 / 3, 3);
   });
 
-  it('drops the fixed height of an expanded card', () => {
+  it('keeps the fixed segment height when tapping a card to open options', () => {
     render(at(11));
     const card = host.querySelector<HTMLElement>('#ev-a')!;
+    const beforeH = blocks()[0].style.height;
     act(() => { card.querySelector('button')!.click(); });
     const seg = blocks()[0];
-    expect(seg.style.height).toBe('');
-    expect(h({ style: { height: seg.style.minHeight } } as HTMLElement)).toBeCloseTo(blockHeightPx(at(9).getTime(), at(10).getTime()));
+    expect(seg.style.height).toBe(beforeH);
+    expect(host.querySelector('[aria-label="Bearbeiten"]')).not.toBeNull();
   });
 
   it('still renders timed todo rows and all-day todo pills', () => {

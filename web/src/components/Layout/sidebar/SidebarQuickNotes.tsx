@@ -3,6 +3,7 @@ import { announceSidebarDropdown, onOtherSidebarDropdown } from "@/lib/sidebarDr
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
 import { workspaceTone } from "@/lib/workspaceColor";
+import { workspaceBadgeText } from "@/lib/workspaceBadge";
 import { usePopupTimer } from "@/hooks/usePopupTimer";
 import { PopupTimerBar } from "@/components/Popup/PopupTimerBar";
 import {
@@ -46,6 +47,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         deleteSafe,
     } = useSafes();
     const notes = useDataStore((s) => s.notes);
+    const safeIcons = useDataStore((s) => s.safeIcons);
 
     // Alle Workspaces: die gespeicherte Liste plus alle, die an Notizen hängen (z. B. von anderen Geräten).
     const allSafes = useMemo(() => {
@@ -92,7 +94,13 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={(e) => {
-                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); announceSidebarDropdown('workspaces'); }
+                if (!isOpen) {
+                    const r = e.currentTarget.getBoundingClientRect();
+                    const left = typeof window !== 'undefined' ? Math.max(8, Math.min(r.right + 8, window.innerWidth - 268)) : r.right + 8;
+                    const top = typeof window !== 'undefined' ? Math.max(8, Math.min(r.bottom + 6, window.innerHeight - 320)) : r.top;
+                    setListPos({ top, left });
+                    announceSidebarDropdown('workspaces');
+                }
                 setIsOpen((prev) => !prev);
             }}
             className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none"
@@ -201,7 +209,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
                                             title={`Zu "${safe}" wechseln`}
                                         >
-                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: workspaceTone(safe).bg, color: workspaceTone(safe).ink }} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
+                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: workspaceTone(safe).bg, color: workspaceTone(safe).ink }} aria-hidden="true">{workspaceBadgeText(safe, safeIcons)}</span>
                                             <span className="truncate text-xs">{displayName(safe)}</span>
                                         </button>
 

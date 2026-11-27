@@ -1,12 +1,33 @@
 import type { CalendarEvent } from '@/components/Calendar/types';
 import type { DataItem, TaskItem } from '@/store/slices/types';
 import { getEventGroupIds } from '@/lib/calendarUtils';
+import { normalizeSafe } from '@/lib/todoSafes';
 
 export interface Tag {
     id: string;
     title: string;
     color?: string;
     effect?: string;
+    safe?: string;
+}
+
+export function tagSafe(t: { safe?: string | null }): string {
+    return normalizeSafe(t.safe || 'main');
+}
+
+export function splitTagsByWorkspace<T extends { safe?: string | null }>(
+    tags: T[],
+    activeSafes: readonly string[],
+): { local: T[]; external: T[] } {
+    if (activeSafes.length === 0) return { local: tags, external: [] };
+    const active = new Set(activeSafes.map(normalizeSafe));
+    const local: T[] = [];
+    const external: T[] = [];
+    for (const t of tags) {
+        if (active.has(tagSafe(t))) local.push(t);
+        else external.push(t);
+    }
+    return { local, external };
 }
 
 export interface TagPatches {
@@ -19,7 +40,8 @@ export function selectTags(items: DataItem[]): Tag[] {
     return items
         .filter((i) => i.type === 'folder' && i.isGroup)
         .map((i) => {
-            const tag: Tag = { id: i.id, title: i.title };
+            const rawSafe = i.safe || (i.metadata as { safe?: string } | undefined)?.safe || 'main';
+            const tag: Tag = { id: i.id, title: i.title, safe: normalizeSafe(rawSafe) };
             if (typeof i.color === 'string') tag.color = i.color;
             if (typeof i.effect === 'string') tag.effect = i.effect;
             return tag;

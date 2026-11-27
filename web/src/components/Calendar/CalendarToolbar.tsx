@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format, getISOWeek } from "date-fns";
 import { de } from "date-fns/locale";
-import { ChevronDown, ChevronLeft, ChevronRight, Plus } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, Eye, EyeOff, Plus } from "lucide-react";
 import { useTranslation } from "@/lib/i18n";
 import { CalendarTagFilter } from "./CalendarTagFilter";
 import { CalendarViewsMenu } from "./CalendarViewsMenu";
@@ -17,6 +17,10 @@ interface CalendarToolbarProps {
     onToday: () => void;
     /** Creates an event at 9:00 on the selected day. Omitted when creating is not possible. */
     onCreate?: () => void;
+    hiddenExternalCount?: number;
+    showHiddenExternal?: boolean;
+    onToggleShowHiddenExternal?: () => void;
+    onUnhideAllExternal?: () => void;
 }
 
 const VIEW_OPTIONS: { id: CalendarViewMode; label: string }[] = [
@@ -38,6 +42,10 @@ export function CalendarToolbar({
     onStep,
     onToday,
     onCreate,
+    hiddenExternalCount = 0,
+    showHiddenExternal = false,
+    onToggleShowHiddenExternal,
+    onUnhideAllExternal,
 }: CalendarToolbarProps) {
     const { t } = useTranslation();
     const [viewMenuOpen, setViewMenuOpen] = useState(false);
@@ -135,6 +143,30 @@ export function CalendarToolbar({
             <div className="flex items-center gap-2 border-t border-t2-line px-4 py-2">
                 <CalendarViewsMenu tags={themes} viewMode={viewMode} onViewModeChange={onViewModeChange} onOpenTodos={openTodos} />
                 <CalendarTagFilter tags={themes} className="min-w-0 flex-1" />
+                {hiddenExternalCount > 0 && onToggleShowHiddenExternal && (
+                    <div className="flex shrink-0 items-center gap-1">
+                        <button
+                            type="button"
+                            onClick={onToggleShowHiddenExternal}
+                            className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+                                showHiddenExternal ? 'bg-t2-ink text-t2-bg' : 'bg-t2-hover text-t2-ink-2 hover:bg-t2-stage'
+                            }`}
+                            title={showHiddenExternal ? 'Ausgeblendete Termine wieder verbergen' : 'Ausgeblendete Termine anzeigen'}
+                        >
+                            {showHiddenExternal ? <Eye size={12} /> : <EyeOff size={12} />}
+                            <span>{hiddenExternalCount} ausgeblendet</span>
+                        </button>
+                        {showHiddenExternal && onUnhideAllExternal && (
+                            <button
+                                type="button"
+                                onClick={onUnhideAllExternal}
+                                className="rounded-full px-2 py-1 text-[11px] font-medium text-t2-accent hover:bg-t2-hover cursor-pointer"
+                            >
+                                Alle einblenden
+                            </button>
+                        )}
+                    </div>
+                )}
             </div>
         </div>
     );

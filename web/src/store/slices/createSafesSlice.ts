@@ -32,6 +32,24 @@ export function loadCachedSafes(): string[] {
 }
 
 const DEFAULT_SAFE_KEY = 'tide_default_safe';
+const SAFE_ICONS_KEY = 'tide_safe_icons';
+
+function loadSafeIcons(): Record<string, string> {
+    if (typeof window === 'undefined') return {};
+    try {
+        const raw = localStorage.getItem(SAFE_ICONS_KEY);
+        if (!raw) return {};
+        const parsed: unknown = JSON.parse(raw);
+        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
+        const out: Record<string, string> = {};
+        for (const [k, v] of Object.entries(parsed)) {
+            if (typeof v === 'string' && v.trim()) out[k === 'Standard' ? 'main' : k] = v.trim();
+        }
+        return out;
+    } catch {
+        return {};
+    }
+}
 
 function loadDefaultSafe(): string | null {
     if (typeof window === 'undefined') return null;
@@ -71,6 +89,19 @@ export function loadCachedActiveSafes(): string[] {
 export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
     availableSafes: loadCachedSafes(),
     activeSafes: loadCachedActiveSafes(),
+    safeIcons: loadSafeIcons(),
+    setSafeIcon: (safe, icon) => {
+        const key = safe === 'Standard' ? 'main' : safe.trim();
+        if (!key) return;
+        const next = { ...get().safeIcons };
+        const trimmed = icon?.trim() ?? '';
+        if (trimmed) next[key] = trimmed;
+        else delete next[key];
+        try {
+            if (typeof window !== 'undefined') localStorage.setItem(SAFE_ICONS_KEY, JSON.stringify(next));
+        } catch { /* private mode */ }
+        set({ safeIcons: next });
+    },
     defaultSafe: loadDefaultSafe(),
     setDefaultSafe: (name) => {
         const next = name && name.trim() ? (name === 'Standard' ? 'main' : name.trim()) : null;

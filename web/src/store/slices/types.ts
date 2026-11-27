@@ -276,6 +276,9 @@ export interface ContactsSlice {
 export interface SafesSlice {
     availableSafes: string[];
     activeSafes: string[];
+    /** Optional per-workspace icon (emoji or short symbol), keyed by normalized workspace name. */
+    safeIcons: Record<string, string>;
+    setSafeIcon: (safe: string, icon: string | null) => void;
 
     setActiveSafes: (safes: string[]) => void;
     toggleSafe: (safe: string) => void;

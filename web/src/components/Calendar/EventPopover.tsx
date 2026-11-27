@@ -3,8 +3,11 @@
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
-import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
+import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat, Eye, EyeOff } from "lucide-react";
 import { getEventGroupIds } from "../../lib/calendarUtils";
+import { isFromOtherWorkspace } from "@/lib/todoSafes";
+import { useHiddenExternal } from "@/lib/hiddenExternal";
+import { useDataStore } from "@/store/useDataStore";
 import { TagPicker } from "@/components/Tags/TagPicker";
 import { WorkspacePicker } from "@/components/Todo/TodoWorkspacePicker";
 import { NoTagConfirm } from "@/components/Tags/NoTagConfirm";
@@ -156,6 +159,11 @@ export default function EventPopover({
 }: EventPopoverProps) {
     const createTag = useTagCreate();
     const popoverRef = useRef<HTMLDivElement>(null);
+    const activeSafes = useDataStore((s) => s.activeSafes);
+    const { hiddenIds: hiddenEventIds, hide: hideExternalEvent, unhide: unhideExternalEvent } = useHiddenExternal('event');
+    const baseEventId = event.id.includes('_') ? event.id.split('_')[0] : event.id;
+    const isExternalEvent = isFromOtherWorkspace(event, activeSafes ?? []);
+    const isHiddenExternal = hiddenEventIds.has(baseEventId);
 
     const [title, setTitle] = useState(event.title || '');
     const [description, setDescription] = useState(event.description || '');
@@ -386,6 +394,20 @@ export default function EventPopover({
                             title="Teilen"
                         >
                             <Share2 size={15} />
+                        </button>
+                    )}
+                    {isExternalEvent && (
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (isHiddenExternal) unhideExternalEvent(baseEventId);
+                                else { hideExternalEvent(baseEventId); onClose(); }
+                            }}
+                            className="w-8 h-8 grid place-items-center rounded-full text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover transition-all"
+                            title={isHiddenExternal ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                            aria-label={isHiddenExternal ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                        >
+                            {isHiddenExternal ? <Eye size={15} /> : <EyeOff size={15} />}
                         </button>
                     )}
                     <button

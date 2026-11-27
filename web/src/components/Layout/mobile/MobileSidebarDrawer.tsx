@@ -77,7 +77,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40 bg-[color-mix(in_srgb,var(--t2-ink)_30%,transparent)]"
+            className="fixed inset-0 z-[90] bg-[color-mix(in_srgb,var(--t2-ink)_30%,transparent)]"
             onClick={onClose}
           />
           <motion.div
@@ -92,7 +92,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             dragConstraints={{ top: 0, bottom: 0 }}
             dragElastic={{ top: 0, bottom: 0.5 }}
             onDragEnd={(_, info) => { if (info.offset.y > 80 || info.velocity.y > 500) onClose(); }}
-            className="fixed inset-x-0 bottom-0 z-50 max-h-[85dvh] overflow-y-auto rounded-t-[20px] border-t border-t2-line bg-t2-surface px-3 pt-2"
+            className="fixed inset-x-0 bottom-0 z-[95] max-h-[85dvh] overflow-y-auto rounded-t-[20px] border-t border-t2-line bg-t2-surface px-3 pt-2"
             style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
           >
             <div className="mx-auto mb-2 h-1 w-9 rounded-full bg-t2-line" aria-hidden="true" />

@@ -17,7 +17,7 @@ describe('selectTags', () => {
             { id: 'n1', title: 'Note', type: 'note', isGroup: true },
             { id: 'e1', title: 'Event', type: 'event' },
         ];
-        expect(selectTags(items)).toEqual([{ id: 'g1', title: 'Uni', color: '#fff', effect: 'glow' }]);
+        expect(selectTags(items)).toEqual([{ id: 'g1', title: 'Uni', safe: 'main', color: '#fff', effect: 'glow' }]);
     });
 });
 

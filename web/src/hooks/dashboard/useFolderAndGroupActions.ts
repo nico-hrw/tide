@@ -6,6 +6,7 @@ import type { Dispatch, SetStateAction } from 'react';
 import * as cryptoLib from '@/lib/crypto';
 import { apiFetch } from '@/lib/api';
 import { useDataStore, type DataItem } from '@/store/useDataStore';
+import { normalizeSafe } from '@/lib/todoSafes';
 
 export interface FolderFileItem {
     id: string;
@@ -167,9 +168,10 @@ export function useFolderAndGroupActions({
         const title = forcedTitle || 'New Group';
         const effect = forcedEffect || 'none';
         const color = forcedColor || undefined;
+        const safe = normalizeSafe(storeState.defaultSafe || storeState.activeSafes?.[0] || 'main');
 
         try {
-            const meta = { title, isGroup: true, effect, color };
+            const meta = { title, isGroup: true, effect, color, safe };
             const securedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
 
             const res = await apiFetch('/api/v1/files', {
@@ -180,7 +182,7 @@ export function useFolderAndGroupActions({
                     parent_id: null,
                     public_meta: { isGroup: true },
                     secured_meta: securedMeta,
-                    metadata: { title, isGroup: true, effect, color },
+                    metadata: { title, isGroup: true, effect, color, safe },
                     version: 2,
                     visibility: 'private',
                 }),
@@ -191,7 +193,7 @@ export function useFolderAndGroupActions({
 
             const optimisticGroup: DataItem = {
                 id: newFolder.id, title, type: 'folder', isGroup: true,
-                effect, color, parent_id: null, secured_meta: securedMeta, visibility: 'private',
+                effect, color, safe, parent_id: null, secured_meta: securedMeta, visibility: 'private',
             };
             useDataStore.setState((s) => ({ notes: [...s.notes, optimisticGroup] }));
             return newFolder.id;

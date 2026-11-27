@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { ChevronDown, CheckCheck, ListTodo, CalendarDays } from 'lucide-react';
+import { ChevronDown, CheckCheck, ListTodo, CalendarDays, Eye, EyeOff } from 'lucide-react';
 import { addDays } from 'date-fns';
 
 /** Local calendar day as yyyy-MM-dd (the due date format of the store). */
@@ -9,6 +9,10 @@ const isoDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padSt
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { matchesTagFilter, pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
+import { isFromOtherWorkspace, itemVisibleInSafesOrFilter, todoSafe } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
+import { toggleTaskWithUndo, toggleManyTasksWithUndo, deleteTaskWithUndo } from '@/lib/todoUndo';
+import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import { useTagRegistry } from './useTodoTags';
 import { buildTaskTree } from './treeUtils';
 import { TaskWithChildren, isTaskArchived, parseDateSafe } from './types';
@@ -74,9 +78,10 @@ function dateBlock(t: TaskWithChildren, isToday: boolean): React.ReactNode {
 }
 
 export const MobileTodoView: React.FC = () => {
-  const tasks = useDataStore((s) => s.tasks) as TaskItem[];
-  const toggleTask = useDataStore((s) => s.toggleTask);
-  const deleteTask = useDataStore((s) => s.deleteTask);
+  const allTasks = useDataStore((s) => s.tasks) as TaskItem[];
+  const activeSafes = useDataStore((s) => s.activeSafes);
+  const { hiddenIds: hiddenTodoIds, hide: hideExternalTodo, unhideAll: unhideAllTodos } = useHiddenExternal('todo');
+  const [showHiddenExternal, setShowHiddenExternal] = useState(false);
   const updateTask = useDataStore((s) => s.updateTask);
   const [overdueMenuId, setOverdueMenuId] = useState<string | null>(null);
   /** Ids, deren Untertodo-Liste umgeschaltet wurde (heute: zugeklappt, sonst: aufgeklappt). */
@@ -87,13 +92,28 @@ export const MobileTodoView: React.FC = () => {
   const todayRef = useRef<HTMLDivElement>(null);
   const scrolledRef = useRef(false);
 
-  const { knownIds: knownTagIds } = useTagRegistry();
+  const { knownIds: knownTagIds, resolve: resolveTags } = useTagRegistry();
   const rawTagFilter = useDataStore((s) => s.todoTagFilter);
   const setTagFilter = useDataStore((s) => s.setTodoTagFilter);
   const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
   const hiddenList = useDataStore((s) => s.hiddenTagIds);
   const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
   const tagFilterActive = isTagFilterActive(tagFilter);
+
+  const workspaceTasks = useMemo(
+    () => allTasks.filter((t) => itemVisibleInSafesOrFilter(t, t.tags ?? [], activeSafes ?? [], tagFilter.tagIds)),
+    [allTasks, activeSafes, tagFilter.tagIds],
+  );
+  const hiddenExternalCount = useMemo(
+    () => workspaceTasks.filter((t) => isFromOtherWorkspace(t, activeSafes ?? []) && hiddenTodoIds.has(t.id)).length,
+    [workspaceTasks, activeSafes, hiddenTodoIds],
+  );
+  const tasks = useMemo(
+    () => showHiddenExternal
+      ? workspaceTasks
+      : workspaceTasks.filter((t) => !(isFromOtherWorkspace(t, activeSafes ?? []) && hiddenTodoIds.has(t.id))),
+    [workspaceTasks, showHiddenExternal, activeSafes, hiddenTodoIds],
+  );
 
   const roots = useMemo<TaskWithChildren[]>(
     () => buildTaskTree(tasks)
@@ -120,13 +140,14 @@ export const MobileTodoView: React.FC = () => {
     box.scrollTop += el.getBoundingClientRect().top - box.getBoundingClientRect().top - 8;
   }, [sections]);
 
-  const toggleOne = (id: string) => { void toggleTask(id); };
+  const toggleOne = (id: string) => { void toggleTaskWithUndo(id); };
 
   /** Ring-Tipp: alle Untertodos auf den gleichen Stand bringen, oder das Todo selbst. */
   const toggleAll = (t: TaskWithChildren) => {
     if (!kids(t).length) { toggleOne(t.id); return; }
     const target = kids(t).some((c) => !c.isCompleted);
-    kids(t).forEach((c) => { if (c.isCompleted !== !target) toggleOne(c.id); });
+    const affected = kids(t).filter((c) => c.isCompleted !== target).map((c) => c.id);
+    if (affected.length) void toggleManyTasksWithUndo(affected, target);
   };
 
   const toggleExpanded = (id: string) => {
@@ -152,7 +173,7 @@ export const MobileTodoView: React.FC = () => {
         key={t.id}
         completeLabel={t.isCompleted ? 'Wieder öffnen' : 'Erledigen'}
         onComplete={() => toggleOne(t.id)}
-        onDelete={() => { void deleteTask(t.id); }}
+        onDelete={() => { void deleteTaskWithUndo(t.id); }}
       >
         <div
           role="button"
@@ -166,12 +187,25 @@ export const MobileTodoView: React.FC = () => {
           {dateBlock(t, isToday)}
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
+              {isFromOtherWorkspace(t, activeSafes ?? []) && (
+                <ExternalSafeBadge safe={todoSafe(t)} tags={resolveTags(t.tags).map((tag) => tag.title)} />
+              )}
               <span
                 onClick={hasKids ? (e) => { e.stopPropagation(); toggleExpanded(t.id); } : undefined}
                 className={`flex-1 min-w-0 truncate text-[16px] font-semibold leading-[22px] ${t.isCompleted ? 'line-through opacity-50' : ''}`}
               >
                 {t.title}
               </span>
+              {isFromOtherWorkspace(t, activeSafes ?? []) && (
+                <button
+                  type="button"
+                  aria-label="In diesem Workspace ausblenden"
+                  onClick={(e) => { e.stopPropagation(); hideExternalTodo(t.id); }}
+                  className="p-1 text-t2-ink-3"
+                >
+                  <EyeOff size={14} />
+                </button>
+              )}
               {isOverdue && (
                 <button
                   type="button"
@@ -261,15 +295,36 @@ export const MobileTodoView: React.FC = () => {
         )}
       </div>
 
-      {tagFilterActive && (
-        <div className="px-5 pb-1">
-          <button
-            type="button"
-            onClick={() => setTagFilter(EMPTY_TAG_FILTER)}
-            className="rounded-full bg-t2-sub px-3 py-1 text-[12.5px] font-semibold text-t2-ink"
-          >
-            Filter zurücksetzen
-          </button>
+      {(tagFilterActive || hiddenExternalCount > 0) && (
+        <div className="flex flex-wrap items-center gap-2 px-5 pb-1">
+          {tagFilterActive && (
+            <button
+              type="button"
+              onClick={() => setTagFilter(EMPTY_TAG_FILTER)}
+              className="rounded-full bg-t2-sub px-3 py-1 text-[12.5px] font-semibold text-t2-ink"
+            >
+              Filter zurücksetzen
+            </button>
+          )}
+          {hiddenExternalCount > 0 && (
+            <button
+              type="button"
+              onClick={() => setShowHiddenExternal((v) => !v)}
+              className="inline-flex items-center gap-1 rounded-full bg-t2-sub px-3 py-1 text-[12.5px] font-semibold text-t2-ink-2"
+            >
+              {showHiddenExternal ? <Eye size={12} /> : <EyeOff size={12} />}
+              {showHiddenExternal ? 'Ausgeblendete verbergen' : `${hiddenExternalCount} ausgeblendet`}
+            </button>
+          )}
+          {showHiddenExternal && hiddenExternalCount > 0 && (
+            <button
+              type="button"
+              onClick={() => { unhideAllTodos(); setShowHiddenExternal(false); }}
+              className="text-[12.5px] font-semibold text-t2-accent"
+            >
+              Alle einblenden
+            </button>
+          )}
         </div>
       )}
 
@@ -303,15 +358,26 @@ export const MobileTodoView: React.FC = () => {
               <div className="px-1.5 py-2 text-[13px] text-t2-ink-3">Noch nichts erledigt</div>
             )}
             {showCompleted && completedRoots.slice(0, 30).map((t) => (
-              <button
+              <SwipeRow
                 key={t.id}
-                type="button"
-                onClick={() => setDetailId(t.id)}
-                className="flex items-center gap-3 rounded-[14px] bg-t2-sub px-3.5 py-2.5 text-left text-[14px] text-t2-ink-2"
+                completeLabel="Wiederherstellen"
+                onComplete={() => toggleOne(t.id)}
+                onDelete={() => { void deleteTaskWithUndo(t.id); }}
               >
-                <CheckMark checked size={18} />
-                <span className="flex-1 min-w-0 truncate line-through opacity-70">{t.title}</span>
-              </button>
+                <div className="flex items-center gap-1 rounded-[14px] bg-t2-sub pr-3.5 text-left text-[14px] text-t2-ink-2">
+                  <button
+                    type="button"
+                    aria-label={`${t.title} wiederherstellen`}
+                    onClick={() => toggleOne(t.id)}
+                    className="grid h-11 w-11 shrink-0 place-items-center"
+                  >
+                    <CheckMark checked size={18} />
+                  </button>
+                  <button type="button" onClick={() => setDetailId(t.id)} className="flex-1 min-w-0 truncate py-2.5 text-left">
+                    <span className="line-through opacity-70">{t.title}</span>
+                  </button>
+                </div>
+              </SwipeRow>
             ))}
             <div className="mt-3.5 mb-0.5 flex items-center gap-2 px-1.5 text-[11.5px] font-semibold uppercase tracking-[0.06em] text-t2-ink-3">
               Archiv

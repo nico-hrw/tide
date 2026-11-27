@@ -1,12 +1,12 @@
 'use client';
 
 import React, { useMemo, useState } from 'react';
-import { askConfirm } from '@/lib/feedback';
 import { useDataStore } from '@/store/useDataStore';
 import type { TaskItem } from '@/store/slices/types';
 import { getTaskPriority, PRIORITY_OPTIONS, type Priority } from './types';
 import { TodoProgressRing, CheckMark } from './MobileTodoParts';
 import { clampSubtaskDate, subtaskDateMax } from '@/lib/subtaskDate';
+import { toggleTaskWithUndo, deleteTaskWithUndo } from '@/lib/todoUndo';
 import TagPicker from '@/components/Tags/TagPicker';
 import { useTagCreate } from '@/components/Tags/useTagCreate';
 import { useTagRegistry } from './useTodoTags';
@@ -20,10 +20,8 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
   onOpenSubtask?: (id: string) => void;
 }) {
   const tasks = useDataStore((s) => s.tasks) as TaskItem[];
-  const toggleTask = useDataStore((s) => s.toggleTask);
   const addTask = useDataStore((s) => s.addTask);
   const updateTask = useDataStore((s) => s.updateTask);
-  const deleteTask = useDataStore((s) => s.deleteTask);
   const [draft, setDraft] = useState('');
   const { tags: allTags } = useTagRegistry();
   const createTag = useTagCreate();
@@ -38,9 +36,9 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
   const priority = getTaskPriority(task);
 
   const toggleAll = () => {
-    if (!children.length) { void toggleTask(task.id); return; }
+    if (!children.length) { void toggleTaskWithUndo(task.id); return; }
     const target = children.some((c) => !c.isCompleted);
-    children.forEach((c) => { if (c.isCompleted !== !target) void toggleTask(c.id); });
+    children.forEach((c) => { if (c.isCompleted !== !target) void toggleTaskWithUndo(c.id); });
   };
 
   const submit = async () => {
@@ -51,8 +49,7 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
   };
 
   const remove = async () => {
-    if (!(await askConfirm({ title: `„${task.title}“ löschen?`, confirmLabel: 'Löschen', tone: 'danger' }))) return;
-    await deleteTask(task.id);
+    await deleteTaskWithUndo(task.id);
     onBack();
   };
 
@@ -81,6 +78,15 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
       <div className="flex items-center gap-2 px-3 pt-3 pb-1">
         <button type="button" onClick={onBack} aria-label="Zurück" className="grid h-9 w-9 place-items-center rounded-full text-[22px] text-t2-ink-2">‹</button>
         <span className="flex-1" />
+        {task.isCompleted && (
+          <button
+            type="button"
+            onClick={() => void toggleTaskWithUndo(task.id)}
+            className="px-2 py-1.5 text-[14px] font-medium text-t2-accent"
+          >
+            Wiederherstellen
+          </button>
+        )}
         <button type="button" onClick={remove} className="px-2 py-1.5 text-[14px] font-medium text-t2-late">Löschen</button>
       </div>
 
@@ -174,7 +180,7 @@ export function MobileTodoDetail({ task, parent, onBack, onOpenSubtask }: {
                 type="button"
                 data-testid={`subtask-check-${c.id}`}
                 aria-label={c.isCompleted ? 'Wieder öffnen' : 'Erledigen'}
-                onClick={() => void toggleTask(c.id)}
+                onClick={() => void toggleTaskWithUndo(c.id)}
               >
                 <CheckMark checked={c.isCompleted} size={22} />
               </button>

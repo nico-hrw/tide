@@ -657,8 +657,8 @@ export default function MobileWeekGrid({ weekDays, events, now, onEventTap, onNe
 
                 {/* Current time line */}
                 {isToday && (<>
-                  <div style={{ position: 'absolute', left: -4, top: nowTop - 4, width: 8, height: 8, borderRadius: '50%', background: 'var(--t2-now)', zIndex: 95 }} />
-                  <div style={{ position: 'absolute', left: -1, right: 0, top: nowTop, height: 2, background: 'var(--t2-now)', zIndex: 95 }} />
+                  <div style={{ position: 'absolute', left: -4, top: nowTop - 4, width: 8, height: 8, borderRadius: '50%', background: 'var(--t2-now)', zIndex: 18 }} />
+                  <div style={{ position: 'absolute', left: -1, right: 0, top: nowTop, height: 2, background: 'var(--t2-now)', zIndex: 18 }} />
                 </>)}
 
                 {/* Ghost placeholder at original position during cross-day drag */}

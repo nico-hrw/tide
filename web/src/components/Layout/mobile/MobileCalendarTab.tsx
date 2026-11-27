@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { addDays, format, isSameDay, startOfWeek } from 'date-fns';
 import { de } from 'date-fns/locale';
+import { Eye, EyeOff } from 'lucide-react';
 import type { WeekStart } from '@/lib/calendarWeeks';
 import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import MiniCalendar from '../../Calendar/MiniCalendar';
@@ -39,11 +40,15 @@ export interface MobileCalendarTabProps {
   onTaskComplete?: (id: string, completed: boolean) => void;
   onTodayClick?: () => void;
   /** Tags shown as filter pills above the calendar. */
-  themes?: { id: string; title: string; color?: string }[];
+  themes?: { id: string; title: string; color?: string; safe?: string }[];
   /** Lets the saved-views menu switch the calendar mode. */
   onCalViewModeChange?: (mode: MobileCalViewMode) => void;
   /** Lets the saved-views menu jump to the todo tab. */
   onOpenTodos?: () => void;
+  hiddenExternalCount?: number;
+  showHiddenExternal?: boolean;
+  onToggleShowHiddenExternal?: () => void;
+  onUnhideAllExternal?: () => void;
 }
 
 export const toSavedMode = (m: MobileCalViewMode): CalendarViewMode => (m === 'agenda' ? 'continuous' : m);
@@ -86,6 +91,10 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
   onTaskComplete,
   onTodayClick,
   themes,
+  hiddenExternalCount = 0,
+  showHiddenExternal = false,
+  onToggleShowHiddenExternal,
+  onUnhideAllExternal,
 }) => {
   const storeTheme = useDataStore((s) => s.theme);
   const storeWeekStartsOn = useWeekStartsOn();
@@ -218,13 +227,13 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
 
   return (
     <div
-      className="flex flex-col"
+      className="relative z-0 isolate flex flex-col"
       style={{ flex: 1, overflow: 'hidden', paddingBottom: 'calc(76px + env(safe-area-inset-bottom))' }}
       onTouchStart={swipeOn ? onSwipeStart : undefined}
       onTouchMove={swipeOn ? onSwipeMove : undefined}
       onTouchEnd={swipeOn ? onSwipeEnd : undefined}
     >
-      {themes && themes.length > 0 && (
+      {((themes && themes.length > 0) || hiddenExternalCount > 0) && (
         // Horizontal scrolling of the pill row must not be read as a calendar swipe.
         <div
           className="flex shrink-0 items-center gap-2 px-3 py-1.5"
@@ -232,7 +241,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
           onTouchMove={(e) => e.stopPropagation()}
           onTouchEnd={(e) => e.stopPropagation()}
         >
-          {onCalViewModeChange && (
+          {themes && themes.length > 0 && onCalViewModeChange && (
             <CalendarViewsMenu
               tags={themes}
               viewMode={toSavedMode(calViewMode)}
@@ -240,12 +249,34 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
               onOpenTodos={onOpenTodos}
             />
           )}
-          <CalendarTagPills tags={themes} className="min-w-0 flex-1" />
+          {themes && themes.length > 0 && <CalendarTagPills tags={themes} className="min-w-0 flex-1" />}
+          {hiddenExternalCount > 0 && onToggleShowHiddenExternal && (
+            <button
+              type="button"
+              onClick={onToggleShowHiddenExternal}
+              className={`shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold cursor-pointer ${
+                showHiddenExternal ? 'bg-t2-ink text-t2-bg' : 'bg-t2-hover text-t2-ink-2'
+              }`}
+            >
+              {showHiddenExternal ? <Eye size={12} /> : <EyeOff size={12} />}
+              <span>{hiddenExternalCount}</span>
+            </button>
+          )}
+          {showHiddenExternal && hiddenExternalCount > 0 && onUnhideAllExternal && (
+            <button
+              type="button"
+              onClick={onUnhideAllExternal}
+              className="shrink-0 text-xs font-semibold text-t2-accent cursor-pointer"
+            >
+              Alle
+            </button>
+          )}
         </div>
       )}
       {calViewMode === 'week' ? (
         <div
           ref={swipeElRef}
+          className="isolate"
           style={{ transform: swipeTransform, transition: swipeTransition, flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}
         >
           <div
@@ -331,7 +362,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
           />
         </div>
       ) : calViewMode === 'month' ? (
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="isolate" style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div style={{ flexShrink: 0 }}>
             <MiniCalendar
               selectedDate={activeDate}
@@ -363,7 +394,7 @@ export const MobileCalendarTab: React.FC<MobileCalendarTabProps> = ({
           </div>
         </div>
       ) : calViewMode === 'day' ? (
-        <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+        <div className="isolate" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
           <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
             <DbTimelineDay
               day={activeDate}

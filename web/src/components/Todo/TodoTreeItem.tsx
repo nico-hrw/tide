@@ -4,11 +4,12 @@ import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Trash2, Plus,
-  X, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown, Minus,
+  X, Tag, Repeat, Check, ArrowLeft, ChevronUp, ChevronDown, Minus, Eye, EyeOff,
 } from 'lucide-react';
 import { format, addDays } from 'date-fns';
 import { useDataStore, TaskItem } from '@/store/useDataStore';
-import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
+import { isFromOtherWorkspace, todoSafe } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
 import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import TodoSplitModal from './TodoSplitModal';
 import { useTagRegistry, DEFAULT_TAG_COLOR } from './useTodoTags';
@@ -53,6 +54,7 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
 }) {
   const addTask = useDataStore((s) => s.addTask);
   const activeSafes = useDataStore((s) => s.activeSafes);
+  const { hiddenIds: hiddenTodoIds, hide: hideExternalTodo, unhide: unhideExternalTodo } = useHiddenExternal('todo');
   const { resolve: resolveTags, ensureTag } = useTagRegistry(handleCreateTag);
   const tagFilter = useDataStore((s) => s.todoTagFilter);
   const setTodoTagFilter = useDataStore((s) => s.setTodoTagFilter);
@@ -386,7 +388,24 @@ export const TodoTreeItem: React.FC<TodoTreeItemProps> = React.memo(function Tod
                       {task.title}
                     </span>
                     <VisibilityBadge kind={isSharedWithMe ? 'shared-with-me' : 'private'} size={12} hideWhenPrivate />
-                    {todoIsExternal(task, activeSafes ?? []) && <ExternalSafeBadge safe={todoSafe(task)} tags={resolveTags(task.tags).map((tag) => tag.title)} />}
+                    {isFromOtherWorkspace(task, activeSafes ?? []) && (
+                      <>
+                        <ExternalSafeBadge safe={todoSafe(task)} tags={resolveTags(task.tags).map((tag) => tag.title)} />
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (hiddenTodoIds.has(task.id)) unhideExternalTodo(task.id);
+                            else hideExternalTodo(task.id);
+                          }}
+                          title={hiddenTodoIds.has(task.id) ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                          aria-label={hiddenTodoIds.has(task.id) ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                          className="p-0.5 rounded text-t2-ink-3 hover:text-t2-ink hover:bg-t2-hover cursor-pointer"
+                        >
+                          {hiddenTodoIds.has(task.id) ? <Eye size={12} /> : <EyeOff size={12} />}
+                        </button>
+                      </>
+                    )}
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">

@@ -22,7 +22,10 @@ import { useWeekWindow, initialScrollTop } from './useWeekWindow';
 import { useFixedWeekNavigation } from './useFixedWeekNavigation';
 import { useSlotCreateGesture } from '@/hooks/useSlotCreateGesture';
 import { resolveTimeGridSlot } from './slotResolvers';
-import { todoVisibleInSafes } from '@/lib/todoSafes';
+import { isFromOtherWorkspace, itemVisibleInSafesOrFilter } from '@/lib/todoSafes';
+import { getEventGroupIds } from '@/lib/calendarUtils';
+import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
 import { useNoTagPrompt, useTaggedCreate } from './useNoTagPrompt';
 import type { CalendarViewProps, CalendarViewMode } from './types';
 
@@ -47,8 +50,25 @@ export default function CalendarView({
     const weekStartsOn = useWeekStartsOn();
     const calendarScrollMode = useDataStore(s => s.calendarScrollMode);
     const activeSafes = useDataStore(s => s.activeSafes);
-    // Events of the active workspaces only (own or linked); the rest stays in its workspace.
-    const events = useMemo(() => allEvents.filter((e) => todoVisibleInSafes(e, activeSafes ?? [])), [allEvents, activeSafes]);
+    const calendarTagFilter = useCalendarTagFilter(themes.map((t) => t.id));
+    const { hiddenIds: hiddenEventIds, unhideAll: unhideAllEvents } = useHiddenExternal('event');
+    const [showHiddenExternal, setShowHiddenExternal] = useState(false);
+    const eventBaseId = (id: string) => (id.includes('_') ? id.split('_')[0] : id);
+    // Events of the active workspaces (own or linked) plus cross-workspace tag matches.
+    const visibleEvents = useMemo(
+        () => allEvents.filter((e) => itemVisibleInSafesOrFilter(e, getEventGroupIds(e), activeSafes ?? [], calendarTagFilter.tagIds)),
+        [allEvents, activeSafes, calendarTagFilter.tagIds]
+    );
+    const hiddenExternalCount = useMemo(
+        () => visibleEvents.filter((e) => isFromOtherWorkspace(e, activeSafes ?? []) && hiddenEventIds.has(eventBaseId(e.id))).length,
+        [visibleEvents, activeSafes, hiddenEventIds]
+    );
+    const events = useMemo(
+        () => showHiddenExternal
+            ? visibleEvents
+            : visibleEvents.filter((e) => !(isFromOtherWorkspace(e, activeSafes ?? []) && hiddenEventIds.has(eventBaseId(e.id)))),
+        [visibleEvents, showHiddenExternal, activeSafes, hiddenEventIds]
+    );
     const scrollContainerRef = useRef<HTMLDivElement>(null);
     const [internalViewMode, setInternalViewMode] = useState<CalendarViewMode>(viewModeProp || 'week');
     const viewMode = viewModeProp ?? internalViewMode;
@@ -265,6 +285,10 @@ export default function CalendarView({
                     onStep={handleStep}
                     onToday={() => onDateChange(new Date())}
                     onCreate={handleCreateNow}
+                    hiddenExternalCount={hiddenExternalCount}
+                    showHiddenExternal={showHiddenExternal}
+                    onToggleShowHiddenExternal={() => setShowHiddenExternal((v) => !v)}
+                    onUnhideAllExternal={() => { unhideAllEvents(); setShowHiddenExternal(false); }}
                 />
 
                 {/* Main View Area */}

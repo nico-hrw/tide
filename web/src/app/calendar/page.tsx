@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import CalendarView from "@/components/Calendar/CalendarView";
 import { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
 import { useDataStore } from "@/store/useDataStore";
+import { normalizeSafe } from "@/lib/todoSafes";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
 import "./calendar.css";
 
@@ -473,7 +474,9 @@ export default function CalendarPage() {
                 { name: "RSA-OAEP", hash: "SHA-256" }, true, ["encrypt"]
             );
 
-            const meta = { title, color: color || "#6366f1", effect: effect || "none" };
+            const storeState = useDataStore.getState();
+            const safe = normalizeSafe(storeState.defaultSafe || storeState.activeSafes?.[0] || 'main');
+            const meta = { title, color: color || "#6366f1", effect: effect || "none", safe };
             const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
 
             const res = await apiFetch("/api/v1/files", {
@@ -483,7 +486,7 @@ export default function CalendarPage() {
                     type: "folder",
                     public_meta: { isGroup: true },
                     secured_meta: securedMeta,
-                    metadata: { title, isGroup: true, effect: meta.effect, color: meta.color },
+                    metadata: { title, isGroup: true, effect: meta.effect, color: meta.color, safe },
                     version: 2
                 })
             });
