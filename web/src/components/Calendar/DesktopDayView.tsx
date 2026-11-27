@@ -194,6 +194,7 @@ export default function DesktopDayView({
                         currentTime={currentTime}
                         hoveredHour={hoveredHour}
                         onHourHover={setHoveredHour}
+                        selectedEventId={selectedEventId}
                         onEventClick={handleEventClick}
                         onEventCreate={onEventCreate}
                         onEventShare={onEventShare}

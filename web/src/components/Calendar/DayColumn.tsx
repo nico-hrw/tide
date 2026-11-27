@@ -31,6 +31,7 @@ interface DayColumnProps {
     day: Date;
     events: CalendarEvent[];
     isToday: boolean;
+    selectedEventId?: string | null;
     currentTime?: Date;
     onEventClick?: (event: CalendarEvent, rect?: DOMRect) => void;
     onEventShare?: (e: React.MouseEvent, id: string) => void;
@@ -246,6 +247,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
     day,
     events,
     isToday,
+    selectedEventId,
     currentTime,
     onEventClick,
     onEventShare,
@@ -953,6 +955,7 @@ const DayColumnBase: React.FC<DayColumnProps> = ({
                         timedEvents={timedEvents}
                         allEvents={allEvents}
                         isParent={isParent}
+                        isSelected={selectedEventId === event.id}
                         draggingId={draggingId}
                         resizingId={resizingId}
                         dayIndexOffset={dayIndexOffset}
