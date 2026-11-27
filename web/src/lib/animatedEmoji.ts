@@ -1,3 +1,4 @@
+import { pushSettingsPatch } from './settingsSync';
 'use client';
 
 import { useSyncExternalStore } from 'react';
@@ -44,6 +45,7 @@ export function setAnimatedEmojiEnabled(enabled: boolean): void {
     /* privater Modus: nur für diese Sitzung */
   }
   if (typeof window !== 'undefined') window.dispatchEvent(new Event(CHANGE_EVENT));
+  pushSettingsPatch({ notes: { animated_emoji: enabled } });
 }
 
 function subscribeSetting(cb: () => void): () => void {

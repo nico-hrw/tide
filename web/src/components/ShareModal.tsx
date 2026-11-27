@@ -2,7 +2,8 @@
 
 import { ChevronDown, X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, Loader2, ShieldCheck, Variable } from "lucide-react";
 import { askConfirm, notifyError } from '@/lib/feedback';
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import * as Y from "yjs";
 import { apiFetch } from "@/lib/api";
 import { useDataStore } from "@/store/useDataStore";
@@ -69,6 +70,7 @@ export default function ShareModal({
     groups
 }: ShareModalProps) {
     const t = useT();
+    const dialogRef = useRef<HTMLDivElement>(null);
     const groupIds = useItemGroupIds(fileId);
     const groupTitles = Object.fromEntries((groups ?? []).map((g) => [g.id, g.title]));
     const [contacts, setContacts] = useState<Contact[]>([]);
@@ -76,6 +78,7 @@ export default function ShareModal({
     const [searchResult, setSearchResult] = useState<Contact | null>(null);
     const [loading, setLoading] = useState(false);
     const [sharing, setSharing] = useState(false);
+    usePopupAutoClose(dialogRef, onClose, { enabled: !sharing });
     const [showCustomInput, setShowCustomInput] = useState(false);
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
     const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
@@ -540,6 +543,7 @@ export default function ShareModal({
     return (
         <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
+                ref={dialogRef}
                 className="bg-t2-surface  border border-t2-line  rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
                 role="dialog"
                 aria-modal="true"

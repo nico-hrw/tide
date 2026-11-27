@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { useReferenceStore, getReferenceById } from '@/store/useReferenceStore';
@@ -29,6 +30,8 @@ export default function ReferenceEditPopover({ editor }: { editor: Editor | null
     }, []);
 
     const close = useCallback(() => setTarget(null), []);
+    const popupRef = useRef<HTMLDivElement>(null);
+    usePopupAutoClose(popupRef, close, { enabled: !!target });
 
     useEffect(() => {
         if (!target) return;
@@ -84,7 +87,7 @@ export default function ReferenceEditPopover({ editor }: { editor: Editor | null
         : undefined;
 
     return createPortal(
-        <div data-reference-popover className="fixed z-[1100]" style={style}>
+        <div ref={popupRef} data-reference-popover className="fixed z-[1100]" style={style}>
             <ReferenceForm
                 mode="edit"
                 term={reference.term}

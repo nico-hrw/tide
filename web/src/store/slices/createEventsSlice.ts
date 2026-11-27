@@ -106,6 +106,7 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             localStorage.setItem('tide_event_mention_style', style);
         }
         set({ eventMentionStyle: style });
+        pushSettingsPatch({ notes: { event_mention_style: style } });
     },
 
     setEventMentionPreview: (preview: EventMentionPreview) => {
@@ -113,6 +114,7 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
             localStorage.setItem('tide_event_mention_preview', preview);
         }
         set({ eventMentionPreview: preview });
+        pushSettingsPatch({ notes: { event_mention_preview: preview } });
     },
 
     setCalendarColorPalette: (palette: CalendarColorPalette) => {

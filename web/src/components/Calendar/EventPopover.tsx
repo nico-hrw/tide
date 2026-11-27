@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
@@ -299,6 +300,7 @@ export default function EventPopover({
     // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
     useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
+    usePopupAutoClose(popoverRef, handleClose);
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const handleToggleCancel = () => {
         const next = !isCancelled;

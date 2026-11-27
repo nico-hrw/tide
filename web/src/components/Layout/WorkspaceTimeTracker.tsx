@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import { Clock, X } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useIslandActionsStore } from '@/store/useIslandActionsStore';
@@ -18,6 +19,8 @@ export default function WorkspaceTimeTracker() {
     const dismiss = useWorkspaceTimeStore((s) => s.dismiss);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const dialogRef = useRef<HTMLDivElement>(null);
+    usePopupAutoClose(dialogRef, dismiss, { enabled: !!pending });
 
     const label = workspaceLabel(activeSafes ?? []);
 
@@ -65,6 +68,7 @@ export default function WorkspaceTimeTracker() {
 
     return (
         <div
+            ref={dialogRef}
             role="dialog"
             aria-label="Arbeitszeit eintragen"
             className="fixed bottom-6 left-1/2 z-[60] w-[340px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-2xl border border-t2-line bg-t2-surface p-4 text-t2-ink shadow-[var(--shadow-float)]"

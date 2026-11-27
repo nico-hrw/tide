@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button, IconButton } from '../ui/Controls';
@@ -24,6 +25,7 @@ export function CalendarShareDialog({ group, onClose }: CalendarShareDialogProps
     const t = useT();
     const titleId = useId();
     const dialogRef = useRef<HTMLDivElement>(null);
+    usePopupAutoClose(dialogRef, onClose);
     const rules = useCalendarShareRules();
     const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
 
