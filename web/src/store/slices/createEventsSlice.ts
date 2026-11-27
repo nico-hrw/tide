@@ -54,7 +54,7 @@ export const createEventsSlice: DataStoreSlice<EventsSlice> = (set, get) => ({
     eventMentionStyle:
         (typeof window !== 'undefined' &&
             (localStorage.getItem('tide_event_mention_style') as EventMentionStyle)) ||
-        'blue',
+        'calendar',
     eventMentionPreview:
         (typeof window !== 'undefined' &&
             (localStorage.getItem('tide_event_mention_preview') as EventMentionPreview)) ||

@@ -817,6 +817,19 @@ ul[data-type="taskList"] li>div>p {
   flex-direction: column;
 }
 
+/* ─── Flat link chip (MentionNodeView): tint by kind, no border/bar ─────── */
+:root { --mention-note: #7c3aed; --mention-todo: #2563eb; }
+.dark { --mention-note: #a78bfa; --mention-todo: #60a5fa; }
+.mention-chip {
+  background-color: color-mix(in srgb, var(--chip) 14%, transparent);
+  color: var(--chip);
+  border: none;
+  box-shadow: none;
+}
+.mention-chip:hover {
+  background-color: color-mix(in srgb, var(--chip) 22%, transparent);
+}
+
 /* ─── Standard Mention Pill (@note, @event) ─────────────────────────────── */
 .mention {
   display: inline-flex;
