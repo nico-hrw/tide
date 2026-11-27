@@ -108,6 +108,7 @@ interface CalendarEventItemProps {
     timedEvents: CalendarEvent[];
     allEvents?: CalendarEvent[];
     isParent?: boolean;
+    isSelected?: boolean;
     draggingId?: string | null;
     resizingId?: string | null;
     dayIndexOffset?: number;
@@ -174,6 +175,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     timedEvents,
     allEvents,
     isParent,
+    isSelected,
     draggingId,
     resizingId,
     dayIndexOffset,
@@ -804,7 +806,8 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
             )} {/* end isTimePoint conditional */}
 
             {/* Resize handles: top edge changes the start, bottom edge the end (the card body moves the whole event) */}
-            {!isDragging && !isCancelled && durationMinutes >= 15 && (
+            {/* Handles only appear once the event was clicked (selected / popover open), not on mere hover */}
+            {(popoverOpen || isSelected || isResizing) && !isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
                     className="absolute top-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle-top"
                     onMouseDown={(e) => {
@@ -813,7 +816,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
                     }}
                 />
             )}
-            {!isDragging && !isCancelled && durationMinutes >= 15 && (
+            {(popoverOpen || isSelected || isResizing) && !isDragging && !isCancelled && durationMinutes >= 15 && (
                 <div
                     className="absolute bottom-0 left-0 right-0 h-2 cursor-ns-resize z-[70] hover:bg-white/20 resize-handle"
                     onMouseDown={(e) => {
@@ -882,6 +885,7 @@ const areEventPropsEqual = (prev: CalendarEventItemProps, next: CalendarEventIte
 
     // 4. Parent state
     if (prev.isParent !== next.isParent) return false;
+    if (prev.isSelected !== next.isSelected) return false;
 
     // 5. Day offset & day timestamp
     if (prev.dayIndexOffset !== next.dayIndexOffset) return false;
