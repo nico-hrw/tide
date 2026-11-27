@@ -1,4 +1,4 @@
-import type { GraphNode, NoteGraph } from './noteLinks';
+import type { GraphKind, GraphNode, NoteGraph } from './noteLinks';
 import { FULL_SIM, ISLAND_SIM, nodeRadius, nodeStrength, seedPosition, stepSim, type SimEdge, type SimNode, type SimOptions } from './graphSim';
 
 /**
@@ -9,6 +9,8 @@ import { FULL_SIM, ISLAND_SIM, nodeRadius, nodeStrength, seedPosition, stepSim, 
 
 interface SceneNode extends SimNode {
     title: string;
+    /** notes are filled dots, events hollow rings, todos small squares */
+    kind: GraphKind;
     born: number;
     glowAt: number;
     labelAt: number;
@@ -105,7 +107,7 @@ export class GraphScene {
 
     private addNode(n: GraphNode, x: number, y: number, born: number): SceneNode {
         const node: SceneNode = {
-            id: n.id, title: n.title, degree: n.degree, x, y, vx: 0, vy: 0,
+            id: n.id, title: n.title, kind: n.kind, degree: n.degree, x, y, vx: 0, vy: 0,
             born, glowAt: -1e9, labelAt: -1e9, tint: null, tintAt: -1e9,
             shownR: 3.2, shownS: 0, dim: false,
         };
@@ -124,7 +126,7 @@ export class GraphScene {
     /** A new note appears in the middle, without links yet. */
     spawnNote(node: { id: string; title: string }, tint: string, now: number): void {
         if (this.byId.has(node.id)) return;
-        const n = this.addNode({ id: node.id, title: node.title, degree: 0 }, this.sim.width / 2 + (Math.random() - 0.5) * 16, this.sim.height / 2 + (Math.random() - 0.5) * 16, now);
+        const n = this.addNode({ id: node.id, title: node.title, kind: 'note', degree: 0 }, this.sim.width / 2 + (Math.random() - 0.5) * 16, this.sim.height / 2 + (Math.random() - 0.5) * 16, now);
         n.tint = tint; n.tintAt = now; n.glowAt = now; n.labelAt = now;
         this.wake(0.9);
     }
@@ -242,13 +244,29 @@ export class GraphScene {
             const age = (now - n.born) / 700;
             // pops in with a little overshoot
             const scale = age >= 1 ? 1 : age < 0 ? 0 : 1 + 2.2 * Math.pow(age - 1, 3) + 1.2 * Math.pow(age - 1, 2);
-            const r = Math.max(0, n.shownR * scale);
+            const r = Math.max(0, n.shownR * scale * (n.kind === 'note' ? 1 : 0.8));
             const dim = n.dim ? 0.2 : 1;
             c.globalAlpha = dim;
-            c.fillStyle = `rgba(${ink},${0.28 + 0.72 * n.shownS})`;
-            c.beginPath();
-            c.arc(n.x, n.y, r, 0, Math.PI * 2);
-            c.fill();
+            const shade = `rgba(${ink},${0.28 + 0.72 * n.shownS})`;
+            if (n.kind === 'event') {
+                // hollow ring: an event that is linked to a note
+                c.strokeStyle = shade;
+                c.lineWidth = 1.6;
+                c.beginPath();
+                c.arc(n.x, n.y, Math.max(0, r - 0.8), 0, Math.PI * 2);
+                c.stroke();
+            } else if (n.kind === 'todo') {
+                // small rounded square: a todo that is linked to a note
+                c.fillStyle = shade;
+                c.beginPath();
+                c.roundRect(n.x - r, n.y - r, r * 2, r * 2, r * 0.35);
+                c.fill();
+            } else {
+                c.fillStyle = shade;
+                c.beginPath();
+                c.arc(n.x, n.y, r, 0, Math.PI * 2);
+                c.fill();
+            }
             if (n.tint) {
                 const fade = Math.min(1, Math.max(0, (now - n.tintAt - TINT_HOLD_MS) / TINT_FADE_MS));
                 if (fade >= 1) n.tint = null;

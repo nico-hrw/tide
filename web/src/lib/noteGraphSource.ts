@@ -1,32 +1,35 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useDataStore } from '@/store/useDataStore';
 import { useNoteLinkStore } from '@/store/useNoteLinkStore';
-import { isItemUnlocked, type ItemSecuritySettings } from '@/lib/pinSecurity';
+import { isVisibleEvent, visibleGraphNotes } from '@/lib/graphVisibility';
 import { buildNoteGraph, type GraphNoteInput, type LinkIndex, type NoteGraph } from '@/lib/noteLinks';
-import type { DataItem } from '@/store/slices/types';
+import type { DataItem, TaskItem } from '@/store/slices/types';
 
-/**
- * Which notes may appear in the graph: real notes the signed-in user can see right now. Folders, anything marked
- * deleted, and notes locked by a PIN (until unlocked) stay out, so neither their titles nor their links show up.
- */
-export function isGraphVisible(note: DataItem): boolean {
-    if (note.type === 'folder' || !note.id) return false;
-    if (note.deleted_at || note.is_deleted || note.trashed) return false;
-    const security = (note.metadata?.security_settings ?? note.security_settings) as ItemSecuritySettings | undefined;
-    return isItemUnlocked(note.id, security ?? null);
+export function graphFrom(
+    notes: readonly DataItem[],
+    index: LinkIndex,
+    events: readonly DataItem[] = [],
+    tasks: readonly TaskItem[] = [],
+): NoteGraph {
+    const items: GraphNoteInput[] = visibleGraphNotes(notes);
+    for (const e of events) {
+        if (isVisibleEvent(e)) items.push({ id: e.id, title: e.title || 'Untitled', kind: 'event' });
+    }
+    const extra: Array<readonly [string, string]> = [];
+    for (const t of tasks) {
+        if (t.isArchived) continue;
+        items.push({ id: t.id, title: t.title || 'Todo', kind: 'todo' });
+        if (t.linkedNoteId) extra.push([t.id, t.linkedNoteId]);
+    }
+    return buildNoteGraph(items, index, extra);
 }
 
-export function visibleGraphNotes(notes: readonly DataItem[]): GraphNoteInput[] {
-    return notes.filter(isGraphVisible).map((n) => ({ id: n.id, title: n.title || 'Untitled' }));
-}
-
-export function graphFrom(notes: readonly DataItem[], index: LinkIndex): NoteGraph {
-    return buildNoteGraph(visibleGraphNotes(notes), index);
-}
-
-/** The current graph, rebuilt when notes or links change. */
+/** The current graph, rebuilt when notes, events, todos or links change. */
 export function useNoteGraph(): NoteGraph {
     const notes = useDataStore((s) => s.notes);
+    const events = useDataStore((s) => s.events);
+    const tasks = useDataStore((s) => s.tasks);
     const links = useNoteLinkStore((s) => s.links);
-    return useMemo(() => graphFrom(notes, links), [notes, links]);
+    useEffect(() => { void useNoteLinkStore.getState().hydrate(); }, []);
+    return useMemo(() => graphFrom(notes, links, events, tasks), [notes, events, tasks, links]);
 }

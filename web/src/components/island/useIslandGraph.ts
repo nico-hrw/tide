@@ -116,7 +116,8 @@ export function useIslandGraph({ restTitle, graphTitle, enabled }: UseIslandGrap
         const canvas = canvasRef.current;
         const host = hostRef.current;
         if (!canvas || !host) return;
-        const graph = graphFrom(useDataStore.getState().notes, useNoteLinkStore.getState().links);
+        const data = useDataStore.getState();
+        const graph = graphFrom(data.notes, useNoteLinkStore.getState().links, data.events, data.tasks);
         const plan = sceneFor(event, graph);
         if (!plan) return;
         busyRef.current = true;

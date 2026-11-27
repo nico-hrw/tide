@@ -15,11 +15,11 @@ describe('extractNoteLinkTargets', () => {
         expect(extractNoteLinkTargets(doc(mention('a')), 'x')).toEqual(['a']);
     });
 
-    it('ignores people, files, events, ghosts and broken ids', () => {
+    it('counts event mentions too, but not people, files, ghosts or broken ids', () => {
+        expect(extractNoteLinkTargets(doc(mention('e', { type: 'event' })), 'x')).toEqual(['e']);
         const d = doc(
             mention('p', { type: 'contact' }),
             mention('f', { type: 'file' }),
-            mention('e', { type: 'event' }),
             mention('g', { isGhost: true }),
             mention('ghost-1'),
             mention(''),
@@ -68,6 +68,33 @@ describe('buildNoteGraph', () => {
 
     it('ignores a link of a note to itself', () => {
         expect(buildNoteGraph(notes, { a: ['a'] }).edges).toEqual([]);
+    });
+});
+
+describe('events and todos in the graph', () => {
+    const items = [
+        { id: 'n1', title: 'N1' }, { id: 'n2', title: 'N2' },
+        { id: 'e1', title: 'Termin', kind: 'event' as const }, { id: 'e2', title: 'Lonely event', kind: 'event' as const },
+        { id: 't1', title: 'Todo', kind: 'todo' as const }, { id: 't2', title: 'Lonely todo', kind: 'todo' as const },
+    ];
+
+    it('shows an event only when a note links to it, and a todo only when it points at a note', () => {
+        const g = buildNoteGraph(items, { n1: ['e1'] }, [['t1', 'n2']]);
+        expect(g.nodes.map((n) => n.id).sort()).toEqual(['e1', 'n1', 'n2', 't1']);
+        expect(g.nodes.find((n) => n.id === 'e1')!.kind).toBe('event');
+        expect(g.nodes.find((n) => n.id === 't1')!.kind).toBe('todo');
+        expect(g.edges).toHaveLength(2);
+    });
+
+    it('leaves unlinked events and todos out completely', () => {
+        const g = buildNoteGraph(items, {});
+        expect(g.nodes.map((n) => n.id).sort()).toEqual(['n1', 'n2']);
+    });
+
+    it('never links events or todos to each other, and only notes can be sources in the index', () => {
+        const g = buildNoteGraph(items, { e1: ['n1'] }, [['t1', 'e1']]);
+        expect(g.edges).toEqual([]);
+        expect(g.nodes.map((n) => n.id).sort()).toEqual(['n1', 'n2']);
     });
 });
 

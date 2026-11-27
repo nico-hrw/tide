@@ -3,6 +3,7 @@ import { loadEncryptedOfflineCache, saveEncryptedOfflineCache } from '@/lib/offl
 import { emitGraphEvent } from '@/lib/graphEvents';
 import { extractNoteLinkTargets, pruneIndex, sameIds, type LinkIndex } from '@/lib/noteLinks';
 import { useDataStore } from '@/store/useDataStore';
+import { linkableIds } from '@/lib/graphVisibility';
 
 /**
  * Link index: which note links to which, as ids only.
@@ -43,11 +44,10 @@ let ownerId = '';
 let hydration: Promise<void> | null = null;
 let persistTimer: ReturnType<typeof setTimeout> | null = null;
 
-/** Ids of the notes the signed-in user can see (empty while the list has not loaded yet). */
-function knownNoteIds(): Set<string> {
-    const ids = new Set<string>();
-    for (const n of useDataStore.getState().notes) if (n.type !== 'folder') ids.add(n.id);
-    return ids;
+/** What the signed-in user can see right now (both empty while the lists have not loaded yet). */
+function knownIds(): { noteIds: Set<string>; allIds: Set<string> } {
+    const { notes, events } = useDataStore.getState();
+    return linkableIds(notes, events);
 }
 
 function schedulePersist(): void {
@@ -56,8 +56,8 @@ function schedulePersist(): void {
     persistTimer = setTimeout(() => {
         persistTimer = null;
         const { links } = useNoteLinkStore.getState();
-        const known = knownNoteIds();
-        const data: PersistedIndex = { v: 1, links: known.size > 0 ? pruneIndex(links, known) : links };
+        const { allIds } = knownIds();
+        const data: PersistedIndex = { v: 1, links: allIds.size > 0 ? pruneIndex(links, allIds) : links };
         void saveEncryptedOfflineCache(CACHE_KEY_PREFIX + ownerId, data);
     }, PERSIST_DELAY_MS);
 }
@@ -105,10 +105,11 @@ export const useNoteLinkStore = create<NoteLinkState>((set, get) => ({
         ensureOwner();
         if (!ownerId || !noteId) return;
         void get().hydrate().then(() => {
-            const known = knownNoteIds();
-            // Only links to notes the user can see are kept (see lib/noteLinks.ts). Without a loaded list nothing is kept.
-            if (known.size === 0 || !known.has(noteId)) return;
-            const targets = extractNoteLinkTargets(doc, noteId).filter((t) => known.has(t));
+            const { noteIds, allIds } = knownIds();
+            // Only links from a visible note to something the user can see are kept (see lib/noteLinks.ts).
+            // Without a loaded list nothing is kept.
+            if (noteIds.size === 0 || !noteIds.has(noteId)) return;
+            const targets = extractNoteLinkTargets(doc, noteId).filter((t) => allIds.has(t));
             const previous = get().links[noteId];
             const wasIndexed = get().indexed[noteId] === true;
             if (wasIndexed && sameIds(previous, targets)) return;
