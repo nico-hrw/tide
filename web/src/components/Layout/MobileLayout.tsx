@@ -296,13 +296,12 @@ export default function MobileLayout({
   return (
     <div className="flex md:hidden flex-col h-[100dvh] w-full relative overflow-hidden" style={{ background: T.bg }}>
       <MobileSidebarDrawer
-        isOpen={ui.sidebar} onClose={() => setUi((p) => ({ ...p, sidebar: false }))} files={files} folders={folders}
-        activeNoteId={activeNoteId} onNoteSelect={openNote} onNewNote={() => { onNewNote(); setUi((p) => ({ ...p, editingNote: true })); }}
+        isOpen={ui.sidebar} onClose={() => setUi((p) => ({ ...p, sidebar: false }))}
+        onNewNote={() => { onNewNote(); setUi((p) => ({ ...p, editingNote: true })); }}
         onNewFolder={onNewFolder} onOpenExams={() => setUi((p) => ({ ...p, exams: true }))}
-        onOpenSettings={() => setSettingsOpen(true)}
-        draggingNote={draggingNote} dragGhostPos={dragGhostPos} dragOverFolderId={dragOverFolderId}
-        onDragOverFolder={setDragOverFolderId} onNoteDragStart={handleNoteDragStart}
-        onContextMenu={setContextMenu} onPromptPin={setPinPromptItem} enabledExtensions={enabledExtensions}
+        onOpenSettings={() => setSettingsOpen(true)} enabledExtensions={enabledExtensions}
+        displayName={displayName}
+        avatarSeed={userProfile ? (userProfile.avatar_seed || userProfile.id || userProfile.user_id || '') + (userProfile.avatar_salt || '') : undefined}
       />
       <MobileTopHeader
         displayName={displayName} calViewMode={calViewMode} setCalViewMode={setCalViewMode} activeDate={activeDate}
