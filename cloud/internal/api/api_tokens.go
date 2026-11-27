@@ -177,7 +177,15 @@ func (h *APITokenHandler) CreateToken(w http.ResponseWriter, r *http.Request) {
 			validScopes = append(validScopes, sc)
 			continue
 		}
-		if _, exists := SupportedScopes[sc]; exists || strings.HasPrefix(sc, "safe:") || sc == "*" {
+		if strings.HasPrefix(sc, "safe:") {
+			if strings.TrimSpace(strings.TrimPrefix(sc, "safe:")) == "" {
+				http.Error(w, "Invalid safe scope: workspace name cannot be empty", http.StatusBadRequest)
+				return
+			}
+			validScopes = append(validScopes, sc)
+			continue
+		}
+		if _, exists := SupportedScopes[sc]; exists || sc == "*" {
 			validScopes = append(validScopes, sc)
 		}
 	}

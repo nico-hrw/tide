@@ -256,6 +256,9 @@ func (h *FileHandler) DownloadPublicFile(w http.ResponseWriter, r *http.Request)
 	}
 	defer rc.Close()
 
+	rcCtrl := http.NewResponseController(w)
+	_ = rcCtrl.SetWriteDeadline(time.Time{})
+
 	w.Header().Set("Content-Type", "application/octet-stream")
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", "attachment")

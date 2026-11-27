@@ -291,6 +291,14 @@ func (h *ExternalHandler) UpdateFolder(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	if isProtectedE2EEFile(file) {
+		writeExternalJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error":     "Bad Request",
+			"encrypted": true,
+			"message":   "Cannot overwrite an end-to-end encrypted folder via external API",
+		})
+		return
+	}
 	var req UpdateExternalFolderRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeExternalError(w, http.StatusBadRequest, "Bad Request", "Invalid request body")

@@ -213,7 +213,6 @@ func writeQuicknoteAccessDenied(w http.ResponseWriter, qn *store.Quicknote, acce
 		"access_mode":   "approval_required",
 		"access_status": accessStatus,
 		"slug":          qn.Slug,
-		"title":         qn.Title,
 	})
 }
 
@@ -759,6 +758,29 @@ func (h *QuicknoteHandler) UploadQuicknoteFile(w http.ResponseWriter, r *http.Re
 	_ = json.NewEncoder(w).Encode(qf)
 }
 
+func safeQuicknoteDownloadHeaders(declaredMIME string, sniffBuf []byte) (string, string) {
+	declaredBase, _, err := mime.ParseMediaType(declaredMIME)
+	if err != nil {
+		declaredBase = ""
+	}
+	declaredBase = strings.ToLower(strings.TrimSpace(declaredBase))
+
+	sniffedRaw := http.DetectContentType(sniffBuf)
+	sniffedBase, _, sniffErr := mime.ParseMediaType(sniffedRaw)
+	if sniffErr != nil {
+		sniffedBase = ""
+	}
+	sniffedBase = strings.ToLower(strings.TrimSpace(sniffedBase))
+
+	switch declaredBase {
+	case "image/png", "image/jpeg", "image/gif", "image/webp":
+		if sniffedBase == declaredBase {
+			return declaredBase, "inline"
+		}
+	}
+	return "application/octet-stream", "attachment"
+}
+
 // DownloadQuicknoteFile retrieves a quicknote attachment by ID and streams the blob content.
 func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.Request) {
 	slug := strings.TrimSpace(chi.URLParam(r, "slug"))
@@ -794,23 +816,13 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 	_ = respCtrl.SetReadDeadline(time.Now().Add(30 * time.Minute))
 	_ = respCtrl.SetWriteDeadline(time.Now().Add(30 * time.Minute))
 
-	mediaType, params, err := mime.ParseMediaType(qf.MIMEType)
-	contentType := "application/octet-stream"
-	if err == nil && mediaType != "" {
-		if formatted := mime.FormatMediaType(mediaType, params); formatted != "" {
-			contentType = formatted
-		} else {
-			contentType = mediaType
-		}
-	} else {
-		mediaType = ""
+	var sniff [512]byte
+	n, readErr := io.ReadFull(rc, sniff[:])
+	if readErr != nil && !errors.Is(readErr, io.EOF) && !errors.Is(readErr, io.ErrUnexpectedEOF) {
+		http.Error(w, "Failed to read file content", http.StatusInternalServerError)
+		return
 	}
-
-	disposition := "attachment"
-	switch mediaType {
-	case "image/png", "image/jpeg", "image/gif", "image/webp":
-		disposition = "inline"
-	}
+	contentType, disposition := safeQuicknoteDownloadHeaders(qf.MIMEType, sniff[:n])
 
 	safeName := strings.Map(func(r rune) rune {
 		if r == '"' || r == '\\' || r < 0x20 || r == 0x7f {
@@ -826,6 +838,11 @@ func (h *QuicknoteHandler) DownloadQuicknoteFile(w http.ResponseWriter, r *http.
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Disposition", fmt.Sprintf(`%s; filename="%s"`, disposition, safeName))
 	w.Header().Set("Content-Length", strconv.FormatInt(qf.Size, 10))
+	if n > 0 {
+		if _, err := w.Write(sniff[:n]); err != nil {
+			return
+		}
+	}
 	_, _ = io.Copy(w, rc)
 }
 
@@ -907,6 +924,18 @@ func (h *QuicknoteHandler) SetQuicknoteAccess(w http.ResponseWriter, r *http.Req
 		log.Printf("[Quicknote] Failed to set access mode for %s: %v", slug, err)
 		http.Error(w, "Failed to update quicknote access mode", http.StatusInternalServerError)
 		return
+	}
+
+	if req.AccessMode == "approval_required" && h.hub != nil {
+		allowed := map[string]bool{userID: true}
+		if reqs, err := h.store.ListQuicknoteAccessRequests(r.Context(), slug); err == nil {
+			for _, ar := range reqs {
+				if ar.Status == "approved" {
+					allowed[ar.UserID] = true
+				}
+			}
+		}
+		h.hub.EvictRoomClientsExcept("quicknote:"+slug, allowed)
 	}
 
 	accessStatus := "open"

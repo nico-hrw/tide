@@ -1170,8 +1170,15 @@ func TestSecurity_ListAccessibleFilesAndGetSharePermission(t *testing.T) {
 		perms[f.ID] = f.Permission
 	}
 
-	if got, ok := perms[publicFile.ID]; !ok || got != "view" {
-		t.Errorf("expected public file permission 'view' for non-owner, got %q (present=%v)", got, ok)
+	if _, ok := perms[publicFile.ID]; ok {
+		t.Errorf("expected unrelated public file to be excluded from ListAccessibleFiles")
+	}
+	pub, err := store.GetAccessibleFile(ctx, publicFile.ID, other.ID)
+	if err != nil {
+		t.Fatalf("GetAccessibleFile(publicFile) failed: %v", err)
+	}
+	if pub.Permission != "view" || pub.ShareStatus != "" || len(pub.SecuredMeta) != 0 || string(pub.AccessKeys) != "{}" {
+		t.Errorf("unexpected public file access/redaction: perm=%q share_status=%q meta=%q keys=%s", pub.Permission, pub.ShareStatus, pub.SecuredMeta, pub.AccessKeys)
 	}
 	if got, ok := perms[sharedFile.ID]; !ok || got != "view" {
 		t.Errorf("expected pending share permission 'view' in ListAccessibleFiles, got %q (present=%v)", got, ok)

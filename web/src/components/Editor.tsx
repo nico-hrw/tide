@@ -146,6 +146,38 @@ function CollaborativeEditor(props: EditorProps) {
             onRoleChanged: (perm) => {
                 useActiveNoteStore.getState().setLivePermission(perm);
             },
+            onKeyRotated: async (newEpoch) => {
+                try {
+                    const res = await apiFetch(`/api/v1/files/${activeTabId}`, { offline: 'never' });
+                    if (!res.ok) return;
+                    const fileData = (await res.json().catch(() => null)) as {
+                        access_keys?: string | Record<string, { wrapped_key?: string; pwd_iv?: string }>;
+                        metadata?: string | { has_custom_password?: boolean };
+                    } | null;
+                    if (!fileData?.access_keys) return;
+                    const accessKeys = typeof fileData.access_keys === 'string'
+                        ? (JSON.parse(fileData.access_keys) as Record<string, { wrapped_key?: string; pwd_iv?: string }>)
+                        : fileData.access_keys;
+                    const metaObj = typeof fileData.metadata === 'string'
+                        ? (JSON.parse(fileData.metadata) as { has_custom_password?: boolean })
+                        : (fileData.metadata || {});
+                    const entry = (userId && accessKeys[userId]) || Object.values(accessKeys)[0];
+                    if (!entry?.wrapped_key || (metaObj.has_custom_password && entry.pwd_iv)) return;
+                    const [{ getMasterKey }, { unwrapDEKData, importDEK }] = await Promise.all([
+                        import('@/lib/keyStorage'),
+                        import('@/lib/cryptoV2'),
+                    ]);
+                    const masterPrivKey = await getMasterKey();
+                    if (!masterPrivKey) return;
+                    const rawDek = await unwrapDEKData(entry.wrapped_key, masterPrivKey);
+                    const rotatedDek = await importDEK(rawDek);
+                    useActiveNoteStore.getState().setActiveDEK(rotatedDek);
+                    useActiveNoteStore.getState().setKeyEpoch(newEpoch);
+                    providerRef.current?.updateDEK(rotatedDek, newEpoch);
+                } catch (rotErr) {
+                    console.warn('[Editor] Failed to refresh rotated DEK:', rotErr);
+                }
+            },
         });
 
         const hash = Array.from(userId).reduce((acc, char) => acc + char.charCodeAt(0), 0);

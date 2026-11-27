@@ -254,6 +254,25 @@ func (h *Hub) broadcastControl(fileID string, payload any) {
 	}
 }
 
+// EvictRoomClientsExcept disconnects any clients in roomID whose userID is empty or not in allowedUserIDs.
+func (h *Hub) EvictRoomClientsExcept(roomID string, allowedUserIDs map[string]bool) {
+	h.mu.RLock()
+	room := h.rooms[roomID]
+	var toEvict []*Client
+	for client := range room {
+		if client.userID == "" || !allowedUserIDs[client.userID] {
+			toEvict = append(toEvict, client)
+		}
+	}
+	h.mu.RUnlock()
+
+	for _, client := range toEvict {
+		_ = client.sendControl(map[string]any{"type": "REVOKED"})
+		client.close()
+		h.removeClient(client)
+	}
+}
+
 // triggerSSEPulse broadcasts NOTE_ACTIVITY_PULSE and NOTE_WAL_APPENDED via SSE to file participants only, throttled to max 1x per 5 seconds per room.
 func (h *Hub) triggerSSEPulse(fh *FileHandler, fileID string) {
 	if fh == nil || fh.Broker == nil || fh.Store == nil {

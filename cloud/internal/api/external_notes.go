@@ -168,7 +168,7 @@ func (h *ExternalHandler) loadScopedNote(w http.ResponseWriter, r *http.Request,
 		return nil, "", nil, nil, false
 	}
 	safes, folders := extractScopes(r)
-	if !h.fileMatchesScopeForUser(r.Context(), file, userID, safes, folders) {
+	if !h.fileMatchesScopeForUserWithMode(r.Context(), file, userID, safes, folders, requireWrite) {
 		writeExternalError(w, http.StatusForbidden, "Forbidden", "Note does not belong to scoped workspace or folder")
 		return nil, "", nil, nil, false
 	}
@@ -313,6 +313,9 @@ func parseNoteMeta(file *db.File) (map[string]interface{}, bool) {
 	if metaMap == nil {
 		metaMap = make(map[string]interface{})
 	}
+	if isProtectedE2EEFile(file) {
+		return metaMap, false
+	}
 	isUnencrypted := file.Visibility == "public"
 	if unenc, ok := metaMap["unencrypted"].(bool); ok && unenc {
 		isUnencrypted = true
@@ -454,6 +457,14 @@ func (h *ExternalHandler) CreateNote(w http.ResponseWriter, r *http.Request) {
 		resolvedSafe = normSafeName(safes[0])
 	}
 
+	if len(safes) > 0 {
+		for _, ls := range req.LinkedSafes {
+			if !safeInList(ls, safes) {
+				writeExternalError(w, http.StatusForbidden, "Forbidden", "Linked workspace does not match scoped token workspace")
+				return
+			}
+		}
+	}
 	metaMap := map[string]interface{}{"title": title, "unencrypted": true, "author": "external_api", "safe": resolvedSafe}
 	if len(req.LinkedSafes) > 0 {
 		metaMap["linkedSafes"] = req.LinkedSafes
@@ -557,14 +568,23 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if len(safes) > 0 && req.LinkedSafes != nil {
+		for _, ls := range *req.LinkedSafes {
+			if !safeInList(ls, safes) {
+				writeExternalError(w, http.StatusForbidden, "Forbidden", "Linked workspace does not match scoped token workspace")
+				return
+			}
+		}
+	}
 	metaChanged = setOptionalMetaSlice(metaMap, "linkedSafes", req.LinkedSafes) || metaChanged
 	metaChanged = setOptionalMetaSlice(metaMap, "tagIds", req.TagIDs) || metaChanged
 	metaChanged = setOptionalMetaStr(metaMap, "icon", req.Icon) || metaChanged
 	metaChanged = setOptionalMetaStr(metaMap, "color", req.Color) || metaChanged
 	if metaChanged {
 		metaBytes, _ := json.Marshal(metaMap)
-		file.Metadata, file.PublicMeta = metaBytes, metaBytes
+		file.Metadata = metaBytes
 		if isUnencrypted {
+			file.PublicMeta = metaBytes
 			file.SecuredMeta = nil
 		}
 	}
@@ -606,10 +626,17 @@ func (h *ExternalHandler) UpdateNote(w http.ResponseWriter, r *http.Request) {
 	if isUnencrypted && !contentChanged {
 		updatedContent = h.getNoteContent(r.Context(), file)
 	}
-	h.emitNoteSSE(file.ID, file.OwnerID, map[string]interface{}{
-		"type": "file_updated", "file_id": file.ID, "source": "external_api",
-		"content_updated": contentChanged, "title": title, "metadata": metaMap,
-	})
+	if isUnencrypted {
+		h.emitNoteSSE(file.ID, file.OwnerID, map[string]interface{}{
+			"type": "file_updated", "file_id": file.ID, "source": "external_api",
+			"content_updated": contentChanged, "title": title, "metadata": metaMap,
+		})
+	} else {
+		h.emitNoteSSE(file.ID, file.OwnerID, map[string]interface{}{
+			"type": "file_updated", "file_id": file.ID, "source": "external_api",
+			"content_updated": false,
+		})
+	}
 	h.writeNotePayload(w, r.Context(), http.StatusOK, file, metaMap, title, updatedContent, "", !isUnencrypted)
 }
 

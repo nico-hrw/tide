@@ -96,10 +96,16 @@ func tokenMatchesScope(tokenScopes []string, requiredScopes []string) bool {
 			if (req == "todos:create" || req == "todos:edit" || req == "todos:delete") && sc == "todos:write" {
 				return true
 			}
-			// safe:... and folder:... narrow read access only; they never grant write access.
-			if (req == "notes:read" || req == "folders:read" || req == "workspaces:read") &&
-				(strings.HasPrefix(sc, "safe:") || strings.HasPrefix(sc, "folder:")) {
-				return true
+			// safe:... and folder:... narrow read access only; require non-empty suffix and never grant write access.
+			if strings.HasPrefix(sc, "safe:") && strings.TrimSpace(strings.TrimPrefix(sc, "safe:")) != "" {
+				if req == "notes:read" || req == "folders:read" || req == "workspaces:read" {
+					return true
+				}
+			}
+			if strings.HasPrefix(sc, "folder:") && strings.TrimSpace(strings.TrimPrefix(sc, "folder:")) != "" {
+				if req == "notes:read" || req == "folders:read" {
+					return true
+				}
 			}
 		}
 	}
@@ -310,10 +316,21 @@ func (h *ExternalHandler) RegisterRoutes(r chi.Router) {
 }
 
 type externalFileMeta struct {
-	Safe        string      `json:"safe"`
-	LinkedSafes []string    `json:"linkedSafes"`
-	DeletedAt   interface{} `json:"deleted_at"`
-	IsGroup     bool        `json:"isGroup"`
+	Safe              string      `json:"safe"`
+	LinkedSafes       []string    `json:"linkedSafes"`
+	DeletedAt         interface{} `json:"deleted_at"`
+	IsGroup           bool        `json:"isGroup"`
+	HasCustomPassword bool        `json:"has_custom_password"`
+}
+
+func isProtectedE2EEFile(file *db.File) bool {
+	if file == nil {
+		return false
+	}
+	if len(file.SecuredMeta) > 0 {
+		return true
+	}
+	return parseExternalFileMeta(file.Metadata).HasCustomPassword
 }
 
 func parseExternalFileMeta(raw json.RawMessage) externalFileMeta {
@@ -427,6 +444,10 @@ func (h *ExternalHandler) noteMatchesScope(ctx context.Context, file *db.File, s
 }
 
 func (h *ExternalHandler) fileMatchesScopeForUser(ctx context.Context, file *db.File, userID string, safes []string, folders []string) bool {
+	return h.fileMatchesScopeForUserWithMode(ctx, file, userID, safes, folders, false)
+}
+
+func (h *ExternalHandler) fileMatchesScopeForUserWithMode(ctx context.Context, file *db.File, userID string, safes []string, folders []string, requirePrimarySafe bool) bool {
 	if len(safes) == 0 && len(folders) == 0 {
 		return true
 	}
@@ -464,9 +485,11 @@ func (h *ExternalHandler) fileMatchesScopeForUser(ctx context.Context, file *db.
 			if ns == fileSafe {
 				return true
 			}
-			for _, ls := range linked {
-				if normSafeName(ls) == ns {
-					return true
+			if !requirePrimarySafe {
+				for _, ls := range linked {
+					if normSafeName(ls) == ns {
+						return true
+					}
 				}
 			}
 		}

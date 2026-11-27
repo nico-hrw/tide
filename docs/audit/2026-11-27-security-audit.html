@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tide – Sicherheits-, Architektur- &amp; Qualitäts-Audit 27.11.2026</title>
+<style>
+:root{
+  --bg:#ffffff;--surface:#f6f6f7;--surface2:#ededf0;--ink:#0e0e10;--ink2:#52525b;--ink3:#71717a;--line:#e4e4e7;
+  --accent:#1f2937;--crit:#991b1b;--critbg:#fef2f2;--critbd:#fecaca;
+  --bad:#b42318;--badbg:#fdecea;--badbd:#f5c2be;
+  --warn:#92400e;--warnbg:#fffbeb;--warnbd:#fde68a;
+  --mid:#b45309;--midbg:#fff7ed;
+  --ok:#166534;--okbg:#ecfdf5;--okbd:#bbf7d0;
+  --info:#1e40af;--infobg:#eff6ff;--infobd:#bfdbfe;
+  --r:14px;--shadow:0 4px 18px rgba(17,24,39,.05)
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{margin:0;background:var(--surface);color:var(--ink);font:15px/1.55 'Inter',system-ui,-apple-system,Segoe UI,Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1160px;margin:0 auto;padding:36px 24px 84px}
+header.top{display:flex;flex-wrap:wrap;justify-content:space-between;align-items:flex-start;gap:16px;margin-bottom:24px}
+h1{font-size:30px;margin:0 0 6px;letter-spacing:-.025em;line-height:1.15}
+h2{font-size:20px;margin:44px 0 14px;letter-spacing:-.015em;border-bottom:2px solid var(--ink);padding-bottom:6px;display:flex;align-items:center;justify-content:space-between;gap:12px}
+h3{font-size:15.5px;margin:0 0 8px;letter-spacing:-.01em}
+.sub{color:var(--ink2);margin:0;font-size:13.5px}
+.mono,.num,code{font-family:'JetBrains Mono',ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;font-variant-numeric:tabular-nums}
+code{background:var(--surface2);padding:1px 6px;border-radius:5px;font-size:12.5px;color:#18181b;word-break:break-word}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.btn{appearance:none;border:1px solid var(--line);background:var(--bg);color:var(--ink);padding:8px 14px;border-radius:10px;font:600 13px/1.2 inherit;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.04);transition:background .15s,border-color .15s}
+.btn:hover{background:var(--surface2);border-color:#d4d4d8}
+.btn.primary{background:var(--ink);color:#fff;border-color:var(--ink)}
+.btn.primary:hover{background:#27272a}
+.card{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:20px;box-shadow:var(--shadow)}
+.grid{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(auto-fit,minmax(340px,1fr))}
+.g3{grid-template-columns:repeat(auto-fit,minmax(280px,1fr))}
+.g4{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}
+.hero{display:grid;grid-template-columns:200px 1fr;gap:26px;align-items:center}
+@media(max-width:720px){.hero{grid-template-columns:1fr}}
+.ring{width:184px;height:184px;border-radius:50%;display:grid;place-items:center;margin:0 auto;background:conic-gradient(#d97706 0 57%,var(--line) 57% 100%)}
+.ring div{width:142px;height:142px;border-radius:50%;background:#fff;display:grid;place-items:center;text-align:center;align-content:center;box-shadow:inset 0 0 0 1px var(--line)}
+.ring b{font-size:44px;line-height:1;letter-spacing:-.03em}
+.ring span{font-size:12px;color:var(--ink2);margin-top:4px}
+.tag{display:inline-flex;align-items:center;gap:4px;padding:2px 9px;border-radius:99px;font-size:11.5px;font-weight:700;white-space:nowrap;border:1px solid transparent}
+.t-crit{background:var(--critbg);color:var(--crit);border-color:var(--critbd)}
+.t-high{background:var(--badbg);color:var(--bad);border-color:var(--badbd)}
+.t-med{background:var(--warnbg);color:var(--warn);border-color:var(--warnbd)}
+.t-low{background:var(--infobg);color:var(--info);border-color:var(--infobd)}
+.t-ok{background:var(--okbg);color:var(--ok);border-color:var(--okbd)}
+.t-neu{background:var(--surface);color:var(--ink2);border-color:var(--line)}
+.crit-strip{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px;margin-top:16px}
+.crit-pill{border:1px solid var(--critbd);background:var(--critbg);border-radius:10px;padding:10px 12px;font-size:12.5px}
+.crit-pill b{color:var(--crit);display:block;margin-bottom:2px}
+.bar{display:grid;grid-template-columns:230px 1fr 78px;gap:12px;align-items:center;margin:10px 0;font-size:13.5px}
+.bar .num{text-align:right;font-weight:700}
+@media(max-width:640px){.bar{grid-template-columns:1fr;gap:4px}.bar .num{text-align:left}}
+.track{height:12px;background:var(--surface2);border-radius:6px;overflow:hidden}
+.fill{height:100%;border-radius:6px}
+.f-crit{background:#dc2626}.f-warn{background:#d97706}.f-ok{background:#16a34a}.f-accent{background:#3f3f46}
+.donut-wrap{display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:center;padding:8px 0}
+.legend{display:grid;gap:8px;min-width:190px;font-size:13.5px}
+.legend-row{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:4px 0;border-bottom:1px solid var(--line)}
+.legend-row:last-child{border-bottom:none}
+.dot{width:11px;height:11px;border-radius:3px;display:inline-block;margin-right:8px}
+.stack-bar{display:flex;height:14px;border-radius:7px;overflow:hidden;margin-top:14px;background:var(--surface2)}
+.kpi b{display:block;font-size:24px;letter-spacing:-.025em;line-height:1.15}
+.kpi .lbl{color:var(--ink2);font-size:13px;margin-top:4px;display:block}
+.kpi .delta{margin-top:8px;font-size:12px;color:var(--ink2)}
+.chain{border:1px solid var(--line);border-radius:12px;padding:16px;background:var(--surface);margin-bottom:14px}
+.chain:last-child{margin-bottom:0}
+.chain-flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:10px 0}
+.node{background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:8px 11px;font-size:12.5px;box-shadow:0 1px 2px rgba(0,0,0,.03)}
+.node.risk{border-color:var(--critbd);background:var(--critbg);color:var(--crit);font-weight:600}
+.node.fix{border-color:var(--okbd);background:var(--okbg);color:var(--ok);font-weight:600}
+.arrow{color:var(--ink3);font-weight:700}
+.filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:14px;background:var(--bg);border:1px solid var(--line);padding:12px 14px;border-radius:12px}
+.f-btn{appearance:none;border:1px solid var(--line);background:var(--surface);color:var(--ink2);padding:5px 11px;border-radius:99px;font:600 12.5px/1.2 inherit;cursor:pointer}
+.f-btn.active{background:var(--ink);color:#fff;border-color:var(--ink)}
+.search-in{margin-left:auto;min-width:220px;flex:1;max-width:300px;padding:7px 11px;border:1px solid var(--line);border-radius:9px;font:13px inherit;background:var(--surface)}
+.search-in:focus{outline:2px solid var(--ink);background:#fff}
+.find{background:var(--bg);border:1px solid var(--line);border-left-width:5px;border-radius:12px;padding:14px 16px;margin-bottom:10px;box-shadow:0 1px 4px rgba(0,0,0,.03)}
+.find.sev-crit{border-left-color:var(--crit)}
+.find.sev-high{border-left-color:var(--bad)}
+.find.sev-med{border-left-color:#d97706}
+.find.sev-low{border-left-color:var(--info)}
+.find-head{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:6px}
+.find-title{font-weight:700;font-size:15px}
+.find-summary{margin:4px 0 8px;color:var(--ink2);font-size:13.5px}
+.find-files{font-size:12.5px;color:var(--ink2);margin-bottom:6px}
+details.find-det{margin-top:6px;border-top:1px dashed var(--line);padding-top:8px;font-size:13.5px}
+details.find-det summary{cursor:pointer;font-weight:600;color:var(--ink);font-size:12.5px;user-select:none}
+details.find-det p{margin:6px 0;color:var(--ink2)}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:top}
+th{font-size:11.5px;text-transform:uppercase;letter-spacing:.04em;color:var(--ink2)}
+td.r,th.r{text-align:right;white-space:nowrap}
+.scale-card{border-top:4px solid var(--warn)}
+.scale-card.s10k{border-top-color:var(--crit)}
+.scale-card.s100{border-top-color:#d97706}
+.pos-card{border-left:4px solid var(--ok)}
+.phase-col{background:var(--bg);border:1px solid var(--line);border-radius:var(--r);padding:16px}
+.phase-col ul{margin:8px 0 0;padding-left:18px;font-size:13px;color:var(--ink2)}
+.phase-col li{margin-bottom:6px}
+.empty-msg{padding:24px;text-align:center;color:var(--ink3);background:var(--bg);border:1px dashed var(--line);border-radius:12px;display:none}
+footer{margin-top:48px;color:var(--ink3);font-size:12.5px;border-top:1px solid var(--line);padding-top:16px}
+@media print{
+  body{background:#fff}
+  .actions,.filters{display:none!important}
+  .find{display:block!important;break-inside:avoid}
+  .card{box-shadow:none}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="top">
+    <div>
+      <h1>Tide – Sicherheits-, Architektur- &amp; Qualitäts-Audit</h1>
+      <p class="sub">27.11.2026 · App-Version <code class="mono">2.1.0</code> · Commit <code class="mono">e30a614</code> · Umfang: Web (<code class="mono">113.117</code> LOC) + Go-Cloud (<code class="mono">19.094</code> LOC) + Infra + MCP/Core</p>
+    </div>
+    <div class="actions">
+      <button class="btn" onclick="toggleAllDetails(true)">Alle Details öffnen</button>
+      <button class="btn" onclick="toggleAllDetails(false)">Details einklappen</button>
+      <button class="btn primary" onclick="window.print()">Als PDF drucken</button>
+    </div>
+  </header>
+
+  <section class="card">
+    <div class="hero">
+      <div class="ring">
+        <div>
+          <b class="num">57</b>
+          <span>von 100 Punkten</span>
+        </div>
+      </div>
+      <div>
+        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-bottom:8px">
+          <span class="tag t-med">Gesamturteil: Erhöhtes Risiko</span>
+          <span class="tag t-crit">4 Kritisch</span>
+          <span class="tag t-high">12 Hoch</span>
+          <span class="tag t-med">12 Mittel</span>
+          <span class="tag t-low">6 Niedrig</span>
+        </div>
+        <p style="margin:0;color:var(--ink2)">
+          Tide besitzt eine sehr solide technische Basis in Einzelbereichen (parametrisiertes SQL ohne SQLi, <code class="mono">os.OpenRoot</code>-Blob-Storage ohne Path-Traversal, <code class="mono">HS256</code>-JWT-Zwang, Argon2id-PINs und verbesserte Web-Performance mit <code class="mono">76/100</code> im Live-Run vom 24.11.). Gleichzeitig brechen <b>4 kritische Schwachstellen</b> das Zero-Knowledge-Schutzversprechen und die Mandanten-Isolation auf: Chat-Partner erhalten über <code class="mono">/messages/conversations</code> das <code class="mono">encrypted_vault</code> samt Salt bei nur 5-stelliger PIN (<code class="mono">K-01</code>), Titel/Kalender/Todos laufen im Klartext (<code class="mono">K-02</code>), die DEK-Rotation nach Share-Widerruf greift nicht (<code class="mono">K-03</code>), und Edit-Kollaboratoren bzw. External-API-Calls können E2EE-Schutz und CRDT-Historie aushebeln (<code class="mono">K-04</code>).
+        </p>
+      </div>
+    </div>
+
+    <div class="crit-strip">
+      <div class="crit-pill"><b>K-01 · Vault-Exfiltration &amp; 5-Digit-PIN</b><span style="color:var(--ink2)">Chat-Partner erhalten <code class="mono">encrypted_vault</code> + <code class="mono">encrypted_pepper</code> via <code class="mono">db.User</code>.</span></div>
+      <div class="crit-pill"><b>K-02 · Klartext-Metadaten &amp; Todos</b><span style="color:var(--ink2)">Titel, Tags, Safes, Kalendertermine &amp; alle <code class="mono">/todos</code> unverschlüsselt.</span></div>
+      <div class="crit-pill"><b>K-03 · Defekte DEK-Rotation</b><span style="color:var(--ink2)"><code class="mono">ShareModal</code> setzt <code class="mono">activeDEK</code> nicht; kein <code class="mono">onKeyRotated</code> im Editor.</span></div>
+      <div class="crit-pill"><b>K-04 · Kollaborator-Eskalation &amp; Downgrade</b><span style="color:var(--ink2)"><code class="mono">edit</code>-User kann <code class="mono">ResetFileCRDTState</code> + <code class="mono">derivePublicNoteDEK</code> triggern.</span></div>
+    </div>
+  </section>
+
+  <h2>1. Bewertung je Dimension &amp; Befund-Verteilung</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Gewichteter Score nach Fachbereich</h3>
+      <div class="bar"><span>Kryptografie &amp; E2EE (25 %)</span><div class="track"><div class="fill f-crit" style="width:48%"></div></div><span class="num">48 / 100</span></div>
+      <div class="bar"><span>Skalierbarkeit &amp; Infra (15 %)</span><div class="track"><div class="fill f-warn" style="width:52%"></div></div><span class="num">52 / 100</span></div>
+      <div class="bar"><span>Auth, AuthZ &amp; API (25 %)</span><div class="track"><div class="fill f-warn" style="width:56%"></div></div><span class="num">56 / 100</span></div>
+      <div class="bar"><span>Konsistenz &amp; Architektur (10 %)</span><div class="track"><div class="fill f-warn" style="width:61%"></div></div><span class="num">61 / 100</span></div>
+      <div class="bar"><span>Sauberkeit &amp; Tests (10 %)</span><div class="track"><div class="fill f-warn" style="width:63%"></div></div><span class="num">63 / 100</span></div>
+      <div class="bar"><span>Performance Web &amp; Go (15 %)</span><div class="track"><div class="fill f-ok" style="width:74%"></div></div><span class="num">74 / 100</span></div>
+      <p class="sub" style="margin-top:12px">Referenz: Live-Performance-Audit 24.11.2026 (<code class="mono">76/100</code>, Commit <code class="mono">0f18f76</code>).</p>
+    </div>
+
+    <div class="card">
+      <h3>34 Konsolidierte Befunde nach Schweregrad</h3>
+      <div class="donut-wrap">
+        <svg width="164" height="164" viewBox="0 0 164 164" aria-label="Befundverteilung">
+          <circle cx="82" cy="82" r="58" fill="none" stroke="#ededf0" stroke-width="24"/>
+          <!-- Umfang = 2 * pi * 58 = 364.42 -->
+          <!-- Kritisch 4/34 = 42.87 | Hoch 12/34 = 128.62 | Mittel 12/34 = 128.62 | Niedrig 6/34 = 64.31 -->
+          <circle cx="82" cy="82" r="58" fill="none" stroke="#991b1b" stroke-width="24" stroke-dasharray="42.87 364.42" stroke-dashoffset="0" transform="rotate(-90 82 82)"/>
+          <circle cx="82" cy="82" r="58" fill="none" stroke="#dc2626" stroke-width="24" stroke-dasharray="128.62 364.42" stroke-dashoffset="-42.87" transform="rotate(-90 82 82)"/>
+          <circle cx="82" cy="82" r="58" fill="none" stroke="#d97706" stroke-width="24" stroke-dasharray="128.62 364.42" stroke-dashoffset="-171.49" transform="rotate(-90 82 82)"/>
+          <circle cx="82" cy="82" r="58" fill="none" stroke="#2563eb" stroke-width="24" stroke-dasharray="64.31 364.42" stroke-dashoffset="-300.11" transform="rotate(-90 82 82)"/>
+          <text x="82" y="78" text-anchor="middle" font-size="28" font-weight="800" fill="#0e0e10">34</text>
+          <text x="82" y="98" text-anchor="middle" font-size="11.5" fill="#52525b">Befunde</text>
+        </svg>
+        <div class="legend">
+          <div class="legend-row"><span><i class="dot" style="background:#991b1b"></i>Kritisch</span><b class="num">4 (11,8 %)</b></div>
+          <div class="legend-row"><span><i class="dot" style="background:#dc2626"></i>Hoch</span><b class="num">12 (35,3 %)</b></div>
+          <div class="legend-row"><span><i class="dot" style="background:#d97706"></i>Mittel</span><b class="num">12 (35,3 %)</b></div>
+          <div class="legend-row"><span><i class="dot" style="background:#2563eb"></i>Niedrig / Hygiene</span><b class="num">6 (17,6 %)</b></div>
+        </div>
+      </div>
+      <div class="stack-bar" title="4 Kritisch · 12 Hoch · 12 Mittel · 6 Niedrig">
+        <div style="width:11.8%;background:#991b1b"></div>
+        <div style="width:35.3%;background:#dc2626"></div>
+        <div style="width:35.3%;background:#d97706"></div>
+        <div style="width:17.6%;background:#2563eb"></div>
+      </div>
+    </div>
+  </div>
+
+  <h2>2. Live-Telemetrie &amp; Qualitäts-Kennzahlen</h2>
+  <div class="grid g4">
+    <div class="card kpi">
+      <b class="num">132.211 LOC</b>
+      <span class="lbl">Produktivcode (592 Dateien)</span>
+      <div class="delta">Web: <span class="num">113.117</span> (<span class="num">541</span>) · Go: <span class="num">19.094</span> (<span class="num">51</span>)</div>
+    </div>
+    <div class="card kpi">
+      <b class="num" style="color:var(--ok)">87 / 87 PASS</b>
+      <span class="lbl">Go Backend Tests (<code class="mono">go test ./...</code>)</span>
+      <div class="delta"><code class="mono">internal/api</code> + <code class="mono">internal/store</code> · <span class="num">0</span> FAIL</div>
+    </div>
+    <div class="card kpi">
+      <b class="num" style="color:var(--warn)">1.351 / 1.355</b>
+      <span class="lbl">Vitest Web Tests (<span class="num">138/142</span> Dateien)</span>
+      <div class="delta"><span class="tag t-high">4 FAIL</span> u. a. <code class="mono">recovery.test.ts</code> (5s-Timeout)</div>
+    </div>
+    <div class="card kpi">
+      <b class="num" style="color:var(--ok)">0 Fehler</b>
+      <span class="lbl"><code class="mono">tsc --noEmit</code> &amp; <code class="mono">go vet ./...</code></span>
+      <div class="delta">Kompilierung &amp; statische Typprüfung sauber</div>
+    </div>
+    <div class="card kpi">
+      <b class="num" style="color:var(--bad)">574 Errors</b>
+      <span class="lbl">ESLint (<span class="num">959</span> Probleme gesamt)</span>
+      <div class="delta"><span class="tag t-high">+17 vs. Baseline 557</span> · <span class="num">481</span> <code class="mono">any</code>-Stellen</div>
+    </div>
+    <div class="card kpi">
+      <b class="num" style="color:var(--bad)">5 Vulns</b>
+      <span class="lbl"><code class="mono">npm audit --omit=dev</code></span>
+      <div class="delta"><span class="tag t-high">1 High</span> <code class="mono">serialize-javascript</code> · <span class="num">4</span> Mod</div>
+    </div>
+    <div class="card kpi">
+      <b class="num">47 Dateien</b>
+      <span class="lbl">Produktivdateien &gt; 500 LOC</span>
+      <div class="delta"><span class="num">41</span> Web (max <span class="num">1.597</span>) · <span class="num">6</span> Go (<code class="mono">sqlite.go</code> <span class="num">3.595</span>)</div>
+    </div>
+    <div class="card kpi">
+      <b class="num">253+ MB</b>
+      <span class="lbl">Build-Tarballs &amp; Public-Assets</span>
+      <div class="delta"><span class="num">189 MB</span> Tarballs in <code class="mono">web/</code> · <span class="num">64,13 MB</span> <code class="mono">web/public</code></div>
+    </div>
+  </div>
+
+  <h2>3. Kritische Risikoketten visuell (Defensives Architekturmodell)</h2>
+  <div class="card">
+    <div class="chain">
+      <h3>Kette A (<code class="mono">K-01</code>): Vault-Datenabfluss in Chat-Konversationen + Schwache 5-stellige PIN</h3>
+      <div class="chain-flow">
+        <div class="node">Chat-Partner authentifiziert</div>
+        <span class="arrow">→</span>
+        <div class="node"><code class="mono">GET /api/v1/messages/conversations</code></div>
+        <span class="arrow">→</span>
+        <div class="node risk"><code class="mono">GetConversations</code> lädt <code class="mono">encrypted_vault</code> &amp; <code class="mono">encrypted_pepper</code></div>
+        <span class="arrow">→</span>
+        <div class="node risk">Salt im JSON + <code class="mono">10^5</code> (5-Digit-PIN) Suchraum</div>
+        <span class="arrow">→</span>
+        <div class="node fix">Schutz: Partner-DTO ohne Vault + <code class="mono">json:"-"</code> + starke Passphrase</div>
+      </div>
+    </div>
+    <div class="chain">
+      <h3>Kette B (<code class="mono">K-04</code>): Kollaborator-Rechteeskalation &amp; stiller E2EE-Downgrade</h3>
+      <div class="chain-flow">
+        <div class="node"><code class="mono">edit</code>-Kollaborator einer Notiz</div>
+        <span class="arrow">→</span>
+        <div class="node risk"><code class="mono">PUT /files/{id}</code> setzt <code class="mono">unencrypted: true</code> / <code class="mono">deleted_at</code></div>
+        <span class="arrow">→</span>
+        <div class="node risk">Backend löscht CRDT-WAL (<code class="mono">ResetFileCRDTState</code>)</div>
+        <span class="arrow">→</span>
+        <div class="node risk">Client wechselt still zu <code class="mono">derivePublicNoteDEK(fileId)</code></div>
+        <span class="arrow">→</span>
+        <div class="node fix">Schutz: Owner-Only-Check im Backend + Downgrade-Sperre im Client</div>
+      </div>
+    </div>
+  </div>
+
+  <h2>4. Interaktiver Befund-Explorer <span class="sub" id="visible-count">34 von 34 Befunden angezeigt</span></h2>
+  <div class="filters">
+    <button class="f-btn active" data-sev="all" onclick="setSev('all', this)">Alle (34)</button>
+    <button class="f-btn" data-sev="crit" onclick="setSev('crit', this)">Kritisch (4)</button>
+    <button class="f-btn" data-sev="high" onclick="setSev('high', this)">Hoch (12)</button>
+    <button class="f-btn" data-sev="med" onclick="setSev('med', this)">Mittel (12)</button>
+    <button class="f-btn" data-sev="low" onclick="setSev('low', this)">Niedrig (6)</button>
+    <select id="cat-filter" class="f-btn" onchange="applyFilters()" aria-label="Kategorie filtern" style="padding:6px 10px">
+      <option value="all">Alle Kategorien</option>
+      <option value="e2ee">Sicherheit / E2EE</option>
+      <option value="backend">Backend / API / Store</option>
+      <option value="perf">Performance</option>
+      <option value="scale">Skalierbarkeit / Infra</option>
+      <option value="clean">Qualität / Sauberkeit</option>
+    </select>
+    <input id="search-box" class="search-in" type="search" placeholder="Suche nach ID, Datei, Symbol..." oninput="applyFilters()">
+  </div>
+
+  <div id="findings-list"></div>
+  <div id="empty-msg" class="empty-msg">Keine Befunde für die aktuelle Filterkombination gefunden.</div>
+
+  <h2>5. Skalierbarkeits-Horizont (100 → 1.000 → 10.000 Nutzer)</h2>
+  <div class="grid g3">
+    <div class="card scale-card s100">
+      <span class="tag t-med">~100 gleichzeitige Nutzer</span>
+      <h3 style="margin-top:8px">Schreib-Jitter &amp; Deploy-Abbrüche</h3>
+      <p class="sub"><b>Engpass:</b> <code class="mono">AppendYjsWAL</code> schreibt jeden CRDT-Frame synchron auf SQLite (<code class="mono">MaxOpenConns(1)</code>). Ungebuffertes <code class="mono">Broker.messages</code> blockiert HTTP-Handler. Fehlendes Graceful Shutdown (<code class="mono">main.go:467</code>) bricht Streams bei <code class="mono">pm2 reload</code> ab.</p>
+      <p class="sub" style="margin-top:8px"><b>Maßnahme:</b> WAL-Flush puffern (250–500 ms), SSE-Kanäle puffern, <code class="mono">SIGINT/SIGTERM</code>-Shutdown ergänzen.</p>
+    </div>
+    <div class="card scale-card">
+      <span class="tag t-high">~1.000 gleichzeitige Nutzer</span>
+      <h3 style="margin-top:8px">Full-Table-Scans &amp; Lock-Contention</h3>
+      <p class="sub"><b>Engpass:</b> <code class="mono">json_extract</code> ohne Index (<code class="mono">deleted_at</code>, <code class="mono">access_keys</code>); <code class="mono">recursive=true</code> zieht alle <code class="mono">public</code>-Dateien aller Nutzer; PAT-<code class="mono">last_used_at</code> schreibt bei jedem GET; fehlende SQL-<code class="mono">LIMIT</code>s.</p>
+      <p class="sub" style="margin-top:8px"><b>Maßnahme:</b> <code class="mono">deleted_at</code>-Spalte + Partial Index, <code class="mono">file_access_keys</code>-Tabelle, SQL-<code class="mono">LIMIT</code>s, 5-Min.-Drosselung für Token-Timestamps.</p>
+    </div>
+    <div class="card scale-card s10k">
+      <span class="tag t-crit">~10.000+ gleichzeitige Nutzer</span>
+      <h3 style="margin-top:8px">Single-Node-Decke erreicht</h3>
+      <p class="sub"><b>Engpass:</b> Prozesslokaler In-Memory-State (<code class="mono">GlobalHub</code>, <code class="mono">Broker</code>, <code class="mono">otpCache</code>, <code class="mono">wsTicketStore</code>, <code class="mono">IPRateLimiter</code>) + lokale SQLite + lokale Disk-Blobs verhindern Multi-Node-Betrieb. <code class="mono">IPRateLimiter</code> scannt ab 10k Einträgen <code class="mono">O(N)</code>; WS-Queues ohne Byte-Cap.</p>
+      <p class="sub" style="margin-top:8px"><b>Maßnahme:</b> Stateless Backend mit PostgreSQL + S3/R2 + Redis (Auth/Rate-Limit) + Redis/NATS Pub/Sub.</p>
+    </div>
+  </div>
+
+  <h2>6. Code-Qualität, Monolithen &amp; <code class="mono">AGENTS.md</code>-Compliance</h2>
+  <div class="grid g2">
+    <div class="card">
+      <h3>Top-8-Monolithen (&gt; 500 LOC Zielgrenze)</h3>
+      <div class="bar"><span><code class="mono">sqlite.go</code> (Go Store)</span><div class="track"><div class="fill f-crit" style="width:100%"></div></div><span class="num">3.595 L</span></div>
+      <div class="bar"><span><code class="mono">ChatPanel.tsx</code> (Web)</span><div class="track"><div class="fill f-high" style="width:44.4%;background:#dc2626"></div></div><span class="num">1.597 L</span></div>
+      <div class="bar"><span><code class="mono">globals.css</code> (Web CSS)</span><div class="track"><div class="fill f-warn" style="width:38.1%"></div></div><span class="num">1.370 L</span></div>
+      <div class="bar"><span><code class="mono">mentionSuggestion.tsx</code></span><div class="track"><div class="fill f-warn" style="width:36.8%"></div></div><span class="num">1.323 L</span></div>
+      <div class="bar"><span><code class="mono">quicknotes.go</code> (Go API)</span><div class="track"><div class="fill f-warn" style="width:33.3%"></div></div><span class="num">1.198 L</span></div>
+      <div class="bar"><span><code class="mono">bundleImportExport.ts</code></span><div class="track"><div class="fill f-warn" style="width:32.2%"></div></div><span class="num">1.157 L</span></div>
+      <div class="bar"><span><code class="mono">TodoList.tsx</code></span><div class="track"><div class="fill f-warn" style="width:30.9%"></div></div><span class="num">1.112 L</span></div>
+      <div class="bar"><span><code class="mono">notes/[slug]/page.tsx</code></span><div class="track"><div class="fill f-warn" style="width:30.8%"></div></div><span class="num">1.106 L</span></div>
+      <p class="sub" style="margin-top:10px">Positiv: <code class="mono">web/src/app/page.tsx</code> wurde bereits von 3.900 L auf <b>558 L</b> verschlankt.</p>
+    </div>
+
+    <div class="card" style="overflow-x:auto">
+      <h3>Regel- &amp; Konsistenz-Check (<code class="mono">AGENTS.md</code>)</h3>
+      <table>
+        <thead><tr><th>Prüfpunkt</th><th class="r">Messwert</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Direkte <code class="mono">fetch()</code>-Calls außerhalb <code class="mono">api.ts</code></td><td class="r num">6</td><td><span class="tag t-med">3 Dateien</span></td></tr>
+          <tr><td>Hardcoded Visual-Tokens (Hex/rgba/Blur/Radius)</td><td class="r num">1.135</td><td><span class="tag t-med">158 Dateien</span></td></tr>
+          <tr><td>Go API Fehlerformat (<code class="mono">http.Error</code> vs JSON)</td><td class="r num">484 : 11</td><td><span class="tag t-high">Inkonsistent</span></td></tr>
+          <tr><td>Legacy-<code class="mono">/api/</code>-Aufrufe statt <code class="mono">/api/v1/</code></td><td class="r num">19</td><td><span class="tag t-med">Veraltet</span></td></tr>
+          <tr><td>Whole-Store <code class="mono">useDataStore()</code> ohne Selektor</td><td class="r num">10 / 221</td><td><span class="tag t-med">inkl. Sidebar</span></td></tr>
+          <tr><td>Tote Dateien &amp; ungenutzte npm-Pakete</td><td class="r num">8 + 8</td><td><span class="tag t-low">Ballast</span></td></tr>
+          <tr><td>Dual-Crypto (<code class="mono">crypto.ts</code> / <code class="mono">cryptoV2.ts</code>)</td><td class="r num">32 / 14</td><td><span class="tag t-med">12+ doppelt</span></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <h2>7. Verifizierte Stärken (Positiv-Kontrollen)</h2>
+  <div class="grid g3">
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Keine klassische SQL-Injection</h3>
+      <p class="sub">Durchgängige <code class="mono">?</code>-Parameterbindung im Store; <code class="mono">LIKE</code>-Suchen nutzen <code class="mono">escapeLike</code> mit <code class="mono">ESCAPE '\'</code>.</p>
+    </div>
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Sichere Blob-Speicherung</h3>
+      <p class="sub"><code class="mono">blob.go</code> schützt über <code class="mono">validateBlobKey</code>, <code class="mono">os.OpenRoot</code> und atomares <code class="mono">Sync()+Rename</code> vor Path-Traversal.</p>
+    </div>
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Kein SSRF im Backend</h3>
+      <p class="sub">Keine unkontrollierten serverseitigen Outbound-HTTP-Anfragen in den Go-API-Handlern.</p>
+    </div>
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Solide Core-Auth &amp; WebAuthn</h3>
+      <p class="sub">Pflicht-<code class="mono">JWT_SECRET</code>, <code class="mono">HS256</code>-Pinning, Argon2id-PINs, <code class="mono">CloneWarning</code>-Ablehnung &amp; <code class="mono">CSRFMiddleware</code>.</p>
+    </div>
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Starke E2EE-Einzelbausteine</h3>
+      <p class="sub">RSA-4096 + AES-256-GCM (12B Nonces), Yjs-AAD-Framing, 160-Bit-Recovery-Secret &amp; Passkey-HKDF-Envelope.</p>
+    </div>
+    <div class="card pos-card">
+      <span class="tag t-ok">Bestanden</span>
+      <h3 style="margin-top:8px">Sicheres UI &amp; Build-Basis</h3>
+      <p class="sub">Avatar-SVGs via <code class="mono">&lt;img src&gt;</code>, Workbox <code class="mono">/api/</code> <code class="mono">NetworkOnly</code>, <code class="mono">tsc</code>=0, <code class="mono">go vet</code>=0, GC-Memory-Leak geschlossen.</p>
+    </div>
+  </div>
+
+  <h2>8. Priorisierter 4-Phasen-Maßnahmenplan</h2>
+  <div class="grid g4">
+    <div class="phase-col">
+      <span class="tag t-crit">Phase 0 · Sofort (24–48h)</span>
+      <h3 style="margin-top:8px">Blocker schließen</h3>
+      <ul>
+        <li><b>K-01:</b> Partner-DTO ohne Vault/Pepper in <code class="mono">GetConversations</code> + <code class="mono">json:"-"</code></li>
+        <li><b>K-03:</b> <code class="mono">setActiveDEK</code> &amp; <code class="mono">onKeyRotated</code> verdrahten</li>
+        <li><b>K-04:</b> Owner-Only für <code class="mono">ParentID</code>/<code class="mono">deleted_at</code>/<code class="mono">unencrypted</code> + External-API-Schutz</li>
+        <li><b>H-01/H-03:</b> Share-Status &amp; leere Scope-Suffixe fixen</li>
+        <li><b>H-04/H-09:</b> Quicknote-MIME-Allowlist, <code class="mono">SIGINT/SIGTERM</code> &amp; <code class="mono">sqlite3 .backup</code></li>
+      </ul>
+    </div>
+    <div class="phase-col">
+      <span class="tag t-high">Phase 1 · Woche 1–2</span>
+      <h3 style="margin-top:8px">E2EE &amp; Auth härten</h3>
+      <ul>
+        <li><b>K-02:</b> Titel, Safes, Kalender &amp; Todos auf V2-E2EE umstellen</li>
+        <li><b>H-02:</b> Store-<code class="mono">owner_id</code>-Checks &amp; CTE-Absicherung</li>
+        <li><b>H-05:</b> <code class="mono">localStorage</code>-Token &amp; <code class="mono">?token=</code> ablösen; Nonce-CSP</li>
+        <li><b>H-06/H-07:</b> Starke Passphrase + atomarer OTP-Lockout/Cooldown</li>
+        <li><b>H-08/H-10:</b> Profil-/Such-Leaks &amp; <code class="mono">apiFetch</code>-Header-Overwrite fixen</li>
+      </ul>
+    </div>
+    <div class="phase-col">
+      <span class="tag t-med">Phase 2 · Monat 1</span>
+      <h3 style="margin-top:8px">Perf &amp; Concurrency</h3>
+      <ul>
+        <li><b>H-11:</b> <code class="mono">fetchDirectory</code> splitten, inkrementelles ProseMirror, <code class="mono">Editor</code>-Remount entfernen</li>
+        <li><b>H-12:</b> WAL-Pufferung, gepufferter SSE-Broker, WS-Byte-Cap</li>
+        <li><b>M-01..M-08:</b> JWT-Widerruf, <code class="mono">HMAC</code>-Blind-Indizes, verschlüsselte <code class="mono">syncQueue</code></li>
+        <li><b>M-09..M-11:</b> Non-Root-Docker + Multi-Stage, SQLite-Indizes, PWA-Update</li>
+      </ul>
+    </div>
+    <div class="phase-col">
+      <span class="tag t-low">Phase 3 · Langfristig</span>
+      <h3 style="margin-top:8px">Hygiene &amp; 10k-Scale</h3>
+      <ul>
+        <li><b>N-01..N-05:</b> <code class="mono">189 MB</code> Tarballs &amp; tote Dateien löschen, Monolithen teilen</li>
+        <li><b>M-12:</b> Einheitliches <code class="mono">writeJSONError</code> &amp; <code class="mono">/api/v1/</code>-Migration</li>
+        <li><b>N-06:</b> Unit-Tests für <code class="mono">api.ts</code>, <code class="mono">crypto.ts</code>, <code class="mono">files*.go</code>, <code class="mono">websocket.go</code></li>
+        <li><b>Scale:</b> Migration auf PostgreSQL, S3/R2 &amp; Redis/NATS Pub/Sub</li>
+      </ul>
+    </div>
+  </div>
+
+  <footer>
+    Erstellt am 27.11.2026 für Tide <code class="mono">v2.1.0</code> (Commit <code class="mono">e30a614</code>). Vollständige technische Analyse und Referenzen im begleitenden Markdown-Bericht <code class="mono">docs/audit/2026-11-27-security-audit.md</code>.
+  </footer>
+</div>
+
+<script>
+const FINDINGS = [
+  {id:"K-01",sev:"crit",cat:"e2ee",title:"Cross-User Vault-Exfiltration über Chat-Konversationen + 5-stellige PIN",summary:"GetConversations selektiert encrypted_vault & encrypted_pepper des Partners und serialisiert sie ungeschützt über db.User; im Client sichert eine 5-stellige PIN (100.000 Varianten) das Vault.",files:"cloud/internal/api/messages.go:248-263 · cloud/internal/store/sqlite.go:2197-2239 · cloud/internal/db/models.go:19-20 · web/src/lib/crypto.ts:159-163,217-235 · web/src/app/auth/page.tsx:146-147",cause:"db.User hat kein json:\"-\" auf EncryptedVault/EncryptedPepper; encryptPrivateKey bettet das Klartext-Pepper als salt ein; Registrierung erlaubt 5-stellige Zahlen-PINs.",fix:"Dediziertes Partner-DTO ohne Vault/Pepper in GetConversations zurückgeben, json:\"-\" in models.go setzen und starke Passphrase + Argon2id erzwingen."},
+  {id:"K-02",sev:"crit",cat:"e2ee",title:"E2EE-Vertraulichkeitsbruch durch Klartext-Metadaten, Kalendertermine & Todos",summary:"Notiz-/Ordnertitel, Safes, Tags, komplette Kalendertermine und alle /api/v1/todos werden unverschlüsselt übertragen und in SQLite gespeichert.",files:"web/src/store/slices/createNotesSlice.ts:169,270,352 · web/src/store/slices/createTodosSlice.ts:8-36 · web/src/app/calendar/page.tsx:243-251,381-395 · web/src/hooks/dashboard/useNoteTags.ts:40 · cloud/internal/store/sqlite.go:232-244",cause:"Frontend schreibt sensitive Felder parallel zu secured_meta in unverschlüsseltes metadata bzw. an den Klartext-Todo-Endpunkt.",fix:"metadata auf technische/kryptografische Flags begrenzen; Titel, Tags, Safes, Kalenderdetails und Todos DEK-verschlüsselt ablegen."},
+  {id:"K-03",sev:"crit",cat:"e2ee",title:"Defekte DEK-Rotation bei Share-Widerruf (fehlende Forward Secrecy)",summary:"Nach Entfernen eines Kollaborators wird weiter mit dem alten DEK verschlüsselt; ohne offenen Editor droht zudem ein leerer Snapshot.",files:"web/src/components/ShareModal.tsx:454-528 · web/src/components/Editor.tsx:119-124,143-150,203 · web/src/lib/yjsE2EEProvider.ts:646-655 · web/src/lib/mentionShare.ts:116-119 · web/src/lib/calendarShareActions.ts:114-117",cause:"ShareModal ruft setActiveDEK(newDEK) nicht auf; Editor übergibt keinen onKeyRotated-Handler; newSecuredMeta nutzt inkompatibles Raw-Format; Mention/Kalender rotieren gar nicht.",fix:"setActiveDEK(newDEK) setzen, onKeyRotated im Editor verdrahten, kompletten Zustand vor Rotation laden und zentralen V2-Rotationsservice für alle Share-Typen nutzen."},
+  {id:"K-04",sev:"crit",cat:"e2ee",title:"Kollaborator-Eskalation (UpdateFile), External-API-SecuredMeta-Löschung & stiller E2EE-Downgrade",summary:"Ein edit-Kollaborator kann fremde Dateien umhängen, soft-löschen oder CRDT-Zustand löschen; der Client fällt dann still auf deterministischen Public-Key zurück.",files:"cloud/internal/api/files.go:344-537 · web/src/hooks/autoSaveHelpers.ts:385-400 · web/src/lib/cryptoV2.ts:716-728 · cloud/internal/api/external_events.go:283-304 · external_folders.go:336-343 · external_tags.go:214-224 · external_notes.go:491-570",cause:"UpdateFile erlaubt Kollaboratoren Änderungen an ParentID, metadata.deleted_at und metadata.unencrypted (triggert ResetFileCRDTState); External-API-Updates setzen SecuredMeta=nil.",fix:"ParentID/deleted_at/unencrypted strikt auf OwnerID beschränken, External-API-Writes auf E2EE-Objekte ablehnen und stilles Client-Downgrade blockieren."},
+  {id:"H-01",sev:"high",cat:"backend",title:"Store-Autorisierungs- & Datenleck in ListAccessibleFiles / ListPublicFiles",summary:"recursive=true zieht alle öffentlichen Dateien aller Nutzer; unakzeptierte Shares und public-Dateien leaken secured_meta und access_keys.",files:"cloud/internal/store/sqlite.go:1103-1200,1601-1764,2476-2541",cause:"Fehlendes AND fs.status = 'accepted' in Share-Joins, globaler OR visibility='public'-Filter und fehlende Redaktion von secured_meta/access_keys.",fix:"AND fs.status = 'accepted' erzwingen, globale public-Dateien aus ListAccessibleFiles entfernen und sensitive Spalten für Nicht-Kollaboratoren redigieren."},
+  {id:"H-02",sev:"high",cat:"backend",title:"Fehlende Ownership-Prüfungen & fremdnutzerübergreifende rekursive Ordner-Löschung",summary:"Store-Mutationen prüfen owner_id nicht im SQL; rekursive CTEs können Kinddateien anderer Nutzer in geteilten Ordnern löschen.",files:"cloud/internal/store/sqlite.go:1202-1356,1421-1444,2647-2678",cause:"UpdateFile*/DeleteFile/SoftDeleteFile/SetVisibilityRecursive filtern ohne owner_id und erlauben teils owner_id-Überschreibung.",fix:"callerID/ownerID in Store-Methoden, WHERE-Klauseln und rekursiven CTEs verpflichtend prüfen; owner_id aus SET entfernen."},
+  {id:"H-03",sev:"high",cat:"backend",title:"External-API Scope-Bypässe (leeres safe:/folder:, workspaces:write, linked_safes)",summary:"Leere Scope-Suffixe hebeln Filter aus, folder:-Tokens listen alle Workspaces, Workspace-Mutationen und linked_safes ignorieren Scope-Grenzen.",files:"cloud/internal/api/external.go:80-107,327-341,429-476 · external_workspaces.go:176-411 · external_notes.go:142-176,458-460",cause:"extractScopes verwirft leere Suffixe nach positivem Präfix-Match; Workspace-Handler prüfen safes/folders nicht; linked_safes gewähren Schreibrechte.",fix:"Leere Suffixe ablehnen, Workspace-Write-Endpunkte strikt gegen safes/folders prüfen, Writes an primärem Safe validieren."},
+  {id:"H-04",sev:"high",cat:"backend",title:"Unauthentifizierte Quicknotes: Ownership-Hijack, 2-GB-DoS & Active-Content-XSS",summary:"Anonyme Quicknotes sind nachträglich übernehmbar, Uploads erschöpfen 2-GB-Limit und reflektieren Client-Content-Type auf API-Origin.",files:"cloud/internal/api/quicknotes.go:99-111,208-218,240-263,624-828,865-919 · web/src/lib/quicknotesApi.ts:116-126",cause:"Unauthentifizierte Datei-Mutationen ohne Capability-Token, fehlende Magic-Byte-Prüfung, Titel-Leak im 403, keine WS-Eviction bei Lockdown, deterministischer Key.",fix:"Magic-Byte-Allowlist (sonst octet-stream + attachment), Claim-Sperre für anonyme Notes, Rate-Limits, Titel aus 403 entfernen."},
+  {id:"H-05",sev:"high",cat:"e2ee",title:"Session-Token im localStorage, Query-String-Tokens (?token=) & schwache CSP",summary:"JWTs/PATs liegen im localStorage und in SSE/WS/API-URLs; CSP erlaubt 'unsafe-inline' Scripts und connect-src zu beliebigen https:/wss:-Zielen.",files:"web/src/app/auth/page.tsx:338,503 · web/src/lib/api.ts:270-273 · web/src/components/Chat/ChatPanel.tsx:705 · cloud/internal/api/middleware.go:56-58 · websocket.go:518-520 · external.go:177 · web/next.config.ts:77-80",cause:"Doppelte Token-Haltung im localStorage neben HttpOnly-Cookie; URL-Token-Akzeptanz; fehlende CSP-Nonces.",fix:"Nur HttpOnly-Cookies verwenden, ?token=/?api_token= entfernen (nur Einmal-WS/SSE-Tickets), Nonce-CSP & striktes connect-src einführen."},
+  {id:"H-06",sev:"high",cat:"e2ee",title:"Schwache 5-stellige PIN-KDF & stille Legacy-Downgrades (100k PBKDF2 / SHA-256)",summary:"10^5 PIN-Suchraum auf servergespeichertem Vault+Pepper sowie stiller Fallback auf 100k PBKDF2-Iterationen und ungesalzene SHA-256-PINs.",files:"web/src/app/auth/page.tsx:146-147 · web/src/lib/crypto.ts:83-84,189-203,262-275 · cloud/internal/api/auth.go:187-200",cause:"Niedrige PIN-Entropie, impliziter KDF-Fallback im Catch-Block und verbleibender SHA-256-Legacy-Pfad.",fix:"Starke Passphrase mit Entropieprüfung + Argon2id, explizite KDF-Parameter speichern, SHA-256-PINs ausphasen."},
+  {id:"H-07",sev:"high",cat:"backend",title:"RequestOTP E-Mail-Bombing & VerifyOTP Lockout-Race-Condition",summary:"Fehlender Per-User-Cooldown beim OTP-Versand; parallele VerifyOTP-Requests umgehen die 5-Versuche-Sperre.",files:"cloud/internal/api/auth_otp.go:36-142,233-269 · cloud/internal/api/ratelimit.go:223-269",cause:"RequestOTP prüft keinen Account-Cooldown/Lockout; VerifyOTP führt IsLocked, Vergleich und RecordFailure nicht unter einem gemeinsamen Lock aus.",fix:"Account-Cooldown + Lockout-Check in RequestOTP; Fehlversuche atomar am otpEntry unter h.mu.Lock() zählen und beim 5. Fehlversuch löschen."},
+  {id:"H-08",sev:"high",cat:"backend",title:"Unauthentifiziertes Profil-/Public-Key-Scraping & SearchPublicData-Leck",summary:"GET /profiles/{userID} ist öffentlich und enumeriert IDs; SearchPublicData liefert private Profile, Papierkorb-Notizen und erlaubt E-Mail-Hash-Suche.",files:"cloud/internal/api/profiles.go:35-79 · cloud/internal/store/sqlite.go:2550-2591",cause:"Route außerhalb AuthMiddleware + 500 statt 404; fehlende Filter auf profile_status > 0, visibility='public' und deleted_at IS NULL.",fix:"Profilroute hinter AuthMiddleware legen, saubere 404 zurückgeben und SearchPublicData strikt auf öffentliche/aktive Datensätze begrenzen."},
+  {id:"H-09",sev:"high",cat:"scale",title:"Fehlendes Graceful Shutdown & Live-SQLite-Backup-Korruptionsrisiko",summary:"Server beendet bei SIGTERM/pm2 reload laufende Requests/SQLite hart; tide.sh archiviert die aktive WAL-Datenbank via cp/tar.",files:"cloud/cmd/server/main.go:445-469 · tide.sh:61-71,122",cause:"Direktes srv.ListenAndServe() ohne Signal-Handler/Shutdown/Close; Dateisystem-Kopie auf schreibender SQLite-WAL-DB.",fix:"signal.NotifyContext + srv.Shutdown + sqliteStore.Close() in main.go; tide.sh auf sqlite3 .backup umstellen."},
+  {id:"H-10",sev:"high",cat:"backend",title:"Fehlende group_ids/tag_ids-Validierung (External API) & apiFetch-Header-Overwrite",summary:"External API speichert fremde group_ids/tag_ids ungeprüft und erlaubt Nicht-Ordner als Parent; apiFetch überschreibt explizite OTP-Header.",files:"cloud/internal/api/external_events.go:180-201,362-416 · external_notes.go:461-463 · web/src/lib/api.ts:267-274",cause:"validateEventParent prüft FileTypeFolder nicht und deckt nicht alle IDs ab; apiFetch setzt localStorage-Bearer-Token bedingungslos.",fix:"Alle verlinkten IDs auf Existenz, Typ & Zugriff prüfen; in apiFetch Authorization nur setzen, wenn noch kein Header vorhanden ist."},
+  {id:"H-11",sev:"high",cat:"perf",title:"Frontend-Perf-Hotspots: fetchDirectory-Burst, ProseMirror-Scans & Editor-Remount",summary:"64–84 redundante List-GETs pro Batch, p95 362,6 ms bei Formeln/Emojis, harter Editor-Remount je Tab, 66 Root-Props & 10 Whole-Store-Abos.",files:"web/src/store/slices/createFsSlice.ts:249-315 · InlineFormulas.ts:166-171 · AnimatedEmoji.ts:20-51 · BlockId.ts:18-27 · Editor.tsx:47 · page.tsx:440-460 · Sidebar.tsx:84 · FolderItem.tsx:73",cause:"Pauschaler 4-fach-Fetch, Volldokument-Traversals auf jeder Transaktion, key={activeTabId} auf Editor und fehlende Selektoren/Memoization.",fix:"Granulare Slice-Refreshes + SSE-Debounce, inkrementelles DecorationSet.map(), key={activeTabId} entfernen, eventsByDay-Map & useShallow."},
+  {id:"H-12",sev:"high",cat:"scale",title:"Single-Node-Skalierungs- & Concurrency-Engpässe (SQLite, SSE, WS, Limiter)",summary:"Synchroner SQLite-Write je CRDT-Frame, blockierender ungebufferter SSE-Broker, 2,56-GB-WS-Puffer ohne Limits, O(N)-Limiter-Scan.",files:"cloud/internal/store/sqlite.go:45,2775 · external.go:157 · events.go:36-61,303 · websocket.go:402,576 · ratelimit.go:104-122",cause:"1-Connection-Writer wird mit Hochfrequenz-Writes belastet; ungebuffertem Broker und In-Memory-Hubs fehlen Limits/Eviction und Verteilschicht.",fix:"WAL puffern (250–500 ms), PAT-Timestamp drosseln, SSE puffern, WS-Connection/Byte-Limits setzen, mittelfristig Postgres/S3/Redis/NATS."},
+  {id:"M-01",sev:"med",cat:"backend",title:"Stateless 30-Tage-JWTs ohne serverseitigen Widerruf",summary:"Logout, PIN-Wechsel, Vault-Reset und Passkey-Löschung invalidieren aktive 30-Tage-JWTs nicht.",files:"cloud/internal/api/auth_otp.go:355-366 · dev_auth.go:272-276 · middleware.go:124-143",cause:"Fehlende jti-/token_version-Prüfung gegen Store oder Session-Store.",fix:"Kürzere Access-TTL + Refresh oder token_version pro User in AuthMiddleware prüfen."},
+  {id:"M-02",sev:"med",cat:"backend",title:"Globale Map-Erschöpfung, fehlende Body-Limits & WS-Origin/Ticket-Lücken",summary:"1 Nutzer kann globale 10k-Maps für keyChallenges/wsTickets verdrängen; WS-Tickets nicht an fileID gebunden; fehlende MaxBytesReader.",files:"cloud/internal/api/auth_challenge.go:96-111 · middleware.go:150-217,268-277 · websocket.go:34-83,505-549 · auth.go:205-216",cause:"Fehlende Per-User-Limits, ungebundene Tickets, permissiver checkOrigin-Fallback und fehlende Schema-Prüfung in CSRFMiddleware.",fix:"Per-Owner-Eviction, fileID-Bindung für WS-Tickets, striktes Origin-Schema und MaxBytesReader auf allen JSON-Endpunkten."},
+  {id:"M-03",sev:"med",cat:"backend",title:"Klartext-login_code ohne DB-TTL & ungesalzene SHA-256 Blind-Indizes",summary:"OTP-Codes stehen im Klartext ohne Ablaufdatum in der DB; Blind-Indizes sind ungesalzen und nicht case-normalisiert.",files:"cloud/internal/store/sqlite.go:121-123,937-951 · cloud/internal/api/auth.go:78-81",cause:"SetLoginCode speichert Rohtext; hashString nutzt unkeyed SHA-256 ohne Trim/Lowercase.",fix:"login_code hashen + login_code_expires_at ergänzen; E-Mails kanonisieren und HMAC-SHA256 mit Server-Pepper nutzen."},
+  {id:"M-04",sev:"med",cat:"backend",title:"API-Token-Härtung: Unvalidiertes safe:, unbegrenzte *-Tokens & events/tags-Scopes",summary:"safe:-Prefix bei Erstellung ungeprüft; beliebige *-Tokens ohne Fresh-Session; events/tags prüfen keine safe:/folder:-Scopes.",files:"cloud/internal/api/api_tokens.go:52-59,127-240 · external_events.go · external_tags.go",cause:"Fehlende UUID/Ownership-Prüfung für safe: und fehlender extractScopes-Check in events/tags.",fix:"safe:<uuid> validieren, Token-Limit pro User setzen, Step-Up für *-Tokens verlangen und Scopes in events/tags prüfen."},
+  {id:"M-05",sev:"med",cat:"backend",title:"Settings-Case-Bypass, Preference-Injection, getFileSafe & Zyklusprüfung",summary:"Gemischte Groß-/Kleinschreibung umgeht Settings-Validierung; getFileSafe leakt fremde Safe-Namen; UpdateFolder ohne visited-Map.",files:"cloud/internal/api/external_settings.go:209-271,414-464 · external.go:397-402 · external_folders.go:315-325",cause:"Case-sensitive Map-Prüfung vor case-insensitivem Unmarshal; Traversierung als file.OwnerID statt Caller.",fix:"DisallowUnknownFields, Case-Kollisionen blocken, getFileSafeForUser mit userID nutzen, visited-Map ergänzen."},
+  {id:"M-06",sev:"med",cat:"e2ee",title:"Client-PIN-Lock-Bypass (pinSecurity.ts) & defektes Teilen geschützter Dateien",summary:"100k PBKDF2 in Klartext-Metadata + änderbare sessionStorage-Sperre ohne pwd_iv; shareLogic verliert pwd_iv beim Teilen.",files:"web/src/lib/pinSecurity.ts:21-47,73-193 · autoSaveHelpers.ts:409-428 · web/src/lib/shareLogic.ts:45-153",cause:"Fehlendes Double-Wrapping bei PIN-Schutz und fehlende pwd_iv-Behandlung im Share-Flow.",fix:"Double-Wrapping (pwd_iv) + 600k PBKDF2 erzwingen und shareLogic für Custom-Passwords sauber implementieren."},
+  {id:"M-07",sev:"med",cat:"e2ee",title:"Unverschlüsselte Offline-syncQueue, Logout-Rückstände & Legacy-JWK-Listener",summary:"Offline-Mutationen liegen unverschlüsselt in IndexedDB; mehrere localStorage-Keys überleben Logout; totes storage-Event importiert JWKs.",files:"web/src/lib/syncQueue.ts:43-85 · web/src/lib/api.ts:53-78,145 · web/src/app/auth/page.tsx:178-202",cause:"syncQueue umgeht offlineCacheCrypto; unvollständige Cleanup-Liste; Altcode für tide_auth_signal.",fix:"syncQueue verschlüsseln, Logout-Liste vervollständigen und Legacy-JWK-Listener aus auth/page.tsx entfernen."},
+  {id:"M-08",sev:"med",cat:"backend",title:"TipTap Link-Schema-Prüfung & fehlerhaftes SSE-Presence-Scoping",summary:"javascript:-Links werden nur beim normalen Linksklick geblockt; SSE-Presence ignoriert Status=='accepted' und c.UserID.",files:"web/src/components/Editor/useTipTapConfig.ts:274,482-488 · cloud/internal/api/events.go:102-144",cause:"Fehlendes Link.configure({ isAllowedUri }); fehlerhafte Richtungs-/Statusprüfung in broadcastPresenceScoped.",fix:"Link-Schema über isAllowedUri absichern; Presence nur an akzeptierte Kontakte (UserID/ContactID) senden."},
+  {id:"M-09",sev:"med",cat:"scale",title:"Docker-, Proxy- & Download-Konfiguration (root, Dev-Mode, WriteTimeout)",summary:"Container laufen als root ohne HEALTHCHECK; web/Dockerfile startet npm run dev; DownloadPublicFile bricht nach 60s ab; Gzip auf Blobs.",files:"docker-compose.yml · cloud/Dockerfile · web/Dockerfile · web/next.config.ts:69,109-125 · files_blobs.go:207-263 · main.go:250",cause:"Fehlender Multi-Stage-Prod-Build & USER; fehlender SetWriteDeadline-Reset in DownloadPublicFile; hardcodiertes localhost-Rewrite.",fix:"Non-Root-Container + HEALTHCHECK, Next.js Prod-Build, SetWriteDeadline-Reset in DownloadPublicFile, Env-gestützte Rewrites."},
+  {id:"M-10",sev:"med",cat:"perf",title:"SQLite-Abfrage-, WAL-Compaction- & Blob-Storage-Ineffizienzen",summary:"json_extract-Full-Scans, fehlende LIMITs, N+1-DeleteFile, Reads auf s.DB, globale seq_id % 50, fehlendes ETag/Content-Length.",files:"cloud/internal/store/sqlite.go:561,1306-1353,1630-1635,2550-2572,2735-2768 · sqlite_notes.go:40-126 · files_blobs.go:104-205",cause:"Unindizierte JSON-Filter, Go-seitiges Slicing und globale WAL-Sequenzprüfung.",fix:"deleted_at-Spalte + Partial Index, file_access_keys, SQL-LIMIT, Pro-Datei-WAL-Zähler, ETag/Content-Length & asynchrones Backup."},
+  {id:"M-11",sev:"med",cat:"clean",title:"Abhängigkeits-, Test- & Subprojekt-Risiken (npm audit, Vitest, core/, mcp/)",summary:"5 Prod-Vulns (High: serialize-javascript via next-pwa), 4 Vitest-Fails (1.351/1.355), 16 offene Findings in core/ und fehlendes Timeout in mcp/.",files:"web/package.json · web/src/lib/recovery/__tests__/recovery.test.ts:110 · core/SECURITY_FINDINGS.md · mcp/src/client.ts:65",cause:"Veraltetes PWA-Build-Plugin, Test-Timeouts, archiviertes Rust-Subprojekt und fehlendes AbortSignal.timeout.",fix:"PWA-Paket aktualisieren/ersetzen, Vitest-Fails beheben, core/ klar als inaktiv trennen, Timeout in mcp/client.ts ergänzen."},
+  {id:"M-12",sev:"med",cat:"clean",title:"API-, Store- & Dual-Crypto-Inkonsistenzen",summary:"484 Plaintext-http.Error vs. 11 JSON-Errors, 19 Legacy-/api/-Calls, 22 Zustand-Stores, testCryptoV2 im Prod-Code & veraltetes AGENTS.md.",files:"cloud/internal/api/ · cloud/cmd/server/main.go:431-435 · web/src/lib/cryptoV2.ts:579 · web/src/store/useDataStore.ts · AGENTS.md",cause:"Organisches Wachstum ohne einheitliches Error-Helper-Pattern und unvollständige V1→V2-/v1-Migration.",fix:"writeJSONError einführen, /api/v1/ vereinheitlichen, testCryptoV2 in Testdatei auslagern und AGENTS.md aktualisieren."},
+  {id:"N-01",sev:"low",cat:"e2ee",title:"Produktions-Krypto-Logging & globale window.__tide*-Debug-Objekte",summary:"JWK-Export für Fingerprints, Klartext-Metadata im JSON-Fehlerlog und globale Schlüssel-/Dok-Referenzen auf window.",files:"web/src/lib/crypto.ts:55-58,303-404 · web/src/components/ShareModal.tsx:522 · web/src/components/Editor.tsx:76",cause:"Ungefilterte Debug-Logs und globale Test-/Hilfsvariablen auf window.",fix:"Krypto-Logs auf DEV begrenzen, Klartext aus Error-Logs streichen und window.__tideActiveDEK/YDoc entfernen."},
+  {id:"N-02",sev:"low",cat:"backend",title:"CRDT-DB-Fehler-Lecks, Account-/Datei-Enumeration & fehlende Root-Quota",summary:"Rohe err.Error()-Ausgaben an Clients, unterschiedliche 403/404/user_exists-Antworten und fehlendes Gesamtquota für Root-Uploads.",files:"cloud/internal/api/files_crdt.go:40,84,101 · files_blobs.go:61-92,242-245 · contacts.go:47-82 · auth_otp.go:49-65",cause:"Direkte Fehlerkonkatenation und fehlende Quota-Prüfung ohne parentFileID.",fix:"Generische Fehlertexte, einheitliche 404 bei DownloadPublicFile, Rate-Limit auf Lookups und Per-User-Speicherquota."},
+  {id:"N-03",sev:"low",cat:"backend",title:"Store-Defense-in-Depth-Lücken & JSON-Pfad-Hardening",summary:"Fehlende Caller-Prüfungen in Nebenmethoden (Shares, Backups, WAL, Links, Quicknotes), unescapte JSON-Pfade, N+1 in ValidateTabs.",files:"cloud/internal/store/sqlite.go:804-816,1421-1578,1801-1833,2138-2193 · sqlite_recovery.go:20-23 · tabs.go:38-86",cause:"Abhängigkeit von vorgeschalteten Handler-Checks und String-Formatierung für $.\"<userID>\".",fix:"userID-Format validieren/escapen, Caller-ID in Store-Methoden ergänzen und SetVisibility-Enum prüfen."},
+  {id:"N-04",sev:"low",cat:"e2ee",title:"Frontend-/Cookie-Randhärtungen (KaTeX-Limits, AuthGuard-Key, Cookie-Secure)",summary:"KaTeX ohne maxSize/maxExpand (Macro-DoS), falscher IDB-Key in AuthGuard, ungeschütztes X-Forwarded-Proto, fehlendes AAD bei Pepper.",files:"web/src/components/extensions/MathBlock.tsx:39-53 · AuthGuard.tsx:84 · middleware.go:125-127 · auth_challenge.go:49-63",cause:"Standardoptionen in KaTeX und veralteter Offline-Cache-Key.",fix:"KaTeX-Limits (maxSize: 10, maxExpand: 200) setzen, mirrorRead in AuthGuard nutzen und user.ID als AES-GCM-AAD binden."},
+  {id:"N-05",sev:"low",cat:"clean",title:"Code-Sauberkeit, 47 Monolithen >500 LOC & 253+ MB Repo-/Asset-Ballast",summary:"574 ESLint-Errors (+17), 481 any, 1.135 Hardcoded-Tokens, 6 Raw-fetch, 189 MB Build-Tarballs, tide.apk & 8 tote Dateien.",files:"web/dist-deploy.tar.gz · web/tide-next-build.tar.gz · web/public/tide.apk · WeekView.tsx · fileSupport.ts · useMobileSwipeGestures.ts",cause:"Liegengebliebene Build-Artefakte, unaufgeräumte Altkomponenten und fehlende Linter-Gates.",fix:"Tarballs/APK/tote Dateien/ungenutzte Pakete entfernen, Monolithen schneiden und ESLint-Fehlerzahl unter Baseline drücken."},
+  {id:"N-06",sev:"low",cat:"clean",title:"Kritische Test-Abdeckungslücken in Kernmodulen",summary:"Keine dedizierten Unit-Tests für zentrale File-, Share-, Blob-, WS- & Middleware-Handler sowie api.ts, crypto.ts, yjsE2EEProvider & Slices.",files:"cloud/internal/api/files*.go · websocket.go · middleware.go · web/src/lib/api.ts · crypto.ts · yjsE2EEProvider.ts",cause:"Testfokus lag auf Einzel-Features (Passkey, Recovery, Todos) statt auf den Haupt-Kernpfaden.",fix:"Gezielte Sicherheits- & Regressionstests für Auth-Middleware, Shares/Rotation, Blob-Limits und apiFetch-Offline-Sync ergänzen."}
+];
+
+const SEV_META = {
+  crit: {label:"Kritisch", cls:"t-crit", rowCls:"sev-crit"},
+  high: {label:"Hoch", cls:"t-high", rowCls:"sev-high"},
+  med:  {label:"Mittel", cls:"t-med", rowCls:"sev-med"},
+  low:  {label:"Niedrig", cls:"t-low", rowCls:"sev-low"}
+};
+const CAT_LABEL = {
+  e2ee:"Sicherheit / E2EE",
+  backend:"Backend / API / Store",
+  perf:"Performance",
+  scale:"Skalierbarkeit / Infra",
+  clean:"Qualität / Sauberkeit"
+};
+
+let currentSev = "all";
+
+function esc(s) {
+  return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");
+}
+
+function renderFindings() {
+  const host = document.getElementById("findings-list");
+  host.innerHTML = FINDINGS.map(f => {
+    const sm = SEV_META[f.sev];
+    const openAttr = f.sev === "crit" ? " open" : "";
+    return `<article class="find ${sm.rowCls}" data-sev="${f.sev}" data-cat="${f.cat}" data-text="${esc((f.id+" "+f.title+" "+f.summary+" "+f.files+" "+f.cause+" "+f.fix).toLowerCase())}">
+      <div class="find-head">
+        <code class="mono" style="font-weight:700">${esc(f.id)}</code>
+        <span class="tag ${sm.cls}">${sm.label}</span>
+        <span class="tag t-neu">${CAT_LABEL[f.cat]}</span>
+        <span class="find-title">${esc(f.title)}</span>
+      </div>
+      <p class="find-summary">${esc(f.summary)}</p>
+      <div class="find-files"><b>Orte:</b> <code>${esc(f.files)}</code></div>
+      <details class="find-det"${openAttr}>
+        <summary>Ursache &amp; konkrete Behebung anzeigen</summary>
+        <p><b>Ursache:</b> ${esc(f.cause)}</p>
+        <p><b>Behebung:</b> ${esc(f.fix)}</p>
+      </details>
+    </article>`;
+  }).join("");
+}
+
+function setSev(sev, btn) {
+  currentSev = sev;
+  document.querySelectorAll(".filters .f-btn[data-sev]").forEach(b => b.classList.remove("active"));
+  btn.classList.add("active");
+  applyFilters();
+}
+
+function applyFilters() {
+  const cat = document.getElementById("cat-filter").value;
+  const q = document.getElementById("search-box").value.trim().toLowerCase();
+  const cards = document.querySelectorAll("#findings-list .find");
+  let shown = 0;
+  cards.forEach(c => {
+    const okSev = currentSev === "all" || c.dataset.sev === currentSev;
+    const okCat = cat === "all" || c.dataset.cat === cat;
+    const okQ = !q || c.dataset.text.includes(q);
+    const vis = okSev && okCat && okQ;
+    c.style.display = vis ? "" : "none";
+    if (vis) shown++;
+  });
+  document.getElementById("visible-count").textContent = `${shown} von ${FINDINGS.length} Befunden angezeigt`;
+  document.getElementById("empty-msg").style.display = shown === 0 ? "block" : "none";
+}
+
+function toggleAllDetails(open) {
+  document.querySelectorAll("details.find-det").forEach(d => { d.open = open; });
+}
+
+renderFindings();
+</script>
+</body>
+</html>

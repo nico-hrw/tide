@@ -15,9 +15,9 @@ type User struct {
 	UsernameHash *string `json:"-" db:"username_blind_index"`
 	PhoneHash    *string `json:"-" db:"phone_blind_index"`
 
-	// Zero-Knowledge Encrypted Values
-	EncryptedVault  []byte `json:"encrypted_vault" db:"encrypted_vault"`
-	EncryptedPepper []byte `json:"encrypted_pepper" db:"encrypted_pepper"`
+	// Zero-Knowledge Encrypted Values (never serialized on generic db.User responses)
+	EncryptedVault  []byte `json:"-" db:"encrypted_vault"`
+	EncryptedPepper []byte `json:"-" db:"encrypted_pepper"`
 
 	// Legacy/Direct Access (May be mapped from API tokens rather than DB directly)
 	Username string `json:"username,omitempty" db:"username"`

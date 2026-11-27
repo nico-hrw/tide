@@ -369,11 +369,23 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 
 	// Update fields
 	if req.ParentID != nil {
+		oldParent := ""
+		if file.ParentID != nil {
+			oldParent = *file.ParentID
+		}
+		newParent := *req.ParentID
+		if newParent == "__none__" {
+			newParent = ""
+		}
+		if file.OwnerID != requesterID && newParent != oldParent {
+			http.Error(w, "Forbidden: only the owner can move this file", http.StatusForbidden)
+			return
+		}
 		// Sentinel: "__none__" means "set parent_id to NULL" (can't distinguish
 		// absent vs null with Go *string JSON parsing)
 		if *req.ParentID == "__none__" || *req.ParentID == "" {
 			file.ParentID = nil
-		} else {
+		} else if newParent != oldParent {
 			if *req.ParentID == id {
 				http.Error(w, "Cannot set file as its own parent", http.StatusBadRequest)
 				return
@@ -449,7 +461,8 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	var oldUnencrypted, newUnencrypted bool
 	if req.Metadata != nil {
 		var oldMeta, newMeta struct {
-			Unencrypted bool `json:"unencrypted"`
+			Unencrypted bool        `json:"unencrypted"`
+			DeletedAt   interface{} `json:"deleted_at"`
 		}
 		if len(file.Metadata) > 0 {
 			_ = json.Unmarshal(file.Metadata, &oldMeta)
@@ -459,6 +472,16 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		}
 		oldUnencrypted = oldMeta.Unencrypted
 		newUnencrypted = newMeta.Unencrypted
+		if file.OwnerID != requesterID {
+			if oldUnencrypted != newUnencrypted {
+				http.Error(w, "Forbidden: only the owner can change encryption mode", http.StatusForbidden)
+				return
+			}
+			if !hasDeletedAtValue(oldMeta.DeletedAt) && hasDeletedAtValue(newMeta.DeletedAt) {
+				http.Error(w, "Forbidden: only the owner can delete this file", http.StatusForbidden)
+				return
+			}
+		}
 		file.Metadata = req.Metadata
 	}
 	if req.AccessKeys != nil && file.OwnerID == requesterID {
@@ -526,7 +549,7 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Wipe stale CRDT snapshots & WAL entries when a note transitions between encrypted and unencrypted
-	if file.Type == db.FileTypeNote && oldUnencrypted != newUnencrypted {
+	if file.Type == db.FileTypeNote && file.OwnerID == requesterID && oldUnencrypted != newUnencrypted {
 		if resetter, ok := interface{}(h.Store).(interface {
 			ResetFileCRDTState(context.Context, string, bool) error
 		}); ok {
@@ -543,6 +566,16 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusOK)
 	json.NewEncoder(w).Encode(file)
+}
+
+func hasDeletedAtValue(v interface{}) bool {
+	if v == nil {
+		return false
+	}
+	if s, ok := v.(string); ok {
+		return strings.TrimSpace(s) != ""
+	}
+	return true
 }
 
 func decodeBase64OrRaw(s string) []byte {

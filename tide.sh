@@ -58,16 +58,26 @@ backup_data() {
     fi
 
     if [ -n "$active_data_dir" ]; then
-        # WAL-Checkpoint anstoßen falls sqlite3 CLI verfügbar ist
+        # Konsistentes SQLite-Hot-Backup via .backup statt direkter Dateikopie der laufenden WAL-DB
         if command -v sqlite3 >/dev/null 2>&1 && [ -f "$active_data_dir/tide.db" ]; then
-            sqlite3 "$active_data_dir/tide.db" "PRAGMA wal_checkpoint(TRUNCATE);" 2>/dev/null || true
+            sqlite3 "$active_data_dir/tide.db" ".backup '$backup_dir/tide.db'"
+        else
+            cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
         fi
 
-        # Archiv erzeugen (mit restriktiven Dateirechten)
+        # Archiv aus Blobs (ohne Live-SQLite-WAL-Dateien) + konsistenter DB-Kopie erzeugen
         (
             umask 077
-            tar -czf "$backup_dir/data.tar.gz" -C "$(dirname "$active_data_dir")" "$(basename "$active_data_dir")" 2>/dev/null
-            cp -a "$active_data_dir/tide.db"* "$backup_dir/" 2>/dev/null || true
+            local data_parent
+            local data_base
+            data_parent="$(dirname "$active_data_dir")"
+            data_base="$(basename "$active_data_dir")"
+            tar -czf "$backup_dir/data.tar.gz" \
+                --exclude="$data_base/tide.db" \
+                --exclude="$data_base/tide.db-wal" \
+                --exclude="$data_base/tide.db-shm" \
+                -C "$data_parent" "$data_base" \
+                -C "$backup_dir" "tide.db" 2>/dev/null
         )
         chmod 600 "$backup_dir/data.tar.gz" "$backup_dir"/tide.db* 2>/dev/null || true
 

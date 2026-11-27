@@ -179,7 +179,11 @@ func (h *ExternalHandler) ListWorkspaces(w http.ResponseWriter, r *http.Request)
 		writeExternalError(w, http.StatusUnauthorized, "Unauthorized", "Missing authenticated user")
 		return
 	}
-	safes, _ := extractScopes(r)
+	safes, folders := extractScopes(r)
+	if len(folders) > 0 && len(safes) == 0 {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Folder-scoped tokens cannot list all workspaces")
+		return
+	}
 	list, active, err := h.buildWorkspaceList(r.Context(), userID, safes)
 	if err != nil {
 		serverWorkspaceErr(w, "Failed to load workspaces")
@@ -195,6 +199,11 @@ func (h *ExternalHandler) CreateWorkspace(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	safes, folders := extractScopes(r)
+	if len(folders) > 0 {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Folder-scoped tokens cannot create workspaces")
+		return
+	}
 	var req struct {
 		Name   string `json:"name"`
 		Active *bool  `json:"active"`
@@ -206,6 +215,10 @@ func (h *ExternalHandler) CreateWorkspace(w http.ResponseWriter, r *http.Request
 	name, err := validateWorkspaceName(req.Name)
 	if err != nil {
 		badWorkspaceReq(w, err.Error())
+		return
+	}
+	if len(safes) > 0 && !safeInList(name, safes) {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Workspace does not match scoped token workspace")
 		return
 	}
 	if mergedSet[name] {
@@ -232,9 +245,18 @@ func (h *ExternalHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	safes, folders := extractScopes(r)
+	if len(folders) > 0 {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Folder-scoped tokens cannot modify workspaces")
+		return
+	}
 	oldName, err := parseWorkspaceURLParam(r)
 	if err != nil {
 		badWorkspaceReq(w, err.Error())
+		return
+	}
+	if len(safes) > 0 && !safeInList(oldName, safes) {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Workspace does not match scoped token workspace")
 		return
 	}
 	var req struct {
@@ -255,6 +277,10 @@ func (h *ExternalHandler) UpdateWorkspace(w http.ResponseWriter, r *http.Request
 		newName, err := validateWorkspaceName(*req.NewName)
 		if err != nil {
 			badWorkspaceReq(w, err.Error())
+			return
+		}
+		if len(safes) > 0 && !safeInList(newName, safes) {
+			writeExternalError(w, http.StatusForbidden, "Forbidden", "Target workspace does not match scoped token workspace")
 			return
 		}
 		if !mergedSet[oldName] {
@@ -321,6 +347,11 @@ func (h *ExternalHandler) SetActiveWorkspaces(w http.ResponseWriter, r *http.Req
 	if !ok {
 		return
 	}
+	safes, folders := extractScopes(r)
+	if len(folders) > 0 {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Folder-scoped tokens cannot modify workspaces")
+		return
+	}
 	var req struct {
 		ActiveWorkspaces []string `json:"active_workspaces"`
 	}
@@ -334,6 +365,10 @@ func (h *ExternalHandler) SetActiveWorkspaces(w http.ResponseWriter, r *http.Req
 		name, err := validateWorkspaceName(raw)
 		if err != nil {
 			badWorkspaceReq(w, err.Error())
+			return
+		}
+		if len(safes) > 0 && !safeInList(name, safes) {
+			writeExternalError(w, http.StatusForbidden, "Forbidden", "Workspace does not match scoped token workspace")
 			return
 		}
 		if !mergedSet[name] {
@@ -360,9 +395,18 @@ func (h *ExternalHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Request
 	if !ok {
 		return
 	}
+	safes, folders := extractScopes(r)
+	if len(folders) > 0 {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Folder-scoped tokens cannot delete workspaces")
+		return
+	}
 	name, err := parseWorkspaceURLParam(r)
 	if err != nil {
 		badWorkspaceReq(w, err.Error())
+		return
+	}
+	if len(safes) > 0 && !safeInList(name, safes) {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Workspace does not match scoped token workspace")
 		return
 	}
 	if name == "main" {
@@ -383,6 +427,10 @@ func (h *ExternalHandler) DeleteWorkspace(w http.ResponseWriter, r *http.Request
 			badWorkspaceReq(w, "Invalid target workspace for move_files_to")
 			return
 		}
+	}
+	if len(safes) > 0 && !safeInList(moveTo, safes) {
+		writeExternalError(w, http.StatusForbidden, "Forbidden", "Target workspace does not match scoped token workspace")
+		return
 	}
 	rec.Workspaces = removeWorkspaceFromSlice(rec.Workspaces, name)
 	if filtered := removeWorkspaceFromSlice(rec.ActiveWorkspaces, name); len(filtered) > 0 {

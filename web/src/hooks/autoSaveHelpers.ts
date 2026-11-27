@@ -382,10 +382,22 @@ export async function decryptNotePayload(params: {
         ? (() => { try { return JSON.parse(target.metadata); } catch { return {}; } })()
         : (target?.metadata || {});
 
+    const parsedAccessKeys = typeof target?.access_keys === 'string'
+        ? (() => { try { return JSON.parse(target.access_keys); } catch { return {}; } })()
+        : (target?.access_keys || {});
+    const hasEncryptedKeyMaterial = Boolean(
+        (typeof target?.secured_meta === 'string' && target.secured_meta.length > 0)
+        || (effectiveMyId && parsedAccessKeys?.[effectiveMyId]?.wrapped_key)
+    );
+
     const isExplicitlyUnencrypted = target?.visibility === 'public'
-        || target?.unencrypted === true
-        || target?.is_unencrypted === true
-        || parsedTargetMeta?.unencrypted === true;
+        || (
+            !hasEncryptedKeyMaterial && (
+                target?.unencrypted === true
+                || target?.is_unencrypted === true
+                || parsedTargetMeta?.unencrypted === true
+            )
+        );
 
     const fetchDownload = async () => {
         const res = await apiFetch(`/api/v1/files/${fileId}/download`);

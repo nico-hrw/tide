@@ -9,8 +9,10 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -441,16 +443,25 @@ func main() {
 	})
 	r.Get("/api/ws/quicknotes/{slug}", quicknoteHandler.ServeWs)
 
+	shutdownRootCtx, stopSignals := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stopSignals()
+
 	// Start background cleanup worker for trashed files older than 1 week
 	go func() {
 		ticker := time.NewTicker(1 * time.Hour)
+		defer ticker.Stop()
 		// Run once on startup:
-		if err := sqliteStore.PurgeOldTrashedFiles(context.Background(), blobStore); err != nil {
+		if err := sqliteStore.PurgeOldTrashedFiles(shutdownRootCtx, blobStore); err != nil {
 			log.Printf("[GC] Error purging old trashed files: %v", err)
 		}
-		for range ticker.C {
-			if err := sqliteStore.PurgeOldTrashedFiles(context.Background(), blobStore); err != nil {
-				log.Printf("[GC] Error purging old trashed files: %v", err)
+		for {
+			select {
+			case <-shutdownRootCtx.Done():
+				return
+			case <-ticker.C:
+				if err := sqliteStore.PurgeOldTrashedFiles(shutdownRootCtx, blobStore); err != nil {
+					log.Printf("[GC] Error purging old trashed files: %v", err)
+				}
 			}
 		}
 	}()
@@ -464,7 +475,35 @@ func main() {
 		WriteTimeout:      60 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}
-	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
-		log.Fatalf("Server failed to start: %v", err)
+
+	srvErrCh := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			srvErrCh <- err
+		}
+		close(srvErrCh)
+	}()
+
+	select {
+	case err, ok := <-srvErrCh:
+		if ok && err != nil {
+			log.Fatalf("Server failed to start: %v", err)
+		}
+	case <-shutdownRootCtx.Done():
+		log.Println("Shutdown signal received; draining connections...")
+		graceCtx, cancelGrace := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancelGrace()
+		if err := srv.Shutdown(graceCtx); err != nil {
+			log.Printf("HTTP server shutdown error: %v", err)
+		}
+		authLimiter.Stop()
+		otpVerifyLimiter.Stop()
+		searchLimiter.Stop()
+		quicknoteLimiter.Stop()
+		apiLimiter.Stop()
+		if err := sqliteStore.Close(); err != nil {
+			log.Printf("SQLite store close error: %v", err)
+		}
+		log.Println("Server stopped cleanly.")
 	}
 }

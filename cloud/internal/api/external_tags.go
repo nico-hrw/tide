@@ -204,6 +204,14 @@ func (h *ExternalHandler) UpdateTag(w http.ResponseWriter, r *http.Request) {
 		writeExternalError(w, http.StatusForbidden, "Forbidden", "Write permission required")
 		return
 	}
+	if isProtectedE2EEFile(file) {
+		writeExternalJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error":     "Bad Request",
+			"encrypted": true,
+			"message":   "Cannot overwrite an end-to-end encrypted tag via external API",
+		})
+		return
+	}
 	var req UpdateExternalTagRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeExternalError(w, http.StatusBadRequest, "Bad Request", "Invalid request body")

@@ -462,16 +462,31 @@ export default function ShareModal({
                 };
             }
 
-            // 3. Encode current Y.Doc, encrypt with newDEK via encryptSnapshot
-            const ydoc = useActiveNoteStore.getState().activeYDoc
-                || (typeof window !== "undefined" && (window as unknown as { __tideActiveYDoc?: Y.Doc }).__tideActiveYDoc)
-                || new Y.Doc();
+            // 3. Encode current Y.Doc, encrypt with newDEK via encryptSnapshot.
+            // Never silently overwrite an existing CRDT document with an empty Y.Doc.
+            const activeState = useActiveNoteStore.getState();
+            const isActiveInEditor = activeState.activeNoteId === fileId && activeState.activeYDoc != null;
+            let ydoc = isActiveInEditor ? activeState.activeYDoc : null;
+            if (!ydoc) {
+                const crdtRes = await apiFetch(`/api/v1/files/${fileId}/crdt-state`, { offline: 'never' });
+                if (crdtRes.ok) {
+                    const crdtState = await crdtRes.json().catch(() => null) as {
+                        snapshotCiphertext?: string;
+                        wal?: unknown[];
+                    } | null;
+                    if (crdtState && (crdtState.snapshotCiphertext || (Array.isArray(crdtState.wal) && crdtState.wal.length > 0))) {
+                        notifyError("Bitte öffne die Notiz zuerst im Editor, bevor du den Zugriff widerrufst.");
+                        return;
+                    }
+                }
+                ydoc = new Y.Doc();
+            }
             const stateBytes = Y.encodeStateAsUpdate(ydoc);
-            const currentEpoch = useActiveNoteStore.getState().keyEpoch || 1;
+            const currentEpoch = activeState.keyEpoch || 1;
             const newKeyEpoch = currentEpoch + 1;
             const snapshot = await encryptSnapshot(fileId, newKeyEpoch, newDEK, stateBytes);
 
-            // 4. Encrypt secured_meta with newDEK
+            // 4. Encrypt secured_meta with newDEK in standard V2 JSON format ({ data, iv })
             const iv = window.crypto.getRandomValues(new Uint8Array(12));
             const metaBytes = new TextEncoder().encode(JSON.stringify({ title: fileName }));
             const encryptedMeta = await window.crypto.subtle.encrypt(
@@ -479,10 +494,10 @@ export default function ShareModal({
                 newDEK,
                 metaBytes
             );
-            const combinedMeta = new Uint8Array(12 + encryptedMeta.byteLength);
-            combinedMeta.set(iv, 0);
-            combinedMeta.set(new Uint8Array(encryptedMeta), 12);
-            const newSecuredMeta = arrayBufferToBase64(combinedMeta.buffer);
+            const newSecuredMeta = JSON.stringify({
+                data: arrayBufferToBase64(encryptedMeta),
+                iv: arrayBufferToBase64(iv.buffer),
+            });
 
             // 5. Call POST /api/files/${noteId}/revoke-and-rotate
             const rotatePayload = {
@@ -516,10 +531,9 @@ export default function ShareModal({
             }
 
             // 6. Update activeDEK and keyEpoch in store
-            useActiveNoteStore.getState().setKeyEpoch(newKeyEpoch);
-            useActiveNoteStore.setState({ keyEpoch: newKeyEpoch } as Partial<import("@/store/activeNoteStore").ActiveNoteState>);
-            if (typeof window !== "undefined") {
-                (window as unknown as { __tideActiveDEK?: CryptoKey }).__tideActiveDEK = newDEK;
+            if (useActiveNoteStore.getState().activeNoteId === fileId) {
+                useActiveNoteStore.getState().setActiveDEK(newDEK);
+                useActiveNoteStore.getState().setKeyEpoch(newKeyEpoch);
             }
             useDataStore.getState().updateFileRaw(fileId, {
                 key_epoch: newKeyEpoch,

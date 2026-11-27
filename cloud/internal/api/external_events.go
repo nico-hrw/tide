@@ -232,6 +232,14 @@ func (h *ExternalHandler) UpdateEvent(w http.ResponseWriter, r *http.Request) {
 		writeExternalError(w, http.StatusForbidden, "Forbidden", "Write permission required")
 		return
 	}
+	if isProtectedE2EEFile(file) {
+		writeExternalJSON(w, http.StatusBadRequest, map[string]interface{}{
+			"error":     "Bad Request",
+			"encrypted": true,
+			"message":   "Cannot overwrite an end-to-end encrypted event via external API",
+		})
+		return
+	}
 	var req UpdateExternalEventRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeExternalError(w, http.StatusBadRequest, "Bad Request", "Invalid request body")

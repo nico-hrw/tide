@@ -1104,7 +1104,12 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 	query := `
 		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path,
 		       COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
-		       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
+		       CASE
+		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) THEN COALESCE(f.secured_meta, x'')
+		           WHEN fs.status = 'accepted' THEN COALESCE(fs.secured_meta, x'')
+		           WHEN pfs.status = 'accepted' THEN COALESCE(pfs.secured_meta, x'')
+		           ELSE x''
+		       END as secured_meta,
 		       CASE
 		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) THEN 'owner'
 		           WHEN fs.status IS NOT NULL THEN fs.status
@@ -1126,7 +1131,10 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		       END as can_reshare,
 		       COALESCE(f.version, 1) as version,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-		       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys,
+		       CASE
+		           WHEN f.owner_id = ? OR (parent.owner_id IS NOT NULL AND parent.owner_id = ?) OR fs.status = 'accepted' OR pfs.status = 'accepted' THEN COALESCE(NULLIF(f.access_keys, ''), '{}')
+		           ELSE '{}'
+		       END as access_keys,
 		       f.parent_file_id,
 		       COALESCE(f.key_epoch, 1) as key_epoch,
 		       COALESCE(f.snapshot_seq_id, 0) as snapshot_seq_id,
@@ -1139,6 +1147,8 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 		WHERE f.id = ?
 	`
 	row := s.readDB().QueryRowContext(ctx, query,
+		viewerID, viewerID,
+		viewerID, viewerID,
 		viewerID, viewerID,
 		viewerID, viewerID,
 		viewerID, viewerID,
@@ -1603,19 +1613,22 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 	var err error
 
 	typeFilter := ""
-	args := []interface{}{}
-	args = append(args, viewerID) // for permission CASE owner check
-
 	if filterType != nil {
 		typeFilter = " AND f.type = ? "
 	}
 
-	if recursive {
-		// Flat list of EVERYTHING accessible (Owned, Shared)
-		query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
-			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
-			       COALESCE(fs.status, 'owner') as share_status,
+	const selectCols = `
+			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+			       CASE
+			           WHEN f.owner_id = ? THEN COALESCE(f.secured_meta, x'')
+			           WHEN fs.user_id IS NOT NULL THEN COALESCE(fs.secured_meta, x'')
+			           ELSE x''
+			       END as secured_meta,
+			       CASE
+			           WHEN f.owner_id = ? THEN 'owner'
+			           WHEN fs.status IS NOT NULL THEN fs.status
+			           ELSE ''
+			       END as share_status,
 			       CASE
 			           WHEN f.owner_id = ? THEN 'owner'
 			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
@@ -1624,48 +1637,40 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			       COALESCE(fs.can_reshare, 0) as can_reshare,
 			       COALESCE(f.version, 1) as version,
 			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+			       CASE
+			           WHEN f.owner_id = ? OR fs.status = 'accepted' THEN COALESCE(NULLIF(f.access_keys, ''), '{}')
+			           ELSE '{}'
+			       END as access_keys`
+
+	if recursive {
+		// Flat list of everything owned by or shared with the viewer (never global public files of other users).
+		query := selectCols + `
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE (
-				f.owner_id = ? 
+				f.owner_id = ?
 				OR fs.user_id = ?
-				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL ` + typeFilter + `
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 		`
-
-		args = append(args, viewerID, viewerID, viewerID, viewerID)
+		args := []interface{}{viewerID, viewerID, viewerID, viewerID, viewerID, viewerID, viewerID, viewerID}
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
 		rows, err = s.readDB().QueryContext(ctx, query, args...)
 	} else if parentID != nil {
-		query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta, 
-			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
-			       COALESCE(fs.status, 'owner') as share_status,
-			       CASE
-			           WHEN f.owner_id = ? THEN 'owner'
-			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
-			           ELSE 'view'
-			       END as permission,
-			       COALESCE(fs.can_reshare, 0) as can_reshare,
-			       COALESCE(f.version, 1) as version,
-			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+		query := selectCols + `
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.parent_id = ? ` + typeFilter + ` AND (
-				f.owner_id = ? 
+				f.owner_id = ?
 				OR fs.user_id = ?
-				OR COALESCE(f.visibility, 'private') = 'public'
 				OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL
 			) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 		`
-		args = append(args, viewerID, *parentID)
+		args := []interface{}{viewerID, viewerID, viewerID, viewerID, viewerID, *parentID}
 		if filterType != nil {
 			args = append(args, *filterType)
 		}
@@ -1675,40 +1680,16 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 		// Root (Traditional)
 		if filterType != nil && *filterType == "event" {
 			// Special case for Calendar: Fetch global events if type=event
-			query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
-			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
-			       COALESCE(fs.status, 'owner') as share_status,
-			       CASE
-			           WHEN f.owner_id = ? THEN 'owner'
-			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
-			           ELSE 'view'
-			       END as permission,
-			       COALESCE(fs.can_reshare, 0) as can_reshare,
-			       COALESCE(f.version, 1) as version,
-			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+			query := selectCols + `
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE f.type = ? AND (f.owner_id = ? OR fs.user_id = ? OR json_extract(COALESCE(NULLIF(f.access_keys, ''), '{}'), '$."' || ? || '"') IS NOT NULL) AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
-			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, *filterType, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID, viewerID, *filterType, viewerID, viewerID, viewerID)
 		} else {
 			// Normal folder listing
-			query := `
-			SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path, COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
-			       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
-			       COALESCE(fs.status, 'owner') as share_status,
-			       CASE
-			           WHEN f.owner_id = ? THEN 'owner'
-			           WHEN fs.status = 'accepted' AND fs.permission IS NOT NULL AND fs.permission != '' THEN fs.permission
-			           ELSE 'view'
-			       END as permission,
-			       COALESCE(fs.can_reshare, 0) as can_reshare,
-			       COALESCE(f.version, 1) as version,
-			       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-			       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+			query := selectCols + `
 			FROM files f
 			LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 			WHERE ((f.owner_id = ? AND f.parent_id IS NULL)
@@ -1717,7 +1698,7 @@ func (s *SQLiteStore) ListAccessibleFiles(ctx context.Context, viewerID string, 
 			AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 			ORDER BY (f.type = 'folder') DESC, f.updated_at DESC, f.created_at DESC, f.id ASC
 			`
-			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID, viewerID)
+			rows, err = s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, viewerID, viewerID, viewerID, viewerID, viewerID)
 		}
 	}
 
@@ -2196,7 +2177,7 @@ func (s *SQLiteStore) GetBacklinks(ctx context.Context, targetID string) ([]db.L
 
 func (s *SQLiteStore) GetConversations(ctx context.Context, userID string) ([]*db.User, error) {
 	query := `
-		SELECT u.id, u.email_blind_index, u.username_blind_index, u.phone_blind_index, u.encrypted_vault, u.encrypted_pepper, u.public_key, COALESCE(u.enabled_extensions, '[]') as enabled_extensions, u.created_at, COALESCE(u.is_verified, 0) as is_verified
+		SELECT u.id, COALESCE(u.username, '') as username, u.public_key, COALESCE(u.enabled_extensions, '[]') as enabled_extensions, u.created_at, COALESCE(u.is_verified, 0) as is_verified
 		FROM users u
 		JOIN (
 			SELECT 
@@ -2220,11 +2201,7 @@ func (s *SQLiteStore) GetConversations(ctx context.Context, userID string) ([]*d
 		var ext string
 		if err := rows.Scan(
 			&u.ID,
-			&u.EmailHash,
-			&u.UsernameHash,
-			&u.PhoneHash,
-			&u.EncryptedVault,
-			&u.EncryptedPepper,
+			&u.Username,
 			&u.PublicKey,
 			&ext,
 			&u.CreatedAt,
@@ -2485,13 +2462,20 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 
 	query := `
 		SELECT f.id, f.owner_id, f.parent_id, f.type, f.mime_type, f.size, f.created_at, f.updated_at, f.blob_path,
-		       COALESCE(f.visibility, 'private') as visibility, f.public_meta,
-		       COALESCE(fs.secured_meta, f.secured_meta, x'') as secured_meta,
+		       COALESCE(f.visibility, 'private') as visibility, COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+		       CASE
+		           WHEN f.owner_id = ? THEN COALESCE(f.secured_meta, x'')
+		           WHEN fs.status = 'accepted' THEN COALESCE(fs.secured_meta, x'')
+		           ELSE x''
+		       END as secured_meta,
 		       COALESCE(f.version, 1) as version,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-		       COALESCE(NULLIF(f.access_keys, ''), '{}') as access_keys
+		       CASE
+		           WHEN f.owner_id = ? OR fs.status = 'accepted' THEN COALESCE(NULLIF(f.access_keys, ''), '{}')
+		           ELSE '{}'
+		       END as access_keys
 		FROM files f
-		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
+		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ? AND fs.status = 'accepted'
 		WHERE f.owner_id = ? AND (
 			COALESCE(f.visibility, 'private') = 'public' 
 			OR (? = 1 AND COALESCE(f.visibility, 'private') = 'contacts')
@@ -2504,7 +2488,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 		isContactVal = 1
 	}
 
-	rows, err := s.readDB().QueryContext(ctx, query, viewerID, ownerID, isContactVal, viewerID)
+	rows, err := s.readDB().QueryContext(ctx, query, viewerID, viewerID, viewerID, ownerID, isContactVal, viewerID)
 	if err != nil {
 		return nil, err
 	}
@@ -2513,7 +2497,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 	var results []*db.File
 	for rows.Next() {
 		var f db.File
-		var md, ak string
+		var md, ak, pm string
 		if err := rows.Scan(
 			&f.ID,
 			&f.OwnerID,
@@ -2525,7 +2509,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 			&f.UpdatedAt,
 			&f.BlobPath,
 			&f.Visibility,
-			&f.PublicMeta,
+			&pm,
 			&f.SecuredMeta,
 			&f.Version,
 			&md,
@@ -2533,6 +2517,7 @@ func (s *SQLiteStore) ListPublicFiles(ctx context.Context, ownerID string, viewe
 		); err != nil {
 			return nil, err
 		}
+		f.PublicMeta = json.RawMessage(pm)
 		f.Metadata = json.RawMessage(md)
 		f.AccessKeys = json.RawMessage(ak)
 		results = append(results, &f)
