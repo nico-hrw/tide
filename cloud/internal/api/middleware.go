@@ -52,12 +52,7 @@ func AuthMiddleware(next http.Handler) http.Handler {
 			tokenString = strings.TrimPrefix(authHeader, "Bearer ")
 		}
 
-		// 2. Fallback to 'token' query parameter (for SSE/EventSource)
-		if tokenString == "" {
-			tokenString = r.URL.Query().Get("token")
-		}
-
-		// 3. Fallback to session cookie
+		// 2. Fallback to session cookie (never accept session JWTs in URL query strings)
 		if tokenString == "" {
 			if cookie, err := r.Cookie("tide_session"); err == nil {
 				tokenString = cookie.Value

@@ -266,7 +266,7 @@ async function apiFetchInner(url: string, rawOptions: ApiFetchOptions = {}): Pro
     try {
         const headers: Record<string, string> = { ...(options.headers as Record<string, string>) };
         headers["X-Requested-With"] = "Tide";
-        if (typeof window !== 'undefined') {
+        if (typeof window !== 'undefined' && !headers["Authorization"] && !headers["authorization"]) {
             const token = localStorage.getItem("tide_session_token");
             if (token) {
                 headers["Authorization"] = `Bearer ${token}`;

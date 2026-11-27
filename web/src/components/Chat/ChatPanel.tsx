@@ -698,11 +698,9 @@ export default function ChatPanel({ privateKey, onOpenFile, onOpenCalendar, onOp
     // Prevent double-pushing same incoming message from multiple SSE events connecting/disconnecting
     const pushedMessageIdsRef = useRef<Set<string>>(new Set());
 
-    // SSE Connection
+    // SSE Connection (cookie-authenticated; never put session tokens in URL query strings)
     useEffect(() => {
-        const token = sessionStorage.getItem("tide_session_token") || localStorage.getItem("tide_session_token");
-        // Bypass Next.js proxy rewrite by calling the backend URL directly to prevent Next.js proxy timeout (ECONNRESET)
-        const eventSource = new EventSource(`${getApiBase()}/api/v1/events?user_id=${myId}&token=${token}`);
+        const eventSource = new EventSource(`${getApiBase()}/api/v1/events?user_id=${encodeURIComponent(myId)}`, { withCredentials: true });
 
         eventSource.onmessage = async (event) => {
             try {

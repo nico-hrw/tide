@@ -171,16 +171,13 @@ func authenticatePAT(w http.ResponseWriter, r *http.Request, s *store.SQLiteStor
 	return r.WithContext(ctx), true
 }
 
-// APITokenAuth middleware validates Bearer, X-API-Key, or ?api_token= tokens against api_tokens.
+// APITokenAuth middleware validates Bearer or X-API-Key header tokens against api_tokens.
 func APITokenAuth(s *store.SQLiteStore, requiredScopes ...string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			tokenString := extractBearer(r)
 			if tokenString == "" {
 				tokenString = strings.TrimSpace(r.Header.Get("X-API-Key"))
-			}
-			if tokenString == "" {
-				tokenString = strings.TrimSpace(r.URL.Query().Get("api_token"))
 			}
 			if tokenString == "" {
 				writeExternalError(w, http.StatusUnauthorized, "Unauthorized",
@@ -199,9 +196,6 @@ func DualAuthMiddleware(s *store.SQLiteStore, requiredScopes ...string) func(htt
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			explicitPAT := strings.TrimSpace(r.Header.Get("X-API-Key"))
-			if explicitPAT == "" {
-				explicitPAT = strings.TrimSpace(r.URL.Query().Get("api_token"))
-			}
 			bearerVal := extractBearer(r)
 			if explicitPAT == "" && strings.HasPrefix(bearerVal, "tide_pat_") {
 				explicitPAT = bearerVal

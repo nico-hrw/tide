@@ -7,6 +7,7 @@ export interface EncryptedPrivateKey {
     salt: string; // Base64
     iv: string;   // Base64
     ciphertext: string; // Base64
+    iterations?: number;
 }
 
 export interface EncryptedFile {
@@ -140,7 +141,12 @@ export async function importPrivateKey(
 
 // 3. Encrypt Private Key
 // Wraps the Master Private Key with the Derived Key.
-export async function encryptPrivateKey(privateKey: CryptoKey, derivedKey: CryptoKey, salt: ArrayBuffer): Promise<EncryptedPrivateKey> {
+export async function encryptPrivateKey(
+    privateKey: CryptoKey,
+    derivedKey: CryptoKey,
+    salt: ArrayBuffer,
+    iterations: number = DEFAULT_PBKDF2_ITERATIONS
+): Promise<EncryptedPrivateKey> {
     const iv = window.crypto.getRandomValues(new Uint8Array(12));
 
     // Export Private Key to PKCS#8
@@ -160,6 +166,7 @@ export async function encryptPrivateKey(privateKey: CryptoKey, derivedKey: Crypt
         salt: arrayBufferToBase64(salt),
         iv: arrayBufferToBase64(iv.buffer),
         ciphertext: arrayBufferToBase64(ciphertext),
+        iterations,
     };
 }
 
@@ -174,10 +181,12 @@ export async function decryptPrivateKey(
     const salt = base64ToArrayBuffer(encryptedKey.salt);
     const iv = base64ToArrayBuffer(encryptedKey.iv);
     const ciphertext = base64ToArrayBuffer(encryptedKey.ciphertext);
+    const hasExplicitIterations = typeof encryptedKey.iterations === "number" && encryptedKey.iterations >= LEGACY_PBKDF2_ITERATIONS;
+    const effectiveIterations = hasExplicitIterations ? encryptedKey.iterations! : iterations;
 
     let privateKeyData: ArrayBuffer;
     try {
-        const derivedKey = await deriveKeyFromPassword(password, salt, iterations);
+        const derivedKey = await deriveKeyFromPassword(password, salt, effectiveIterations);
         privateKeyData = await window.crypto.subtle.decrypt(
             {
                 name: "AES-GCM",
@@ -188,7 +197,7 @@ export async function decryptPrivateKey(
         );
     } catch (err) {
         // Fallback for backwards compatibility with legacy 100k iterations
-        if (iterations === DEFAULT_PBKDF2_ITERATIONS) {
+        if (!hasExplicitIterations && iterations === DEFAULT_PBKDF2_ITERATIONS) {
             const legacyKey = await deriveKeyFromPassword(password, salt, LEGACY_PBKDF2_ITERATIONS);
             privateKeyData = await window.crypto.subtle.decrypt(
                 {
@@ -229,7 +238,7 @@ export async function generateUserVault(
     const derivedKey = await deriveKeyFromPassword(pin, salt, iterations);
 
     // 4. Encrypt Private Key with KEK
-    const encryptedVault = await encryptPrivateKey(masterKeys.privateKey, derivedKey, salt);
+    const encryptedVault = await encryptPrivateKey(masterKeys.privateKey, derivedKey, salt, iterations);
 
     return { masterKeys, encryptedVault };
 }
@@ -247,10 +256,12 @@ export async function unlockVault(
     // Decrypt the vault
     const iv = base64ToArrayBuffer(encryptedVault.iv);
     const ciphertext = base64ToArrayBuffer(encryptedVault.ciphertext);
+    const hasExplicitIterations = typeof encryptedVault.iterations === "number" && encryptedVault.iterations >= LEGACY_PBKDF2_ITERATIONS;
+    const effectiveIterations = hasExplicitIterations ? encryptedVault.iterations! : iterations;
 
     let privateKeyData: ArrayBuffer;
     try {
-        const derivedKey = await deriveKeyFromPassword(pin, salt, iterations);
+        const derivedKey = await deriveKeyFromPassword(pin, salt, effectiveIterations);
         privateKeyData = await window.crypto.subtle.decrypt(
             {
                 name: "AES-GCM",
@@ -260,7 +271,7 @@ export async function unlockVault(
             ciphertext
         );
     } catch (err) {
-        if (iterations === DEFAULT_PBKDF2_ITERATIONS) {
+        if (!hasExplicitIterations && iterations === DEFAULT_PBKDF2_ITERATIONS) {
             const legacyKey = await deriveKeyFromPassword(pin, salt, LEGACY_PBKDF2_ITERATIONS);
             privateKeyData = await window.crypto.subtle.decrypt(
                 {

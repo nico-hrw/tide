@@ -199,6 +199,10 @@ func (h *ExternalHandler) CreateEvent(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	if code, msg := h.validateEventGroupIDs(r.Context(), userID, groupIDs); code != 0 {
+		writeExternalError(w, code, http.StatusText(code), msg)
+		return
+	}
 	metaMap := map[string]interface{}{
 		"has_custom_password": false, "unencrypted": true, "author": "external_api",
 		"title": title, "start": startNorm, "end": endNorm, "allDay": req.AllDay,
@@ -395,14 +399,14 @@ func (h *ExternalHandler) syncEventParentAndGroups(w http.ResponseWriter, ctx co
 		}
 	}
 	if incoming != nil {
+		if code, msg := h.validateEventGroupIDs(ctx, userID, *incoming); code != 0 {
+			writeExternalError(w, code, http.StatusText(code), msg)
+			return false
+		}
 		metaMap["groupIds"] = *incoming
 		if req.ParentID == nil {
 			if len(*incoming) > 0 && (file.ParentID == nil || *file.ParentID == "") {
 				p := (*incoming)[0]
-				if code, msg := h.validateEventParent(ctx, userID, p); code != 0 {
-					writeExternalError(w, code, http.StatusText(code), msg)
-					return false
-				}
 				file.ParentID = &p
 			} else if len(*incoming) == 0 {
 				file.ParentID = nil
@@ -412,10 +416,27 @@ func (h *ExternalHandler) syncEventParentAndGroups(w http.ResponseWriter, ctx co
 	return true
 }
 
+func (h *ExternalHandler) validateEventGroupIDs(ctx context.Context, userID string, groupIDs []string) (int, string) {
+	seen := make(map[string]bool, len(groupIDs))
+	for _, gid := range groupIDs {
+		if seen[gid] {
+			continue
+		}
+		seen[gid] = true
+		if code, msg := h.validateEventParent(ctx, userID, gid); code != 0 {
+			return code, msg
+		}
+	}
+	return 0, ""
+}
+
 func (h *ExternalHandler) validateEventParent(ctx context.Context, userID, parentID string) (int, string) {
 	pf, err := h.Store.GetAccessibleFile(ctx, parentID, userID)
 	if err != nil || isEventSoftDeleted(pf) {
 		return http.StatusBadRequest, "Parent not found or access denied"
+	}
+	if pf.Type != db.FileTypeFolder {
+		return http.StatusBadRequest, "Parent must be a valid folder or tag"
 	}
 	if !store.CanWrite(pf.Permission) {
 		return http.StatusForbidden, "Write permission required on parent"

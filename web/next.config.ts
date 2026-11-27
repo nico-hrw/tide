@@ -69,6 +69,32 @@ const nextConfig: NextConfig = {
     return config
   },
   async headers() {
+    const prodConnectOrigins = new Set<string>([
+      "'self'",
+      "https://go-tide.app",
+      "wss://go-tide.app",
+      "https://www.go-tide.app",
+      "wss://www.go-tide.app",
+      "https://hrw.rocks",
+    ]);
+    if (process.env.NEXT_PUBLIC_API_URL) {
+      try {
+        const apiOrigin = new URL(process.env.NEXT_PUBLIC_API_URL).origin;
+        prodConnectOrigins.add(apiOrigin);
+        if (apiOrigin.startsWith("https://")) {
+          prodConnectOrigins.add(apiOrigin.replace(/^https:/, "wss:"));
+        } else if (apiOrigin.startsWith("http://")) {
+          prodConnectOrigins.add(apiOrigin.replace(/^http:/, "ws:"));
+        }
+      } catch {
+        // Ignore malformed NEXT_PUBLIC_API_URL
+      }
+    }
+    const connectSrc =
+      process.env.NODE_ENV === "development"
+        ? "'self' https: http: wss: ws:"
+        : Array.from(prodConnectOrigins).join(" ");
+
     return [
       {
         source: '/:path*',
@@ -76,7 +102,7 @@ const nextConfig: NextConfig = {
           {
             key: 'Content-Security-Policy',
             // The dev server's hot reload needs eval; the production policy stays strict.
-            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://media.githubusercontent.com https://objects.githubusercontent.com; font-src 'self' data:; connect-src ${process.env.NODE_ENV === 'development' ? "'self' https: http: wss: ws:" : "'self' https: wss:"}; object-src 'none'; base-uri 'self'; frame-ancestors 'none';`,
+            value: `default-src 'self'; script-src 'self' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data: https://media.githubusercontent.com https://objects.githubusercontent.com; font-src 'self' data:; connect-src ${connectSrc}; object-src 'none'; base-uri 'self'; frame-ancestors 'none';`,
           },
           ...(process.env.NODE_ENV === 'production'
             ? [

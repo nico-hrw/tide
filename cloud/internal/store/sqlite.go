@@ -1212,7 +1212,7 @@ func (s *SQLiteStore) GetAccessibleFile(ctx context.Context, id string, viewerID
 func (s *SQLiteStore) UpdateFile(ctx context.Context, file *db.File) error {
 	query := `
 		UPDATE files
-		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
+		SET parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
 blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?, access_keys=?, parent_file_id=?, key_epoch=?, snapshot_seq_id=?, snapshot_iv=?, content=?
 		WHERE id=?
 	`
@@ -1233,7 +1233,6 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 		epoch = 1
 	}
 	_, err := s.DB.ExecContext(ctx, query,
-		file.OwnerID,
 		file.ParentID,
 		file.Type,
 		file.MIMEType,
@@ -1260,7 +1259,7 @@ blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=?, metadata=?,
 func (s *SQLiteStore) UpdateFileWithOCC(ctx context.Context, file *db.File, expectedVersion int) error {
 	query := `
 		UPDATE files
-		SET owner_id=?, parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
+		SET parent_id=?, type=?, mime_type=?, size=?, updated_at=?, 
 		    blob_path=?, visibility=?, public_meta=?, secured_meta=?, version=version+1, metadata=?, access_keys=?
 		WHERE id=? AND version=?
 	`
@@ -1273,7 +1272,6 @@ func (s *SQLiteStore) UpdateFileWithOCC(ctx context.Context, file *db.File, expe
 		ak = "{}"
 	}
 	res, err := s.DB.ExecContext(ctx, query,
-		file.OwnerID,
 		file.ParentID,
 		file.Type,
 		file.MIMEType,
@@ -1303,17 +1301,17 @@ func (s *SQLiteStore) UpdateFileWithOCC(ctx context.Context, file *db.File, expe
 }
 
 func (s *SQLiteStore) DeleteFile(ctx context.Context, id string) error {
-	// Find all descendant IDs including the file itself using a recursive CTE query
+	// Find all descendant IDs owned by the same owner using a recursive CTE query
 	queryDescendants := `
-		WITH RECURSIVE descendants(id, lvl) AS (
-			SELECT id, 0 FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, owner_id, lvl) AS (
+			SELECT id, owner_id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
-			WHERE d.lvl < 100
+			SELECT f.id, f.owner_id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100 AND f.owner_id = d.owner_id
 		)
 		SELECT id FROM descendants
 	`
-	rows, err := s.DB.QueryContext(ctx, queryDescendants, id)
+	rows, err := s.readDB().QueryContext(ctx, queryDescendants, id)
 	if err != nil {
 		return err
 	}
@@ -1428,22 +1426,31 @@ func (s *SQLiteStore) CountBlobReferencesExcluding(ctx context.Context, blobPath
 	return count, err
 }
 
+func isValidStoreVisibility(v string) bool {
+	return v == "private" || v == "contacts" || v == "public"
+}
+
 func (s *SQLiteStore) SetVisibility(ctx context.Context, fileID string, visibility string) error {
+	if !isValidStoreVisibility(visibility) {
+		return fmt.Errorf("invalid visibility: %q", visibility)
+	}
 	query := `UPDATE files SET visibility = ?, updated_at = ? WHERE id = ?`
 	_, err := s.DB.ExecContext(ctx, query, visibility, time.Now(), fileID)
 	return err
 }
 
 func (s *SQLiteStore) SetVisibilityRecursive(ctx context.Context, folderID string, visibility string) error {
-	// 1. Find all descendants using recursive CTE
+	if !isValidStoreVisibility(visibility) {
+		return fmt.Errorf("invalid visibility: %q", visibility)
+	}
+	// 1. Find all same-owner descendants using recursive CTE
 	// 2. Update their visibility
-	// We can do this in a single query if SQLite version is recent (3.8.3+)
 	query := `
-		WITH RECURSIVE descendants(id, lvl) AS (
-			SELECT id, 0 FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, owner_id, lvl) AS (
+			SELECT id, owner_id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
-			WHERE d.lvl < 100
+			SELECT f.id, f.owner_id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100 AND f.owner_id = d.owner_id
 		)
 		UPDATE files 
 		SET visibility = ?, updated_at = ?
@@ -2535,28 +2542,28 @@ func escapeLike(s string) string {
 func (s *SQLiteStore) SearchPublicData(ctx context.Context, searchQuery string, skipUserID string) ([]*db.SearchResult, error) {
 	likeQuery := "%" + escapeLike(searchQuery) + "%"
 
-	// Create blind index hash for exact email search
-	h := sha256.Sum256([]byte(searchQuery))
-	emailHash := hex.EncodeToString(h[:])
-
-	// Search Profiles and Notes
+	// Search public Profiles and active public Notes (never private profiles or trashed notes, and never email blind indexes)
 	query := `
 		SELECT 'profile' as type, u.id, COALESCE(u.username, '') as username, COALESCE(p.title, '') as title, u.id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, COALESCE(p.bio, '') as bio, COALESCE(p.avatar_seed, u.id) as avatar_seed, COALESCE(p.avatar_style, 'notionists') as avatar_style, COALESCE(p.avatar_salt, '') as avatar_salt
 		FROM users u
 		LEFT JOIN profiles p ON p.user_id = u.id
-		WHERE (COALESCE(u.username, '') LIKE ? ESCAPE '\' OR u.email_blind_index = ? OR COALESCE(p.title, '') LIKE ? ESCAPE '\') AND u.id != ?
+		WHERE (COALESCE(p.profile_status, 0) > 0 OR COALESCE(u.is_verified, 0) = 1)
+		AND (COALESCE(u.username, '') LIKE ? ESCAPE '\' OR COALESCE(p.title, '') LIKE ? ESCAPE '\')
+		AND u.id != ?
 		
 		UNION ALL
 		
 		SELECT 'note' as type, f.id, COALESCE(u.username, '') as username, json_extract(f.metadata, '$.title') as title, f.owner_id as owner_id, COALESCE(u.is_verified, 0) as owner_is_verified, '' as bio, '' as avatar_seed, 'notionists' as avatar_style, '' as avatar_salt
 		FROM files f
 		JOIN users u ON f.owner_id = u.id
-		WHERE (json_extract(f.metadata, '$.is_public') = 1 OR json_extract(f.metadata, '$.is_public') = 'true' OR json_extract(f.metadata, '$.is_public') = true)
+		WHERE COALESCE(f.visibility, 'private') = 'public'
+		AND json_extract(COALESCE(NULLIF(f.metadata, ''), '{}'), '$.deleted_at') IS NULL
 		AND json_extract(f.metadata, '$.title') LIKE ? ESCAPE '\'
 		AND u.id != ?
+		LIMIT 50
 	`
 
-	rows, err := s.readDB().QueryContext(ctx, query, likeQuery, emailHash, likeQuery, skipUserID, likeQuery, skipUserID)
+	rows, err := s.readDB().QueryContext(ctx, query, likeQuery, likeQuery, skipUserID, likeQuery, skipUserID)
 	if err != nil {
 		return nil, err
 	}
@@ -2632,11 +2639,11 @@ func (s *SQLiteStore) UpsertFileBackup(ctx context.Context, b *db.FileBackup) er
 func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
 	nowStr := time.Now().Format(time.RFC3339)
 	query := `
-		WITH RECURSIVE descendants(id, lvl) AS (
-			SELECT id, 0 FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, owner_id, lvl) AS (
+			SELECT id, owner_id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
-			WHERE d.lvl < 100
+			SELECT f.id, f.owner_id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100 AND f.owner_id = d.owner_id
 		)
 		UPDATE files 
 		SET metadata = json_set(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at', ?), updated_at = ?
@@ -2648,11 +2655,11 @@ func (s *SQLiteStore) SoftDeleteFile(ctx context.Context, id string) error {
 
 func (s *SQLiteStore) RestoreFile(ctx context.Context, id string) error {
 	query := `
-		WITH RECURSIVE descendants(id, lvl) AS (
-			SELECT id, 0 FROM files WHERE id = ?
+		WITH RECURSIVE descendants(id, owner_id, lvl) AS (
+			SELECT id, owner_id, 0 FROM files WHERE id = ?
 			UNION ALL
-			SELECT f.id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
-			WHERE d.lvl < 100
+			SELECT f.id, f.owner_id, d.lvl + 1 FROM files f JOIN descendants d ON f.parent_id = d.id
+			WHERE d.lvl < 100 AND f.owner_id = d.owner_id
 		)
 		UPDATE files 
 		SET metadata = json_remove(COALESCE(NULLIF(metadata, ''), '{}'), '$.deleted_at'), updated_at = ?

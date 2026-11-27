@@ -22,11 +22,17 @@ import (
 	"github.com/nicoh/tide/internal/store"
 )
 
-const maxOTPCacheSize = 10000
+const (
+	maxOTPCacheSize       = 10000
+	otpResendCooldown     = 30 * time.Second
+	maxOTPAttemptsPerCode = 5
+)
 
 type otpEntry struct {
 	Code      string
+	CreatedAt time.Time
 	ExpiresAt time.Time
+	Attempts  int
 }
 
 type OTPRequest struct {
@@ -64,19 +70,35 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 
 	resp["user_exists"] = true
 
-	var otpBytes [3]byte
-	if _, err := rand.Read(otpBytes[:]); err != nil {
-		log.Printf("ERROR in RequestOTP (generating OTP): %v", err)
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
-		return
+	if h.otpLimiter != nil {
+		if locked, remaining := h.otpLimiter.IsLocked(user.ID); locked {
+			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
+			return
+		}
 	}
-	otpCode := hex.EncodeToString(otpBytes[:]) // 6-char lowercase hex
 
 	now := time.Now()
 	h.mu.Lock()
 	if h.otpCache == nil {
 		h.otpCache = make(map[string]otpEntry)
 	}
+	if existing, ok := h.otpCache[user.ID]; ok && now.Before(existing.ExpiresAt) && now.Sub(existing.CreatedAt) < otpResendCooldown {
+		waitSec := int((otpResendCooldown - now.Sub(existing.CreatedAt)).Seconds()) + 1
+		h.mu.Unlock()
+		w.Header().Set("Retry-After", fmt.Sprintf("%d", waitSec))
+		http.Error(w, "Please wait before requesting a new verification code", http.StatusTooManyRequests)
+		return
+	}
+
+	var otpBytes [3]byte
+	if _, err := rand.Read(otpBytes[:]); err != nil {
+		h.mu.Unlock()
+		log.Printf("ERROR in RequestOTP (generating OTP): %v", err)
+		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		return
+	}
+	otpCode := hex.EncodeToString(otpBytes[:]) // 6-char lowercase hex
+
 	for id, entry := range h.otpCache {
 		if now.After(entry.ExpiresAt) {
 			delete(h.otpCache, id)
@@ -102,7 +124,9 @@ func (h *AuthHandler) RequestOTP(w http.ResponseWriter, r *http.Request) {
 	}
 	h.otpCache[user.ID] = otpEntry{
 		Code:      otpCode,
+		CreatedAt: now,
 		ExpiresAt: now.Add(5 * time.Minute),
+		Attempts:  0,
 	}
 	h.mu.Unlock()
 
@@ -230,43 +254,45 @@ func (h *AuthHandler) VerifyOTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.otpLimiter != nil {
-		if locked, remaining := h.otpLimiter.IsLocked(user.ID); locked {
-			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
-			return
-		}
-	}
-
 	otpVal := req.OTP
 	if otpVal == "" {
 		otpVal = req.Code
 	}
 
 	h.mu.Lock()
+	if h.otpLimiter != nil {
+		if locked, remaining := h.otpLimiter.IsLocked(user.ID); locked {
+			h.mu.Unlock()
+			http.Error(w, fmt.Sprintf("Too many failed attempts. Account temporarily locked for %d seconds", int(remaining.Seconds())), http.StatusTooManyRequests)
+			return
+		}
+	}
+
 	entry, exists := h.otpCache[user.ID]
 	expired := !exists || time.Now().After(entry.ExpiresAt)
 	codeMatch := exists && subtle.ConstantTimeCompare([]byte(strings.ToLower(otpVal)), []byte(strings.ToLower(entry.Code))) == 1
 	if !exists || expired || !codeMatch {
-		if exists && expired {
+		if exists && !expired {
+			entry.Attempts++
+			h.otpCache[user.ID] = entry
+		}
+		lockedNow := false
+		if h.otpLimiter != nil {
+			lockedNow, _ = h.otpLimiter.RecordFailure(user.ID)
+		}
+		if expired || entry.Attempts >= maxOTPAttemptsPerCode || lockedNow {
 			delete(h.otpCache, user.ID)
 		}
 		h.mu.Unlock()
-		if h.otpLimiter != nil {
-			if locked, _ := h.otpLimiter.RecordFailure(user.ID); locked {
-				h.mu.Lock()
-				delete(h.otpCache, user.ID)
-				h.mu.Unlock()
-			}
-		}
 		log.Printf("VerifyOTP: Invalid or expired OTP for user %s (exists: %v, expired: %v, code_match: %v)", user.ID, exists, expired, codeMatch)
 		http.Error(w, "Invalid or expired OTP", http.StatusUnauthorized)
 		return
 	}
 	delete(h.otpCache, user.ID)
-	h.mu.Unlock()
 	if h.otpLimiter != nil {
 		h.otpLimiter.RecordSuccess(user.ID)
 	}
+	h.mu.Unlock()
 
 	// If PIN is provided during OTP verification, verify & migrate it
 	if req.Pin != "" {

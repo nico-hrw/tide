@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
@@ -25,14 +26,14 @@ func (h *ProfileHandler) RegisterRoutes(r chi.Router) {
 		if h.searchLimiter != nil {
 			r.With(RateLimitMiddleware(h.searchLimiter)).Get("/search", h.Search)
 			r.With(RateLimitMiddleware(h.searchLimiter)).Get("/suggestions", h.Suggestions)
+			r.With(RateLimitMiddleware(h.searchLimiter)).Get("/{userID}", h.GetProfile)
 		} else {
 			r.Get("/search", h.Search)
 			r.Get("/suggestions", h.Suggestions)
+			r.Get("/{userID}", h.GetProfile)
 		}
 		r.Put("/", h.UpsertProfile)
 	})
-	
-	r.Get("/{userID}", h.GetProfile)
 }
 
 func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
@@ -43,13 +44,17 @@ func (h *ProfileHandler) GetProfile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	profile, err := h.Store.GetProfile(r.Context(), userID)
-	if err != nil && err != store.ErrNotFound {
+	if err != nil && !errors.Is(err, store.ErrNotFound) {
 		http.Error(w, "Failed to fetch profile", http.StatusInternalServerError)
 		return
 	}
 
 	user, err := h.Store.GetUser(r.Context(), userID)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			http.Error(w, "User not found", http.StatusNotFound)
+			return
+		}
 		http.Error(w, "Failed to fetch user", http.StatusInternalServerError)
 		return
 	}
