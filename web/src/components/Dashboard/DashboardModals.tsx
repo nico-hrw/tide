@@ -5,6 +5,7 @@ import { askConfirm, notify, notifyError } from '@/lib/feedback';
 import type { JSONContent } from "@tiptap/react";
 import CloudStatusBanner from "@/components/CloudStatusBanner";
 import StartupGraphOverlay from "@/components/Graph/StartupGraphOverlay";
+import FileViewer from "@/components/Files/FileViewer";
 import EventDragGhost from "@/components/Calendar/EventDragGhost";
 import { GlobalModalsHost } from "@/components/Layout/GlobalModalsHost";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
@@ -404,6 +405,7 @@ export function DashboardModals({
             <CloudStatusBanner />
             <EventDragGhost />
             <StartupGraphOverlay />
+            <FileViewer />
 
             <GlobalModalsHost
                 shareModalFile={shareModalFile}

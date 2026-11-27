@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
-import { Plus, FolderPlus, Upload } from "lucide-react";
+import { Plus, FolderPlus, Upload, Paperclip } from "lucide-react";
+import { UPLOAD_FILE_EVENT } from "@/components/Files/FileViewer";
 import { usePopupTimer } from "@/hooks/usePopupTimer";
 import { PopupTimerBar } from "@/components/Popup/PopupTimerBar";
 import FileContextMenu from "./FileContextMenu";
@@ -45,6 +46,10 @@ function BackgroundMenu({ menu, close, onNewNote, onCreateFolder, handleImport }
                 <button type="button" onClick={() => { close(); onCreateFolder && onCreateFolder(null); }} className={row}>
                     <FolderPlus size={16} className="text-t2-ink-3" />
                     <span className="font-medium">Neuer Ordner</span>
+                </button>
+                <button type="button" onClick={() => { close(); window.dispatchEvent(new CustomEvent(UPLOAD_FILE_EVENT, { detail: { parentId: null } })); }} className={row}>
+                    <Paperclip size={16} className="text-t2-ink-3" />
+                    <span className="font-medium">Datei hochladen</span>
                 </button>
                 <PullFromWorkspace onDone={close} />
                 <div className="my-1 h-px bg-t2-line-soft" />

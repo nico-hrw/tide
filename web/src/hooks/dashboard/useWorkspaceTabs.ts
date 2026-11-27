@@ -289,6 +289,12 @@ export function useWorkspaceTabs({
     }, [activeNoteId, editorContent, fileName, editorInstance]);
 
     const handleFileSelect = async (fileId: string, title: string, fileData?: unknown) => {
+        // Stored files (type 'file') are not notes: they open in the file viewer instead of the editor
+        const item = useDataStore.getState().notes.find((n) => n.id === fileId);
+        if (item?.type === "file") {
+            window.dispatchEvent(new CustomEvent("tide:open-file", { detail: { id: fileId } }));
+            return;
+        }
         switchTab(fileId, "file", title, fileData);
     };
 

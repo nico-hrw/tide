@@ -1,4 +1,4 @@
-import { Plus, Folder, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Lock, Pin, Users, Puzzle, Globe, Check, Loader2, X, FileText, Layout } from "lucide-react";
+import { Plus, Folder, FolderOpen, Trash, Edit2, Share, Eye, EyeOff, ChevronRight, ChevronDown, MessageSquare, User, Lock, Pin, Users, Puzzle, Globe, Check, Loader2, X, FileText, Layout, Paperclip } from "lucide-react";
 import NoteIcon from '@/components/Icons/NoteIcon';
 import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
@@ -247,7 +247,9 @@ export const FileItem = ({ file, level, onSelect, onDelete, onRename, onVisibili
         >
             <div className="flex items-center gap-2 truncate flex-1 flex-shrink-0">
                 <div className="relative shrink-0 flex items-center justify-center">
-                    {file.type === 'canvas' ? (
+                    {file.type === 'file' ? (
+                        <Paperclip size={15} className={`shrink-0 ${isActive ? 'text-t2-ink' : 'text-t2-ink-3'}`} />
+                    ) : file.type === 'canvas' ? (
                         <Layout
                             size={15}
                             className={`shrink-0 ${
