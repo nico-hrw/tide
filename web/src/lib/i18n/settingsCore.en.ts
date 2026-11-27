@@ -348,7 +348,7 @@ export const settingsCoreEn: Record<keyof typeof settingsCoreDe, string> = {
     'notes.graph': 'Links',
     'notes.graphHint': 'How your notes link to each other. The list is built on this device from the notes you open or edit and is never sent to the server.',
     'notes.graphAnimation': 'Graph animation',
-    'notes.graphAnimationDesc': 'Briefly shows the surroundings of a note in the island when you create or link a note.',
+    'notes.graphAnimationDesc': 'Briefly shows the surroundings of a note in the island when you create or link a note, and now and then at start which notes were added lately.',
     'notes.graphEmpty': 'No links yet. Link notes with @ in the text and they will show up here.',
     'notes.graphCoverage': '{indexed} of {total} notes read. More are added as you open them.',
     'notes.graphLabel': 'Graph of note links',

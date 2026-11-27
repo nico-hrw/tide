@@ -346,7 +346,7 @@ export const settingsCoreDe = {
     'notes.graph': 'Verknüpfungen',
     'notes.graphHint': 'Wie deine Notizen miteinander verlinkt sind. Die Liste entsteht auf diesem Gerät aus den Notizen, die du öffnest oder bearbeitest, und wird nie an den Server gesendet.',
     'notes.graphAnimation': 'Graph-Animation',
-    'notes.graphAnimationDesc': 'Zeigt in der Island kurz die Umgebung einer Notiz, wenn du eine Notiz erstellst oder verlinkst.',
+    'notes.graphAnimationDesc': 'Zeigt in der Island kurz die Umgebung einer Notiz, wenn du eine Notiz erstellst oder verlinkst, und ab und zu beim Start, welche Notizen neu dazugekommen sind.',
     'notes.graphEmpty': 'Noch keine Verknüpfungen. Verlinke Notizen mit @ im Text, dann erscheinen sie hier.',
     'notes.graphCoverage': '{indexed} von {total} Notizen eingelesen. Weitere kommen dazu, sobald du sie öffnest.',
     'notes.graphLabel': 'Graph der Notizverknüpfungen',
