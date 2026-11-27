@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { askConfirm, notifyError } from '@/lib/feedback';
+import { notifyError, notifyUndo } from '@/lib/feedback';
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
 import { apiFetch, clearAllSessionData } from "@/lib/api";
@@ -432,13 +432,8 @@ export default function CalendarPage() {
 
             const event = events.find(e => e.id === baseId);
             if (!event || (event as any).recurrence_rule === 'none') {
-                // Not a recurring event, proceed with normal delete
-                if (!(await askConfirm({ title: 'Termin löschen?', confirmLabel: 'Löschen', tone: 'danger' }))) return;
-                try {
-                    const res = await apiFetch(`/api/v1/files/${baseId}`, { method: "DELETE" });
-                    if (!res.ok) throw new Error("Failed to delete");
-                    setEvents(prev => prev.filter(e => e.id !== baseId));
-                } catch (err) { console.error(err); }
+                // Not a recurring event: delete at once, the undo toast takes it back
+                await deleteEventWithUndo(baseId, "Termin gelöscht");
                 return;
             }
 
@@ -449,14 +444,27 @@ export default function CalendarPage() {
         }
 
         // Deleting the whole series
-        if (!(await askConfirm({ title: 'Alle Wiederholungen löschen?', message: 'Der Termin und alle künftigen Wiederholungen werden gelöscht.', confirmLabel: 'Löschen', tone: 'danger' }))) return;
+        if (await deleteEventWithUndo(baseId, "Serie gelöscht")) setEditingEventId(null);
+    };
+
+    /** Deletes an event on the server; an undo toast restores it from the trash for a few seconds. Returns success. */
+    const deleteEventWithUndo = async (baseId: string, message: string): Promise<boolean> => {
+        const snapshot = events.find(e => e.id === baseId);
         try {
             const res = await apiFetch(`/api/v1/files/${baseId}`, { method: "DELETE" });
             if (!res.ok) throw new Error("Failed to delete");
             setEvents(prev => prev.filter(e => e.id !== baseId));
-            setEditingEventId(null);
+            if (snapshot) {
+                notifyUndo(message, async () => {
+                    const back = await apiFetch(`/api/v1/files/${baseId}/restore`, { method: "POST" });
+                    if (!back.ok) { notifyError("Wiederherstellen fehlgeschlagen"); return; }
+                    setEvents(prev => [...prev, snapshot]);
+                });
+            }
+            return true;
         } catch (err) {
             console.error(err);
+            return false;
         }
     };
 

@@ -1,7 +1,7 @@
 "use client";
 
 import type React from "react";
-import { notifyError } from '@/lib/feedback';
+import { notifyError, notifyUndo } from '@/lib/feedback';
 import { apiFetch } from "@/lib/api";
 import type { ItemSecuritySettings } from "@/lib/pinSecurity";
 import type { Tab } from "@/components/Layout/TabList";
@@ -84,23 +84,40 @@ export function useFileActions({
         const isShared = Boolean(target && target.share_status && target.share_status !== "owner");
         const isFolder = target?.type === "folder";
 
+        // Own notes go at once with an undo toast (like events); shared notes and folders still ask first.
+        if (!isShared && !isFolder) {
+            await runDeleteNote(fileId, false);
+            return;
+        }
         setDeleteConfirm({ isOpen: true, fileId, isShared, isFolder });
     };
 
     const executeDeleteNote = async () => {
         if (!deleteConfirm) return;
         const { fileId, isShared } = deleteConfirm;
+        setDeleteConfirm(null);
+        await runDeleteNote(fileId, isShared);
+    };
+
+    /** Deletes a note on the server and removes it from the list. Own notes can be taken back from the trash for a few seconds. */
+    const runDeleteNote = async (fileId: string, isShared: boolean) => {
         const freshNotes = useDataStore.getState().notes;
         const target = freshNotes.find((f) => f.id === fileId);
 
         try {
-            setDeleteConfirm(null);
             const res = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}`, { method: "DELETE" });
             if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete note");
 
             useDataStore.getState().setNotes(freshNotes.filter((f) => f.id !== fileId));
             void getVariableRegistry().removeNote(fileId);
             handleTabClose(null, fileId);
+            if (target && !isShared) {
+                notifyUndo("Notiz gelöscht", async () => {
+                    const back = await apiFetch(`/api/v1/files/${encodeURIComponent(fileId)}/restore`, { method: "POST" });
+                    if (!back.ok) { notifyError("Wiederherstellen fehlgeschlagen"); return; }
+                    useDataStore.getState().setNotes([...useDataStore.getState().notes, target]);
+                });
+            }
         } catch (err) {
             console.error("Delete failed:", err);
             const isCorrupt = Boolean(

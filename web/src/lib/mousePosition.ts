@@ -22,6 +22,11 @@ export function getMousePos(): { x: number; y: number } | null {
     return mousePos;
 }
 
+// Listen from the start: a popup opened by a click must already know where the mouse is. Starting the listener
+// only when the first popup mounts misses that click (mousedown happened before), so its timer did not run until
+// a right click.
+trackMouse();
+
 /** px between a point and a rectangle (0 inside it). */
 export function distanceToRect(p: { x: number; y: number }, r: { left: number; right: number; top: number; bottom: number }): number {
     const dx = Math.max(r.left - p.x, 0, p.x - r.right);

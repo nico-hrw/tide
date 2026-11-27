@@ -614,6 +614,12 @@ ul[data-type="taskList"] li>label {
   user-select: none;
 }
 
+/* The text block takes the whole row: a click right of a short line lands on that line, not on the next one */
+ul[data-type="taskList"] li>div {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
 ul[data-type="taskList"] li>div>p {
   margin-top: 2px !important;
   margin-bottom: 0 !important;
