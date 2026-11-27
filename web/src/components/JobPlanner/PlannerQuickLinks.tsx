@@ -20,6 +20,7 @@ import {
     Link as LinkIcon
 } from 'lucide-react';
 import { useJobPlannerStore, PlannerQuickLink } from '@/store/useJobPlannerStore';
+import { PLANNER_LINK_PRESETS } from './plannerLinkPresets';
 
 const PRESET_ICONS: Record<string, React.ElementType> = {
     'book-open': BookOpen,
@@ -325,6 +326,32 @@ export default function PlannerQuickLinks() {
                         </div>
 
                         <div className="space-y-4 py-4 text-xs">
+                            {/* Presets (new links only) */}
+                            {!modalState.editingId && (
+                                <div>
+                                    <label className="block font-semibold text-t2-ink mb-1.5">Vorlagen</label>
+                                    <div className="flex flex-wrap gap-1.5">
+                                        {PLANNER_LINK_PRESETS.map((preset) => (
+                                            <button
+                                                key={preset.name}
+                                                type="button"
+                                                onClick={() => setModalState(prev => ({
+                                                    ...prev,
+                                                    name: preset.name,
+                                                    url: preset.url,
+                                                    icon: preset.icon,
+                                                    iconType: 'url',
+                                                }))}
+                                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-t2-sub hover:bg-t2-hover text-t2-ink font-medium transition-colors"
+                                            >
+                                                <img src={preset.icon} alt="" className="w-4 h-4 rounded-sm object-contain" referrerPolicy="no-referrer" />
+                                                {preset.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Name Input */}
                             <div>
                                 <label className="block font-semibold text-t2-ink  mb-1">

@@ -2,15 +2,19 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { askConfirm } from '@/lib/feedback';
-import { Plus, X, Check, Trash2 } from 'lucide-react';
+import { Plus, X, Check, Trash2, Palette } from 'lucide-react';
 import { useJobPlannerStore } from '@/store/useJobPlannerStore';
 
+// Flat tinted entries (same look as the link chips); `color` stores the name, the tint comes from `hex`.
 const COLOR_OPTIONS = [
-    { name: 'gray', bg: 'bg-t2-hover  text-t2-ink  border-t2-line ' },
-    { name: 'blue', bg: 'bg-t2-sub  text-t2-accent  border-t2-line ' },
-    { name: 'green', bg: 'bg-green-50 dark:bg-green-900/30 text-green-800 dark:text-green-300 border-green-200 dark:border-green-800/40' },
-    { name: 'purple', bg: 'bg-t2-sub  text-t2-accent  border-t2-line ' },
-    { name: 'orange', bg: 'bg-orange-50 dark:bg-orange-900/30 text-orange-800 dark:text-orange-300 border-orange-200 dark:border-orange-800/40' },
+    { name: 'gray', label: 'Grau', hex: '#6b7280' },
+    { name: 'blue', label: 'Blau', hex: '#2563eb' },
+    { name: 'green', label: 'Grün', hex: '#16a34a' },
+    { name: 'purple', label: 'Violett', hex: '#7c3aed' },
+    { name: 'orange', label: 'Orange', hex: '#ea580c' },
+    { name: 'red', label: 'Rot', hex: '#dc2626' },
+    { name: 'pink', label: 'Pink', hex: '#db2777' },
+    { name: 'yellow', label: 'Gelb', hex: '#ca8a04' },
 ];
 
 export default function PlannerSemesterBoard() {
@@ -21,6 +25,7 @@ export default function PlannerSemesterBoard() {
         updateSemester, 
         deleteSemester, 
         addExam, 
+        updateExam,
         deleteExam, 
         moveExam 
     } = useJobPlannerStore();
@@ -29,16 +34,20 @@ export default function PlannerSemesterBoard() {
     const [addingToSemester, setAddingToSemester] = useState<string | null>(null);
     const [newExamTitle, setNewExamTitle] = useState('');
 
+    const [editingExamId, setEditingExamId] = useState<string | null>(null);
+    const [editExamTitle, setEditExamTitle] = useState('');
+    const [colorExamId, setColorExamId] = useState<string | null>(null);
+
     const [editingSemesterId, setEditingSemesterId] = useState<string | null>(null);
     const [editSemesterTitle, setEditSemesterTitle] = useState('');
 
     const inputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (addingToSemester || editingSemesterId) {
+        if (addingToSemester || editingSemesterId || editingExamId) {
             setTimeout(() => inputRef.current?.focus(), 50);
         }
-    }, [addingToSemester, editingSemesterId]);
+    }, [addingToSemester, editingSemesterId, editingExamId]);
 
     const handleAddSemester = () => {
         const title = newSemesterTitle.trim();
@@ -195,33 +204,84 @@ export default function PlannerSemesterBoard() {
                         {/* Exam list inside Semester */}
                         <div className="p-3 flex flex-col gap-2 min-h-[120px]">
                             {semester.exams.map((exam) => {
-                                const colorClass = COLOR_OPTIONS.find(c => c.name === exam.color)?.bg || COLOR_OPTIONS[0].bg;
+                                const tint = (COLOR_OPTIONS.find(c => c.name === exam.color) ?? COLOR_OPTIONS[0]).hex;
+                                const commitRename = () => {
+                                    const title = editExamTitle.trim();
+                                    if (title && title !== exam.title) updateExam(semester.id, exam.id, { title });
+                                    setEditingExamId(null);
+                                };
                                 return (
                                     <div
                                         key={exam.id}
-                                        draggable
+                                        draggable={editingExamId !== exam.id}
                                         onDragStart={(e) => handleDragStart(e, exam.id)}
-                                        className={`group relative p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-grab active:cursor-grabbing ${colorClass}`}
+                                        style={{ '--chip': tint } as React.CSSProperties}
+                                        className="mention-chip group relative px-3 py-2 rounded-md transition-colors cursor-grab active:cursor-grabbing"
                                     >
-                                        <div className="flex-1 min-w-0 pr-2">
-                                            <p className="text-xs font-semibold truncate leading-tight">
-                                                {exam.title}
-                                            </p>
-                                            {(exam.grade || exam.credits) && (
-                                                <div className="flex items-center gap-2 mt-1 text-[11px] opacity-80">
-                                                    {exam.grade && <span>Note: {exam.grade}</span>}
-                                                    {exam.credits && <span>{exam.credits} ECTS</span>}
-                                                </div>
-                                            )}
-                                        </div>
+                                        <div className="flex items-center justify-between gap-1">
+                                            <div className="flex-1 min-w-0 pr-1">
+                                                {editingExamId === exam.id ? (
+                                                    <input
+                                                        ref={inputRef}
+                                                        type="text"
+                                                        value={editExamTitle}
+                                                        onChange={(e) => setEditExamTitle(e.target.value)}
+                                                        onBlur={commitRename}
+                                                        onKeyDown={(e) => {
+                                                            if (e.key === 'Enter') commitRename();
+                                                            if (e.key === 'Escape') setEditingExamId(null);
+                                                        }}
+                                                        className="w-full text-xs font-medium bg-transparent outline-none border-b border-current"
+                                                    />
+                                                ) : (
+                                                    <p
+                                                        onClick={() => { setEditingExamId(exam.id); setEditExamTitle(exam.title); }}
+                                                        className="text-xs font-medium truncate leading-tight cursor-text"
+                                                        title="Klicken zum Umbenennen"
+                                                    >
+                                                        {exam.title}
+                                                    </p>
+                                                )}
+                                                {(exam.grade || exam.credits) && (
+                                                    <div className="flex items-center gap-2 mt-1 text-[11px] opacity-80">
+                                                        {exam.grade && <span>Note: {exam.grade}</span>}
+                                                        {exam.credits && <span>{exam.credits} ECTS</span>}
+                                                    </div>
+                                                )}
+                                            </div>
 
-                                        <button
-                                            onClick={() => deleteExam(semester.id, exam.id)}
-                                            className="opacity-0 group-hover:opacity-100 p-1 text-t2-ink-3 hover:text-rose-500 rounded transition-opacity"
-                                            title="Löschen"
-                                        >
-                                            <X size={12} />
-                                        </button>
+                                            <button
+                                                onClick={() => setColorExamId(colorExamId === exam.id ? null : exam.id)}
+                                                className="opacity-0 group-hover:opacity-100 p-1 rounded transition-opacity"
+                                                title="Farbe ändern"
+                                                aria-label="Farbe ändern"
+                                            >
+                                                <Palette size={12} />
+                                            </button>
+                                            <button
+                                                onClick={() => deleteExam(semester.id, exam.id)}
+                                                className="opacity-0 group-hover:opacity-100 p-1 hover:text-rose-500 rounded transition-opacity"
+                                                title="Löschen"
+                                            >
+                                                <X size={12} />
+                                            </button>
+                                        </div>
+                                        {colorExamId === exam.id && (
+                                            <div className="mt-1.5 flex flex-wrap gap-1.5" role="radiogroup" aria-label="Farbe">
+                                                {COLOR_OPTIONS.map((c) => (
+                                                    <button
+                                                        key={c.name}
+                                                        type="button"
+                                                        role="radio"
+                                                        aria-checked={(exam.color ?? 'gray') === c.name}
+                                                        title={c.label}
+                                                        onClick={() => { updateExam(semester.id, exam.id, { color: c.name }); setColorExamId(null); }}
+                                                        style={{ backgroundColor: c.hex }}
+                                                        className={`w-4 h-4 rounded-full transition-transform hover:scale-110 ${(exam.color ?? 'gray') === c.name ? 'ring-2 ring-offset-1 ring-current ring-offset-transparent' : ''}`}
+                                                    />
+                                                ))}
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}

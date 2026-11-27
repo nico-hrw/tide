@@ -4,6 +4,7 @@ import {
     loadEncryptedOfflineCache,
     saveEncryptedOfflineCache,
 } from '@/lib/offlineCacheCrypto';
+import { pushSettingsPatch } from '@/lib/settingsSync';
 
 export type ReferenceDisplayMode = 'magic' | 'underline-black' | 'underline-color' | 'icon' | 'emoji';
 
@@ -141,7 +142,9 @@ export const useReferenceStore = create<ReferenceState>((set) => ({
         return { references };
     }),
 
-    setAutoScanEnabled: (enabled) => set(() => {
+    setAutoScanEnabled: (enabled) => {
+        pushSettingsPatch({ extensions: { references: { auto_scan_enabled: enabled } } });
+        set(() => {
         if (typeof window !== 'undefined') {
             try {
                 localStorage.setItem('tide_auto_scan', enabled ? 'true' : 'false');
@@ -150,12 +153,16 @@ export const useReferenceStore = create<ReferenceState>((set) => ({
             }
         }
         return { autoScanEnabled: enabled };
-    }),
+        });
+    },
 
-    setDisplayMode: (mode) => set(() => {
+    setDisplayMode: (mode) => {
+        pushSettingsPatch({ extensions: { references: { display_mode: mode } } });
+        set(() => {
         savePersistedDisplayMode(mode);
         return { displayMode: mode };
-    }),
+        });
+    },
 }));
 
 // O(1) lookup by id; the map is rebuilt only when the references array itself changes

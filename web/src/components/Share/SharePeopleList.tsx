@@ -34,6 +34,10 @@ export interface SharePeopleListProps {
     onRevoke: (userId: string) => void;
 }
 
+/** Colour of a rights level (same hues as the link chips): view blue, edit green, share violet. */
+export const permissionTint = (p: SharePermissionValue): string =>
+    p === 'view' ? 'var(--perm-view)' : p === 'edit' ? 'var(--perm-edit)' : 'var(--mention-note)';
+
 const avatarStyleOf = (s?: string): 'notionists' | 'openPeeps' => (s === 'openPeeps' ? 'openPeeps' : 'notionists');
 
 /**
@@ -44,13 +48,13 @@ const avatarStyleOf = (s?: string): 'notionists' | 'openPeeps' => (s === 'openPe
 export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles, updatingUserId, revokingUserId, onRoleChange, onRevoke }: SharePeopleListProps) {
     const t = useT();
     return (
-        <ul className="space-y-2" aria-label={t('share.people')}>
+        <ul className="space-y-0.5" aria-label={t('share.people')}>
             {isOwner && (
-                <li className="flex items-center gap-2.5 p-3 rounded-[12px] bg-t2-surface border border-t2-line">
-                    <div className="w-8 h-8 rounded-full bg-t2-sub text-t2-ink font-bold text-xs flex items-center justify-center shrink-0" aria-hidden="true">
+                <li className="flex items-center gap-2.5 py-1.5">
+                    <div className="w-7 h-7 rounded-full bg-t2-sub text-t2-ink font-medium text-xs flex items-center justify-center shrink-0" aria-hidden="true">
                         {t('share.you')[0]}
                     </div>
-                    <p className="text-xs font-semibold text-t2-ink">{t('share.you')} · {t('share.owner')}</p>
+                    <p className="text-xs font-medium text-t2-ink">{t('share.you')} · {t('share.owner')}</p>
                 </li>
             )}
             {shares.map((share) => {
@@ -58,12 +62,12 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                 const busy = updatingUserId === share.user_id || revokingUserId === share.user_id;
                 const level = share.permission; // 'share' only for legacy rows
                 return (
-                    <li key={share.user_id} className="p-3 rounded-[12px] bg-t2-surface border border-t2-line">
+                    <li key={share.user_id} className="py-1.5">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2.5 min-w-0 pr-2">
-                                <Avatar seed={(share.avatar_seed || share.user_id) + (share.avatar_salt || '')} style={avatarStyleOf(share.avatar_style)} size={32} />
+                                <Avatar seed={(share.avatar_seed || share.user_id) + (share.avatar_salt || '')} style={avatarStyleOf(share.avatar_style)} size={28} />
                                 <div className="min-w-0">
-                                    <p className="text-xs font-semibold text-t2-ink truncate">{name}</p>
+                                    <p className="text-xs font-medium text-t2-ink truncate">{name}</p>
                                     <p className="text-[11px] text-t2-ink-2">
                                         {share.status === 'accepted' ? t('share.accepted') : t('share.pending')}
                                         <ShareOriginSeparated fileId={fileId} userId={share.user_id} groupIds={groupIds} groupTitles={groupTitles} />
@@ -77,7 +81,8 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                                         disabled={busy}
                                         aria-label={t('share.rightsFor', { name })}
                                         onChange={(e) => onRoleChange(share.user_id, e.target.value as SharePermissionValue)}
-                                        className="text-xs bg-t2-sub hover:bg-t2-hover text-t2-ink font-medium rounded-[8px] px-2.5 py-1.5 border border-t2-line cursor-pointer outline-none focus:ring-1 focus:ring-t2-accent transition-colors"
+                                        style={{ '--chip': permissionTint(level) } as React.CSSProperties}
+                                        className="mention-chip text-xs font-medium rounded-[6px] px-2 py-1 cursor-pointer outline-none focus:ring-1 focus:ring-t2-accent transition-colors"
                                     >
                                         <option value="view">{t('share.view')}</option>
                                         <option value="edit">{t('share.edit')}</option>
@@ -87,7 +92,7 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                                         type="button"
                                         onClick={() => onRevoke(share.user_id)}
                                         disabled={revokingUserId === share.user_id}
-                                        className="p-2 text-t2-late hover:bg-t2-sub rounded-[8px] border border-t2-line transition-colors disabled:opacity-50"
+                                        className="p-1.5 text-t2-ink-3 hover:text-t2-late hover:bg-t2-sub rounded-[8px] transition-colors disabled:opacity-50"
                                         title={t('share.revoke')}
                                         aria-label={t('share.revoke')}
                                     >
@@ -95,7 +100,7 @@ export function SharePeopleList({ fileId, shares, isOwner, groupIds, groupTitles
                                     </button>
                                 </div>
                             ) : (
-                                <span className="text-xs text-t2-ink-2 shrink-0">{t(level === 'view' ? 'share.view' : level === 'share' ? 'share.legacyFull' : 'share.edit')}</span>
+                                <span style={{ '--chip': permissionTint(level) } as React.CSSProperties} className="mention-chip text-xs font-medium rounded-[6px] px-2 py-1 shrink-0">{t(level === 'view' ? 'share.view' : level === 'share' ? 'share.legacyFull' : 'share.edit')}</span>
                             )}
                         </div>
                         {isOwner && share.can_reshare === true && <ReshareState />}

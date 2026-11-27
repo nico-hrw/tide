@@ -1,8 +1,10 @@
 "use client";
 
-import { ChevronDown, X, Users, Mail, Eye, Edit3, Share2, Link2, Check, ArrowRight, Loader2, ShieldCheck, Variable } from "lucide-react";
+import { ChevronDown, X, Eye, Edit3, Share2, Link2, Check, Loader2, Variable, Search, Plus } from "lucide-react";
 import { askConfirm, notifyError } from '@/lib/feedback';
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import * as Y from "yjs";
 import { apiFetch } from "@/lib/api";
 import { useDataStore } from "@/store/useDataStore";
@@ -14,7 +16,7 @@ import { getVariableRegistry } from "@/lib/variableRegistryInstance";
 import { findUsedGlobals, applySnapshotToDocJson, applySnapshotToEditor } from "@/lib/formula/usedGlobals";
 import type { Definition } from "@/lib/formula/scope";
 import { useT } from "@/components/Settings/useT";
-import { SharePeopleList } from "@/components/Share/SharePeopleList";
+import { SharePeopleList, permissionTint } from "@/components/Share/SharePeopleList";
 import { useItemGroupIds } from "@/components/Share/ShareOriginLabel";
 
 export type SharePermission = 'view' | 'edit' | 'share';
@@ -69,6 +71,7 @@ export default function ShareModal({
     groups
 }: ShareModalProps) {
     const t = useT();
+    const dialogRef = useRef<HTMLDivElement>(null);
     const groupIds = useItemGroupIds(fileId);
     const groupTitles = Object.fromEntries((groups ?? []).map((g) => [g.id, g.title]));
     const [contacts, setContacts] = useState<Contact[]>([]);
@@ -76,7 +79,7 @@ export default function ShareModal({
     const [searchResult, setSearchResult] = useState<Contact | null>(null);
     const [loading, setLoading] = useState(false);
     const [sharing, setSharing] = useState(false);
-    const [showCustomInput, setShowCustomInput] = useState(false);
+    const { fillRef, restRef } = usePopupTimer({ refs: [dialogRef], enabled: !sharing, duration: 3000, onExpire: onClose });
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
     const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
     const [canReshare, setCanReshare] = useState(false);
@@ -540,20 +543,22 @@ export default function ShareModal({
     return (
         <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
-                className="bg-t2-surface  border border-t2-line  rounded-[24px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
+                ref={dialogRef}
+                className="bg-t2-surface  border border-t2-line  rounded-[20px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full relative overflow-hidden animate-in zoom-in-95 duration-150"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="share-modal-title"
                 onClick={(e) => e.stopPropagation()}
             >
+                <PopupTimerBar fillRef={fillRef} restRef={restRef} />
                 {/* Header */}
-                <div className="p-6 border-b border-t2-line  flex items-center justify-between">
+                <div className="px-5 pt-4 pb-3 flex items-center justify-between">
                     <div>
-                        <h2 id="share-modal-title" className="text-base font-bold text-t2-ink truncate max-w-[380px]">{t('share.title', { name: fileName })}</h2>
+                        <h2 id="share-modal-title" className="text-[15px] font-medium text-t2-ink truncate max-w-[380px]">{t('share.title', { name: fileName })}</h2>
                     </div>
                     <button
                         onClick={onClose}
-                        className="h-[44px] w-[44px] rounded-[12px] bg-t2-sub hover:bg-t2-hover   border border-t2-line  flex items-center justify-center text-t2-ink  transition-colors"
+                        className="h-8 w-8 rounded-full hover:bg-t2-sub flex items-center justify-center text-t2-ink-2 transition-colors"
                         aria-label="Schließen"
                     >
                         <X size={18} />
@@ -668,13 +673,50 @@ export default function ShareModal({
                         </div>
                     ) : (
                     <>
+                    {/* Add people: search by name or e-mail (contacts below act as suggestions) */}
+                    <div className="px-5 pt-1 pb-2">
+                        <div className="flex gap-2">
+                            <div className="flex-1 flex items-center gap-2 h-9 px-3 rounded-[10px] bg-t2-sub text-t2-ink-2 focus-within:ring-2 focus-within:ring-t2-accent">
+                                <Search size={14} aria-hidden="true" className="shrink-0" />
+                                <input
+                                    type="email"
+                                    value={customEmail}
+                                    onChange={e => setCustomEmail(e.target.value)}
+                                    onKeyDown={e => { if (e.key === 'Enter') handleSearchEmail(); }}
+                                    placeholder="Name oder E-Mail hinzufügen"
+                                    className="flex-1 min-w-0 bg-transparent text-xs text-t2-ink placeholder:text-t2-ink-3 outline-none"
+                                />
+                            </div>
+                            {customEmail.trim() && (
+                                <button
+                                    onClick={handleSearchEmail}
+                                    disabled={loading}
+                                    className="h-9 px-3.5 rounded-[10px] bg-t2-ink text-t2-surface text-xs font-semibold disabled:opacity-50 shrink-0"
+                                >
+                                    {loading ? '...' : 'Suchen'}
+                                </button>
+                            )}
+                        </div>
+                        {searchResult && (
+                            <button
+                                onClick={() => handleShareWithContact(searchResult)}
+                                className="mt-2 w-full px-3 py-2 rounded-[10px] bg-t2-sub hover:bg-t2-hover text-left flex items-center justify-between transition-colors"
+                            >
+                                <div className="min-w-0">
+                                    <p className="font-semibold text-xs text-t2-ink truncate">{searchResult.username}</p>
+                                    <p className="text-[11px] text-t2-ink-2 truncate">{searchResult.email}</p>
+                                </div>
+                                <span className="text-xs text-t2-ink font-semibold shrink-0">Hinzufügen</span>
+                            </button>
+                        )}
+                    </div>
+
                     {/* People with access: owner sees rights menus, origin line for everyone listed */}
                     {callerPermission === 'owner' && existingShares.length > 0 && (
-                        <div className="p-6 border-b border-t2-line bg-t2-sub/50">
-                            <div className="flex items-center justify-between mb-3">
-                                <h3 className="text-xs font-bold text-t2-ink-2 uppercase tracking-wider flex items-center gap-1.5">
-                                    <ShieldCheck size={14} className="text-t2-accent" />
-                                    <span>{t('share.people')} ({existingShares.length})</span>
+                        <div className="px-5 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                                <h3 className="text-[11px] font-medium text-t2-ink-3">
+                                    {t('share.people')} ({existingShares.length})
                                 </h3>
                                 {loadingShares && <Loader2 size={12} className="animate-spin text-t2-ink-3" />}
                             </div>
@@ -692,16 +734,88 @@ export default function ShareModal({
                         </div>
                     )}
 
-                    {/* Permission Picker for new invites */}
-                    <div className="px-6 pt-5">
-                        <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2.5">{t('share.newPermission')}</h3>
-                        <div className={`grid ${callerPermission === 'owner' ? 'grid-cols-2' : 'grid-cols-3'} gap-2.5`}>
+                    {/* Contacts as suggestions */}
+                    {contacts.length > 0 && (
+                        <div className="px-5 py-2">
+                            <h3 className="text-[11px] font-medium text-t2-ink-3 mb-1">Vorschläge aus deinen Kontakten</h3>
+                            <div>
+                                {contacts.map(contact => (
+                                    <button
+                                        key={contact.id}
+                                        onClick={() => handleShareWithContact(contact)}
+                                        disabled={sharing}
+                                        className="w-full flex items-center gap-2.5 py-1.5 rounded-[8px] text-left hover:bg-t2-sub transition-colors"
+                                    >
+                                        <div className="w-7 h-7 rounded-full bg-t2-sub text-t2-ink font-medium text-xs flex items-center justify-center shrink-0">
+                                            {contact.username[0]?.toUpperCase() || 'U'}
+                                        </div>
+                                        <div className="min-w-0 flex-1">
+                                            <p className="text-xs font-medium text-t2-ink truncate">{contact.username}</p>
+                                            <p className="text-[11px] text-t2-ink-3 truncate">{contact.email}</p>
+                                        </div>
+                                        {sharedContactId === contact.id ? (
+                                            <Check size={15} className="text-emerald-500 shrink-0" />
+                                        ) : (
+                                            <span className="text-xs text-t2-ink-2 flex items-center gap-1 shrink-0 pr-1"><Plus size={13} aria-hidden="true" />Hinzufügen</span>
+                                        )}
+                                    </button>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Linked Files & Dependencies Section */}
+                    {dependencies.length > 0 && (
+                        <div className="px-5 py-2">
+                            <div className="flex items-center justify-between mb-1">
+                                <h4 className="text-[11px] font-medium text-t2-ink-3 flex items-center gap-1.5">
+                                    <Link2 size={12} />
+                                    <span>Verlinkte Notizen & Medien ({dependencies.length}) · Empfänger darf sie ebenfalls einsehen</span>
+                                </h4>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        if (selectedDepIds.size === dependencies.length) {
+                                            setSelectedDepIds(new Set());
+                                        } else {
+                                            setSelectedDepIds(new Set(dependencies.map(d => d.id)));
+                                        }
+                                    }}
+                                    className="text-[11px] text-t2-ink font-medium hover:underline shrink-0"
+                                >
+                                    {selectedDepIds.size === dependencies.length ? 'Keine' : 'Alle'}
+                                </button>
+                            </div>
+                            <div className="max-h-28 overflow-y-auto">
+                                {dependencies.map(dep => (
+                                    <label key={dep.id} className="flex items-center gap-2 text-xs text-t2-ink cursor-pointer py-1 rounded-[8px] hover:bg-t2-sub transition-colors">
+                                        <input
+                                            type="checkbox"
+                                            checked={selectedDepIds.has(dep.id)}
+                                            onChange={(e) => {
+                                                const next = new Set(selectedDepIds);
+                                                if (e.target.checked) next.add(dep.id);
+                                                else next.delete(dep.id);
+                                                setSelectedDepIds(next);
+                                            }}
+                                            className="w-4 h-4 rounded accent-t2-accent"
+                                        />
+                                        <span className="truncate flex-1">{dep.title}</span>
+                                    </label>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Permission for new invites: coloured segments */}
+                    <div className="px-5 pt-2 pb-4">
+                        <h3 className="text-[11px] font-medium text-t2-ink-3 mb-1.5">{t('share.newPermission')}</h3>
+                        <div className="flex gap-1 p-0.5 rounded-[10px] bg-t2-sub" role="radiogroup" aria-label={t('share.newPermission')}>
                             {([
-                                { val: 'view' as const, icon: Eye, label: t('share.view'), desc: t('share.viewDesc') },
-                                { val: 'edit' as const, icon: Edit3, label: t('share.edit'), desc: t('share.editDesc') },
-                                // Owners grant re-sharing via "Mehr > Darf weiterteilen" (canReshare). Invite equivalence: the old owner
-                                // tile "share" (share/false) is now edit + can_reshare=true; the tile stays for non-owners.
-                                ...(callerPermission === 'owner' ? [] : [{ val: 'share' as const, icon: Share2, label: t('share.shareTile'), desc: t('share.shareTileDesc') }]),
+                                { val: 'view' as const, icon: Eye, label: t('share.view') },
+                                { val: 'edit' as const, icon: Edit3, label: t('share.edit') },
+                                // Owners grant re-sharing via "Mehr > Darf weiterteilen" (canReshare); the tile stays for non-owners.
+                                ...(callerPermission === 'owner' ? [] : [{ val: 'share' as const, icon: Share2, label: t('share.shareTile') }]),
                             ]).map(opt => {
                                 const Icon = opt.icon;
                                 const disabled = isOptDisabled(opt.val);
@@ -710,195 +824,62 @@ export default function ShareModal({
                                     <button
                                         key={opt.val}
                                         type="button"
+                                        role="radio"
+                                        aria-checked={active}
                                         disabled={disabled}
-                                        onClick={() => {
-                                            if (!disabled) setPermission(opt.val);
-                                        }}
-                                        className={`p-3 rounded-[12px] border text-left transition-all ${
+                                        onClick={() => { if (!disabled) setPermission(opt.val); }}
+                                        style={{ '--chip': permissionTint(opt.val) } as React.CSSProperties}
+                                        className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-[8px] text-xs font-medium transition-colors ${
                                             disabled
-                                                ? 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_30%,transparent)] opacity-40 cursor-not-allowed'
+                                                ? 'text-t2-ink-3 opacity-40 cursor-not-allowed'
                                                 : active
-                                                    ? 'border-t2-accent bg-t2-accent text-t2-accent-ink shadow-sm'
-                                                    : 'border-t2-line  bg-[color-mix(in_srgb,var(--t2-sub)_50%,transparent)] hover:bg-t2-sub  hover:border-t2-line '
+                                                    ? 'mention-chip'
+                                                    : 'text-t2-ink-2 hover:bg-t2-hover'
                                         }`}
                                     >
-                                        <Icon size={16} className={active ? 'text-white  mb-1.5' : 'text-t2-ink-2  mb-1.5'} />
-                                        <div className={`text-xs font-bold ${active ? 'text-white ' : 'text-t2-ink '}`}>{opt.label}</div>
-                                        <div className={`text-[11px] ${active ? 'text-t2-ink-3 ' : 'text-t2-ink-2 '}`}>{opt.desc}</div>
+                                        <Icon size={13} aria-hidden="true" />
+                                        {opt.label}
                                     </button>
                                 );
                             })}
                         </div>
+                        <p className="mt-1.5 text-[11px] text-t2-ink-3">
+                            {permission === 'view' ? t('share.viewDesc') : permission === 'edit' ? t('share.editDesc') : t('share.shareTileDesc')}
+                        </p>
 
-                        {/* Info banner for view-only */}
                         {callerPermission === 'view' && (
-                            <div className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line  text-xs text-t2-accent ">
+                            <p className="mt-2 text-[11px] text-t2-ink-2">
                                 Du hast Lesezugriff und kannst diese Notiz nur mit Lesezugriff weiterleiten.
-                            </div>
+                            </p>
                         )}
 
-                        {/* Re-sharing checkbox for owners only */}
                         {callerPermission === 'owner' && (
-                            <div className="mt-3 p-3 rounded-[12px] bg-t2-sub  border border-t2-line ">
-                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-xs font-bold text-t2-ink-2 cursor-pointer select-none">{t('share.more')}<ChevronDown size={12} aria-hidden="true" className={`inline ml-1 transition-transform ${showMore ? 'rotate-180' : ''}`} /></button>
-                                {showMore && <label className="mt-2 flex items-start gap-3 cursor-pointer">
+                            <div className="mt-2">
+                                <button type="button" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)} className="text-[11px] font-medium text-t2-ink-2 cursor-pointer select-none">{t('share.more')}<ChevronDown size={12} aria-hidden="true" className={`inline ml-1 transition-transform ${showMore ? 'rotate-180' : ''}`} /></button>
+                                {showMore && <label className="mt-1.5 flex items-start gap-2.5 cursor-pointer">
                                     <input
                                         type="checkbox"
                                         checked={canReshare}
                                         onChange={(e) => setCanReshare(e.target.checked)}
-                                        className="mt-0.5 w-4 h-4 rounded border-t2-line  text-t2-ink accent-t2-accent"
+                                        className="mt-0.5 w-4 h-4 rounded accent-t2-accent"
                                     />
                                     <div className="flex-1">
-                                        <div className="text-xs font-bold text-t2-ink ">{t('share.canReshare')}</div>
-                                        <div className="text-[11px] text-t2-ink-2  mt-0.5">{t('share.canReshareDesc')}</div>
+                                        <div className="text-xs font-medium text-t2-ink">{t('share.canReshare')}</div>
+                                        <div className="text-[11px] text-t2-ink-2 mt-0.5">{t('share.canReshareDesc')}</div>
                                     </div>
                                 </label>}
                             </div>
                         )}
                     </div>
-
-                    <p className="px-6 pt-4 text-[11px] text-t2-ink-2">{t('share.addHint')}</p>
-
-                    {/* Content Section */}
-                    <div className="p-6 space-y-5">
-                        {/* Linked Files & Dependencies Section */}
-                        {dependencies.length > 0 && (
-                            <div className="p-3.5 rounded-[16px] bg-t2-sub  border border-t2-line  text-t2-ink-2 ">
-                                <div className="flex items-center justify-between mb-1.5">
-                                    <h4 className="text-xs font-bold text-t2-ink  flex items-center gap-1.5">
-                                        <Link2 size={13} />
-                                        <span>Verlinkte Notizen & Medien ({dependencies.length})</span>
-                                    </h4>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            if (selectedDepIds.size === dependencies.length) {
-                                                setSelectedDepIds(new Set());
-                                            } else {
-                                                setSelectedDepIds(new Set(dependencies.map(d => d.id)));
-                                            }
-                                        }}
-                                        className="text-[11px] text-t2-ink  font-semibold hover:underline"
-                                    >
-                                        {selectedDepIds.size === dependencies.length ? 'Keine' : 'Alle'}
-                                    </button>
-                                </div>
-                                <p className="text-[11px] text-t2-ink-2  mb-2.5">
-                                    Wähle aus, welche verlinkten Notizen der Empfänger ebenfalls einsehen darf:
-                                </p>
-                                <div className="space-y-1 max-h-32 overflow-y-auto pr-1">
-                                    {dependencies.map(dep => (
-                                        <label key={dep.id} className="flex items-center gap-2 text-xs text-t2-ink  cursor-pointer p-1.5 rounded-[8px] hover:bg-t2-surface  transition-colors">
-                                            <input
-                                                type="checkbox"
-                                                checked={selectedDepIds.has(dep.id)}
-                                                onChange={(e) => {
-                                                    const next = new Set(selectedDepIds);
-                                                    if (e.target.checked) next.add(dep.id);
-                                                    else next.delete(dep.id);
-                                                    setSelectedDepIds(next);
-                                                }}
-                                                className="w-4 h-4 rounded border-t2-line  text-t2-ink focus:ring-2 focus:ring-t2-accent focus:ring-offset-2 accent-t2-accent"
-                                            />
-                                            <span className="truncate flex-1">{dep.title}</span>
-                                        </label>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Contacts List */}
-                        {contacts.length > 0 && (
-                            <div>
-                                <h3 className="text-xs font-bold text-t2-ink-2  uppercase tracking-wider mb-2 flex items-center gap-1.5">
-                                    <Users size={14} />
-                                    <span>Deine Kontakte</span>
-                                </h3>
-                                <div className="space-y-2">
-                                    {contacts.map(contact => (
-                                        <button
-                                            key={contact.id}
-                                            onClick={() => handleShareWithContact(contact)}
-                                            disabled={sharing}
-                                            className={`w-full flex items-center justify-between p-3 rounded-[12px] border transition-all text-left ${
-                                                sharedContactId === contact.id
-                                                    ? 'border-emerald-500 bg-emerald-500/10'
-                                                    : 'border-t2-line  hover:bg-t2-sub  hover:border-t2-line '
-                                            }`}
-                                        >
-                                            <div className="flex items-center gap-3 truncate">
-                                                <div className="w-8 h-8 rounded-full bg-[#111827] text-white dark:bg-zinc-700 dark:text-zinc-100 font-bold text-xs flex items-center justify-center shrink-0">
-                                                    {contact.username[0]?.toUpperCase() || 'U'}
-                                                </div>
-                                                <div className="truncate">
-                                                    <p className="text-xs font-semibold text-t2-ink  truncate">{contact.username}</p>
-                                                    <p className="text-[11px] text-t2-ink-2  truncate">{contact.email}</p>
-                                                </div>
-                                            </div>
-                                            {sharedContactId === contact.id ? (
-                                                <Check size={16} className="text-emerald-500 shrink-0" />
-                                            ) : (
-                                                <ArrowRight size={14} className="text-t2-ink-2  shrink-0" />
-                                            )}
-                                        </button>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Custom Email Invite / Search */}
-                        <div className="pt-2 border-t border-t2-line ">
-                            {!showCustomInput ? (
-                                <button
-                                    onClick={() => setShowCustomInput(true)}
-                                    className="text-xs text-t2-ink  font-semibold hover:underline flex items-center gap-1.5 py-1"
-                                >
-                                    <Mail size={14} />
-                                    <span>Per E-Mail suchen / einladen</span>
-                                </button>
-                            ) : (
-                                <div className="space-y-2.5">
-                                    <div className="flex gap-2">
-                                        <input
-                                            type="email"
-                                            value={customEmail}
-                                            onChange={e => setCustomEmail(e.target.value)}
-                                            placeholder="E-Mail-Adresse eingeben..."
-                                            className="flex-1 h-[44px] px-3.5 rounded-[8px] border border-t2-line  bg-t2-surface  text-xs text-t2-ink  placeholder:text-t2-ink-2  outline-none focus:ring-2 focus:ring-t2-accent focus:ring-offset-2"
-                                        />
-                                        <button
-                                            onClick={handleSearchEmail}
-                                            disabled={loading || !customEmail.trim()}
-                                            className="bg-t2-accent hover:opacity-90 text-t2-accent-ink rounded-[8px] h-[44px] px-4 font-semibold text-[14px] disabled:opacity-50 transition-colors shrink-0 flex items-center justify-center"
-                                        >
-                                            {loading ? '...' : 'Suchen'}
-                                        </button>
-                                    </div>
-                                    {searchResult && (
-                                        <button
-                                            onClick={() => handleShareWithContact(searchResult)}
-                                            className="w-full p-3 rounded-[12px] bg-t2-sub  border border-t2-line  hover:border-t2-ink-3 text-left flex items-center justify-between transition-colors"
-                                        >
-                                            <div>
-                                                <p className="font-semibold text-xs text-t2-ink ">{searchResult.username}</p>
-                                                <p className="text-[11px] text-t2-ink-2 ">{searchResult.email}</p>
-                                            </div>
-                                            <span className="text-xs text-t2-ink  font-semibold flex items-center gap-1">Jetzt teilen →</span>
-                                        </button>
-                                    )}
-                                </div>
-                            )}
-                        </div>
-                    </div>
                     </>
                     )}
                 </div>
                 {!pendingShareContact && (
-                    <div className="px-6 py-4 border-t border-t2-line flex justify-end">
+                    <div className="px-5 pb-4 pt-1 flex justify-end">
                         <button
                             type="button"
                             onClick={onClose}
-                            className="h-[44px] px-5 rounded-[8px] bg-t2-ink text-t2-surface font-semibold text-[14px] hover:opacity-90 transition-opacity"
+                            className="h-9 px-4 rounded-[10px] bg-t2-ink text-t2-surface font-medium text-xs hover:opacity-90 transition-opacity"
                         >
                             {t('share.done')}
                         </button>

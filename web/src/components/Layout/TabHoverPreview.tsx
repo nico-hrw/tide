@@ -20,6 +20,8 @@ export interface TabPreviewTarget {
     /** Content cached on the tab when it was left. */
     content?: unknown;
     rect: DOMRect;
+    /** One line under the title for tabs that are not notes (Todos, plugins, ...). */
+    detail?: string;
 }
 
 /** Small card under a tab: the title and, for notes, the first lines. Decrypted text only lives in memory (see notePreview). */
@@ -59,6 +61,9 @@ export default function TabHoverPreview({ target }: { target: TabPreviewTarget }
             className="fixed z-[200] pointer-events-none bg-t2-surface border border-t2-line px-3.5 py-3 animate-in fade-in zoom-in-95 duration-150"
         >
             <div className="truncate text-[13px] font-semibold text-t2-ink">{target.title}</div>
+            {!target.isNote && target.detail && (
+                <div className="mt-1 text-[12px] leading-snug text-t2-ink-3">{target.detail}</div>
+            )}
             {target.isNote && (
                 <div className="mt-2">
                     {protectedNote ? (

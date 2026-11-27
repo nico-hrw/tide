@@ -1,6 +1,8 @@
 "use client";
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import { createPortal } from 'react-dom';
 import type { Editor } from '@tiptap/react';
 import { useReferenceStore, getReferenceById } from '@/store/useReferenceStore';
@@ -29,6 +31,8 @@ export default function ReferenceEditPopover({ editor }: { editor: Editor | null
     }, []);
 
     const close = useCallback(() => setTarget(null), []);
+    const popupRef = useRef<HTMLDivElement>(null);
+    const { fillRef, restRef } = usePopupTimer({ refs: [popupRef], enabled: !!target, duration: 3000, onExpire: close });
 
     useEffect(() => {
         if (!target) return;
@@ -84,7 +88,8 @@ export default function ReferenceEditPopover({ editor }: { editor: Editor | null
         : undefined;
 
     return createPortal(
-        <div data-reference-popover className="fixed z-[1100]" style={style}>
+        <div ref={popupRef} data-reference-popover className="fixed z-[1100]" style={style}>
+            <PopupTimerBar fillRef={fillRef} restRef={restRef} />
             <ReferenceForm
                 mode="edit"
                 term={reference.term}

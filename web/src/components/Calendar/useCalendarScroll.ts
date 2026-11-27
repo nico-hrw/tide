@@ -383,41 +383,8 @@ export function useCalendarScroll({
             }
         };
 
-        const globalMouseMoveHandler = (e: MouseEvent) => {
-            if (activePopover) {
-                if (Date.now() - lastPopoverOpenTimeRef.current < 450) {
-                    return;
-                }
-
-                // If event originates from a touch device (coarse pointer) or has touch-like characteristics, do not dismiss on mousemove hover
-                if (typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches) {
-                    return;
-                }
-
-                // Also ignore tiny movement / jitter from synthetic touch moves
-                if (Math.abs(e.movementX) < 2 && Math.abs(e.movementY) < 2 && (e as any).sourceCapabilities?.firesTouchEvents) {
-                    return;
-                }
-
-                const popoverEl = document.getElementById('active-event-popover');
-                if (popoverEl) {
-                    const rect = popoverEl.getBoundingClientRect();
-                    const distanceX = Math.max(rect.left - e.clientX, 0, e.clientX - rect.right);
-                    const distanceY = Math.max(rect.top - e.clientY, 0, e.clientY - rect.bottom);
-                    const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
-
-                    // Include hover event block buffer
-                    const blockRect = activePopover.rect;
-                    const blockDistX = Math.max(blockRect.left - e.clientX, 0, e.clientX - blockRect.right);
-                    const blockDistY = Math.max(blockRect.top - e.clientY, 0, e.clientY - blockRect.bottom);
-                    const blockDistance = Math.sqrt(blockDistX * blockDistX + blockDistY * blockDistY);
-
-                    if (Math.min(distance, blockDistance) > 150) { // 150px threshold
-                        setActivePopover(null);
-                    }
-                }
-            }
-        };
+        // Moving the mouse away no longer closes the popover on the spot: EventPopover runs a position based close
+        // timer (usePopupTimer) with a bar on top, which also holds while a field inside has focus.
 
         const globalClickHandler = (e: MouseEvent) => {
             if (activePopover) {
@@ -452,14 +419,12 @@ export function useCalendarScroll({
         };
 
         window.addEventListener('scroll', globalScrollHandler, true);
-        window.addEventListener('mousemove', globalMouseMoveHandler, true);
         window.addEventListener('mousedown', globalClickHandler);
         window.addEventListener('touchend', globalTouchHandler);
 
         return () => {
             container.removeEventListener('scroll', scrollHandler);
             window.removeEventListener('scroll', globalScrollHandler, true);
-            window.removeEventListener('mousemove', globalMouseMoveHandler, true);
             window.removeEventListener('mousedown', globalClickHandler);
             window.removeEventListener('touchend', globalTouchHandler);
         };

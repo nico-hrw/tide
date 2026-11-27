@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useEffect, useId, useRef, useState } from 'react';
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { Button, IconButton } from '../ui/Controls';
@@ -24,6 +26,7 @@ export function CalendarShareDialog({ group, onClose }: CalendarShareDialogProps
     const t = useT();
     const titleId = useId();
     const dialogRef = useRef<HTMLDivElement>(null);
+    const { fillRef, restRef } = usePopupTimer({ refs: [dialogRef], duration: 3000, onExpire: onClose });
     const rules = useCalendarShareRules();
     const [phase, setPhase] = useState<'loading' | 'ready' | 'error'>('loading');
 
@@ -72,8 +75,9 @@ export function CalendarShareDialog({ group, onClose }: CalendarShareDialogProps
                 aria-labelledby={titleId}
                 aria-busy={phase === 'loading'}
                 onKeyDown={onKeyDown}
-                className="flex max-h-[calc(100vh-32px)] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-2xl border border-t2-line bg-t2-surface p-5 text-t2-ink shadow-2xl"
+                className="relative flex max-h-[calc(100vh-32px)] w-full max-w-md flex-col gap-4 overflow-y-auto rounded-2xl border border-t2-line bg-t2-surface p-5 text-t2-ink shadow-2xl"
             >
+                <PopupTimerBar fillRef={fillRef} restRef={restRef} />
                 {phase === 'ready' ? (
                     <CalendarShareForm group={group} rule={rules[group.id]} titleId={titleId} onClose={onClose} />
                 ) : (

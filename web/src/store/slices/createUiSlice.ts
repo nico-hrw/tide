@@ -214,7 +214,7 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set, get) => ({
     setSmartIsland: (state: SmartIslandState | null) =>
         set({ smartIslandState: state }),
 
-    setEnabledExtensions: (extensions) =>
+    setEnabledExtensions: (extensions) => {
         set((state) => {
             const next =
                 typeof extensions === 'function'
@@ -231,7 +231,9 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set, get) => ({
                 }
             }
             return { enabledExtensions: next };
-        }),
+        });
+        pushSettingsPatch({ extensions: { enabled: get().enabledExtensions } });
+    },
 
     setThemePreference: (pref: ThemePreference) =>
         set(() => {

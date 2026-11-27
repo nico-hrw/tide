@@ -72,48 +72,40 @@ const GenericMentionNodeView = ({ node }: any) => {
     const eventDateStr = isEvent ? formatEventTime(ev?.start || start) : '';
 
     // Moderate rounding (not full-pill), inherit font size, tight horizontal padding
+    // Flat chip: tinted background + matching text, no border, no accent bar.
+    // Colour by kind: notes/files violet, tasks blue, events in their calendar colour.
     const baseClass = isAlwaysBox
-        ? 'inline-flex items-center gap-1.5 px-2.5 py-1 my-0.5 rounded-md font-normal cursor-pointer transition-all leading-snug align-middle border shadow-2xs'
-        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle border';
+        ? 'inline-flex items-center gap-1.5 px-2.5 py-1 my-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle'
+        : 'inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-medium cursor-pointer transition-colors leading-snug align-middle';
 
-    let colorClass = '';
-    let styleObj: any = {
+    const eventColor: string | undefined = ev?.color || liveFile?.color;
+    let tint = 'var(--mention-note)';
+    if (isGhost) tint = 'var(--t2-ink-2)';
+    else if (isEvent && liveFile?.is_task) tint = 'var(--mention-todo)';
+    else if (isEvent) tint = eventMentionStyle === 'calendar' && eventColor ? eventColor : 'var(--mention-todo)';
+
+    const colorClass = 'mention-chip';
+    const styleObj: React.CSSProperties & Record<string, string | number> = {
         cursor: 'pointer',
         fontSize: 'inherit',
         display: 'inline-flex',
         alignItems: 'center',
         verticalAlign: 'middle',
+        '--chip': tint,
     };
 
-    if (isFile) {
-        colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line    ';
-    } else if (isGhost) {
-        colorClass = 'bg-t2-hover  text-t2-ink-2  hover:bg-t2-stage  border-t2-line ';
-    } else if (isEvent) {
-        if (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) {
-            const eventColor = ev?.color || liveFile?.color;
-            styleObj = {
-                ...styleObj,
-                backgroundColor: `${eventColor}15`,
-                borderColor: `${eventColor}40`,
-                color: eventColor,
-            };
-        } else {
-            colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line   ';
-        }
-    } else {
-        colorClass = 'bg-t2-sub text-t2-accent hover:bg-t2-sub border-t2-line   ';
-    }
-
-    if (isAlwaysBox) {
-        styleObj = {
-            ...styleObj,
-            borderLeftWidth: '3px',
-            borderLeftColor: (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color))
-                ? (ev?.color || liveFile?.color)
-                : '#3b82f6',
-        };
-    }
+    const taskCheckbox = isEvent && liveFile?.is_task ? (
+        <input
+            type="checkbox"
+            checked={isCompleted}
+            onChange={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
+            }}
+            className="w-3.5 h-3.5 rounded-sm cursor-pointer m-0 shrink-0"
+            style={{ accentColor: tint, marginTop: '-1px' }}
+        />
+    ) : null;
 
     const handleClick = (e: React.MouseEvent) => {
         e.stopPropagation();
@@ -167,28 +159,17 @@ const GenericMentionNodeView = ({ node }: any) => {
                 </>
             ) : isAlwaysBox ? (
                 <>
-                    <Calendar className="w-3.5 h-3.5 opacity-70 shrink-0" style={{ color: (eventMentionStyle === 'calendar' && (ev?.color || liveFile?.color)) ? (ev?.color || liveFile?.color) : undefined }} />
+                    {isEvent && liveFile?.is_task ? taskCheckbox : <Calendar className="w-3.5 h-3.5 shrink-0" />}
                     <span className="font-semibold text-xs truncate max-w-[160px]">{title}</span>
                     {eventDateStr && (
-                        <span className="text-[11px] opacity-75 truncate border-l pl-1.5 border-current/20">
+                        <span className="text-[11px] opacity-70 truncate font-normal">
                             {eventDateStr}
                         </span>
                     )}
                 </>
             ) : (
                 <>
-                    {isEvent && liveFile?.is_task && (
-                        <input
-                            type="checkbox"
-                            checked={isCompleted}
-                            onChange={(e) => {
-                                e.stopPropagation();
-                                window.dispatchEvent(new CustomEvent('event-task:toggle', { detail: { id, is_completed: !isCompleted } }));
-                            }}
-                            className="w-3.5 h-3.5 rounded-sm cursor-pointer border-t2-line  focus:ring-0 m-0"
-                            style={(ev?.color || liveFile?.color) ? { accentColor: ev?.color || liveFile?.color, marginTop: '-1px' } : { marginTop: '-1px' }}
-                        />
-                    )}
+                    {taskCheckbox}
                     <span className={isEvent && liveFile?.is_task && isCompleted ? 'line-through opacity-60' : ''}>
                         @{safePrefix ? (
                             <>

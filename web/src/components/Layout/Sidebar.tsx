@@ -340,7 +340,6 @@ export default function Sidebar({
                     onOpenVariables={() => useDataStore.getState().setVariablesModalOpen(true)}
                 />
             </nav>
-            <div className="mx-3 my-2 h-px shrink-0 bg-t2-line-soft" role="separator" />
             <div className={`transition-opacity duration-300 ${isBubbleTraversing ? 'opacity-20 pointer-events-none' : 'opacity-100'}`}>
                 <SidebarQuickNotes
                     compact
@@ -448,6 +447,7 @@ export default function Sidebar({
                 onShare={onShare}
                 onDeleteNote={onDeleteNote}
                 onRenameNote={onRenameNote}
+                onMoveItem={onMoveItem}
                 contextMenu={contextMenu}
                 setContextMenu={setContextMenu}
                 sidebarContextMenu={sidebarContextMenu}
