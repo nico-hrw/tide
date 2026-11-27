@@ -4,7 +4,6 @@ import React, { useEffect, useState } from 'react';
 import { ChevronRight, FileText, Folder, FolderOpen } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { getNotePreview, preloadNotePreviews, subscribeNotePreviews } from '@/lib/notePreview';
-import SidebarQuickNotes from '../sidebar/SidebarQuickNotes';
 import { MobileNoteCard } from './MobileNoteCard';
 import { FolderCard, NoteCard } from './MobileNoteGridCards';
 import {
@@ -218,8 +217,6 @@ export function MobileNotesTab({
             </button>
           ))}
         </div>
-        {/* Workspace-Auswahl rechts neben Liste/Kacheln */}
-        <SidebarQuickNotes compact />
       </div>
 
       {/* Notes list */}

@@ -1,10 +1,13 @@
 'use client';
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Plus, X } from 'lucide-react';
-import { canCreateTag, filterTagsByQuery, type Tag } from '@/lib/tags';
+import { canCreateTag, filterTagsByQuery, splitTagsByWorkspace, tagSafe, type Tag } from '@/lib/tags';
+import { normalizeSafe } from '@/lib/todoSafes';
+import { useDataStore } from '@/store/useDataStore';
 import { DEFAULT_TAG_COLOR } from '@/components/Todo/useTodoTags';
+import { WorkspacePrefixBox } from '@/components/Workspaces/WorkspacePrefixBox';
 import { TagPickerPanel } from './TagPickerPanel';
 
 export interface TagPickerProps {
@@ -44,8 +47,15 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
     valueRef.current = value;
   });
 
-  const filtered = filterTagsByQuery(tags, query);
-  const canCreate = canCreateTag(tags, query);
+  const activeSafes = useDataStore((s) => s.activeSafes);
+  const activeSet = useMemo(() => new Set((activeSafes ?? []).map(normalizeSafe)), [activeSafes]);
+  const { local: localTags, external: externalTags } = useMemo(
+    () => splitTagsByWorkspace(tags, activeSafes ?? []),
+    [tags, activeSafes],
+  );
+  const filtered = filterTagsByQuery(localTags, query);
+  const filteredExternal = filterTagsByQuery(externalTags, query);
+  const canCreate = canCreateTag(localTags, query);
   const rowCount = filtered.length + (canCreate ? 1 : 0);
 
   const measure = useCallback(() => {
@@ -163,6 +173,7 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
           data-tag-chip
           className={`inline-flex items-center gap-1 ${compact ? 'pl-2 pr-1 py-0.5' : 'pl-2.5 pr-1.5 py-1'} rounded-lg text-xs font-medium border bg-t2-sub text-t2-ink border-t2-line-soft`}
         >
+          {activeSet.size > 0 && !activeSet.has(tagSafe(tag)) && <WorkspacePrefixBox safe={tagSafe(tag)} />}
           <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: tag.color || DEFAULT_TAG_COLOR }} />
           <span>{tag.title}</span>
           <button
@@ -197,12 +208,14 @@ export const TagPicker: React.FC<TagPickerProps> = ({ tags, value, onChange, onC
       {open && createPortal(
         <TagPickerPanel
           tags={filtered}
+          externalTags={filteredExternal}
+          hasExternalTags={externalTags.length > 0}
           value={value}
           query={query}
           onQueryChange={(q) => { setQuery(q); setActive(-1); }}
           active={active}
           canCreate={canCreate}
-          hasAnyTags={tags.length > 0}
+          hasAnyTags={localTags.length > 0}
           onToggle={toggle}
           onCreate={() => void create()}
           onKeyDown={onKeyDown}

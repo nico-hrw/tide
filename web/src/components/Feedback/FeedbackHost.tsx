@@ -155,7 +155,8 @@ export default function FeedbackHost() {
     if (!mounted) return null;
     return createPortal(
         <>
-            <div className="pointer-events-none fixed inset-x-0 bottom-5 z-[1250] flex flex-col items-center gap-2 px-4">
+            <div className="pointer-events-none fixed inset-x-0 z-[1250] flex flex-col items-center gap-2 px-4"
+                style={{ bottom: 'max(1.25rem, calc(env(safe-area-inset-bottom) + 0.5rem))' }}>
                 {toasts.map((t) => <ToastItem key={t.id} toast={t} />)}
             </div>
             <ConfirmDialog />

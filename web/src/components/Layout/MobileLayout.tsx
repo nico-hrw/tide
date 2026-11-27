@@ -7,8 +7,10 @@ import { isItemUnlocked, ItemSecuritySettings } from '@/lib/pinSecurity';
 import MobileTodoView from '../Todo/MobileTodoView';
 import { MobileTodoStyleProvider } from '../Todo/MobileTodoStyle';
 import { T } from './mobile/mobileTheme';
-import { filterEventsByTags } from '@/lib/calendarUtils';
+import { filterEventsByTags, getEventGroupIds } from '@/lib/calendarUtils';
 import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
+import { isFromOtherWorkspace, itemVisibleInSafesOrFilter, normalizeSafe } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
 import { expandMobileEvents, type CalendarEvent } from './mobile/expandMobileEvents';
 import type { MobileTab } from './mobile/MobileBottomNav';
 import type { PinPromptTarget, MobileListItem } from './mobile/MobileNoteListItems';
@@ -155,16 +157,38 @@ export default function MobileLayout({
   const resolvedThemes = useMemo<MobileThemeItem[]>(() => {
     if (themes && themes.length > 0) return themes;
     return (files || []).filter((f) => f.type === 'folder' && Boolean(f.isGroup)).map((g) => ({
-      id: g.id, title: g.title || 'Gruppe', color: g.color, effect: typeof g.effect === 'string' ? g.effect : undefined,
+      id: g.id,
+      title: g.title || 'Gruppe',
+      color: g.color,
+      effect: typeof g.effect === 'string' ? g.effect : undefined,
+      safe: normalizeSafe((g as { safe?: string; metadata?: { safe?: string } }).safe || (g as { metadata?: { safe?: string } }).metadata?.safe || 'main'),
     }));
   }, [themes, files]);
 
+  const activeSafes = useDataStore((s) => s.activeSafes);
+  const { hiddenIds: hiddenEventIds, unhideAll: unhideAllEvents } = useHiddenExternal('event');
+  const [showHiddenExternal, setShowHiddenExternal] = useState(false);
   const calendarTagFilter = useCalendarTagFilter(resolvedThemes.map((t) => t.id));
   const hiddenList = useDataStore((s) => s.hiddenTagIds);
   const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
+  const eventBaseId = (id: string) => (id.includes('_') ? id.split('_')[0] : id);
+  const workspaceEvents = useMemo(
+    () => events.filter((e) => itemVisibleInSafesOrFilter(e as { safe?: string | null; linkedSafes?: string[] | null }, getEventGroupIds(e), activeSafes ?? [], calendarTagFilter.tagIds)),
+    [events, activeSafes, calendarTagFilter.tagIds]
+  );
+  const hiddenExternalCount = useMemo(
+    () => workspaceEvents.filter((e) => isFromOtherWorkspace(e as { safe?: string | null }, activeSafes ?? []) && hiddenEventIds.has(eventBaseId(e.id))).length,
+    [workspaceEvents, activeSafes, hiddenEventIds]
+  );
+  const visibleWorkspaceEvents = useMemo(
+    () => showHiddenExternal
+      ? workspaceEvents
+      : workspaceEvents.filter((e) => !(isFromOtherWorkspace(e as { safe?: string | null }, activeSafes ?? []) && hiddenEventIds.has(eventBaseId(e.id)))),
+    [workspaceEvents, showHiddenExternal, activeSafes, hiddenEventIds]
+  );
   const filteredEvents = useMemo(
-    () => filterEventsByTags(events, calendarTagFilter, resolvedThemes, hiddenTagIds),
-    [events, calendarTagFilter, resolvedThemes, hiddenTagIds]
+    () => filterEventsByTags(visibleWorkspaceEvents, calendarTagFilter, resolvedThemes, hiddenTagIds),
+    [visibleWorkspaceEvents, calendarTagFilter, resolvedThemes, hiddenTagIds]
   );
   const expandedEvents = useMemo(
     () => expandMobileEvents(filteredEvents, activeDate, resolvedThemes),
@@ -319,6 +343,9 @@ export default function MobileLayout({
           onCreateEvent={(date) => setCreateModal({ open: true, mode: 'event', date })} onEventClick={onEventClick}
           onEventUpdate={onEventUpdate} onEventDelete={onEventDelete} onTaskComplete={onTaskComplete} onTodayClick={handleGoToToday} themes={resolvedThemes}
           onCalViewModeChange={setCalViewMode} onOpenTodos={() => setActiveTab('todos')}
+          hiddenExternalCount={hiddenExternalCount} showHiddenExternal={showHiddenExternal}
+          onToggleShowHiddenExternal={() => setShowHiddenExternal((v) => !v)}
+          onUnhideAllExternal={() => { unhideAllEvents(); setShowHiddenExternal(false); }}
         />
       ) : null}
       {activeTab === 'notes' ? (

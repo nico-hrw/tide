@@ -1,10 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
-import { Folder, FolderOpen, ChevronRight, ChevronDown } from "lucide-react";
+import { Folder, FolderOpen, ChevronRight, ChevronDown, EyeOff, Eye } from "lucide-react";
 import { motion } from "framer-motion";
 import type { DecryptedFile, ContextMenuEvent, DropIndicator, SidebarProps } from "./types";
 import { FileItem } from "./FileItem";
 import { FolderItem } from "./FolderItem";
 import { useDataStore } from "@/store/useDataStore";
+import { useHiddenExternal, RELATED_FOLDER_ID } from "@/lib/hiddenExternal";
 
 type NavTreeProps = Pick<SidebarProps, 'files' | 'onDeleteNote' | 'onRenameNote' | 'onToggleVisibility' | 'onShare' | 'editingFileId' | 'onRenameSubmit' | 'onCreateFolder' | 'onMoveItem' | 'hiddenThemeIds' | 'onToggleThemeVisibility' | 'enabledExtensions' | 'activeTabId' | 'openTabs'> & {
     myId: string;
@@ -31,6 +32,8 @@ export default function SidebarNavTree({
     const activeSafes = useDataStore((s) => s.activeSafes);
     const normActiveSafes = useMemo(() => (activeSafes || []).map((s) => (s === 'Standard' ? 'main' : s)), [activeSafes]);
     const [isRelatedFolderOpen, setIsRelatedFolderOpen] = useState(true);
+    const [showHiddenRelated, setShowHiddenRelated] = useState(false);
+    const { hiddenIds: hiddenRelated, hide: hideRelated, unhide: unhideRelated } = useHiddenExternal('related-note');
     const [isDragging, setIsDragging] = useState(false);
 
     useEffect(() => {
@@ -76,6 +79,11 @@ export default function SidebarNavTree({
         });
     }, [files, normActiveSafes]);
 
+    const relatedFolderHidden = hiddenRelated.has(RELATED_FOLDER_ID);
+    const shownRelated = useMemo(() => (showHiddenRelated ? relatedItems : relatedItems.filter((f) => !hiddenRelated.has(f.id))), [relatedItems, hiddenRelated, showHiddenRelated]);
+    const hiddenRelatedCount = relatedFolderHidden ? relatedItems.length : relatedItems.filter((f) => hiddenRelated.has(f.id)).length;
+    const relatedFolderVisible = relatedItems.length > 0 && (showHiddenRelated || (!relatedFolderHidden && shownRelated.length > 0));
+
     const displayOrderedItems = useMemo(() => {
         if (relatedItems.length === 0) return orderedItems;
         const relatedIds = new Set(relatedItems.map((r) => r.id));
@@ -95,8 +103,8 @@ export default function SidebarNavTree({
 
     return (
                 <div className="space-y-0.5">
-                    {relatedItems.length > 0 && (
-                        <div className="mb-1">
+                    {relatedFolderVisible && (
+                        <div className="mb-1 relative group/rel">
                             <button
                                 onClick={() => setIsRelatedFolderOpen(o => !o)}
                                 className="group flex items-center justify-between w-full px-2 py-1.5 rounded-lg hover:bg-t2-hover interactive-hover transition-colors"
@@ -112,39 +120,68 @@ export default function SidebarNavTree({
                                     {isRelatedFolderOpen ? <FolderOpen size={15} className="text-t2-accent shrink-0" /> : <Folder size={15} className="text-t2-accent shrink-0" />}
                                     <span className="text-sm font-semibold text-t2-ink  truncate">Verwandt</span>
                                     <span className="text-[11px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-md bg-t2-sub text-t2-accent  ">
-                                        {relatedItems.length}
+                                        {shownRelated.length}
                                     </span>
                                 </div>
                             </button>
-                            {isRelatedFolderOpen && (
-                                <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-t2-line  space-y-0.5">
-                                    {relatedItems.map((item) => (
-                                        <FileItem
-                                            key={item.id}
-                                            file={item}
-                                            level={0}
-                                            onSelect={handleProtectedSelect}
-                                            onDelete={onDeleteNote}
-                                            onRename={onRenameNote}
-                                            onVisibility={onToggleVisibility}
-                                            onShare={onShare}
-                                            editingId={editingFileId}
-                                            onRenameSubmit={onRenameSubmit}
-                                            onDragStart={(e, id) => {
-                                                e.dataTransfer.setData("text/plain", id);
-                                                e.dataTransfer.effectAllowed = "move";
-                                            }}
-                                            enabledExtensions={enabledExtensions}
-                                            myId={myId}
-                                            onContextMenu={handleContextMenu}
-                                            activeTabId={activeTabId}
-                                            openTabs={openTabs}
-                                        />
-                                    ))}
-                                </div>
-                            )}
-                        </div>
-                    )}
+                        <button
+                            type="button"
+                            onClick={(e) => { e.stopPropagation(); relatedFolderHidden ? unhideRelated(RELATED_FOLDER_ID) : hideRelated(RELATED_FOLDER_ID); }}
+                            className="absolute right-1 top-1.5 p-1 rounded-md text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover opacity-0 group-hover/rel:opacity-100 focus:opacity-100 transition-opacity"
+                            title={relatedFolderHidden ? 'Ordner einblenden' : 'Ordner ausblenden'}
+                        >
+                            {relatedFolderHidden ? <Eye size={13} /> : <EyeOff size={13} />}
+                        </button>
+                        {isRelatedFolderOpen && (
+                            <div className="relative mt-0.5 ml-3 pl-2.5 border-l border-t2-line  space-y-0.5">
+                                {shownRelated.map((item) => {
+                                    const isHiddenItem = hiddenRelated.has(item.id);
+                                    return (
+                                    <div key={item.id} className={`relative group/relitem ${isHiddenItem ? 'opacity-50' : ''}`}>
+                                    <FileItem
+                                        file={item}
+                                        level={0}
+                                        onSelect={handleProtectedSelect}
+                                        onDelete={onDeleteNote}
+                                        onRename={onRenameNote}
+                                        onVisibility={onToggleVisibility}
+                                        onShare={onShare}
+                                        editingId={editingFileId}
+                                        onRenameSubmit={onRenameSubmit}
+                                        onDragStart={(e, id) => {
+                                            e.dataTransfer.setData("text/plain", id);
+                                            e.dataTransfer.effectAllowed = "move";
+                                        }}
+                                        enabledExtensions={enabledExtensions}
+                                        myId={myId}
+                                        onContextMenu={handleContextMenu}
+                                        activeTabId={activeTabId}
+                                        openTabs={openTabs}
+                                    />
+                                    <button
+                                        type="button"
+                                        onClick={(e) => { e.stopPropagation(); isHiddenItem ? unhideRelated(item.id) : hideRelated(item.id); }}
+                                        className="absolute right-1 top-1/2 -translate-y-1/2 p-1 rounded-md bg-t2-bg text-t2-ink-3 hover:text-t2-ink-2 hover:bg-t2-hover opacity-0 group-hover/relitem:opacity-100 focus:opacity-100 transition-opacity"
+                                        title={isHiddenItem ? 'Einblenden' : 'Ausblenden'}
+                                    >
+                                        {isHiddenItem ? <Eye size={12} /> : <EyeOff size={12} />}
+                                    </button>
+                                    </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </div>
+                )}
+                {hiddenRelatedCount > 0 && (
+                    <button
+                        type="button"
+                        onClick={() => setShowHiddenRelated((v) => !v)}
+                        className="mb-1 px-2 text-[11px] text-t2-ink-3 hover:text-t2-ink-2 underline-offset-2 hover:underline"
+                    >
+                        {showHiddenRelated ? 'Ausgeblendete verbergen' : `${hiddenRelatedCount} ausgeblendet – einblenden`}
+                    </button>
+                )}
                     {sharedWithMeItems.length > 0 && (
                         <div className="mb-1">
                             <button

@@ -3,10 +3,11 @@ import { getEffectStyle } from '@/components/Calendar/CalendarEventItem';
 import { format, isSameDay } from 'date-fns';
 import { de } from 'date-fns/locale';
 import {
-  Calendar as CalendarIcon, Clock, ChevronDown, MapPin, Coffee, Plus, CheckSquare,
+  Calendar as CalendarIcon, EyeOff, Plus,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
 import { useDataStore } from '@/store/useDataStore';
+import { isFromOtherWorkspace } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
 import { paletteFor, type PaletteEntry } from './eventPalette';
 import { AllDayTodoPills, DELETE_PATH, EDIT_PATH, FilledIcon, TimedTodoRow } from './AgendaParts';
 import { DAY_MIN_BLOCK_PX, DAY_PX_PER_MIN, blockHeightPx } from './timelineMath';
@@ -70,47 +71,60 @@ function getCardStyle(pal: PaletteEntry, isActive: boolean, extra?: React.CSSPro
   };
 }
 
-function EventActions({ ev, isActive, ink, theme, onDeleteEvent, onEditEvent, compact }: { ev: any; isActive: boolean; ink?: string; theme: string; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; compact?: boolean }) {
+function EventOptionsPill({
+  ev, isExternal, onHideExternal, onDeleteEvent, onEditEvent, onClose,
+}: {
+  ev: any; isExternal?: boolean; onHideExternal?: () => void;
+  onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onClose: () => void;
+}) {
   return (
-    <>
-      {ev.location && (
-        <div className={`flex items-center gap-1.5 text-xs font-medium ${compact ? 'mb-1.5' : 'mb-2'}`} style={{ color: ink ?? T.sec }}>
-          <MapPin size={compact ? 12 : 13} className="shrink-0" /><span className="truncate">{ev.location}</span>
-        </div>
-      )}
-      {ev.description && (
-        <p className={`text-xs whitespace-pre-wrap leading-relaxed ${compact ? 'mb-2.5' : 'mb-3'}`} style={{ color: ink ?? T.sec }}>{ev.description}</p>
-      )}
-      <div className="flex items-center gap-5 pt-1">
+    <div
+      onClick={e => e.stopPropagation()}
+      className="absolute right-2 top-1/2 -translate-y-1/2 z-20 flex items-center gap-1 rounded-full border border-t2-line bg-t2-surface/95 px-1.5 py-1 shadow-lg backdrop-blur-sm"
+    >
+      <button
+        type="button"
+        aria-label="Bearbeiten"
+        onClick={e => {
+          e.stopPropagation();
+          onClose();
+          if (onEditEvent) onEditEvent(ev);
+          else window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
+        }}
+        className="p-1.5 rounded-full hover:bg-t2-hover active:scale-90 transition-transform text-t2-ink"
+      >
+        <FilledIcon d={EDIT_PATH} size={17} />
+      </button>
+      {isExternal && onHideExternal && (
         <button
           type="button"
-          aria-label="Bearbeiten"
+          aria-label="In diesem Workspace ausblenden"
+          title="In diesem Workspace ausblenden"
           onClick={e => {
             e.stopPropagation();
-            if (onEditEvent) {
-              onEditEvent(ev);
-            } else {
-              window.dispatchEvent(new CustomEvent('mobile_edit_event', { detail: { id: ev.id } }));
-            }
+            onHideExternal();
+            onClose();
           }}
-          className="p-1 active:scale-90 transition-transform"
-          style={{ color: ink ?? T.pri }}
+          className="p-1.5 rounded-full hover:bg-t2-hover active:scale-90 transition-transform text-t2-ink-2"
         >
-          <FilledIcon d={EDIT_PATH} size={compact ? 20 : 22} />
+          <EyeOff size={16} />
         </button>
-        {onDeleteEvent && (
-          <button
-            type="button"
-            aria-label="Löschen"
-            onClick={e => { e.stopPropagation(); onDeleteEvent(ev.id); }}
-            className="p-1 active:scale-90 transition-transform"
-            style={{ color: '#ef4444' }}
-          >
-            <FilledIcon d={DELETE_PATH} size={compact ? 20 : 22} />
-          </button>
-        )}
-      </div>
-    </>
+      )}
+      {onDeleteEvent && (
+        <button
+          type="button"
+          aria-label="Löschen"
+          onClick={e => {
+            e.stopPropagation();
+            onClose();
+            onDeleteEvent(ev.id);
+          }}
+          className="p-1.5 rounded-full hover:bg-t2-hover active:scale-90 transition-transform text-t2-late"
+        >
+          <FilledIcon d={DELETE_PATH} size={17} />
+        </button>
+      )}
+    </div>
   );
 }
 
@@ -128,10 +142,11 @@ function StatusBadges({ isActive, remStr, durStr, ink }: { isActive: boolean; re
 }
 
 function TimelineEventItem({
-  ev, now, isToday, isEven, nextUpcomingId, theme, isExpanded, onToggleExpand, onDeleteEvent, onEditEvent, onTaskComplete, isParallel = false, style, proportional = false,
+  ev, now, isToday, nextUpcomingId, isExpanded, onToggleExpand, onCloseOptions, isExternal, onHideExternal, onDeleteEvent, onEditEvent, onTaskComplete, isParallel = false, style, proportional = false,
 }: {
   ev: any; now: Date; isToday: boolean; isEven: boolean; nextUpcomingId: string | null; theme: string;
-  isExpanded: boolean; onToggleExpand: () => void; onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties; proportional?: boolean;
+  isExpanded: boolean; onToggleExpand: () => void; onCloseOptions: () => void; isExternal?: boolean; onHideExternal?: () => void;
+  onDeleteEvent?: (id: string) => void; onEditEvent?: (ev: any) => void; onTaskComplete?: (id: string, completed: boolean) => void; isParallel?: boolean; style?: React.CSSProperties; proportional?: boolean;
 }) {
   const info = getEvInfo(ev, now, isToday, nextUpcomingId);
   // Der laufende Termin ist dunkler als die übrigen: die eigene Farbe nachgedunkelt, mit heller Schrift (nie weiß).
@@ -139,7 +154,7 @@ function TimelineEventItem({
   const pal = info.isActive ? { bg: `color-mix(in srgb, ${basePal.bg} 52%, #000)`, ink: '#FFFFFF' } : basePal;
   // Legacy height by duration; in the proportional day view the card fills its segment instead.
   const pHeight = Math.max(54, Math.min(180, 44 + info.durM * 0.6));
-  const fill = proportional ? (isExpanded ? '' : 'h-full') : 'my-1';
+  const fill = proportional ? 'h-full' : 'my-1';
 
   const isTask = !!(ev.is_task || ev.linkedTaskId);
   const tasks = useDataStore(state => state.tasks);
@@ -165,16 +180,13 @@ function TimelineEventItem({
 
   if (isParallel) {
     return (
-      <div id={`ev-${ev.id}`} className={`w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden${proportional ? ' select-none' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, style), ev.effect)}>
-        <button data-card-body onClick={onToggleExpand} className="w-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
+      <div id={`ev-${ev.id}`} className={`w-full flex flex-col text-left rounded-[14px] transition-all relative overflow-hidden${proportional ? ' select-none' : ''}${isExpanded ? ' ring-2 ring-t2-ink/35' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, style), ev.effect)}>
+        <button data-card-body onClick={onToggleExpand} className="w-full h-full flex flex-col text-left p-3 cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
           <div className="flex items-center justify-between gap-1 mb-1.5 w-full">
             <span className="text-[11px] font-bold" style={{ color: pal.ink }}>
               {format(info.evStart, 'HH:mm')} – {format(info.evEnd, 'HH:mm')}
             </span>
-            <div className="flex items-center gap-1">
-              <span className="text-[11px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
-              <ChevronDown size={12} style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink, transition: 'transform 0.2s ease' }} />
-            </div>
+            <span className="text-[11px] font-medium shrink-0 px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
           </div>
           <div className="flex items-start gap-1.5 min-w-0 w-full mb-1">
             {isTask ? (
@@ -195,32 +207,27 @@ function TimelineEventItem({
             <span className={`text-xs sm:text-sm font-bold line-clamp-2 flex-1 leading-snug ${isCompleted ? 'line-through opacity-60' : ''}`} style={{ color: pal.ink }}>{ev.title}</span>
           </div>
           <StatusBadges isActive={info.isActive} remStr={info.remStr} durStr={info.durStr} ink={pal.ink} />
-          {!isExpanded && ev.description && (
+          {ev.description && (
             <p className="text-[11px] mt-0.5 line-clamp-1 leading-relaxed" style={{ color: pal.ink }}>{ev.description}</p>
           )}
         </button>
-        <AnimatePresence>
-          {isExpanded && (
-            <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: 'auto', opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-              className="overflow-hidden"
-            >
-              <div className="px-3 pb-3 pt-1 border-t" style={{ borderColor: 'rgba(128, 128, 128, 0.25)' }}>
-                <EventActions ev={ev} isActive={info.isActive} ink={pal.ink} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} compact />
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {isExpanded && (
+          <EventOptionsPill
+            ev={ev}
+            isExternal={isExternal}
+            onHideExternal={onHideExternal}
+            onDeleteEvent={onDeleteEvent}
+            onEditEvent={onEditEvent}
+            onClose={onCloseOptions}
+          />
+        )}
       </div>
     );
   }
 
   return (
-    <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden${proportional ? ' select-none' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, proportional ? style : { minHeight: pHeight, ...style }), ev.effect)}>
-      <button data-card-body onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: isExpanded || proportional ? undefined : pHeight }}>
+    <div id={`ev-${ev.id}`} className={`w-full rounded-xl ${fill} relative transition-all overflow-hidden${proportional ? ' select-none' : ''}${isExpanded ? ' ring-2 ring-t2-ink/35' : ''}`} style={getCardStyle(pal, info.isActive, dayCardStyle(proportional, proportional ? style : { minHeight: pHeight, ...style }), ev.effect)}>
+      <button data-card-body onClick={onToggleExpand} className={`w-full flex text-left p-0 transition-all cursor-pointer items-stretch ${proportional ? fill : ''}`} style={{ border: 'none', background: 'transparent', minHeight: proportional ? undefined : pHeight }}>
         <div className="w-[58px] shrink-0 flex flex-col items-end pr-2 pt-3.5">
           <span className={`font-bold leading-none ${info.isActive ? 'text-[13px]' : 'text-[12px]'}`} style={{ color: pal.ink }}>{format(info.evStart, 'HH:mm')}</span>
           <span className="text-[11px] font-medium mt-1" style={{ color: pal.ink }}>{format(info.evEnd, 'HH:mm')}</span>
@@ -251,30 +258,24 @@ function TimelineEventItem({
               {!info.isActive && !info.isNext && (
                 <span className="text-[11px] font-medium px-1.5 py-0.5 rounded-md" style={{ background: 'rgba(128,128,128,0.22)', color: pal.ink }}>{info.durStr}</span>
               )}
-              <ChevronDown size={14} className="transition-transform duration-200" style={{ transform: isExpanded ? 'rotate(180deg)' : 'none', color: pal.ink }} />
             </div>
           </div>
           <StatusBadges isActive={info.isActive} remStr={info.remStr} durStr={info.durStr} ink={pal.ink} />
-          {!isExpanded && ev.description && (
+          {ev.description && (
             <p className="text-xs mt-1.5 line-clamp-1 leading-relaxed" style={{ color: pal.ink }}>{ev.description}</p>
           )}
         </div>
       </button>
-      <AnimatePresence>
-        {isExpanded && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: 'auto', opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
-            className="overflow-hidden"
-          >
-            <div className="px-4 pb-3.5 pt-2 border-t ml-[82px] mr-3" style={{ borderColor: 'rgba(128, 128, 128, 0.25)' }}>
-              <EventActions ev={ev} isActive={info.isActive} ink={pal.ink} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {isExpanded && (
+        <EventOptionsPill
+          ev={ev}
+          isExternal={isExternal}
+          onHideExternal={onHideExternal}
+          onDeleteEvent={onDeleteEvent}
+          onEditEvent={onEditEvent}
+          onClose={onCloseOptions}
+        />
+      )}
     </div>
   );
 }
@@ -296,6 +297,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
 }: DbTimelineDayProps) {
   const [expandedEventId, setExpandedEventId] = useState<string | null>(null);
   const tasks = useDataStore(state => state.tasks);
+  const activeSafes = useDataStore(state => state.activeSafes);
+  const { hide: hideExternalEvent } = useHiddenExternal('event');
+  const baseEventId = (id: string) => (typeof id === 'string' && id.includes('_') ? id.split('_')[0] : id);
 
   const regularAllDay = useMemo(() => allDayEvs.filter(e => !e.is_task && !e.linkedTaskId), [allDayEvs]);
   const allDayTodos = useMemo(() => allDayEvs.filter(e => e.is_task || e.linkedTaskId), [allDayEvs]);
@@ -358,7 +362,7 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
           {regularAllDay.map(ev => {
             const isExp = expandedEventId === ev.id;
             return (
-              <div key={`allday-${ev.id}`} className="w-full rounded-xl overflow-hidden transition-all" style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5', border: 'none' }}>
+              <div key={`allday-${ev.id}`} className={`w-full rounded-xl overflow-hidden transition-all relative ${isExp ? 'ring-2 ring-t2-ink/35' : ''}`} style={{ background: theme === 'dark' ? 'rgba(255,255,255,0.05)' : '#f4f4f5', border: 'none' }}>
                 <button onClick={() => setExpandedEventId(p => p === ev.id ? null : ev.id)} className="w-full flex items-center justify-between text-left px-3.5 py-2.5 active:scale-[0.99] transition-transform cursor-pointer" style={{ border: 'none', background: 'transparent' }}>
                   <div className="flex items-center gap-2.5 min-w-0 flex-1">
                     <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: ev.color || T.accent }} />
@@ -366,13 +370,17 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0 ml-2">
                     <span className="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-md" style={{ background: `${ev.color || T.accent}18`, color: ev.color || T.accent }}>Ganztag</span>
-                    <ChevronDown size={14} style={{ color: T.mut, transform: isExp ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s ease' }} />
                   </div>
                 </button>
                 {isExp && (
-                  <div className="px-3.5 pb-3 pt-1 border-t" style={{ borderColor: theme === 'dark' ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)' }}>
-                    <EventActions ev={ev} isActive={false} theme={theme} onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} />
-                  </div>
+                  <EventOptionsPill
+                    ev={ev}
+                    isExternal={isFromOtherWorkspace(ev, activeSafes ?? [])}
+                    onHideExternal={() => hideExternalEvent(baseEventId(ev.id))}
+                    onDeleteEvent={onDeleteEvent}
+                    onEditEvent={onEditEvent}
+                    onClose={() => setExpandedEventId(null)}
+                  />
                 )}
               </div>
             );
@@ -397,10 +405,13 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
               {todoEls}
               {pauseEl}
               {nowEl}
-              <BlockSeg {...segProps} height={blockH} grow={expandedEventId === ev.id}>
+              <BlockSeg {...segProps} height={blockH}>
                 <TimelineEventItem
                   ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                   theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                  onCloseOptions={() => setExpandedEventId(null)}
+                  isExternal={isFromOtherWorkspace(ev, activeSafes ?? [])}
+                  onHideExternal={() => hideExternalEvent(baseEventId(ev.id))}
                   onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} proportional={proportional}
                 />
               </BlockSeg>
@@ -424,6 +435,9 @@ export const DbTimelineDay = React.memo(function DbTimelineDay({
                 <TimelineEventItem
                   key={ev.id} ev={ev} now={now} isToday={isToday} isEven={(eventCounter++) % 2 === 0} nextUpcomingId={nextUpcomingId}
                   theme={theme} isExpanded={expandedEventId === ev.id} onToggleExpand={() => setExpandedEventId(p => p === ev.id ? null : ev.id)}
+                  onCloseOptions={() => setExpandedEventId(null)}
+                  isExternal={isFromOtherWorkspace(ev, activeSafes ?? [])}
+                  onHideExternal={() => hideExternalEvent(baseEventId(ev.id))}
                   onDeleteEvent={onDeleteEvent} onEditEvent={onEditEvent} onTaskComplete={onTaskComplete} isParallel proportional={proportional}
                   style={{
                     position: 'absolute',
@@ -490,7 +504,7 @@ export const MobileAgendaTimeline = React.memo(function MobileAgendaTimeline({
   const groupedDayViewItems = useMemo(() => getGroupedDayViewItems(dayViewDays, events, now), [dayViewDays, events, now]);
 
   return (
-    <div style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+    <div className="isolate" style={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
       <div className="flex-1 overflow-y-auto pb-4 px-4 pt-2">
         {groupedDayViewItems.map((item) => (
           <React.Fragment key={item.kind === 'day' ? item.date.toISOString() : `empty-${item.startDate.toISOString()}-${item.endDate.toISOString()}`}>

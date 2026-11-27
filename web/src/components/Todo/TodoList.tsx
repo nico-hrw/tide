@@ -4,14 +4,16 @@ import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Plus, X, ListTodo, Inbox, ArrowLeft,
-  ChevronRight, Archive, CheckCircle2, Circle, Calendar, Repeat, Trash2, Check, Timer, RotateCcw, Clock, History, Search, SlidersHorizontal, AlertCircle,
+  ChevronRight, Archive, CheckCircle2, Circle, Calendar, Repeat, Trash2, Check, Timer, RotateCcw, Clock, History, Search, SlidersHorizontal, AlertCircle, Eye, EyeOff,
 } from 'lucide-react';
 import {
   format, isBefore, startOfDay, endOfDay, addDays, addWeeks, addMonths, addYears,
   isToday, isTomorrow, isSameDay,
 } from 'date-fns';
 import { useTasks, useDataStore, TaskItem } from '@/store/useDataStore';
-import { todoVisibleInSafes } from '@/lib/todoSafes';
+import { isFromOtherWorkspace, itemVisibleInSafesOrFilter } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
+import { toggleTaskWithUndo, deleteTaskWithUndo } from '@/lib/todoUndo';
 import { needsNoTagConfirm, defaultTagIds } from '@/lib/tagPrompt';
 import { pruneTagFilter, isTagFilterActive, EMPTY_TAG_FILTER } from '@/lib/tagFilter';
 import { useTagRegistry } from './useTodoTags';
@@ -42,16 +44,34 @@ export {
 const LINGER_DELAY_MS = 5000;
 
 export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask, initialTaskId, variant = 'default', onCreateTag }) => {
-  const { tasks: allTasks, addTask, updateTask, toggleTask, toggleTaskInProgress, deleteTask } = useTasks();
+  const { tasks: allTasks, addTask, updateTask, toggleTask: toggleTaskRaw, toggleTaskInProgress } = useTasks();
+  const toggleTask = (id: string) => { void toggleTaskWithUndo(id); };
+  void toggleTaskRaw;
+  const deleteTask = (id: string) => deleteTaskWithUndo(id);
   const activeSafes = useDataStore((s) => s.activeSafes);
-  // Todos of the active workspaces (own or linked); the rest stays in its workspace.
-  const tasks = useMemo(() => allTasks.filter((t) => todoVisibleInSafes(t, activeSafes ?? [])), [allTasks, activeSafes]);
+  const { hiddenIds: hiddenTodoIds, unhideAll: unhideAllTodos } = useHiddenExternal('todo');
+  const [showHiddenExternal, setShowHiddenExternal] = useState(false);
   const isDesktopVariant = variant === 'desktop';
 
   const { tags: allTags, knownIds: knownTagIds, resolve: resolveTags, ensureTag } = useTagRegistry(onCreateTag);
   const rawTagFilter = useDataStore((st) => st.todoTagFilter);
   // Deleted tags are treated as absent
   const tagFilter = useMemo(() => pruneTagFilter(rawTagFilter, knownTagIds), [rawTagFilter, knownTagIds]);
+  // Todos of the active workspaces (own or linked) plus cross-workspace tag matches.
+  const workspaceTasks = useMemo(
+    () => allTasks.filter((t) => itemVisibleInSafesOrFilter(t, t.tags ?? [], activeSafes ?? [], tagFilter.tagIds)),
+    [allTasks, activeSafes, tagFilter.tagIds]
+  );
+  const hiddenExternalCount = useMemo(
+    () => workspaceTasks.filter((t) => isFromOtherWorkspace(t, activeSafes ?? []) && hiddenTodoIds.has(t.id)).length,
+    [workspaceTasks, activeSafes, hiddenTodoIds]
+  );
+  const tasks = useMemo(
+    () => showHiddenExternal
+      ? workspaceTasks
+      : workspaceTasks.filter((t) => !(isFromOtherWorkspace(t, activeSafes ?? []) && hiddenTodoIds.has(t.id))),
+    [workspaceTasks, showHiddenExternal, activeSafes, hiddenTodoIds]
+  );
   const hiddenList = useDataStore((s) => s.hiddenTagIds);
   const hiddenTagIds = useMemo(() => new Set(hiddenList), [hiddenList]);
   const setTagFilter = useDataStore((st) => st.setTodoTagFilter);
@@ -788,6 +808,28 @@ export const TodoList: React.FC<TodoListProps> = ({ className = '', onSelectTask
                       onSelectDate={setSelectedDateFilter}
                       tasks={tasks}
                     />
+                  )}
+
+                  {hiddenExternalCount > 0 && (
+                    <div className="mb-2 flex items-center gap-2 text-xs text-t2-ink-3">
+                      <button
+                        type="button"
+                        onClick={() => setShowHiddenExternal((v) => !v)}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-t2-hover px-2.5 py-1 text-t2-ink-2 hover:bg-t2-stage cursor-pointer"
+                      >
+                        {showHiddenExternal ? <Eye size={12} /> : <EyeOff size={12} />}
+                        <span>{showHiddenExternal ? 'Ausgeblendete verbergen' : `${hiddenExternalCount} ausgeblendet – einblenden`}</span>
+                      </button>
+                      {showHiddenExternal && (
+                        <button
+                          type="button"
+                          onClick={() => { unhideAllTodos(); setShowHiddenExternal(false); }}
+                          className="text-t2-accent hover:underline cursor-pointer"
+                        >
+                          Alle einblenden
+                        </button>
+                      )}
+                    </div>
                   )}
 
                   <TodoListSections

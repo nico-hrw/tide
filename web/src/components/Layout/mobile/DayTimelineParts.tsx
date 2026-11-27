@@ -73,7 +73,7 @@ export function NowLine({ time, dark, fraction }: { time: Date; dark: boolean; f
   return (
     <div
       className={`w-full h-4 flex items-center pointer-events-none ${floating ? '' : 'relative my-0.5'}`}
-      style={floating ? { position: 'absolute', left: 0, right: 0, top: `${fraction * 100}%`, transform: 'translateY(-50%)', zIndex: 300, transition: 'top 0.4s ease' } : undefined}
+      style={floating ? { position: 'absolute', left: 0, right: 0, top: `${fraction * 100}%`, transform: 'translateY(-50%)', zIndex: 30, transition: 'top 0.4s ease' } : undefined}
       role="img" aria-label="Jetzt"
     >
       <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: color }} />
@@ -139,7 +139,7 @@ export function columnsFor(events: TimedLike[], legacyEnd = false): Map<string, 
     const longer = events.filter(o => o.id !== e.id && start(o) < end(e) && end(o) > start(e)
       && (dur(o) > dur(e) || (dur(o) === dur(e) && start(o) < start(e)))).length;
     // A shifted event is drawn above the wide one it sits on, so its title stays readable.
-    out.set(e.id, { left: Math.min(longer * 24, 46), z: (longer > 0 ? 100 : 1) + idx });
+    out.set(e.id, { left: Math.min(longer * 24, 46), z: (longer > 0 ? 10 : 1) + idx });
   });
   return out;
 }

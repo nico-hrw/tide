@@ -11,7 +11,7 @@ import { getEventGroupIds } from '../../lib/calendarUtils';
 import { resolveCategory, resolveCategoryForPalette } from '@/lib/calendarColors';
 import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
 import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
-import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
+import { isFromOtherWorkspace, todoSafe } from '@/lib/todoSafes';
 import { getVisibilityState } from '@/components/Visibility/visibilityState';
 
 // Assuming types and getEventTheme are available here, either imported or defined
@@ -197,7 +197,7 @@ const CalendarEventItemBase: React.FC<CalendarEventItemProps> = ({
     const { highlight, isHighlighted } = useHighlight();
     const activeParentId = useDataStore(state => state.activeParentId);
     const activeSafes = useDataStore(state => state.activeSafes);
-    const eventIsExternal = todoIsExternal(event, activeSafes ?? []);
+    const eventIsExternal = isFromOtherWorkspace(event, activeSafes ?? []);
     const setActiveParentId = useDataStore(state => state.setActiveParentId);
     const myId = useDataStore(state => state.myId) || (typeof window !== 'undefined' ? (localStorage.getItem("tide_user_id") || sessionStorage.getItem("tide_user_id") || "") : "");
     const ownerPartnerUsername = useSocialStore(

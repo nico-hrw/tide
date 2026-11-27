@@ -5,6 +5,7 @@ import type { DataItem, TaskItem } from '@/store/slices/types';
 import { useDataStore } from '@/store/useDataStore';
 import { useCalendarTagFilter } from '@/lib/useCalendarTagFilter';
 import { selectTags } from '@/lib/tags';
+import { normalizeSafe } from '@/lib/todoSafes';
 import { filterEventsByTags, getEventGroupIds } from '@/lib/calendarUtils';
 import { applyTagColorOverride } from '@/lib/tagColorOverride';
 import { useTagMigration } from '@/hooks/dashboard/useTagMigration';
@@ -14,12 +15,19 @@ export interface TagTheme {
     title: string;
     effect?: string;
     color?: string;
+    safe?: string;
 }
 
 /** Tags as calendar themes plus the calendar events narrowed by the tag filter and the hidden themes. */
 export function useTagCalendarView(files: DecryptedFile[], events: CalendarEvent[], hiddenThemeIds: string[]) {
     const mobileThemes: TagTheme[] = useMemo(
-        () => files.filter((f) => f.type === 'folder' && f.isGroup).map((g) => ({ id: g.id, title: g.title, effect: typeof g.effect === 'string' ? g.effect : undefined, color: g.color })),
+        () => files.filter((f) => f.type === 'folder' && f.isGroup).map((g) => ({
+            id: g.id,
+            title: g.title,
+            effect: typeof g.effect === 'string' ? g.effect : undefined,
+            color: g.color,
+            safe: normalizeSafe(g.safe || (g.metadata as { safe?: string } | undefined)?.safe || 'main'),
+        })),
         [files]
     );
     const calendarTagFilter = useCalendarTagFilter(mobileThemes.map((t) => t.id));

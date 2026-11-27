@@ -57,6 +57,7 @@ export interface MobileThemeItem {
   title: string;
   color?: string;
   effect?: string;
+  safe?: string;
 }
 
 const LoadingOverlay = () => (

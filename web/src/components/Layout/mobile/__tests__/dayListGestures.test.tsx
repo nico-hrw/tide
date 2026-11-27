@@ -197,23 +197,26 @@ describe('DbTimelineDay hold and double-tap gestures', () => {
     expect(onQuickEdit).not.toHaveBeenCalled();
   });
 
-  it('undoes the expand of the first tap and drafts on a double tap on the card body', () => {
+  it('hides options again and drafts on a double tap on the card body without changing segment height', () => {
     render();
     const body = host.querySelector('#ev-a button') as HTMLElement;
     const seg = () => host.querySelector<HTMLElement>('[data-seg="block"]')!;
+    const fixedH = seg().style.height;
     touch(body, 'touchstart', 50, 134);
     vi.advanceTimersByTime(40);
     touch(body, 'touchend', 50, 134);
     act(() => { body.click(); });
-    expect(seg().style.height).toBe(''); // the first tap expands at once
+    expect(seg().style.height).toBe(fixedH); // tap shows options without changing event height
+    expect(host.querySelector('[aria-label="Löschen"]')).not.toBeNull();
     vi.advanceTimersByTime(100);
     touch(body, 'touchstart', 50, 134);
     vi.advanceTimersByTime(40);
     touch(body, 'touchend', 50, 134);
     expect(onDraftAt).toHaveBeenCalledTimes(1);
-    // The synthetic click of the second tap is swallowed; the card ends up collapsed (fixed segment height).
+    // The synthetic click of the second tap is swallowed; the options close and the segment height stays fixed.
     act(() => { body.click(); });
-    expect(seg().style.height).not.toBe('');
+    expect(seg().style.height).toBe(fixedH);
+    expect(host.querySelector('[aria-label="Löschen"]')).toBeNull();
     const [start] = onDraftAt.mock.calls[0] as [Date, Date];
     expect(start.getTime()).toBeGreaterThanOrEqual(at(9).getTime());
     expect(start.getTime()).toBeLessThan(at(10).getTime());

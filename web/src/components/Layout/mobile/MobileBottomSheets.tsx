@@ -14,10 +14,14 @@ import {
   Plus,
   ChevronRight,
   CheckSquare,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { de } from 'date-fns/locale';
 import { useDataStore } from '@/store/useDataStore';
+import { isFromOtherWorkspace } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
 import { CALENDAR_CATEGORIES, categoryVar } from '@/lib/calendarColors';
 import { T } from './mobileTheme';
 
@@ -87,6 +91,11 @@ export const EventSheet = ({
 
   const isTask = !!(event.is_task || event.linkedTaskId);
   const tasks = useDataStore(state => state.tasks);
+  const activeSafes = useDataStore(state => state.activeSafes);
+  const { hiddenIds: hiddenEventIds, hide: hideExternalEvent, unhide: unhideExternalEvent } = useHiddenExternal('event');
+  const baseId = typeof event.id === 'string' && event.id.includes('_') ? event.id.split('_')[0] : event.id;
+  const isExternal = isFromOtherWorkspace(event, activeSafes ?? []);
+  const isHidden = hiddenEventIds.has(baseId);
   const linkedTask = event.linkedTaskId ? tasks?.find(t => t.id === event.linkedTaskId) : undefined;
   const [localCompleted, setLocalCompleted] = useState<boolean | null>(null);
   const isCompleted = localCompleted !== null ? localCompleted : (linkedTask ? !!linkedTask.isCompleted : !!event.is_completed);
@@ -190,6 +199,20 @@ export const EventSheet = ({
           >
             <PenLine size={15} /> Bearbeiten
           </button>
+          {isExternal && (
+            <button
+              onClick={() => {
+                if (isHidden) unhideExternalEvent(baseId);
+                else hideExternalEvent(baseId);
+                onDismiss();
+              }}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold"
+              style={{ background: T.hov, color: T.sec }}
+            >
+              {isHidden ? <Eye size={15} /> : <EyeOff size={15} />}
+              {isHidden ? 'Einblenden' : 'Ausblenden'}
+            </button>
+          )}
           <button
             onClick={() => {
               onDelete();

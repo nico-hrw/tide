@@ -2,9 +2,11 @@
 
 import React, { useState } from 'react';
 import { format } from 'date-fns';
-import { CalendarDays, Clock, Layers, Tag as TagIcon, Trash2 } from 'lucide-react';
+import { CalendarDays, Clock, Eye, EyeOff, Layers, Tag as TagIcon, Trash2 } from 'lucide-react';
 import { WorkspacePicker } from '@/components/Todo/TodoWorkspacePicker';
-import { todoSafe } from '@/lib/todoSafes';
+import { isFromOtherWorkspace, todoSafe } from '@/lib/todoSafes';
+import { useHiddenExternal } from '@/lib/hiddenExternal';
+import { useDataStore } from '@/store/useDataStore';
 import TagPicker from '@/components/Tags/TagPicker';
 import { useTagCreate } from '@/components/Tags/useTagCreate';
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from '@/lib/calendarColors';
@@ -34,6 +36,11 @@ const toIso = (date: string, time: string) => new Date(`${date}T${time}:00`).toI
 /** Editable details of one event. Mount it with `key={event.id}` so the fields reset when another event is picked. */
 export default function CalendarEventEditor({ event, themes, onUpdate, onDelete }: CalendarEventEditorProps) {
     const createTag = useTagCreate();
+    const activeSafes = useDataStore((s) => s.activeSafes);
+    const { hiddenIds: hiddenEventIds, hide: hideExternalEvent, unhide: unhideExternalEvent } = useHiddenExternal('event');
+    const baseEventId = event.id.includes('_') ? event.id.split('_')[0] : event.id;
+    const isExternalEvent = isFromOtherWorkspace(event, activeSafes ?? []);
+    const isHiddenExternal = hiddenEventIds.has(baseEventId);
     const [title, setTitle] = useState(event.title ?? '');
     const [description, setDescription] = useState(event.description ?? '');
 
@@ -80,16 +87,29 @@ export default function CalendarEventEditor({ event, themes, onUpdate, onDelete 
                             />
                         ))}
                     </div>
-                    {onDelete && (
-                        <button
-                            type="button"
-                            onClick={onDelete}
-                            aria-label="Termin löschen"
-                            className="rounded-md p-1.5 text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink"
-                        >
-                            <Trash2 size={15} />
-                        </button>
-                    )}
+                    <div className="flex items-center gap-1">
+                        {isExternalEvent && (
+                            <button
+                                type="button"
+                                onClick={() => (isHiddenExternal ? unhideExternalEvent(baseEventId) : hideExternalEvent(baseEventId))}
+                                aria-label={isHiddenExternal ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                                title={isHiddenExternal ? 'In diesem Workspace einblenden' : 'In diesem Workspace ausblenden'}
+                                className="rounded-md p-1.5 text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink"
+                            >
+                                {isHiddenExternal ? <Eye size={15} /> : <EyeOff size={15} />}
+                            </button>
+                        )}
+                        {onDelete && (
+                            <button
+                                type="button"
+                                onClick={onDelete}
+                                aria-label="Termin löschen"
+                                className="rounded-md p-1.5 text-t2-ink-3 hover:bg-t2-hover hover:text-t2-ink"
+                            >
+                                <Trash2 size={15} />
+                            </button>
+                        )}
+                    </div>
                 </div>
                 <input
                     value={title}

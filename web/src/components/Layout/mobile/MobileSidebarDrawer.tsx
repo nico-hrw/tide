@@ -97,7 +97,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-40"
+            className="fixed inset-0 z-[90]"
             style={{ background: 'rgba(0,0,0,0.45)' }}
             onClick={onClose}
           />
@@ -110,7 +110,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             animate={{ x: 0 }}
             exit={{ x: '-100%' }}
             transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-            className="fixed left-0 top-0 bottom-0 z-50 flex flex-col overflow-hidden"
+            className="fixed left-0 top-0 bottom-0 z-[95] flex flex-col overflow-hidden"
             style={{ width: 280, background: 'var(--t2-bg)', borderRight: '1px solid var(--t2-line)' }}
           >
             <div className="px-5 pt-14 pb-2">
@@ -119,6 +119,7 @@ export const MobileSidebarDrawer: React.FC<MobileSidebarDrawerProps> = ({
             </div>
 
             <div className="px-2 pb-1">
+              <p className="px-2 pb-1 text-[11px] font-bold uppercase tracking-widest" style={{ color: T.mut }}>Workspace</p>
               <SidebarQuickNotes className="flex-shrink-0" />
             </div>
 

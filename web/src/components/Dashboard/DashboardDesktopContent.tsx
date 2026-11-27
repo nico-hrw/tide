@@ -296,7 +296,7 @@ export function DashboardDesktopContent(props: DashboardDesktopContentProps) {
                         editingEventId={activeEventId}
                         date={calendarDate}
                         onDateChange={handleDateSelect}
-                        themes={files?.filter((f) => f.type === "folder" && f.isGroup).map((g) => ({ id: g.id, title: g.title, effect: g.effect, color: g.color }))}
+                        themes={files?.filter((f) => f.type === "folder" && f.isGroup).map((g) => ({ id: g.id, title: g.title, effect: g.effect, color: g.color, safe: g.safe || g.metadata?.safe || 'main' }))}
                         onScheduleApply={handleScheduleApply}
                     />
                 </div>

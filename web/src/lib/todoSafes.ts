@@ -24,3 +24,24 @@ export function todoIsExternal(t: { safe?: string | null; linkedSafes?: string[]
     const active = new Set(activeSafes.map(normalizeSafe));
     return !active.has(todoSafe(t)) && todoVisibleInSafes(t, activeSafes);
 }
+
+/** True when the item's home workspace is not in the active workspaces list. */
+export function isFromOtherWorkspace(item: { safe?: string | null }, activeSafes: readonly string[]): boolean {
+    if (activeSafes.length === 0) return false;
+    const active = new Set(activeSafes.map(normalizeSafe));
+    return !active.has(todoSafe(item));
+}
+
+/**
+ * Visible if the item belongs to (or is linked into) an active workspace, OR if any of the
+ * currently selected tag filters matches one of its tags (allowing cross-workspace tag lookup).
+ */
+export function itemVisibleInSafesOrFilter(
+    item: { safe?: string | null; linkedSafes?: string[] | null },
+    itemTagIds: readonly string[],
+    activeSafes: readonly string[],
+    selectedTagIds: readonly string[],
+): boolean {
+    if (todoVisibleInSafes(item, activeSafes)) return true;
+    return selectedTagIds.length > 0 && itemTagIds.some((id) => selectedTagIds.includes(id));
+}
