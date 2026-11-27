@@ -2,7 +2,10 @@
 
 import { useEffect, useRef, type RefObject } from 'react';
 import { distanceToRect, getMousePos, trackMouse } from '@/lib/mousePosition';
-import { defaultPopupTimerConfig, initialPopupTimer, popupTimerProgress, stepPopupTimer } from '@/lib/popupTimer';
+import { defaultToastTimerConfig, initialToastTimer, stepToastTimer, toastTimerProgress, type ToastTimerState } from '@/lib/toastTimer';
+
+/** Same time as the undo toasts (lib/todoUndo.ts TODO_UNDO_MS). */
+export const POPUP_TIMER_MS = 3000;
 
 interface UsePopupTimerOptions {
     /** The popup element(s). Flyouts inside them mark themselves with `data-popup-part` and count as part of the popup. */
@@ -10,7 +13,7 @@ interface UsePopupTimerOptions {
     /** Called once when the time has run out. */
     onExpire: () => void;
     enabled?: boolean;
-    /** ms from "mouse far away" until the popup closes */
+    /** ms until the popup closes while the mouse is away */
     duration?: number;
 }
 
@@ -29,12 +32,12 @@ function rectsOf(el: HTMLElement): DOMRect[] {
 }
 
 /**
- * Position based close timer for a popup: runs down while the mouse is away from it, refills while it is near and
- * wins time back while the mouse heads towards it (see lib/popupTimer.ts). Put `fillRef` / `restRef` on the two
- * segments of <PopupTimerBar>; they are updated every frame without re-rendering. Holds while a text field inside
- * the popup has focus, and never expires without a mouse (touch).
+ * Position based close timer for a popup, the same timer as the undo toasts (lib/toastTimer.ts): it runs down while
+ * the mouse is away from the popup, refills while it is near and wins time back while the mouse heads towards it.
+ * Put `fillRef` / `restRef` on the two segments of <PopupTimerBar>; they are updated every frame without
+ * re-rendering. Holds while a text field inside the popup has focus, and never expires without a mouse (touch).
  */
-export function usePopupTimer({ refs, onExpire, enabled = true, duration = 2200 }: UsePopupTimerOptions) {
+export function usePopupTimer({ refs, onExpire, enabled = true, duration = POPUP_TIMER_MS }: UsePopupTimerOptions) {
     const fillRef = useRef<HTMLDivElement>(null);
     const restRef = useRef<HTMLDivElement>(null);
     const latest = useRef({ refs, onExpire });
@@ -45,8 +48,8 @@ export function usePopupTimer({ refs, onExpire, enabled = true, duration = 2200 
     useEffect(() => {
         if (!enabled) return;
         trackMouse();
-        const cfg = defaultPopupTimerConfig(duration);
-        let state = initialPopupTimer(duration);
+        const cfg = defaultToastTimerConfig(duration);
+        let state: ToastTimerState = initialToastTimer(duration);
         let shown = 1; // eased bar value, so it glides instead of jumping
         let last = performance.now();
         let raf = 0;
@@ -61,15 +64,20 @@ export function usePopupTimer({ refs, onExpire, enabled = true, duration = 2200 
             }
             const active = document.activeElement;
             const hold = els.some((el) => active !== null && el.contains(active) && isTextField(active));
-            const r = stepPopupTimer(state, dt, distance, cfg, hold);
-            state = r.state;
-            if (r.expired) {
-                // Closing may be refused (e.g. a question is pending); then the timer starts over instead of freezing.
-                latest.current.onExpire();
-                state = initialPopupTimer(duration);
-                shown = 1;
+            if (hold || distance === null) {
+                // Held open (text field focused) or no mouse: full timer, never expires
+                state = { ...initialToastTimer(duration), lastDistance: distance };
+            } else {
+                const r = stepToastTimer(state, dt, distance, cfg);
+                state = r.state;
+                if (r.expired) {
+                    // Closing may be refused (e.g. a question is pending); then the timer starts over instead of freezing.
+                    latest.current.onExpire();
+                    state = initialToastTimer(duration);
+                    shown = 1;
+                }
             }
-            const target = popupTimerProgress(state, cfg);
+            const target = toastTimerProgress(state, cfg);
             shown += (target - shown) * (1 - Math.exp(-dt / 120));
             if (fillRef.current) fillRef.current.style.flexGrow = String(shown);
             if (restRef.current) restRef.current.style.flexGrow = String(1 - shown);
