@@ -74,6 +74,9 @@ export const translations = {
         },
         island: {
             monthOverview: "Monatsübersicht",
+            graphTitle: "Links",
+            graphCount: "{n} Notizen",
+            graphLabel: "Verknüpfungen zwischen Notizen",
             runningNow: "Läuft jetzt",
             minutesLeft: "Min. verbleibend",
             hoursLeft: "Std. verbleibend",
@@ -183,6 +186,9 @@ export const translations = {
         },
         island: {
             monthOverview: "Month overview",
+            graphTitle: "Links",
+            graphCount: "{n} notes",
+            graphLabel: "Links between notes",
             runningNow: "Happening now",
             minutesLeft: "min left",
             hoursLeft: "hrs left",

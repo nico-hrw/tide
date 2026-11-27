@@ -28,6 +28,7 @@ import { PencilInkLayer } from './Canvas/PencilInkLayer';
 import { PencilToolbox } from './Canvas/PencilToolbox';
 import { useDataStore } from '@/store/useDataStore';
 import { useLinkStore } from '@/store/useLinkStore';
+import { useNoteLinkRecorder } from './Editor/useNoteLinkRecorder';
 import { apiFetch } from '../lib/api';
 import { parseUnencryptedNoteContent } from '../hooks/autoSaveHelpers';
 
@@ -276,6 +277,8 @@ function CollaborativeEditor(props: EditorProps) {
         onEventClick, onForceSave, setInkStrokes, userHasTypedRef, contentInitialized,
         userProfile, myId,
     });
+
+    useNoteLinkRecorder(editor, activeTabId, isNoteTab);
 
     useEffect(() => {
         (window as any).__tideEditor = editor;

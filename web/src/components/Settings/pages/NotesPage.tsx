@@ -5,6 +5,7 @@ import { useAnimatedEmojiEnabled, setAnimatedEmojiEnabled } from '@/lib/animated
 import { SettingsCard, SettingsPage, SettingsPageHeader, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { SelectField, Toggle } from '../ui/Controls';
 import { useT } from '../useT';
+import { NoteGraphView } from '../notes/NoteGraphView';
 
 export interface NotesPageProps {
     noteLayout?: NoteLayout;
@@ -16,7 +17,7 @@ const LAYOUTS = ['a4', 'thin', 'normal', 'wide', 'extra-wide'] as const;
 export function NotesPage({ noteLayout, onSetNoteLayout }: NotesPageProps) {
     const t = useT();
     const animatedEmoji = useAnimatedEmojiEnabled();
-    const { eventMentionStyle, setEventMentionStyle, eventMentionPreview, setEventMentionPreview } = useDataStore();
+    const { eventMentionStyle, setEventMentionStyle, eventMentionPreview, setEventMentionPreview, graphAnimation, setGraphAnimation } = useDataStore();
 
     return (
         <div>
@@ -64,6 +65,14 @@ export function NotesPage({ noteLayout, onSetNoteLayout }: NotesPageProps) {
                             />
                         </SettingsRow>
                     </SettingsCard>
+                </SettingsSection>
+                <SettingsSection title={t('notes.graph')} hint={t('notes.graphHint')}>
+                    <SettingsCard>
+                        <SettingsRow title={t('notes.graphAnimation')} description={t('notes.graphAnimationDesc')}>
+                            <Toggle checked={graphAnimation} onChange={setGraphAnimation} label={t('notes.graphAnimation')} />
+                        </SettingsRow>
+                    </SettingsCard>
+                    <NoteGraphView />
                 </SettingsSection>
             </SettingsPage>
         </div>

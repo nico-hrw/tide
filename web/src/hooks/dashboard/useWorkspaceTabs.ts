@@ -1,5 +1,6 @@
 "use client";
 
+import { emitGraphEvent } from "@/lib/graphEvents";
 import { useCallback, useEffect, useRef } from "react";
 import { notifyError } from '@/lib/feedback';
 import type { Editor, JSONContent } from "@tiptap/react";
@@ -249,7 +250,9 @@ export function useWorkspaceTabs({
         try {
             const { createNote, activeParentId, toggleFolder } = useDataStore.getState();
             const parentId = parentIdOverride !== undefined ? parentIdOverride : activeParentId;
+            const contextId = useDataStore.getState().activeNoteId;
             const newFileId = await createNote("Untitled", undefined, parentId);
+            emitGraphEvent({ kind: 'note', id: newFileId, contextId });
             blankDraftIds.add(newFileId);
             if (parentId) toggleFolder(parentId, true);
             switchTab(newFileId, "file", "Untitled");

@@ -121,6 +121,11 @@ function getInitialHeadingNumbering(): boolean {
     return localStorage.getItem('tide_heading_numbering') === 'true';
 }
 
+function getInitialGraphAnimation(): boolean {
+    if (typeof window === 'undefined') return true;
+    try { return localStorage.getItem('tide_graph_animation') !== 'false'; } catch { return true; }
+}
+
 function getInitialA4SideBorders(): boolean {
     if (typeof window === 'undefined') return true;
     const stored = localStorage.getItem('tide_a4_side_borders');
@@ -197,6 +202,14 @@ export const createUiSlice: DataStoreSlice<UiSlice> = (set, get) => ({
             if (typeof window !== 'undefined') localStorage.setItem('tide_a4_side_borders', String(on));
             pushSettingsPatch({ notes: { a4_side_borders: on } });
             return { a4SideBorders: on };
+        }),
+
+    graphAnimation: getInitialGraphAnimation(),
+    setGraphAnimation: (on: boolean) =>
+        set(() => {
+            if (typeof window !== 'undefined') localStorage.setItem('tide_graph_animation', String(on));
+            pushSettingsPatch({ notes: { graph_animation: on } });
+            return { graphAnimation: on };
         }),
 
     setSettingsModalOpen: (open: boolean, tab?: SettingsModalTab) =>

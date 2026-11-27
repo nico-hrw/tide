@@ -212,6 +212,9 @@ export interface UiSlice {
     /** Shows the left and right edges of the A4 sheet. Off: only the top and bottom edge is drawn. */
     a4SideBorders: boolean;
     setA4SideBorders: (on: boolean) => void;
+    /** Little graph animation in the island when a note is created or linked (device-local, synced as a setting). */
+    graphAnimation: boolean;
+    setGraphAnimation: (on: boolean) => void;
     /** Todo tag filter (multi-select, OR). Not persisted; other views may set it via links. */
     todoTagFilter: TagFilter;
     /** When a checked-off todo leaves the main list. Stored on this device only. */

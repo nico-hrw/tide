@@ -3,10 +3,11 @@
 import React from 'react';
 import { addDays, endOfMonth, endOfWeek, isSameDay, isSameMonth, startOfMonth, startOfWeek } from 'date-fns';
 import { Plus } from 'lucide-react';
-import { useWeekStartsOn } from '@/store/useDataStore';
+import { useDataStore, useWeekStartsOn } from '@/store/useDataStore';
 import type { IslandModel } from './useIslandModel';
 import { useIslandText } from './islandText';
 import { paletteFor } from '@/components/Layout/mobile/eventPalette';
+import { useIslandGraph } from './useIslandGraph';
 
 interface IslandMonthProps {
     model: IslandModel;
@@ -20,6 +21,14 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
     const text = useIslandText();
     const weekStartsOn = useWeekStartsOn();
     const shown = selectedDate ?? model.now;
+    // Little graph moment on a new note / new link; off with the setting or when the system asks for less motion
+    const graphSetting = useDataStore((s) => s.graphAnimation);
+    const reducedMotion = typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches === true;
+    const { on: graphOn, title: graphText, noteCount, bindHost, bindCanvas } = useIslandGraph({
+        restTitle: text.monthName(shown),
+        graphTitle: text.tr('graphTitle'),
+        enabled: graphSetting && !reducedMotion,
+    });
 
     const days = React.useMemo(() => {
         const first = startOfWeek(startOfMonth(shown), { weekStartsOn });
@@ -34,9 +43,10 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
     return (
         <div className="flex h-full flex-col px-3 pb-2.5 pt-3">
             <div className="mb-1 flex h-[22px] items-center justify-between">
-                <b className="text-[14px] font-[650] capitalize tracking-[-0.01em]">{text.monthName(shown)}</b>
+                <b className="whitespace-pre text-[14px] font-[650] capitalize tracking-[-0.01em]">{graphText}</b>
                 <span className="ml-auto mr-1.5 flex items-center gap-1.5 text-[11px] font-medium text-t2-ink-2">
-                    {model.running && (
+                    {graphOn && <span>{text.tr('graphCount', { n: noteCount })}</span>}
+                    {!graphOn && model.running && (
                         <>
                             <span className="h-[6px] w-[6px] rounded-full" style={{ background: paletteFor(model.running.event.color).bg }} />
                             {model.running.countdown.minutes} {text.tr('minUnit')}
@@ -57,7 +67,17 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
                     <span key={d.getDay()}>{text.weekdayShort(d).charAt(0)}</span>
                 ))}
             </div>
-            <div className="grid min-h-0 flex-1 auto-rows-fr grid-cols-7 text-center">
+            <div className="relative min-h-0 flex-1">
+            <div
+                ref={bindHost}
+                aria-hidden={!graphOn}
+                role="img"
+                aria-label={text.tr('graphLabel')}
+                className={`pointer-events-none absolute inset-0 transition-opacity duration-[450ms] ${graphOn ? 'opacity-100' : 'opacity-0'}`}
+            >
+                <canvas ref={bindCanvas} className="block text-t2-ink" />
+            </div>
+            <div className={`grid h-full auto-rows-fr grid-cols-7 text-center transition-[opacity,transform] duration-[450ms] ${graphOn ? 'pointer-events-none scale-[0.97] opacity-0' : 'opacity-100'}`}>
                 {days.map((d) => {
                     const today = isSameDay(d, model.now);
                     const inMonth = isSameMonth(d, shown);
@@ -78,6 +98,7 @@ export default function IslandMonth({ model, selectedDate, onSelectDate }: Islan
                         </button>
                     );
                 })}
+            </div>
             </div>
         </div>
     );

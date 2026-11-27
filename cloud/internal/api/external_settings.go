@@ -100,6 +100,7 @@ type UserSettingsPayload struct {
 		HeadingNumbering    bool   `json:"heading_numbering"`
 		A4SideBorders       bool   `json:"a4_side_borders"`
 		AnimatedEmoji       bool   `json:"animated_emoji"`
+		GraphAnimation      bool   `json:"graph_animation"`
 		DateDetectionMode   string `json:"date_detection_mode"`
 		EventMentionStyle   string `json:"event_mention_style"`
 		EventMentionPreview string `json:"event_mention_preview"`
@@ -123,6 +124,7 @@ func defaultUserSettingsPayload() UserSettingsPayload {
 	p.Profile = ProfileSettings{AvatarStyle: "notionists", Discoverable: true}
 	p.Appearance.Theme, p.Appearance.AppPalette, p.Appearance.Language, p.Appearance.NavigationMode = "system", "tide", "en", "sidebar"
 	p.Notes.NoteLayout, p.Notes.NoteMargin, p.Notes.PaperPattern, p.Notes.ShowPageBreaks, p.Notes.AnimatedEmoji = "normal", "normal", "blanko", true, true
+	p.Notes.GraphAnimation = true
 	p.Notes.DateDetectionMode, p.Notes.EventMentionStyle, p.Notes.EventMentionPreview = "auto", "calendar", "hover"
 	p.Calendar.ScrollMode, p.Calendar.OverlapMode, p.Calendar.ColorPalette, p.Calendar.WeekStartsOn, p.Calendar.HolidayPackage = "infinite", "stack", "classic-tide", 1, "DE"
 	p.Extensions.Enabled = []string{}

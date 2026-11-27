@@ -22,7 +22,7 @@ export interface ServerAppearanceSettings {
 export interface ServerNotesSettings {
     note_layout?: NoteLayout; note_margin?: NoteMargin; paper_pattern?: PaperPattern;
     show_page_breaks?: boolean; heading_numbering?: boolean; a4_side_borders?: boolean;
-    animated_emoji?: boolean; date_detection_mode?: 'auto' | 'manual';
+    animated_emoji?: boolean; graph_animation?: boolean; date_detection_mode?: 'auto' | 'manual';
     event_mention_style?: EventMentionStyle; event_mention_preview?: EventMentionPreview;
 }
 
@@ -123,6 +123,7 @@ export function applyServerSettings(settings: ServerSettings, options?: { preser
             if (n.event_mention_style !== undefined) store.setEventMentionStyle(n.event_mention_style);
             if (n.event_mention_preview !== undefined) store.setEventMentionPreview(n.event_mention_preview);
             if (n.animated_emoji !== undefined) setAnimatedEmojiEnabled(n.animated_emoji);
+            if (n.graph_animation !== undefined) store.setGraphAnimation(n.graph_animation);
             if (n.date_detection_mode !== undefined) safeSetStorage('tide_date_detection_mode', n.date_detection_mode);
         }
         const c = settings.calendar;
