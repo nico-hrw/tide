@@ -43,7 +43,8 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 		       COALESCE(f.visibility, 'private') as visibility,
 		       COALESCE(f.version, 1) as version,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
+		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+		       CASE WHEN f.secured_meta IS NOT NULL AND LENGTH(f.secured_meta) > 0 THEN 1 ELSE 0 END AS has_secured_meta
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE (f.owner_id = ? OR (fs.user_id = ? AND fs.status = 'accepted'))
@@ -67,8 +68,9 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 		var visibility string
 		var version int
 		var md, pm string
+		var hasSecuredMeta int
 
-		if err := rows.Scan(&id, &parentID, &updatedAt, &visibility, &version, &md, &pm); err != nil {
+		if err := rows.Scan(&id, &parentID, &updatedAt, &visibility, &version, &md, &pm, &hasSecuredMeta); err != nil {
 			return nil, err
 		}
 
@@ -80,12 +82,13 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 		}
 
 		var meta struct {
-			Safe        string   `json:"safe"`
-			LinkedSafes []string `json:"linkedSafes"`
-			TagIDs      []string `json:"tagIds"`
-			Icon        string   `json:"icon"`
-			Color       string   `json:"color"`
-			Unencrypted bool     `json:"unencrypted"`
+			Safe              string   `json:"safe"`
+			LinkedSafes       []string `json:"linkedSafes"`
+			TagIDs            []string `json:"tagIds"`
+			Icon              string   `json:"icon"`
+			Color             string   `json:"color"`
+			Unencrypted       bool     `json:"unencrypted"`
+			HasCustomPassword bool     `json:"has_custom_password"`
 		}
 		if md != "" && md != "{}" {
 			_ = json.Unmarshal([]byte(md), &meta)
@@ -105,7 +108,7 @@ func (s *SQLiteStore) ListNotesForExternalAPI(ctx context.Context, userID string
 			TagIDs:      meta.TagIDs,
 			Icon:        meta.Icon,
 			Color:       meta.Color,
-			Encrypted:   !(visibility == "public" || meta.Unencrypted),
+			Encrypted:   hasSecuredMeta == 1 || meta.HasCustomPassword || !(visibility == "public" || meta.Unencrypted),
 			Version:     version,
 			UpdatedAt:   updatedAt,
 		})

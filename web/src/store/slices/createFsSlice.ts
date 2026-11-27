@@ -1,5 +1,6 @@
 import type { DataStoreSlice, FsSlice, DataItem, TaskItem } from './types';
 import { apiFetch, clearAllSessionData } from '@/lib/api';
+import { decryptSecuredEnvelope, encryptSecuredEnvelope } from '@/lib/e2eePayload';
 import {
     deletedTaskIds,
     loadOpenFoldersFromCache,
@@ -47,9 +48,24 @@ interface ServerTodoItem {
     created_at?: string;
     completed_at?: string;
     updated_at?: string;
+    is_encrypted?: boolean;
+    encrypted_payload?: string;
 }
 
 const syncedLegacyTodoIds = new Set<string>();
+
+function lockedTodoItem(raw: ServerTodoItem): TaskItem & { isLocked?: boolean } {
+    return {
+        id: raw.id,
+        title: 'Locked Task (Decrypting...)',
+        isCompleted: false,
+        status: 'todo',
+        createdAt: raw.created_at || undefined,
+        updatedAt: raw.updated_at || undefined,
+        owner_id: raw.user_id || undefined,
+        isLocked: true,
+    };
+}
 
 function mapServerTodoToTaskItem(raw: ServerTodoItem): TaskItem {
     return {
@@ -79,16 +95,86 @@ function mapServerTodoToTaskItem(raw: ServerTodoItem): TaskItem {
         parentId: raw.parent_id ? raw.parent_id : null,
         order: typeof raw.order === 'number' ? raw.order : undefined,
         owner_id: raw.user_id || undefined,
+        unencrypted: false,
     };
 }
 
-async function parseTodosResponse(res: Response | null): Promise<{ ok: boolean; items: TaskItem[] }> {
+export async function parseTodosResponse(
+    res: Response | null,
+    privateKey: CryptoKey | null
+): Promise<{ ok: boolean; items: TaskItem[] }> {
     if (!res || !res.ok) return { ok: false, items: [] };
     const todosList = await parseSafeJson<ServerTodoItem[]>(res);
     if (!Array.isArray(todosList)) return { ok: true, items: [] };
-    const items = todosList
-        .filter((t): t is ServerTodoItem => Boolean(t && typeof t.id === 'string'))
-        .map(mapServerTodoToTaskItem);
+    const validRows = todosList.filter((t): t is ServerTodoItem => Boolean(t && typeof t.id === 'string'));
+    const items = await Promise.all(
+        validRows.map(async (raw): Promise<TaskItem> => {
+            if (!raw.is_encrypted) {
+                return mapServerTodoToTaskItem(raw);
+            }
+            if (!privateKey || !raw.encrypted_payload) {
+                return lockedTodoItem(raw);
+            }
+            try {
+                const dec = await decryptSecuredEnvelope(raw.encrypted_payload, privateKey, {
+                    cacheId: `todo-${raw.id}`,
+                });
+                if (dec.isLocked) {
+                    return lockedTodoItem(raw);
+                }
+                const isCompleted = Boolean(dec.isCompleted);
+                const status =
+                    dec.status === 'todo' || dec.status === 'in_progress' || dec.status === 'completed'
+                        ? dec.status
+                        : isCompleted
+                        ? 'completed'
+                        : 'todo';
+                const priority =
+                    dec.priority === 'low' || dec.priority === 'medium' || dec.priority === 'high'
+                        ? dec.priority
+                        : 'medium';
+                const recurrence =
+                    dec.recurrence === 'none' ||
+                    dec.recurrence === 'daily' ||
+                    dec.recurrence === 'weekly' ||
+                    dec.recurrence === 'monthly' ||
+                    dec.recurrence === 'yearly'
+                        ? dec.recurrence
+                        : 'none';
+                return {
+                    id: raw.id,
+                    title: typeof dec.title === 'string' && dec.title ? dec.title : 'Untitled Task',
+                    description: typeof dec.description === 'string' && dec.description ? dec.description : undefined,
+                    color: typeof dec.color === 'string' && dec.color ? dec.color : undefined,
+                    isCompleted,
+                    status,
+                    linkedNoteId: typeof dec.linkedNoteId === 'string' && dec.linkedNoteId ? dec.linkedNoteId : undefined,
+                    scheduledDate: typeof dec.scheduledDate === 'string' && dec.scheduledDate ? dec.scheduledDate : undefined,
+                    priority,
+                    dueDate: typeof dec.dueDate === 'string' && dec.dueDate ? dec.dueDate : undefined,
+                    recurrence,
+                    recurrence_rule: typeof dec.recurrence_rule === 'string' && dec.recurrence_rule ? dec.recurrence_rule : undefined,
+                    recurrence_end: typeof dec.recurrence_end === 'string' && dec.recurrence_end ? dec.recurrence_end : undefined,
+                    completed_dates: Array.isArray(dec.completed_dates) ? (dec.completed_dates as string[]) : [],
+                    folder: typeof dec.folder === 'string' && dec.folder ? dec.folder : undefined,
+                    safe: typeof dec.safe === 'string' && dec.safe ? dec.safe : 'main',
+                    linkedSafes: Array.isArray(dec.linkedSafes) ? (dec.linkedSafes as string[]) : [],
+                    tags: Array.isArray(dec.tags) ? (dec.tags as string[]) : [],
+                    showInCalendar: dec.showInCalendar !== undefined ? Boolean(dec.showInCalendar) : true,
+                    createdAt: (typeof dec.createdAt === 'string' ? dec.createdAt : undefined) || raw.created_at || undefined,
+                    completedAt: (typeof dec.completedAt === 'string' ? dec.completedAt : undefined) || undefined,
+                    updatedAt: (typeof dec.updatedAt === 'string' ? dec.updatedAt : undefined) || raw.updated_at || undefined,
+                    isArchived: Boolean(dec.isArchived),
+                    parentId: typeof dec.parentId === 'string' && dec.parentId ? dec.parentId : null,
+                    order: typeof dec.order === 'number' ? dec.order : undefined,
+                    owner_id: raw.user_id || undefined,
+                    unencrypted: false,
+                };
+            } catch {
+                return lockedTodoItem(raw);
+            }
+        })
+    );
     return { ok: true, items };
 }
 
@@ -96,7 +182,8 @@ function mergeTodosAndLegacyTasks(
     apiTodos: TaskItem[],
     legacyTasks: TaskItem[],
     deletedIds: Set<string>,
-    syncLegacy = true
+    syncLegacy = true,
+    publicKey: CryptoKey | null = null
 ): TaskItem[] {
     const mergedMap = new Map<string, TaskItem>();
 
@@ -114,40 +201,53 @@ function mergeTodosAndLegacyTasks(
         }
     }
 
-    if (syncLegacy) {
+    if (syncLegacy && publicKey) {
         for (const item of legacyOnly) {
             if (syncedLegacyTodoIds.has(item.id)) continue;
             const isLocked = (item as TaskItem & { isLocked?: boolean }).isLocked;
             if (isLocked || !item.title || !item.title.trim()) continue;
             syncedLegacyTodoIds.add(item.id);
-            void apiFetch('/api/v1/todos', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    id: item.id,
-                    title: item.title,
-                    description: item.description,
-                    status: item.status || (item.isCompleted ? 'completed' : 'todo'),
-                    priority: item.priority || 'medium',
-                    due_date: item.dueDate,
-                    scheduled_date: item.scheduledDate,
-                    tags: item.tags || [],
-                    color: item.color,
-                    is_completed: Boolean(item.isCompleted),
-                    folder: item.folder,
-                    linked_note_id: item.linkedNoteId,
-                    recurrence: item.recurrence || 'none',
-                    recurrence_rule: item.recurrence_rule,
-                    recurrence_end: item.recurrence_end,
-                    completed_dates: item.completed_dates || [],
-                    show_in_calendar: Boolean(item.showInCalendar),
-                    is_archived: Boolean(item.isArchived),
-                    parent_id: item.parentId ?? undefined,
-                    order: item.order ?? 0,
-                }),
-            }).catch((err) => {
-                console.warn('[STATE-AUDIT] Failed to sync legacy task to /api/v1/todos', item.id, err);
-            });
+            const payload = {
+                title: item.title,
+                description: item.description ?? '',
+                status: item.status || (item.isCompleted ? 'completed' : 'todo'),
+                priority: item.priority || 'medium',
+                dueDate: item.dueDate ?? '',
+                scheduledDate: item.scheduledDate ?? '',
+                tags: item.tags || [],
+                color: item.color ?? '',
+                isCompleted: Boolean(item.isCompleted),
+                folder: item.folder ?? '',
+                linkedNoteId: item.linkedNoteId ?? '',
+                safe: item.safe ?? 'main',
+                linkedSafes: item.linkedSafes ?? [],
+                recurrence: item.recurrence || 'none',
+                recurrence_rule: item.recurrence_rule ?? '',
+                recurrence_end: item.recurrence_end ?? '',
+                completed_dates: item.completed_dates || [],
+                showInCalendar: Boolean(item.showInCalendar),
+                isArchived: Boolean(item.isArchived),
+                parentId: item.parentId ?? null,
+                order: item.order ?? 0,
+                createdAt: item.createdAt,
+                completedAt: item.completedAt,
+                updatedAt: item.updatedAt,
+            };
+            void encryptSecuredEnvelope(payload, publicKey)
+                .then((encrypted_payload) =>
+                    apiFetch('/api/v1/todos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            id: item.id,
+                            is_encrypted: true,
+                            encrypted_payload,
+                        }),
+                    })
+                )
+                .catch((err) => {
+                    console.warn('[STATE-AUDIT] Failed to sync legacy task to encrypted /api/v1/todos', item.id, err);
+                });
         }
     }
 
@@ -323,13 +423,13 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     }
                 }
 
-                const { ok: todosOk, items: apiTodos } = await parseTodosResponse(todosRes);
+                const { ok: todosOk, items: apiTodos } = await parseTodosResponse(todosRes, state.privateKey);
 
                 if (tasksOk || todosOk) {
                     const decryptedTasks = tasksOk
                         ? await decryptTasks(tasksList, state.privateKey)
                         : [];
-                    const mergedRemoteTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk);
+                    const mergedRemoteTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk, state.publicKey);
                     finalMergedTasks = reconcileTasksWithLocal(mergedRemoteTasks, get().tasks, deletedTaskIds);
                 }
 
@@ -371,6 +471,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                         cachedMetadata: newMetaCache,
                         forceRefresh,
                         cachePrefix: f.version && f.version >= 2 ? 'v2' : 'lazy',
+                        myId: state.myId,
                     }),
                 }))
             );
@@ -528,7 +629,8 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                     }
                 }
                 const parsedTodos = await parseTodosResponse(
-                    todosResult.status === 'fulfilled' ? todosResult.value : null
+                    todosResult.status === 'fulfilled' ? todosResult.value : null,
+                    state.privateKey
                 );
                 todosOk = parsedTodos.ok;
                 apiTodos = parsedTodos.items;
@@ -549,6 +651,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                             existingItems: existingAll,
                             cachedMetadata: newMetaCache,
                             cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                            myId: state.myId,
                         }),
                     }))
                 ),
@@ -559,6 +662,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
                             existingItems: existingAll,
                             cachedMetadata: newMetaCache,
                             cachePrefix: f.version && f.version >= 2 ? 'v2-lam' : 'lam',
+                            myId: state.myId,
                         }),
                     }))
                 ),
@@ -630,7 +734,7 @@ export const createFsSlice: DataStoreSlice<FsSlice> = (set, get) => ({
             });
 
             const decryptedTasks = await decryptTasks(allTasks, state.privateKey);
-            const loadedTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk);
+            const loadedTasks = mergeTodosAndLegacyTasks(apiTodos, decryptedTasks, deletedTaskIds, todosOk, state.publicKey);
             set(s => {
                 if (loadedTasks.length === 0 && s.tasks.length > 0) return {};
                 const finalTasks = reconcileTasksWithLocal(loadedTasks, s.tasks, deletedTaskIds);

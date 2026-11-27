@@ -1,5 +1,11 @@
 import type { DataStoreSlice, SafesSlice } from './types';
 import { apiFetch } from '@/lib/api';
+import {
+    decryptSecuredEnvelope,
+    encryptSecuredEnvelope,
+    isExplicitlyUnencryptedFile,
+    stripSensitiveFileMetadata,
+} from '@/lib/e2eePayload';
 import { syncCreateWorkspace, syncDeleteWorkspace, syncActiveWorkspaces } from '../../lib/settingsSync';
 import { saveNotesToOfflineCache } from './createNotesSlice';
 
@@ -238,12 +244,49 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
         // Persist to backend if note exists
         try {
             const currentMeta = (currentNote?.metadata as Record<string, unknown>) || {};
-            const newMetadata = { ...currentMeta, safe: normalized };
-            await apiFetch(`/api/v1/files/${noteId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metadata: newMetadata }),
-            });
+            const authState = get() as { publicKey?: CryptoKey | null; privateKey?: CryptoKey | null; myId?: string | null };
+            const isOpenNote = currentNote?.visibility === 'public' || isExplicitlyUnencryptedFile(currentNote);
+
+            if (!isOpenNote && currentNote && authState.publicKey && authState.privateKey) {
+                let decryptedBase: Record<string, unknown> = {};
+                if (typeof currentNote.secured_meta === 'string' && currentNote.secured_meta.trim().length > 0) {
+                    const dec = await decryptSecuredEnvelope(currentNote.secured_meta, authState.privateKey, {
+                        accessKeys: currentNote.access_keys,
+                        myId: authState.myId,
+                    });
+                    if (!dec.isLocked) decryptedBase = dec;
+                }
+                const payloadToEncrypt: Record<string, unknown> = {
+                    ...decryptedBase,
+                    ...(decryptedBase.title !== undefined ? {} : currentNote.title ? { title: currentNote.title } : {}),
+                    ...(Array.isArray(currentNote.linkedSafes) && decryptedBase.linkedSafes === undefined
+                        ? { linkedSafes: currentNote.linkedSafes }
+                        : {}),
+                    ...(Array.isArray(currentNote.tagIds) && decryptedBase.tagIds === undefined
+                        ? { tagIds: currentNote.tagIds }
+                        : {}),
+                    safe: normalized,
+                };
+                const securedMeta = await encryptSecuredEnvelope(payloadToEncrypt, authState.publicKey);
+                const strippedMetadata = stripSensitiveFileMetadata(currentMeta);
+                await apiFetch(`/api/v1/files/${noteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secured_meta: securedMeta, metadata: strippedMetadata }),
+                });
+                set((s) => ({
+                    notes: s.notes.map((n) =>
+                        n.id === noteId ? { ...n, secured_meta: securedMeta, metadata: strippedMetadata } : n
+                    ),
+                }));
+            } else {
+                const newMetadata = { ...currentMeta, safe: normalized };
+                await apiFetch(`/api/v1/files/${noteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ metadata: newMetadata }),
+                });
+            }
         } catch (err) {
             console.warn('[SAFES] Failed to persist note safe to backend', err);
         }
@@ -289,12 +332,47 @@ export const createSafesSlice: DataStoreSlice<SafesSlice> = (set, get) => ({
 
         try {
             const currentMeta = (currentNote?.metadata as Record<string, unknown>) || {};
-            const newMetadata = { ...currentMeta, linkedSafes: nextLinked };
-            await apiFetch(`/api/v1/files/${noteId}`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metadata: newMetadata }),
-            });
+            const authState = get() as { publicKey?: CryptoKey | null; privateKey?: CryptoKey | null; myId?: string | null };
+            const isOpenNote = currentNote?.visibility === 'public' || isExplicitlyUnencryptedFile(currentNote);
+
+            if (!isOpenNote && authState.publicKey && authState.privateKey) {
+                let decryptedBase: Record<string, unknown> = {};
+                if (typeof currentNote.secured_meta === 'string' && currentNote.secured_meta.trim().length > 0) {
+                    const dec = await decryptSecuredEnvelope(currentNote.secured_meta, authState.privateKey, {
+                        accessKeys: currentNote.access_keys,
+                        myId: authState.myId,
+                    });
+                    if (!dec.isLocked) decryptedBase = dec;
+                }
+                const payloadToEncrypt: Record<string, unknown> = {
+                    ...decryptedBase,
+                    ...(decryptedBase.title !== undefined ? {} : currentNote.title ? { title: currentNote.title } : {}),
+                    ...(currentNote.safe && decryptedBase.safe === undefined ? { safe: currentNote.safe } : {}),
+                    ...(Array.isArray(currentNote.tagIds) && decryptedBase.tagIds === undefined
+                        ? { tagIds: currentNote.tagIds }
+                        : {}),
+                    linkedSafes: nextLinked,
+                };
+                const securedMeta = await encryptSecuredEnvelope(payloadToEncrypt, authState.publicKey);
+                const strippedMetadata = stripSensitiveFileMetadata(currentMeta);
+                await apiFetch(`/api/v1/files/${noteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ secured_meta: securedMeta, metadata: strippedMetadata }),
+                });
+                set((s) => ({
+                    notes: s.notes.map((n) =>
+                        n.id === noteId ? { ...n, secured_meta: securedMeta, metadata: strippedMetadata } : n
+                    ),
+                }));
+            } else {
+                const newMetadata = { ...currentMeta, linkedSafes: nextLinked };
+                await apiFetch(`/api/v1/files/${noteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ metadata: newMetadata }),
+                });
+            }
         } catch (err) {
             console.warn('[SAFES] Failed to persist linkedSafes to backend', err);
         }

@@ -1,6 +1,11 @@
 'use client';
 
 import { apiFetch } from '@/lib/api';
+import {
+    decryptSecuredEnvelope,
+    encryptSecuredEnvelope,
+    stripSensitiveFileMetadata,
+} from '@/lib/e2eePayload';
 import { isForeignOwned } from '@/lib/tags';
 import { useDataStore } from '@/store/useDataStore';
 
@@ -15,30 +20,85 @@ interface TideWindow extends Window {
 interface RemoteFile {
     version?: number;
     metadata?: unknown;
+    secured_meta?: string;
+    access_keys?: unknown;
+    visibility?: string;
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
     return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-async function fetchRemote(noteId: string): Promise<{ metadata: Record<string, unknown>; version: number | undefined }> {
+async function fetchRemote(noteId: string): Promise<{
+    metadata: Record<string, unknown>;
+    version: number | undefined;
+    securedMeta: string | undefined;
+    accessKeys: unknown;
+    visibility: string | undefined;
+}> {
     const res = await apiFetch(`/api/v1/files/${noteId}`);
     if (!res.ok) throw new Error('Could not read note metadata');
     const file = (await res.json()) as RemoteFile;
     const metadata = file.metadata == null ? {} : file.metadata;
     if (!isRecord(metadata)) throw new Error('Unexpected note metadata');
-    return { metadata, version: typeof file.version === 'number' ? file.version : undefined };
+    return {
+        metadata,
+        version: typeof file.version === 'number' ? file.version : undefined,
+        securedMeta: typeof file.secured_meta === 'string' ? file.secured_meta : undefined,
+        accessKeys: file.access_keys,
+        visibility: typeof file.visibility === 'string' ? file.visibility : undefined,
+    };
 }
 
 /**
  * `version` doubles as the encryption format marker (v1 notes are version 1/0). A versioned PUT bumps it on the
  * server and would turn a legacy note into "v2" without re-encrypting it, so `version` is only sent for v2+ files.
  */
-async function putMetadata(noteId: string, tagIds: string[]): Promise<{ res: Response; versioned: boolean }> {
+async function putMetadata(
+    noteId: string,
+    tagIds: string[]
+): Promise<{ res: Response; versioned: boolean; encryptedMeta?: string; strippedMeta?: Record<string, unknown> }> {
     // Fresh server state, so keys written meanwhile (content key info, title, ...) are never dropped.
-    const { metadata, version } = await fetchRemote(noteId);
-    const body: Record<string, unknown> = { metadata: { ...metadata, tagIds } };
+    const { metadata, version, securedMeta, accessKeys, visibility } = await fetchRemote(noteId);
     const versioned = version !== undefined && version >= 2;
+
+    const store = useDataStore.getState();
+    const note = store.notes.find((n) => n.id === noteId);
+    const hasSecured = typeof securedMeta === 'string' && securedMeta.trim().length > 0;
+    const isOpen = visibility === 'public' || (metadata.unencrypted === true && !hasSecured);
+
+    const body: Record<string, unknown> = {};
+    let encryptedMeta: string | undefined;
+    let strippedMeta: Record<string, unknown> | undefined;
+
+    if (!isOpen && store.publicKey && store.privateKey) {
+        let existingSecured: Record<string, unknown> = {};
+        if (hasSecured && securedMeta) {
+            const dec = await decryptSecuredEnvelope(securedMeta, store.privateKey, {
+                accessKeys,
+                myId: store.myId,
+            });
+            if (!dec.isLocked) existingSecured = dec;
+        }
+        const mergedSecured: Record<string, unknown> = {
+            ...existingSecured,
+            ...(existingSecured.title !== undefined ? {} : note?.title ? { title: note.title } : {}),
+            ...(existingSecured.safe !== undefined ? {} : note?.safe ? { safe: note.safe } : {}),
+            ...(existingSecured.linkedSafes !== undefined
+                ? {}
+                : Array.isArray(note?.linkedSafes)
+                ? { linkedSafes: note.linkedSafes }
+                : {}),
+            tagIds,
+        };
+        encryptedMeta = await encryptSecuredEnvelope(mergedSecured, store.publicKey);
+        strippedMeta = stripSensitiveFileMetadata(metadata);
+        body.secured_meta = encryptedMeta;
+        body.metadata = strippedMeta;
+    } else {
+        body.metadata = { ...metadata, tagIds };
+    }
+
     if (versioned) body.version = version;
     const tideWin = window as TideWindow;
     if (tideWin.__tideSaveTimestamp) tideWin.__tideSaveTimestamp();
@@ -47,20 +107,28 @@ async function putMetadata(noteId: string, tagIds: string[]): Promise<{ res: Res
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
     });
-    return { res, versioned };
+    return { res, versioned, encryptedMeta, strippedMeta };
 }
 
-async function persist(noteId: string, tagIds: string[]): Promise<number | undefined> {
-    let { res, versioned } = await putMetadata(noteId, tagIds);
-    if (res.status === 409 && versioned) ({ res, versioned } = await putMetadata(noteId, tagIds));
-    if (!res.ok) throw new Error(`Failed to save note tags (${res.status})`);
-    if (!versioned) return undefined;
-    try {
-        const data = (await res.json()) as { version?: unknown };
-        return typeof data?.version === 'number' ? data.version : undefined;
-    } catch {
-        return undefined;
+async function persist(
+    noteId: string,
+    tagIds: string[]
+): Promise<{ version: number | undefined; encryptedMeta?: string; strippedMeta?: Record<string, unknown> }> {
+    let attempt = await putMetadata(noteId, tagIds);
+    if (attempt.res.status === 409 && attempt.versioned) {
+        attempt = await putMetadata(noteId, tagIds);
     }
+    if (!attempt.res.ok) throw new Error(`Failed to save note tags (${attempt.res.status})`);
+    let version: number | undefined;
+    if (attempt.versioned) {
+        try {
+            const data = (await attempt.res.json()) as { version?: unknown };
+            version = typeof data?.version === 'number' ? data.version : undefined;
+        } catch {
+            version = undefined;
+        }
+    }
+    return { version, encryptedMeta: attempt.encryptedMeta, strippedMeta: attempt.strippedMeta };
 }
 
 /**
@@ -95,8 +163,14 @@ export async function setNoteTags(noteId: string, ids: string[], options?: SetNo
     store.updateFileRaw(noteId, { tagIds, metadata: { ...baseMeta, tagIds } });
 
     try {
-        const version = await persist(noteId, tagIds);
-        if (version !== undefined) useDataStore.getState().updateFileRaw(noteId, { version });
+        const { version, encryptedMeta, strippedMeta } = await persist(noteId, tagIds);
+        const patch: Record<string, unknown> = {};
+        if (version !== undefined) patch.version = version;
+        if (encryptedMeta !== undefined) patch.secured_meta = encryptedMeta;
+        if (strippedMeta !== undefined) patch.metadata = strippedMeta;
+        if (Object.keys(patch).length > 0) {
+            useDataStore.getState().updateFileRaw(noteId, patch);
+        }
     } catch (e) {
         if (strict) {
             useDataStore.getState().updateFileRaw(noteId, { tagIds: prevTagIds, metadata: prevMetadata });

@@ -6,9 +6,8 @@ vi.mock('@/lib/api', () => ({
     apiFetch: vi.fn(),
     getApiBase: vi.fn().mockReturnValue(''),
 }));
-vi.mock('@/lib/crypto', async (orig) => ({
-    ...(await orig<Record<string, unknown>>()),
-    encryptMetadata: vi.fn(async () => 'cipher'),
+vi.mock('@/lib/e2eePayload', () => ({
+    encryptSecuredEnvelope: vi.fn(async () => 'cipher-envelope'),
 }));
 
 const fakeKey = {} as CryptoKey;

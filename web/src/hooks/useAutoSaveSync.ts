@@ -7,9 +7,13 @@ import { useActiveNoteStore } from "@/store/activeNoteStore";
 import { whyNotSavable } from '@/lib/ydocRegistry';
 import { Tab } from "@/components/Layout/TabList";
 import { apiFetch } from "@/lib/api";
-import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
 import { encryptSnapshot } from "@/lib/e2eeFraming";
+import {
+    encryptSecuredEnvelope,
+    isExplicitlyUnencryptedFile,
+    stripSensitiveFileMetadata,
+} from "@/lib/e2eePayload";
 import { tipTapToMarkdown } from "@/lib/bundleImportExport";
 import {
     isDocEmpty,
@@ -383,50 +387,76 @@ export function useAutoSaveSync(options: UseAutoSaveSyncOptions = {}) {
 
             if (metaChanged) {
                 const freshPubKey = options.publicKey || freshState.publicKey;
-                if (freshPubKey) {
+                const isOpenNote = curFile?.visibility === "public" || isExplicitlyUnencryptedFile(curFile);
+                if (isOpenNote || freshPubKey) {
                     try {
                         const existingMeta = (curFile?.metadata as Record<string, unknown>) || {};
-                        const mergedMetadata = {
-                            ...existingMeta,
-                            title: currentTitle,
-                            ...(currentIcon !== undefined ? { icon: currentIcon } : {}),
-                            ...(currentTags !== undefined ? { tags: currentTags } : {}),
-                        };
+                        let metaUpdatePayload: Record<string, unknown>;
+                        let storeMetadataPatch: Record<string, unknown>;
+                        let freshSecuredMeta: string | undefined;
 
-                        const metaObj: Record<string, unknown> = { title: currentTitle };
-                        if (currentIcon !== undefined) metaObj.icon = currentIcon;
-                        if (currentTags !== undefined) metaObj.tags = currentTags;
+                        if (isOpenNote) {
+                            const openMeta = {
+                                ...existingMeta,
+                                title: currentTitle,
+                                ...(currentIcon !== undefined ? { icon: currentIcon } : {}),
+                                ...(currentTags !== undefined ? { tags: currentTags } : {}),
+                            };
+                            metaUpdatePayload = { metadata: openMeta };
+                            storeMetadataPatch = openMeta;
+                        } else if (freshPubKey) {
+                            const metaObj: Record<string, unknown> = { title: currentTitle };
+                            if (currentIcon !== undefined) metaObj.icon = currentIcon;
+                            if (currentTags !== undefined) metaObj.tags = currentTags;
+                            if (Array.isArray(curFile?.tagIds)) metaObj.tagIds = curFile.tagIds;
+                            if (typeof curFile?.safe === "string" && curFile.safe) metaObj.safe = curFile.safe;
+                            if (Array.isArray(curFile?.linkedSafes)) metaObj.linkedSafes = curFile.linkedSafes;
+                            if (typeof curFile?.color === "string" && curFile.color) metaObj.color = curFile.color;
 
-                        const freshSecuredMeta = await cryptoLib.encryptMetadata(metaObj, freshPubKey, `meta-${noteId}`);
-                        const metaUpdatePayload = {
-                            secured_meta: freshSecuredMeta,
-                            metadata: mergedMetadata,
-                        };
+                            freshSecuredMeta = await encryptSecuredEnvelope(metaObj, freshPubKey);
+                            const strippedMeta = stripSensitiveFileMetadata(existingMeta);
+                            metaUpdatePayload = {
+                                secured_meta: freshSecuredMeta,
+                                metadata: strippedMeta,
+                            };
+                            storeMetadataPatch = strippedMeta;
+                        } else {
+                            metaUpdatePayload = {};
+                            storeMetadataPatch = existingMeta;
+                        }
 
-                        let metaRes = await apiFetch(`/api/v1/files/${noteId}`, {
-                            method: "PUT",
-                            headers: { "Content-Type": "application/json" },
-                            body: JSON.stringify(metaUpdatePayload),
-                        });
-                        if (metaRes.status === 404) {
-                            metaRes = await apiFetch(`/api/files/${noteId}`, {
+                        if (Object.keys(metaUpdatePayload).length > 0) {
+                            let metaRes = await apiFetch(`/api/v1/files/${noteId}`, {
                                 method: "PUT",
                                 headers: { "Content-Type": "application/json" },
                                 body: JSON.stringify(metaUpdatePayload),
                             });
-                        }
+                            if (metaRes.status === 404) {
+                                metaRes = await apiFetch(`/api/files/${noteId}`, {
+                                    method: "PUT",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify(metaUpdatePayload),
+                                });
+                            }
 
-                        if (metaRes.ok) {
-                            lastSavedMetaRef.current[noteId] = {
-                                title: currentTitle,
-                                icon: currentIcon,
-                                tags: currentTags,
-                            };
-                            useDataStore.getState().updateFileRaw(noteId, {
-                                title: currentTitle,
-                                secured_meta: freshSecuredMeta,
-                                metadata: mergedMetadata,
-                            });
+                            if (metaRes.ok) {
+                                lastSavedMetaRef.current[noteId] = {
+                                    title: currentTitle,
+                                    icon: currentIcon,
+                                    tags: currentTags,
+                                };
+                                useDataStore.getState().updateFileRaw(noteId, {
+                                    title: currentTitle,
+                                    ...(freshSecuredMeta !== undefined ? { secured_meta: freshSecuredMeta } : {}),
+                                    metadata: storeMetadataPatch,
+                                });
+                                useDataStore.getState().updateSpecificMetadataCache(noteId, {
+                                    title: currentTitle,
+                                    ...(currentIcon !== undefined ? { icon: currentIcon } : {}),
+                                    ...(currentTags !== undefined ? { tags: currentTags } : {}),
+                                    ...storeMetadataPatch,
+                                });
+                            }
                         }
                     } catch (mErr) {
                         console.warn("[Compaction] Error updating secured_meta:", mErr);

@@ -109,10 +109,12 @@ type Todo struct {
 	ParentID       string     `json:"parent_id,omitempty"`
 	SortOrder      int        `json:"order"`
 	// Safe is the workspace the todo belongs to ("" means main); LinkedSafes lists extra workspaces it is shown in.
-	Safe           string     `json:"safe,omitempty"`
-	LinkedSafes    []string   `json:"linked_safes,omitempty"`
-	CreatedAt      time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at" db:"updated_at"`
+	Safe             string     `json:"safe,omitempty"`
+	LinkedSafes      []string   `json:"linked_safes,omitempty"`
+	IsEncrypted      bool       `json:"is_encrypted" db:"is_encrypted"`
+	EncryptedPayload string     `json:"encrypted_payload,omitempty" db:"encrypted_payload"`
+	CreatedAt        time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt        time.Time  `json:"updated_at" db:"updated_at"`
 }
 
 // DB defines the interface for database operations.
@@ -209,6 +211,7 @@ type ExternalEvent struct {
 	IsCancelled    bool      `json:"is_cancelled,omitempty"`
 	IsImportant    bool      `json:"is_important,omitempty"`
 	Effect         string    `json:"effect,omitempty"`
+	Encrypted      bool      `json:"encrypted"`
 	Version        int       `json:"version,omitempty"`
 	Source         string    `json:"source"`
 	CreatedAt      time.Time `json:"created_at"`

@@ -3,7 +3,7 @@
 import { useCallback } from 'react';
 import { notifyError } from '@/lib/feedback';
 import type { Dispatch, SetStateAction } from 'react';
-import * as cryptoLib from '@/lib/crypto';
+import { encryptSecuredEnvelope, stripSensitiveFileMetadata } from '@/lib/e2eePayload';
 import { apiFetch } from '@/lib/api';
 import { useDataStore, type DataItem } from '@/store/useDataStore';
 import { normalizeSafe } from '@/lib/todoSafes';
@@ -80,7 +80,7 @@ async function createEncryptedFolderRecord(
         : defaultSafe;
 
     const meta = { title, parent_id: parentId, color: folderColor, safe: targetSafe };
-    const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+    const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
 
     const res = await apiFetch('/api/v1/files', {
         method: 'POST',
@@ -89,7 +89,7 @@ async function createEncryptedFolderRecord(
             type: 'folder',
             parent_id: parentId,
             public_meta: {},
-            metadata: { title, color: folderColor, safe: targetSafe },
+            metadata: {},
             secured_meta: securedMeta,
             visibility: 'private',
         }),
@@ -172,7 +172,7 @@ export function useFolderAndGroupActions({
 
         try {
             const meta = { title, isGroup: true, effect, color, safe };
-            const securedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
+            const securedMeta = await encryptSecuredEnvelope(meta, pubKey);
 
             const res = await apiFetch('/api/v1/files', {
                 method: 'POST',
@@ -182,7 +182,7 @@ export function useFolderAndGroupActions({
                     parent_id: null,
                     public_meta: { isGroup: true },
                     secured_meta: securedMeta,
-                    metadata: { title, isGroup: true, effect, color, safe },
+                    metadata: { isGroup: true },
                     version: 2,
                     visibility: 'private',
                 }),
@@ -222,8 +222,9 @@ export function useFolderAndGroupActions({
                 isGroup: true,
                 effect: group.effect ?? 'none',
                 color: group.color,
+                ...(group.safe ? { safe: group.safe } : {}),
             };
-            const encryptedMeta = await cryptoLib.encryptMetadata(meta, pubKey);
+            const encryptedMeta = await encryptSecuredEnvelope(meta, pubKey);
 
             // Stamp save timestamp BEFORE the API call so SSE cooldown suppresses immediate refetch
             const tideWin = window as TideWindow;
@@ -232,7 +233,7 @@ export function useFolderAndGroupActions({
             const putPayload: Record<string, unknown> = {
                 secured_meta: encryptedMeta,
                 public_meta: { isGroup: true },
-                metadata: { title: meta.title, isGroup: true, effect: meta.effect, color: meta.color },
+                metadata: { isGroup: true },
             };
             if (typeof group.version === 'number') {
                 putPayload.version = group.version;
@@ -297,14 +298,22 @@ export function useFolderAndGroupActions({
             const existingFile = allFiles.find((f) => f.id === folderId);
             const currentMetadata =
                 existingFile?.metadata && typeof existingFile.metadata === 'object' ? existingFile.metadata : {};
-            const updatedMetadata = { ...currentMetadata, color };
+            const updatedMetadata = stripSensitiveFileMetadata(currentMetadata);
 
             let securedMeta: string | undefined;
             if (publicKey && existingFile) {
                 const existingTitle = existingFile.title || existingFile.name || 'Folder';
-                const meta = { title: existingTitle, parent_id: existingFile.parent_id, color };
+                const resolvedSafe =
+                    existingFile.safe ||
+                    (typeof currentMetadata.safe === 'string' ? currentMetadata.safe : undefined);
+                const meta: Record<string, unknown> = {
+                    title: existingTitle,
+                    parent_id: existingFile.parent_id,
+                    color,
+                    ...(resolvedSafe ? { safe: resolvedSafe } : {}),
+                };
                 try {
-                    securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+                    securedMeta = await encryptSecuredEnvelope(meta, publicKey);
                 } catch (e) {
                     console.warn('Failed to encrypt metadata for folder color update', e);
                 }

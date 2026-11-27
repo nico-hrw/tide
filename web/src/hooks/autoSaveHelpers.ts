@@ -3,6 +3,7 @@ import { useDataStore } from "@/store/useDataStore";
 import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
 import { derivePublicNoteDEK } from "@/lib/cryptoV2";
+import { decryptSecuredEnvelope } from "@/lib/e2eePayload";
 import { applyLinePatch, type LinePatchOp } from "@/lib/diff";
 import {
     BACKUP_TIERS,
@@ -440,16 +441,22 @@ export async function decryptNotePayload(params: {
         }
         const dek = await cryptoV2.importDEK(rawDek);
 
-        let title = (target.metadata as any)?.title || target.title;
+        let title = (target.metadata as Record<string, unknown> | undefined)?.title as string | undefined || target.title;
         if (target.secured_meta) {
             try {
                 const parsedMeta = JSON.parse(await decryptContentV2(target.secured_meta, dek));
                 if (parsedMeta.title) title = parsedMeta.title;
             } catch {
                 try {
-                    const mMeta = await cryptoLib.decryptMetadata(target.secured_meta, effectivePrivKey, `load-v2-${fileId}`);
-                    if (mMeta.title) title = mMeta.title as string;
-                } catch (_) {}
+                    const mMeta = await decryptSecuredEnvelope(target.secured_meta, effectivePrivKey, {
+                        accessKeys: target.access_keys,
+                        myId: effectiveMyId,
+                        cacheId: `load-v2-${fileId}`,
+                    });
+                    if (typeof mMeta.title === 'string' && !mMeta.isLocked) title = mMeta.title;
+                } catch {
+                    // Keep existing title fallback
+                }
             }
         }
 

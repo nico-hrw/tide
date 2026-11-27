@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { encryptSecuredEnvelope } from '@/lib/e2eePayload';
 import { generateSecureId } from '@/lib/offlineCacheCrypto';
 import type { DataStoreSlice, TaskItem, TodosSlice } from './types';
 import { deletedTaskIds, recordDeletedTaskId, loadCachedTasks, saveTasksToOfflineCache } from './fsHelpers';
@@ -33,6 +34,45 @@ function taskToServerTodoPayload(task: TaskItem, includeId: boolean): Record<str
         payload.id = task.id;
     }
     return payload;
+}
+
+async function buildEncryptedTodoBody(
+    task: TaskItem,
+    publicKey: CryptoKey,
+    includeId: boolean
+): Promise<Record<string, unknown>> {
+    const payload: Record<string, unknown> = {
+        title: task.title,
+        description: task.description ?? '',
+        status: task.status ?? (task.isCompleted ? 'completed' : 'todo'),
+        priority: task.priority ?? 'medium',
+        dueDate: task.dueDate ?? '',
+        scheduledDate: task.scheduledDate ?? '',
+        tags: task.tags ?? [],
+        color: task.color ?? '',
+        isCompleted: Boolean(task.isCompleted),
+        folder: task.folder ?? '',
+        linkedNoteId: task.linkedNoteId ?? '',
+        safe: task.safe ?? 'main',
+        linkedSafes: task.linkedSafes ?? [],
+        recurrence: task.recurrence ?? 'none',
+        recurrence_rule: task.recurrence_rule ?? '',
+        recurrence_end: task.recurrence_end ?? '',
+        completed_dates: task.completed_dates ?? [],
+        showInCalendar: task.showInCalendar ?? true,
+        isArchived: Boolean(task.isArchived),
+        parentId: task.parentId ?? null,
+        order: task.order ?? 0,
+        createdAt: task.createdAt,
+        completedAt: task.completedAt,
+        updatedAt: task.updatedAt,
+    };
+    const encrypted_payload = await encryptSecuredEnvelope(payload, publicKey);
+    return {
+        ...(includeId ? { id: task.id } : {}),
+        is_encrypted: true,
+        encrypted_payload,
+    };
 }
 
 export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
@@ -87,10 +127,17 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
         saveTasksToOfflineCache(nextTasks);
 
         try {
+            const isUnencryptedTodo = newTask.unencrypted === true;
+            if (!isUnencryptedTodo && !state.publicKey) {
+                return fallbackId;
+            }
+            const requestBody = isUnencryptedTodo
+                ? taskToServerTodoPayload(newTask, true)
+                : await buildEncryptedTodoBody(newTask, state.publicKey!, true);
             const res = await apiFetch('/api/v1/todos', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(taskToServerTodoPayload(newTask, true)),
+                body: JSON.stringify(requestBody),
             });
 
             if (res.ok) {
@@ -185,20 +232,32 @@ export const createTodosSlice: DataStoreSlice<TodosSlice> = (set, get) => ({
             updatedAt: now,
         };
 
+        const isUnencryptedTodo = mergedTask.unencrypted === true;
+        if (!isUnencryptedTodo && !state.publicKey) {
+            if (strict) throw new Error('Task update failed: encryption key unavailable');
+            return;
+        }
+
         // 3. Persist directly to unified /api/v1/todos endpoint
         try {
+            const putBody = isUnencryptedTodo
+                ? taskToServerTodoPayload(mergedTask, false)
+                : await buildEncryptedTodoBody(mergedTask, state.publicKey!, false);
             const res = await apiFetch(`/api/v1/todos/${id}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(taskToServerTodoPayload(mergedTask, false)),
+                body: JSON.stringify(putBody),
             });
             if (!res.ok) {
                 if (res.status === 404) {
                     // Legacy task not yet migrated to /api/v1/todos — upsert instead of deleting
+                    const upsertBody = isUnencryptedTodo
+                        ? taskToServerTodoPayload(mergedTask, true)
+                        : await buildEncryptedTodoBody(mergedTask, state.publicKey!, true);
                     const upsertRes = await apiFetch('/api/v1/todos', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify(taskToServerTodoPayload(mergedTask, true)),
+                        body: JSON.stringify(upsertBody),
                     });
                     if (!upsertRes.ok) {
                         console.error('[updateTask] Upsert after 404 returned non-OK status:', upsertRes.status);

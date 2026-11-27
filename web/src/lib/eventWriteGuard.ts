@@ -139,6 +139,8 @@ export interface GuardedEventPutOptions {
     onVersion?: (version: number) => void;
     /** Latest known server version, read again after waiting for the brake. */
     currentVersion?: () => number | undefined;
+    /** Optional encrypted conflict resolver to merge server state and rebuild the PUT body. */
+    onConflictRebuild?: (freshFile: Record<string, unknown>) => Promise<{ body: Meta; unchanged: boolean } | null>;
 }
 
 export type GuardedEventPutResult = 'written' | 'unchanged' | 'superseded' | 'failed';
@@ -193,18 +195,32 @@ export async function putEventGuarded(fileId: string, body: Meta, opts: GuardedE
     let retryBody: Meta = { ...body, version };
     try {
         const fresh = await apiFetch(`/api/v1/files/${fileId}`);
-        const file = fresh.ok ? await readJson<{ version?: number; metadata?: Meta | string }>(fresh) : null;
-        const serverMeta = typeof file?.metadata === 'string' ? (JSON.parse(file.metadata) as Meta) : file?.metadata;
-        if (file && typeof file.version === 'number' && serverMeta && typeof serverMeta === 'object') {
+        const file = fresh.ok ? await readJson<Record<string, unknown>>(fresh) : null;
+        if (file && typeof file.version === 'number') {
             version = file.version;
             opts.onVersion?.(version);
-            const merged = remerge(serverMeta, (body.metadata as Meta | undefined) ?? {}, opts.ownKeys);
-            if (eventContentSignature(merged) === eventContentSignature(serverMeta)) {
-                // The server already holds what this save wanted (e.g. the other client wrote the same).
-                rememberWrite(fileId, opts.signature, version);
-                return 'unchanged';
+            if (opts.onConflictRebuild) {
+                const rebuilt = await opts.onConflictRebuild(file);
+                if (rebuilt) {
+                    if (rebuilt.unchanged) {
+                        rememberWrite(fileId, opts.signature, version);
+                        return 'unchanged';
+                    }
+                    retryBody = { ...rebuilt.body, version };
+                }
+            } else {
+                const rawMeta = file.metadata;
+                const serverMeta = typeof rawMeta === 'string' ? (JSON.parse(rawMeta) as Meta) : (rawMeta as Meta | undefined);
+                if (serverMeta && typeof serverMeta === 'object') {
+                    const merged = remerge(serverMeta, (body.metadata as Meta | undefined) ?? {}, opts.ownKeys);
+                    if (eventContentSignature(merged) === eventContentSignature(serverMeta)) {
+                        // The server already holds what this save wanted (e.g. the other client wrote the same).
+                        rememberWrite(fileId, opts.signature, version);
+                        return 'unchanged';
+                    }
+                    retryBody = { ...body, metadata: merged, version };
+                }
             }
-            retryBody = { ...body, metadata: merged, version };
         }
     } catch {
         // Fresh state unavailable: retry once with the server version only.

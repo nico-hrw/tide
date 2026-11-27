@@ -298,6 +298,8 @@ func (s *SQLiteStore) migrate() error {
 		is_archived INTEGER DEFAULT 0,
 		parent_id TEXT DEFAULT '',
 		sort_order INTEGER DEFAULT 0,
+		is_encrypted INTEGER NOT NULL DEFAULT 0,
+		encrypted_payload TEXT NOT NULL DEFAULT '',
 		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
 		FOREIGN KEY (user_id) REFERENCES users(id)
@@ -758,6 +760,15 @@ func (s *SQLiteStore) runDeterministicMigrations() error {
 			stmts: []string{
 				"ALTER TABLE todos ADD COLUMN safe TEXT DEFAULT '';",
 				"ALTER TABLE todos ADD COLUMN linked_safes TEXT DEFAULT '[]';",
+			},
+		},
+		{
+			// End-to-end encrypted payload support for todos (K-02).
+			version: 18,
+			name:    "todo_e2ee",
+			stmts: []string{
+				"ALTER TABLE todos ADD COLUMN is_encrypted INTEGER NOT NULL DEFAULT 0;",
+				"ALTER TABLE todos ADD COLUMN encrypted_payload TEXT NOT NULL DEFAULT '';",
 			},
 		},
 	}
@@ -1986,11 +1997,41 @@ func parseDateFlexible(s string) (time.Time, bool) {
 	return time.Time{}, false
 }
 
+func isExternalEventE2EEProtected(hasSecuredMeta int, metadataStr string) bool {
+	if hasSecuredMeta > 0 {
+		return true
+	}
+	if metadataStr == "" || metadataStr == "{}" {
+		return false
+	}
+	var flags struct {
+		HasCustomPassword bool `json:"has_custom_password"`
+	}
+	if err := json.Unmarshal([]byte(metadataStr), &flags); err == nil && flags.HasCustomPassword {
+		return true
+	}
+	return false
+}
+
+func redactedExternalEvent(id string, parentID *string, version int, createdAt, updatedAt time.Time) *db.ExternalEvent {
+	return &db.ExternalEvent{
+		ID:        id,
+		Title:     "Encrypted Event",
+		ParentID:  parentID,
+		Version:   version,
+		Source:    "tide",
+		Encrypted: true,
+		CreatedAt: createdAt,
+		UpdatedAt: updatedAt,
+	}
+}
+
 func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID string, startTime, endTime *time.Time, search string, limit int) ([]*db.ExternalEvent, error) {
 	query := `
 		SELECT f.id, f.parent_id, f.version, f.created_at, f.updated_at,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
+		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+		       CASE WHEN f.secured_meta IS NOT NULL AND LENGTH(f.secured_meta) > 0 THEN 1 ELSE 0 END AS has_secured_meta
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE (f.owner_id = ? OR (fs.user_id = ? AND fs.status = 'accepted'))
@@ -2013,9 +2054,18 @@ func (s *SQLiteStore) ListEventsForExternalAPI(ctx context.Context, userID strin
 		var version int
 		var createdAt, updatedAt time.Time
 		var md, pm string
+		var hasSecuredMeta int
 
-		if err := rows.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm); err != nil {
+		if err := rows.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm, &hasSecuredMeta); err != nil {
 			return nil, err
+		}
+
+		if isExternalEventE2EEProtected(hasSecuredMeta, md) {
+			if searchLower != "" || startTime != nil || endTime != nil {
+				continue
+			}
+			events = append(events, redactedExternalEvent(id, parentID, version, createdAt, updatedAt))
+			continue
 		}
 
 		ev := parseExternalEvent(id, parentID, version, createdAt, updatedAt, md, pm)
@@ -2095,7 +2145,8 @@ func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventI
 	query := `
 		SELECT f.id, f.parent_id, f.version, f.created_at, f.updated_at,
 		       COALESCE(NULLIF(f.metadata, ''), '{}') as metadata,
-		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta
+		       COALESCE(NULLIF(f.public_meta, ''), '{}') as public_meta,
+		       CASE WHEN f.secured_meta IS NOT NULL AND LENGTH(f.secured_meta) > 0 THEN 1 ELSE 0 END AS has_secured_meta
 		FROM files f
 		LEFT JOIN file_shares fs ON f.id = fs.file_id AND fs.user_id = ?
 		WHERE f.id = ?
@@ -2110,12 +2161,17 @@ func (s *SQLiteStore) GetEventForExternalAPI(ctx context.Context, userID, eventI
 	var version int
 	var createdAt, updatedAt time.Time
 	var md, pm string
+	var hasSecuredMeta int
 
-	if err := row.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm); err != nil {
+	if err := row.Scan(&id, &parentID, &version, &createdAt, &updatedAt, &md, &pm, &hasSecuredMeta); err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, ErrNotFound
 		}
 		return nil, err
+	}
+
+	if isExternalEventE2EEProtected(hasSecuredMeta, md) {
+		return redactedExternalEvent(id, parentID, version, createdAt, updatedAt), nil
 	}
 
 	return parseExternalEvent(id, parentID, version, createdAt, updatedAt, md, pm), nil

@@ -1,5 +1,6 @@
 import type { DataItem, TaskItem } from './types';
 import { apiFetch } from '@/lib/api';
+import { decryptSecuredEnvelope } from '@/lib/e2eePayload';
 import { saveEncryptedOfflineCache } from '@/lib/offlineCacheCrypto';
 
 export interface RawFileItem {
@@ -320,13 +321,14 @@ export async function decryptAndNormalizeFileItem(
         cachedMetadata?: Record<string, unknown>;
         forceRefresh?: boolean;
         cachePrefix?: string;
+        myId?: string | null;
     }
 ): Promise<DecryptedFileResult> {
     if (file.type === 'index' || file.type === 'canvas-asset' || file.type === 'views' || file.type === 'variables' || file.type === 'calendar_shares') {
         return { skipped: true };
     }
 
-    const { existingItems = [], cachedMetadata, forceRefresh = false, cachePrefix = 'lazy' } = context;
+    const { existingItems = [], cachedMetadata, forceRefresh = false, cachePrefix = 'lazy', myId } = context;
 
     if (!forceRefresh && cachedMetadata && cachedMetadata[file.id]) {
         const cached = cachedMetadata[file.id] as Record<string, unknown>;
@@ -407,8 +409,11 @@ export async function decryptAndNormalizeFileItem(
         } else if ((file.version ?? 0) >= 2 && file.metadata) {
             metaData = { ...file.metadata, title: file.metadata.title || 'Untitled', isLocked: false };
             if (file.secured_meta && privateKey) {
-                const cryptoLib = await import('@/lib/crypto');
-                const meta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `${cachePrefix}-${file.id}`);
+                const meta = await decryptSecuredEnvelope(file.secured_meta, privateKey, {
+                    accessKeys: file.access_keys,
+                    myId,
+                    cacheId: `${cachePrefix}-${file.id}`,
+                });
                 if (!meta.isLocked) {
                     metaData = { ...metaData, ...meta, title: meta.title || metaData.title || 'Untitled', isLocked: false };
                     if (file.metadata && typeof file.metadata.color === 'string') {
@@ -422,8 +427,11 @@ export async function decryptAndNormalizeFileItem(
                 }
             }
         } else if (file.secured_meta && privateKey) {
-            const cryptoLib = await import('@/lib/crypto');
-            const meta = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `${cachePrefix}-${file.id}`);
+            const meta = await decryptSecuredEnvelope(file.secured_meta, privateKey, {
+                accessKeys: file.access_keys,
+                myId,
+                cacheId: `${cachePrefix}-${file.id}`,
+            });
             if (!meta.isLocked) {
                 metaData = { ...meta, title: meta.title || 'Untitled', isLocked: false };
                 if (file.metadata && typeof file.metadata.color === 'string') {
@@ -480,7 +488,7 @@ export async function decryptAndNormalizeFileItem(
     }
 
     if (file.type !== 'folder') {
-        normalizedItem.tagIds = normalizeNoteTagIds(file.metadata?.tagIds ?? metaData.tagIds);
+        normalizedItem.tagIds = normalizeNoteTagIds(metaData.tagIds ?? file.metadata?.tagIds);
     }
     return {
         item: normalizedItem,

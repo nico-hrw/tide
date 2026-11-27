@@ -1,5 +1,6 @@
 import * as cryptoV2 from './cryptoV2';
 import * as cryptoLib from './crypto';
+import { decryptSecuredEnvelope, encryptSecuredEnvelope } from './e2eePayload';
 import { apiFetch } from './api';
 import { encryptChatMessage } from './chatCrypto';
 import { useDataStore } from '../store/useDataStore';
@@ -78,20 +79,28 @@ export async function performMessengerShare(
                     allDay: ev.allDay,
                 };
             } else if (file.secured_meta) {
-                const dec = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `share-event-${fileId}`);
+                const dec = await decryptSecuredEnvelope(file.secured_meta, privateKey, {
+                    accessKeys: file.access_keys,
+                    myId,
+                    cacheId: `share-event-${fileId}`,
+                });
                 if (!dec.isLocked) {
                     recipientMetaObj = { ...dec, title: shareModalFile.title || dec.title };
                 }
             }
         } else if (file.secured_meta) {
-            const dec = await cryptoLib.decryptMetadata(file.secured_meta, privateKey, `share-meta-${fileId}`);
+            const dec = await decryptSecuredEnvelope(file.secured_meta, privateKey, {
+                accessKeys: file.access_keys,
+                myId,
+                cacheId: `share-meta-${fileId}`,
+            });
             if (!dec.isLocked) {
                 recipientMetaObj = { ...dec, title: shareModalFile.title || dec.title };
             }
         }
 
         // Encrypt the full metadata with recipient's public key
-        const recipientSecuredMeta = await cryptoLib.encryptMetadata(
+        const recipientSecuredMeta = await encryptSecuredEnvelope(
             recipientMetaObj,
             recipientPubKey
         );
@@ -133,9 +142,17 @@ export async function performMessengerShare(
                     const depRecipientWrapped = await cryptoV2.wrapDEKData(depRawDek, recipientPubKey);
 
                     // Encrypt dep title for recipient
-                    const depTitle = depFile.metadata?.title || depFile.title || 'Untitled';
-                    const depSecuredMeta = await cryptoLib.encryptMetadata(
-                        { title: depTitle },
+                    let depTitle = depFile.metadata?.title || depFile.title;
+                    if (!depTitle && depFile.secured_meta) {
+                        const decDep = await decryptSecuredEnvelope(depFile.secured_meta, privateKey, {
+                            accessKeys: depFile.access_keys,
+                            myId,
+                            cacheId: `share-dep-${depId}`,
+                        });
+                        if (!decDep.isLocked && typeof decDep.title === 'string') depTitle = decDep.title;
+                    }
+                    const depSecuredMeta = await encryptSecuredEnvelope(
+                        { title: depTitle || 'Untitled' },
                         recipientPubKey
                     );
 

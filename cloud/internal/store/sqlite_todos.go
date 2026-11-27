@@ -37,6 +37,7 @@ const todoSelectColumns = `
 	COALESCE(completed_dates, '[]'), COALESCE(show_in_calendar, 0), COALESCE(is_archived, 0),
 	COALESCE(parent_id, ''), COALESCE(sort_order, 0),
 	COALESCE(safe, ''), COALESCE(linked_safes, '[]'),
+	COALESCE(is_encrypted, 0), COALESCE(encrypted_payload, ''),
 	created_at, updated_at`
 
 func boolToInt(b bool) int {
@@ -77,6 +78,7 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 		isCompInt          int
 		showInCalendarInt  int
 		isArchivedInt      int
+		isEncryptedInt     int
 		completedAt        sql.NullTime
 	)
 
@@ -105,6 +107,8 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 		&todo.SortOrder,
 		&todo.Safe,
 		&linkedSafesJSON,
+		&isEncryptedInt,
+		&todo.EncryptedPayload,
 		&todo.CreatedAt,
 		&todo.UpdatedAt,
 	)
@@ -115,6 +119,7 @@ func scanTodo(scanner interface{ Scan(dest ...interface{}) error }, todayStr str
 	todo.IsCompleted = (isCompInt == 1)
 	todo.ShowInCalendar = (showInCalendarInt == 1)
 	todo.IsArchived = (isArchivedInt == 1)
+	todo.IsEncrypted = (isEncryptedInt == 1)
 	if completedAt.Valid {
 		t := completedAt.Time
 		todo.CompletedAt = &t
@@ -255,6 +260,37 @@ func (s *SQLiteStore) GetTodoByID(ctx context.Context, userID, todoID string) (*
 	return todo, nil
 }
 
+// sanitizeEncryptedTodo blanks all plaintext columns on an encrypted todo so zero
+// user content is stored outside encrypted_payload.
+func sanitizeEncryptedTodo(todo *db.Todo) {
+	if !todo.IsEncrypted {
+		return
+	}
+	todo.Title = ""
+	todo.Description = ""
+	todo.Status = "todo"
+	todo.Priority = "medium"
+	todo.DueDate = ""
+	todo.ScheduledDate = ""
+	todo.Tags = []string{}
+	todo.Color = ""
+	todo.IsCompleted = false
+	todo.CompletedAt = nil
+	todo.Folder = ""
+	todo.LinkedNoteID = ""
+	todo.Recurrence = "none"
+	todo.RecurrenceRule = ""
+	todo.RecurrenceEnd = ""
+	todo.CompletedDates = []string{}
+	todo.ShowInCalendar = false
+	todo.IsArchived = false
+	todo.ParentID = ""
+	todo.SortOrder = 0
+	todo.Safe = ""
+	todo.LinkedSafes = []string{}
+	todo.IsOverdue = false
+}
+
 // CreateTodo inserts a new todo for the given user.
 func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.Todo) error {
 	if todo.ID == "" {
@@ -262,28 +298,32 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 	}
 	todo.UserID = userID
 
-	if todo.Status == "" {
-		todo.Status = "todo"
-	}
-	if todo.Priority == "" {
-		todo.Priority = "medium"
-	}
-	if todo.Recurrence == "" {
-		todo.Recurrence = "none"
+	if todo.IsEncrypted {
+		sanitizeEncryptedTodo(todo)
+	} else {
+		todo.EncryptedPayload = ""
+		if todo.Status == "" {
+			todo.Status = "todo"
+		}
+		if todo.Priority == "" {
+			todo.Priority = "medium"
+		}
+		if todo.Recurrence == "" {
+			todo.Recurrence = "none"
+		}
+		if todo.IsCompleted || todo.Status == "completed" {
+			todo.IsCompleted = true
+			if todo.CompletedAt == nil {
+				now := time.Now().UTC()
+				todo.CompletedAt = &now
+			}
+		}
 	}
 
 	var tagsJSON, completedDatesJSON, linkedSafesJSON string
 	todo.Tags, tagsJSON = marshalStringSlice(todo.Tags)
 	todo.CompletedDates, completedDatesJSON = marshalStringSlice(todo.CompletedDates)
 	todo.LinkedSafes, linkedSafesJSON = marshalStringSlice(todo.LinkedSafes)
-
-	if todo.IsCompleted || todo.Status == "completed" {
-		todo.IsCompleted = true
-		if todo.CompletedAt == nil {
-			now := time.Now().UTC()
-			todo.CompletedAt = &now
-		}
-	}
 
 	now := time.Now().UTC()
 	if todo.CreatedAt.IsZero() {
@@ -300,8 +340,9 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 			completed_at, folder, linked_note_id, recurrence,
 			recurrence_rule, recurrence_end, completed_dates,
 			show_in_calendar, is_archived, parent_id, sort_order, safe, linked_safes,
+			is_encrypted, encrypted_payload,
 			created_at, updated_at
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err := s.DB.ExecContext(ctx, query,
@@ -329,6 +370,8 @@ func (s *SQLiteStore) CreateTodo(ctx context.Context, userID string, todo *db.To
 		todo.SortOrder,
 		todo.Safe,
 		linkedSafesJSON,
+		boolToInt(todo.IsEncrypted),
+		todo.EncryptedPayload,
 		todo.CreatedAt,
 		todo.UpdatedAt,
 	)
@@ -346,18 +389,23 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 	todo.UserID = userID
 	todo.UpdatedAt = time.Now().UTC()
 
-	if todo.IsCompleted || todo.Status == "completed" {
-		todo.IsCompleted = true
-		if todo.CompletedAt == nil {
-			now := time.Now().UTC()
-			todo.CompletedAt = &now
-		}
+	if todo.IsEncrypted {
+		sanitizeEncryptedTodo(todo)
 	} else {
-		todo.CompletedAt = nil
-	}
+		todo.EncryptedPayload = ""
+		if todo.IsCompleted || todo.Status == "completed" {
+			todo.IsCompleted = true
+			if todo.CompletedAt == nil {
+				now := time.Now().UTC()
+				todo.CompletedAt = &now
+			}
+		} else {
+			todo.CompletedAt = nil
+		}
 
-	if todo.Recurrence == "" {
-		todo.Recurrence = "none"
+		if todo.Recurrence == "" {
+			todo.Recurrence = "none"
+		}
 	}
 
 	var tagsJSON, completedDatesJSON, linkedSafesJSON string
@@ -389,6 +437,8 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 			sort_order = ?,
 			safe = ?,
 			linked_safes = ?,
+			is_encrypted = ?,
+			encrypted_payload = ?,
 			updated_at = ?
 		WHERE id = ? AND user_id = ?
 	`
@@ -416,6 +466,8 @@ func (s *SQLiteStore) UpdateTodo(ctx context.Context, userID string, todo *db.To
 		todo.SortOrder,
 		todo.Safe,
 		linkedSafesJSON,
+		boolToInt(todo.IsEncrypted),
+		todo.EncryptedPayload,
 		todo.UpdatedAt,
 		todo.ID,
 		todo.UserID,

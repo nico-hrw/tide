@@ -276,9 +276,14 @@ export function useRealtimeSync({
                             if (data.secured_meta && targetFileId !== currentActiveId) {
                                 const effectiveKey = privateKeyRef.current || useDataStore.getState().privateKey || null;
                                 if (effectiveKey) {
-                                    import('@/lib/crypto').then(async ({ decryptMetadata }) => {
+                                    import('@/lib/e2eePayload').then(async ({ decryptSecuredEnvelope }) => {
                                         try {
-                                            const meta = await decryptMetadata(data.secured_meta, effectiveKey, `sse-${targetFileId}`);
+                                            const currentState = useDataStore.getState();
+                                            const meta = await decryptSecuredEnvelope(data.secured_meta, effectiveKey, {
+                                                accessKeys: data.access_keys,
+                                                myId: currentState.myId,
+                                                cacheId: `sse-${targetFileId}`,
+                                            });
                                             if (meta && !meta.isLocked) {
                                                 useDataStore.getState().updateFile(targetFileId, {
                                                     ...meta,

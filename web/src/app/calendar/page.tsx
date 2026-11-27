@@ -4,6 +4,11 @@ import { useState, useEffect } from "react";
 import { askConfirm, notifyError } from '@/lib/feedback';
 import { useRouter } from "next/navigation";
 import * as cryptoLib from "@/lib/crypto";
+import {
+    decryptSecuredEnvelope,
+    encryptSecuredEnvelope,
+    stripSensitiveFileMetadata,
+} from "@/lib/e2eePayload";
 import { apiFetch, clearAllSessionData } from "@/lib/api";
 import { getMasterKey, storeMasterKey, purgeLegacyKeys } from "@/lib/keyStorage";
 import { format } from "date-fns";
@@ -126,32 +131,24 @@ export default function CalendarPage() {
             const decryptedEvents: CalendarEvent[] = [];
             for (const f of eventFiles) {
                 try {
-                    if (f.version >= 2 && f.metadata) {
-                        const meta = f.metadata;
+                    let meta: Record<string, unknown> =
+                        f.metadata && typeof f.metadata === "object" ? { ...(f.metadata as Record<string, unknown>) } : {};
+                    if (f.secured_meta) {
+                        const dec = await decryptSecuredEnvelope(f.secured_meta, privateKey, {
+                            accessKeys: f.access_keys,
+                            myId,
+                        });
+                        if (!dec.isLocked) {
+                            meta = { ...meta, ...dec };
+                        }
+                    }
+                    if (Object.keys(meta).length > 0) {
                         decryptedEvents.push({
                             id: f.id,
                             title: (meta.title as string) || "Untitled Event",
                             start: (meta.start as string),
                             end: (meta.end as string),
                             description: (meta.description as string) || "",
-                            color: (meta.color as string),
-                            recurrence_rule: meta.recurrence_rule as string,
-                            recurrence_end: meta.recurrence_end as string,
-                            exdates: meta.exdates as string[],
-                            completed_dates: meta.completed_dates as string[],
-                            is_task: !!meta.is_task,
-                            is_completed: !!meta.is_completed,
-                            is_cancelled: !!meta.is_cancelled,
-                            parent_id: f.parent_id
-                        });
-                    } else if (f.secured_meta) {
-                        const meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
-                        decryptedEvents.push({
-                            id: f.id,
-                            title: (meta.title as string) || "Untitled Event",
-                            start: (meta.start as string),
-                            end: (meta.end as string),
-                            description: (meta.description as string),
                             color: (meta.color as string),
                             recurrence_rule: meta.recurrence_rule as string,
                             recurrence_end: meta.recurrence_end as string,
@@ -173,11 +170,19 @@ export default function CalendarPage() {
             const decryptedFolders: DecryptedFile[] = [];
             for (const f of folderFiles) {
                 try {
-                    let meta: Record<string, unknown> | null = null;
-                    if (f.version >= 2 && f.metadata) {
-                        meta = typeof f.metadata === "string" ? JSON.parse(f.metadata) : f.metadata;
-                    } else if (f.secured_meta) {
-                        meta = await cryptoLib.decryptMetadata(f.secured_meta, privateKey);
+                    const baseMeta =
+                        typeof f.metadata === "string"
+                            ? (JSON.parse(f.metadata) as Record<string, unknown>)
+                            : ((f.metadata as Record<string, unknown> | undefined) ?? {});
+                    let meta: Record<string, unknown> | null = Object.keys(baseMeta).length > 0 ? { ...baseMeta } : null;
+                    if (f.secured_meta) {
+                        const dec = await decryptSecuredEnvelope(f.secured_meta, privateKey, {
+                            accessKeys: f.access_keys,
+                            myId,
+                        });
+                        if (!dec.isLocked) {
+                            meta = { ...baseMeta, ...dec };
+                        }
                     }
                     if (meta) {
                         decryptedFolders.push({
@@ -229,7 +234,7 @@ export default function CalendarPage() {
                 ...extraMeta
             };
 
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+            const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
 
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
@@ -238,16 +243,10 @@ export default function CalendarPage() {
                     type: "event",
                     parent_id: null,
                     public_meta: {},
-                    secured_meta: securedMeta, // Always include for title decryption on reload
+                    secured_meta: securedMeta,
                     version: 2,
                     metadata: {
                         has_custom_password: false,
-                        title: meta.title || "New Event",
-                        start: meta.start,
-                        end: meta.end,
-                        allDay: meta.allDay ?? false,
-                        color: meta.color,
-                        description: meta.description ?? ''
                     }
                 })
             });
@@ -358,14 +357,11 @@ export default function CalendarPage() {
                 isLocked: false
             };
 
-            const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
+            const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
 
-            const payload: any = {
-                secured_meta: securedMeta, // Always set for reliable title decryption on reload
-                is_task: !!meta.is_task,
-                is_completed: !!meta.is_completed,
-                exdates: meta.exdates || [],
-                completed_dates: meta.completed_dates || []
+            const payload: Record<string, unknown> = {
+                secured_meta: securedMeta,
+                metadata: { has_custom_password: false },
             };
 
             try {
@@ -374,28 +370,13 @@ export default function CalendarPage() {
                     title: updatedEvent.title,
                     description: updatedEvent.description
                 });
-                
+
                 const v2Result = await encryptFileV2(contentString, publicKey);
-                
+
                 payload.version = 2;
-                payload.metadata = {
-                    ...v2Result.metadata,
-                    title: updatedEvent.title,
-                    start: updatedEvent.start,
-                    end: updatedEvent.end,
-                    color: updatedEvent.color,
-                    description: (updatedEvent as any).description || "",
-                    recurrence_rule: (updatedEvent as any).recurrence_rule,
-                    recurrence_end: (updatedEvent as any).recurrence_end,
-                    exdates: (updatedEvent as any).exdates,
-                    completed_dates: (updatedEvent as any).completed_dates,
-                    is_task: (updatedEvent as any).is_task,
-                    is_completed: !!(updatedEvent as any).is_completed,
-                    is_cancelled: !!(updatedEvent as any).is_cancelled
-                };
+                payload.metadata = stripSensitiveFileMetadata(v2Result.metadata);
                 payload.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
                 payload.content_ciphertext = v2Result.content_ciphertext;
-                // secured_meta is already set above — no override needed
             } catch (e) {
                 console.error("V2 encryption failed", e);
             }

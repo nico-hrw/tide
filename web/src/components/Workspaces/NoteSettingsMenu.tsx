@@ -33,6 +33,11 @@ import { apiFetch, getApiBase } from '@/lib/api';
 import { useDataStore } from '@/store/useDataStore';
 import type { NoteLayout, NoteMargin, PaperPattern } from '@/store/slices/types';
 import { tipTapToMarkdown, exportTideBundle } from '@/lib/bundleImportExport';
+import {
+    encryptSecuredEnvelope,
+    isExplicitlyUnencryptedFile,
+    stripSensitiveFileMetadata,
+} from '@/lib/e2eePayload';
 
 // One look for every section of the note settings: title, divider.
 const NS_TITLE = 'px-1 pt-1 text-[11px] font-semibold uppercase tracking-wider text-t2-ink-3 mb-1.5';
@@ -225,7 +230,7 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
     const effectiveTitle = noteTitle || 'Notiz';
 
     const currentFile = notes.find((f) => f.id === effectiveNoteId);
-    const isUnencrypted = Boolean(currentFile?.metadata?.unencrypted === true);
+    const isUnencrypted = isExplicitlyUnencryptedFile(currentFile);
 
     useEffect(() => {
         if (!isOpen) {
@@ -468,19 +473,42 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 body: new Blob([md], { type: 'text/markdown;charset=utf-8' }),
             });
 
-            // 2. Update file metadata
+            // 2. Update file metadata and explicitly clear encrypted envelopes/keys so External API can read/write
             const currentFileObj = useDataStore.getState().notes.find((f) => f.id === effectiveNoteId);
             const existingMeta = (currentFileObj?.metadata as Record<string, unknown>) || {};
-            const updatedMeta = { ...existingMeta, unencrypted: true };
+            const resolvedSafe =
+                (typeof currentFileObj?.safe === 'string' && currentFileObj.safe) ||
+                (typeof existingMeta.safe === 'string' && existingMeta.safe) ||
+                'main';
+            const updatedMeta: Record<string, unknown> = {
+                ...existingMeta,
+                title: effectiveTitle,
+                safe: resolvedSafe,
+                ...(currentFileObj?.linkedSafes !== undefined ? { linkedSafes: currentFileObj.linkedSafes } : {}),
+                ...(currentFileObj?.tagIds !== undefined ? { tagIds: currentFileObj.tagIds } : {}),
+                ...(currentFileObj?.icon !== undefined ? { icon: currentFileObj.icon } : {}),
+                ...(currentFileObj?.color !== undefined ? { color: currentFileObj.color } : {}),
+                unencrypted: true,
+                has_custom_password: false,
+            };
 
             await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ metadata: updatedMeta }),
+                body: JSON.stringify({
+                    metadata: updatedMeta,
+                    secured_meta: '',
+                    access_keys: {},
+                }),
             });
 
             // 3. Update store
-            useDataStore.getState().updateFileRaw(effectiveNoteId, { metadata: updatedMeta });
+            useDataStore.getState().updateFileRaw(effectiveNoteId, {
+                metadata: updatedMeta,
+                secured_meta: '',
+                access_keys: {},
+            });
+            useDataStore.getState().updateSpecificMetadataCache(effectiveNoteId, updatedMeta);
 
             // 4. Copy URL and notify
             setShowUnencryptedWarning(false);
@@ -501,7 +529,6 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
         setIsProcessing(true);
         try {
             const cryptoV2 = await import('@/lib/cryptoV2');
-            const cryptoLib = await import('@/lib/crypto');
             const state = useDataStore.getState();
             const { publicKey, myId } = state;
 
@@ -537,10 +564,23 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 return;
             }
 
-            // 1. Re-encrypt note using V2 envelope encryption
+            const currentFileObj = state.notes.find((f) => f.id === effectiveNoteId);
+            const existingMeta = { ...((currentFileObj?.metadata as Record<string, unknown>) || {}) };
+            const securedPayload: Record<string, unknown> = { title: effectiveTitle };
+            const resolvedSafe =
+                (typeof currentFileObj?.safe === 'string' && currentFileObj.safe) ||
+                (typeof existingMeta.safe === 'string' && existingMeta.safe) ||
+                undefined;
+            if (resolvedSafe) securedPayload.safe = resolvedSafe;
+            if (currentFileObj?.linkedSafes !== undefined) securedPayload.linkedSafes = currentFileObj.linkedSafes;
+            if (currentFileObj?.tagIds !== undefined) securedPayload.tagIds = currentFileObj.tagIds;
+            if (currentFileObj?.icon !== undefined) securedPayload.icon = currentFileObj.icon;
+            if (currentFileObj?.color !== undefined) securedPayload.color = currentFileObj.color;
+
+            // 1. Re-encrypt note using V2 envelope encryption + V2 secured_meta envelope
             const v2Result = await cryptoV2.encryptFileV2(contentStr, publicKey);
             const accessKeysMap = { [myId]: v2Result.encrypted_dek };
-            const securedMeta = await cryptoLib.encryptMetadata({ title: effectiveTitle }, publicKey);
+            const securedMeta = await encryptSecuredEnvelope(securedPayload, publicKey);
 
             // 2. Upload ciphertext blob
             await apiFetch(`/api/v1/files/${effectiveNoteId}/upload`, {
@@ -548,11 +588,12 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 body: v2Result.content_ciphertext,
             });
 
-            // 3. Update metadata via PUT
-            const currentFileObj = state.notes.find((f) => f.id === effectiveNoteId);
-            const existingMeta = { ...((currentFileObj?.metadata as Record<string, unknown>) || {}) };
-            delete existingMeta.unencrypted;
-            const updatedMeta = { ...existingMeta, unencrypted: false };
+            // 3. Strip plaintext fields from server metadata and restore E2EE
+            const updatedMeta = stripSensitiveFileMetadata({
+                ...existingMeta,
+                ...v2Result.metadata,
+                unencrypted: false,
+            });
 
             await apiFetch(`/api/v1/files/${effectiveNoteId}`, {
                 method: 'PUT',
@@ -569,6 +610,10 @@ export const NoteSettingsMenu: React.FC<NoteSettingsMenuProps> = ({
                 metadata: updatedMeta,
                 access_keys: accessKeysMap,
                 secured_meta: securedMeta,
+            });
+            state.updateSpecificMetadataCache(effectiveNoteId, {
+                ...securedPayload,
+                ...updatedMeta,
             });
 
             // 5. Show notification

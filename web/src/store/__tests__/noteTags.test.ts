@@ -210,4 +210,29 @@ describe('setNoteTags', () => {
         await expect(setNoteTags('nope', ['a'])).resolves.toBeUndefined();
         expect(apiFetch).not.toHaveBeenCalled();
     });
+
+    it('encrypts tagIds into secured_meta and strips plaintext metadata when keys are present (K-02)', async () => {
+        const pair = await window.crypto.subtle.generateKey(
+            { name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' },
+            true,
+            ['encrypt', 'decrypt']
+        );
+        useDataStore.setState({
+            myId: 'me',
+            publicKey: pair.publicKey,
+            privateKey: pair.privateKey,
+            notes: [{ id: 'n1', title: 'Private Note', type: 'note', owner_id: 'me', safe: 'Privat', tagIds: [], metadata: { has_custom_password: false, title: 'Legacy' } }],
+        });
+        vi.mocked(apiFetch).mockImplementation(async (_u, init) =>
+            init?.method === 'PUT'
+                ? json({ version: 3 })
+                : json({ id: 'n1', version: 2, visibility: 'private', metadata: { has_custom_password: false, title: 'Legacy' } }),
+        );
+        await setNoteTags('n1', ['tag-secret']);
+        const body = putBody();
+        expect(typeof body.secured_meta).toBe('string');
+        expect((body.secured_meta as string).length).toBeGreaterThan(20);
+        expect(body.metadata).toEqual({ has_custom_password: false });
+        expect((body.metadata as Record<string, unknown>).tagIds).toBeUndefined();
+    });
 });

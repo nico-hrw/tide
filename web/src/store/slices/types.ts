@@ -44,6 +44,8 @@ export interface TaskItem {
     order?: number;
     owner_id?: string;
     updatedAt?: string;
+    /** True only when explicitly opted out of E2EE (e.g. external API interoperability). */
+    unencrypted?: boolean;
 }
 
 export interface SmartIslandState {

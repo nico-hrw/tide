@@ -19,6 +19,16 @@ vi.mock('@/lib/crypto', async (orig) => ({
 vi.mock('@/lib/cryptoV2', () => ({
     encryptFileV2: vi.fn(async () => ({ metadata: { has_custom_password: false }, encrypted_dek: 'k', content_ciphertext: 'c' })),
 }));
+vi.mock('@/lib/e2eePayload', async (orig) => {
+    const actual = await orig<typeof import('@/lib/e2eePayload')>();
+    return {
+        ...actual,
+        encryptSecuredEnvelope: vi.fn(async (payload: Record<string, unknown>) => `env:${JSON.stringify(payload)}`),
+        decryptSecuredEnvelope: vi.fn(async (encoded: string) =>
+            encoded.startsWith('env:') ? (JSON.parse(encoded.slice(4)) as Record<string, unknown>) : { isLocked: true }
+        ),
+    };
+});
 vi.mock('@/lib/offlineCacheCrypto', async (orig) => ({
     ...(await orig<Record<string, unknown>>()),
     saveEncryptedOfflineCache: vi.fn(async () => undefined),
@@ -31,7 +41,7 @@ interface FakeGlobals {
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 type Meta = Record<string, unknown>;
-interface ServerFile { version: number; metadata: Meta }
+interface ServerFile { version: number; metadata: Meta; secured_meta?: string }
 interface Client {
     id: string;
     root: Root;
@@ -48,11 +58,18 @@ let clients: Client[];
 const json = (status: number, body: unknown): Response =>
     ({ ok: status >= 200 && status < 300, status, json: async () => body, text: async () => JSON.stringify(body) }) as Response;
 
+function decodeServerEvent(f: ServerFile): Meta {
+    if (typeof f.secured_meta === 'string' && f.secured_meta.startsWith('env:')) {
+        return { ...f.metadata, ...(JSON.parse(f.secured_meta.slice(4)) as Meta) };
+    }
+    return f.metadata;
+}
+
 function refresh(c: Client): void {
     c.store.setState((s) => ({
         events: s.events.map((e) => {
             const f = files.get(e.id);
-            return f ? { ...e, ...f.metadata, version: f.version } : e;
+            return f ? { ...e, ...decodeServerEvent(f), version: f.version, metadata: f.metadata, ...(f.secured_meta ? { secured_meta: f.secured_meta } : {}) } : e;
         }),
         tasks: s.tasks.map((t) => ({ ...t })),
     }));
@@ -64,19 +81,21 @@ function installFakeApi(): void {
         const method = (init?.method ?? 'GET').toUpperCase();
         if (m && method === 'GET') {
             const f = files.get(m[1]);
-            return f ? json(200, { id: m[1], version: f.version, metadata: f.metadata }) : json(404, {});
+            return f ? json(200, { id: m[1], version: f.version, metadata: f.metadata, ...(f.secured_meta ? { secured_meta: f.secured_meta } : {}) }) : json(404, {});
         }
         if (m && method === 'PUT') {
             const f = files.get(m[1]);
             if (!f) return json(404, {});
-            const body = JSON.parse(String(init?.body ?? '{}')) as { version?: number; metadata?: Meta };
+            const body = JSON.parse(String(init?.body ?? '{}')) as { version?: number; metadata?: Meta; secured_meta?: string };
             if (typeof body.version === 'number' && body.version !== f.version) {
                 puts.push({ client: clientId, status: 409 });
                 return json(409, { error: 'conflict', current_version: f.version });
             }
             if (body.metadata) f.metadata = body.metadata;
+            if (typeof body.secured_meta === 'string') f.secured_meta = body.secured_meta;
             f.version += 1;
-            puts.push({ client: clientId, status: 200, meta: body.metadata });
+            const decoded = decodeServerEvent(f);
+            puts.push({ client: clientId, status: 200, meta: decoded });
             for (const c of clients) {
                 setTimeout(() => act(() => refresh(c)), c.id === clientId ? OWN_SAVE_COOLDOWN_MS : 50);
             }
@@ -177,10 +196,13 @@ describe('todo calendar entries: no write ping-pong between two clients', () => 
         await runFor(30_000);
         expect(puts.length).toBe(settledAt);
 
-        const meta = files.get('ev1')!.metadata;
+        const serverFile = files.get('ev1')!;
+        expect(serverFile.metadata.title).toBeUndefined();
+        expect(serverFile.metadata.description).toBeUndefined();
+        const meta = decodeServerEvent(serverFile);
         expect(isCompletedOnServer(meta)).toBe(true);
         expect(meta.recurrence_rule === undefined || meta.recurrence_rule === '').toBe(true);
-        expect(files.get('ev1')!.version).toBeLessThanOrEqual(75_002);
+        expect(serverFile.version).toBeLessThanOrEqual(75_002);
     }, 30_000);
 
     it('completing the todo on one client writes the entry at most twice and both converge', async () => {
@@ -200,7 +222,8 @@ describe('todo calendar entries: no write ping-pong between two clients', () => 
         await runFor(60_000);
 
         expect(puts.filter((p) => p.status === 200).length).toBeLessThanOrEqual(2);
-        expect(isCompletedOnServer(files.get('ev1')!.metadata)).toBe(true);
+        expect(files.get('ev1')!.metadata.title).toBeUndefined();
+        expect(isCompletedOnServer(decodeServerEvent(files.get('ev1')!))).toBe(true);
         const settledAt = puts.length;
         await runFor(30_000);
         expect(puts.length).toBe(settledAt);

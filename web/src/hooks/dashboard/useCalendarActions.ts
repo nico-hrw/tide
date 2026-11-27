@@ -3,7 +3,6 @@
 import { useCallback, type MutableRefObject } from "react";
 import { notifyUndo, notifyError } from '@/lib/feedback';
 import { addDays, differenceInCalendarDays, format } from "date-fns";
-import * as cryptoLib from "@/lib/crypto";
 import { apiFetch } from "@/lib/api";
 import { useDataStore, type DataItem, type TaskItem } from "@/store/useDataStore";
 import type { ScheduleEventData } from "@/components/Calendar/ScheduleModal";
@@ -11,9 +10,14 @@ import {
     changesOccurrenceTime, isRecurringEvent, occurrenceKey, occurrenceTimestamp, shiftSeriesForMove, type RecurrenceScope,
 } from "@/lib/recurrence";
 import { askRecurrenceScope } from "@/lib/recurrenceScopePrompt";
-import { buildSecuredEventMeta } from "@/lib/securedEventMeta";
 import { getEventGroupIds } from "@/lib/calendarUtils";
 import { autoShareEventIntoGroups } from "@/lib/calendarShareActions";
+import {
+    decryptSecuredEnvelope,
+    encryptSecuredEnvelope,
+    isExplicitlyUnencryptedFile,
+    stripSensitiveFileMetadata,
+} from "@/lib/e2eePayload";
 import { eventContentSignature, isUnchangedSinceLastWrite, normalizeRecurrenceRule, putEventGuarded } from "@/lib/eventWriteGuard";
 
 export interface CalendarEventExtraMeta {
@@ -164,20 +168,22 @@ export function useCalendarActions({
                 const safe = extraMeta.safe ?? defaultSafe;
                 const linkedSafes = extraMeta.linkedSafes ?? [];
                 const meta: Record<string, unknown> = { ...extraMeta, safe, linkedSafes, title, start: start.toISOString(), end: end.toISOString(), allDay: isAllDay };
-                // RSA-OAEP only fits ~190 bytes: keep secured_meta small, the rest goes to `metadata` / the AES blob.
-                const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta({ title, start: meta.start as string, end: meta.end as string, allDay: isAllDay }), publicKey);
+                // Full event metadata is AES-GCM encrypted inside secured_meta; plaintext metadata keeps only safe flags.
+                const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
                 const bodyPayload: Record<string, unknown> = { type: "event", parent_id: null, public_meta: {} };
 
                 try {
                     const { encryptFileV2 } = await import("@/lib/cryptoV2");
                     const v2Result = await encryptFileV2(JSON.stringify({ title, description: extraMeta.description || "" }), publicKey);
                     bodyPayload.version = 2;
-                    bodyPayload.metadata = { ...v2Result.metadata, ...meta };
+                    bodyPayload.metadata = stripSensitiveFileMetadata(v2Result.metadata);
                     bodyPayload.access_keys = { [myId]: v2Result.encrypted_dek };
                     bodyPayload.content_ciphertext = v2Result.content_ciphertext;
                     bodyPayload.secured_meta = securedMeta;
                 } catch (e) {
                     console.error("V2 encryption failed for create", e);
+                    bodyPayload.version = 2;
+                    bodyPayload.metadata = {};
                     bodyPayload.secured_meta = securedMeta;
                 }
 
@@ -192,8 +198,14 @@ export function useCalendarActions({
                             start: meta.start as string, end: meta.end as string, allDay: isAllDay,
                             is_task: extraMeta.is_task, linkedTaskId: extraMeta.linkedTaskId,
                             safe, linkedSafes,
+                            secured_meta: securedMeta,
+                            metadata: bodyPayload.metadata as Record<string, unknown>,
                         };
                         applySetEvents([...storeState.events, createdEvent]);
+                        storeState.updateSpecificMetadataCache(newFile.id, {
+                            ...meta,
+                            parent_id: null,
+                        });
                         setActiveEventId?.(newFile.id);
                         // Calendar share rule: only groups with "Neue Termine automatisch teilen", never private events.
                         const createdGroupIds = getEventGroupIds(createdEvent);
@@ -249,18 +261,23 @@ export function useCalendarActions({
                 const event = ((events ?? storeState.events).find((e) => e.id === id) ?? storeState.events.find((e) => e.id === id)) as CalendarEventRecord | undefined;
                 if (!event) return;
 
-                const meta: Record<string, unknown> = {
-                    title: newTitle, start: event.start, end: event.end, color: event.color,
-                    description: event.description, allDay: event.allDay, isGroup: event.isGroup,
-                    effect: event.effect, recurrence_rule: event.recurrence_rule,
-                    recurrence_end: event.recurrence_end, tags: event.tags, is_important: event.is_important,
-                };
-                const securedMeta = await cryptoLib.encryptMetadata(meta, publicKey);
-                await apiFetch(`/api/v1/files/${id}`, {
-                    method: "PUT",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ secured_meta: securedMeta, metadata: { ...(event.metadata || {}), title: newTitle } }),
-                });
+                const meta = buildEventMeta(event, { title: newTitle });
+                if (isExplicitlyUnencryptedFile(event)) {
+                    await apiFetch(`/api/v1/files/${id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ metadata: { ...(event.metadata || {}), ...meta, title: newTitle, unencrypted: true } }),
+                    });
+                } else {
+                    const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
+                    const strippedMeta = stripSensitiveFileMetadata(event.metadata);
+                    storeState.updateFileRaw(id, { secured_meta: securedMeta, metadata: strippedMeta });
+                    await apiFetch(`/api/v1/files/${id}`, {
+                        method: "PUT",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ secured_meta: securedMeta, metadata: strippedMeta }),
+                    });
+                }
             } catch (e) {
                 console.error(e);
             }
@@ -412,25 +429,39 @@ export function useCalendarActions({
                     useDataStore.getState().setNotes(currentFiles.map((n) => (n.id === baseId ? { ...n, parent_id: nextParentId } : n)));
                 }
 
-                // Only encrypt title in secured_meta (RSA-OAEP ~446B limit); full metadata goes into V2 AES body.
-                const securedMeta = await cryptoLib.encryptMetadata({ title: meta.title }, publicKey);
-                const body: Record<string, unknown> = { secured_meta: securedMeta };
+                const isUnenc = isExplicitlyUnencryptedFile(event);
+                const body: Record<string, unknown> = {};
+                let nextSecuredMeta: string | undefined;
 
-                try {
-                    const { encryptFileV2 } = await import("@/lib/cryptoV2");
-                    const v2Result = await encryptFileV2(
-                        JSON.stringify({ title: meta.title, description: (meta.description as string | undefined) || "" }),
-                        publicKey
-                    );
+                if (isUnenc) {
+                    body.metadata = { ...(event.metadata || {}), ...meta, unencrypted: true };
                     const freshState = useDataStore.getState();
                     const freshItem = (freshState.events.find((e) => e.id === baseId) || freshState.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
                     if (typeof freshItem?.version === "number") body.version = freshItem.version;
-                    body.metadata = { ...v2Result.metadata, ...meta };
-                    body.access_keys = { [sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
-                    body.content_ciphertext = v2Result.content_ciphertext;
-                } catch (e) {
-                    console.error("V2 encryption failed for save", e);
-                    body.metadata = meta;
+                } else {
+                    const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
+                    nextSecuredMeta = securedMeta;
+                    body.secured_meta = securedMeta;
+
+                    try {
+                        const { encryptFileV2 } = await import("@/lib/cryptoV2");
+                        const v2Result = await encryptFileV2(
+                            JSON.stringify({ title: meta.title, description: (meta.description as string | undefined) || "" }),
+                            publicKey
+                        );
+                        const freshState = useDataStore.getState();
+                        const freshItem = (freshState.events.find((e) => e.id === baseId) || freshState.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
+                        if (typeof freshItem?.version === "number") body.version = freshItem.version;
+                        body.metadata = stripSensitiveFileMetadata({
+                            ...(event.metadata || {}),
+                            ...v2Result.metadata,
+                        });
+                        body.access_keys = { [myId || sessionStorage.getItem("tide_user_id") || ""]: v2Result.encrypted_dek };
+                        body.content_ciphertext = v2Result.content_ciphertext;
+                    } catch (e) {
+                        console.error("V2 encryption failed for save", e);
+                        body.metadata = stripSensitiveFileMetadata(event.metadata);
+                    }
                 }
 
                 if (effectiveUpdates.groupIds !== undefined) {
@@ -443,24 +474,25 @@ export function useCalendarActions({
                     body.parent_id = effectiveUpdates.parent_id === null ? "__none__" : effectiveUpdates.parent_id;
                 }
 
-                if (effectiveUpdates.is_task !== undefined) body.is_task = effectiveUpdates.is_task;
-                if (effectiveUpdates.is_completed !== undefined) body.is_completed = effectiveUpdates.is_completed;
-                if (effectiveUpdates.exdates !== undefined) body.exdates = effectiveUpdates.exdates;
-                if (effectiveUpdates.completed_dates !== undefined) body.completed_dates = effectiveUpdates.completed_dates;
-
                 const freshBeforeSend = useDataStore.getState();
                 const freshItemBeforeSend = (freshBeforeSend.events.find((e) => e.id === baseId) || freshBeforeSend.notes.find((n) => n.id === baseId) || event) as CalendarEventRecord;
                 if (typeof freshItemBeforeSend?.version === "number") body.version = freshItemBeforeSend.version;
 
                 // Same content as this client's last write and nobody wrote since: the server already has it.
-                const signature = eventContentSignature({ ...(body.metadata as Record<string, unknown>), __parent_id: body.parent_id });
+                const signature = eventContentSignature({ ...meta, __parent_id: body.parent_id });
                 if (isUnchangedSinceLastWrite(baseId, signature, freshItemBeforeSend?.version)) return;
+
+                if (nextSecuredMeta !== undefined) {
+                    useDataStore.getState().updateFileRaw(baseId, {
+                        secured_meta: nextSecuredMeta,
+                        metadata: body.metadata as Record<string, unknown>,
+                    });
+                }
 
                 // On a conflict these keys win over the fresh server state; the rest is taken from the server.
                 // title/description travel in the re-encrypted content, crypto keys belong to the new DEK.
                 const ownKeys = [
                     ...Object.keys(effectiveUpdates), "title", "description",
-                    ...Object.keys(body.metadata as Record<string, unknown>).filter((k) => !(k in meta)),
                     ...(meta.linkedTaskId ? ["recurrence_rule"] : []),
                 ];
                 await putEventGuarded(baseId, body, {
@@ -475,6 +507,43 @@ export function useCalendarActions({
                         const now = useDataStore.getState().events.find((e) => e.id === baseId) as CalendarEventRecord | undefined;
                         return now?.version;
                     },
+                    ...(isUnenc
+                        ? {}
+                        : {
+                              onConflictRebuild: async (freshFile: Record<string, unknown>) => {
+                                  const rawServerMeta = typeof freshFile.metadata === "string"
+                                      ? (JSON.parse(freshFile.metadata) as Record<string, unknown>)
+                                      : ((freshFile.metadata as Record<string, unknown> | undefined) ?? {});
+                                  let serverMeta: Record<string, unknown> = { ...rawServerMeta };
+                                  if (typeof freshFile.secured_meta === "string" && freshFile.secured_meta.trim().length > 0) {
+                                      const dec = await decryptSecuredEnvelope(freshFile.secured_meta, privateKey, {
+                                          accessKeys: freshFile.access_keys,
+                                          myId,
+                                          cacheId: `ev-conflict-${baseId}`,
+                                      });
+                                      if (!dec.isLocked) {
+                                          serverMeta = { ...rawServerMeta, ...dec };
+                                      }
+                                  }
+                                  const merged: Record<string, unknown> = { ...serverMeta };
+                                  for (const k of ownKeys) {
+                                      if (meta[k] === undefined) delete merged[k];
+                                      else merged[k] = meta[k];
+                                  }
+                                  if (eventContentSignature(merged) === eventContentSignature(serverMeta)) {
+                                      return { body, unchanged: true };
+                                  }
+                                  const rebuiltSecuredMeta = await encryptSecuredEnvelope(merged, publicKey);
+                                  return {
+                                      unchanged: false,
+                                      body: {
+                                          ...body,
+                                          secured_meta: rebuiltSecuredMeta,
+                                          metadata: stripSensitiveFileMetadata(rawServerMeta),
+                                      },
+                                  };
+                              },
+                          }),
                 });
                 (window as unknown as WindowWithTideSave).__tideSaveTimestamp?.();
 
@@ -489,7 +558,7 @@ export function useCalendarActions({
                 if (strict) throw e;
             }
         },
-        [privateKey, publicKey, setEvents, syncingTaskIdsRef, updateTask, handleEventCreate]
+        [privateKey, publicKey, myId, setEvents, syncingTaskIdsRef, updateTask, handleEventCreate]
     );
 
     const handleEventUpdate = useCallback(

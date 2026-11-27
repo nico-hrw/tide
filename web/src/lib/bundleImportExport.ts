@@ -1,7 +1,7 @@
 import { useDataStore, DataItem, TaskItem } from '@/store/useDataStore';
 import { apiFetch } from '@/lib/api';
 import { encryptFileV2 } from '@/lib/cryptoV2';
-import { encryptMetadata } from '@/lib/crypto';
+import { encryptSecuredEnvelope, stripSensitiveFileMetadata } from '@/lib/e2eePayload';
 
 export interface TideBundleItem {
     id: string; // The relative or reference ID inside the bundle
@@ -302,7 +302,18 @@ export async function importTideBundle(
             });
 
             const v2Result = await encryptFileV2(contentString, publicKey);
-            const securedMeta = await encryptMetadata({ title: ev.title }, publicKey);
+            const securedMeta = await encryptSecuredEnvelope(
+                {
+                    title: ev.title,
+                    start: meta.start,
+                    end: meta.end,
+                    allDay: meta.allDay || false,
+                    color: meta.color || '#3B82F6',
+                    location: meta.location || '',
+                    description: meta.description || '',
+                },
+                publicKey
+            );
 
             const res = await apiFetch("/api/v1/files", {
                 method: "POST",
@@ -312,14 +323,8 @@ export async function importTideBundle(
                     type: "event",
                     parent_id: null,
                     version: 2,
-                    metadata: { ...v2Result.metadata, title: ev.title },
-                    public_meta: {
-                        start: meta.start,
-                        end: meta.end,
-                        allDay: meta.allDay || false,
-                        color: meta.color || '#3B82F6',
-                        location: meta.location || ''
-                    },
+                    metadata: stripSensitiveFileMetadata(v2Result.metadata),
+                    public_meta: {},
                     secured_meta: securedMeta,
                     access_keys: { [myId]: v2Result.encrypted_dek },
                     content_ciphertext: v2Result.content_ciphertext,

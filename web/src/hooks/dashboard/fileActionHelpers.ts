@@ -1,6 +1,11 @@
 import { apiFetch } from "@/lib/api";
 import * as cryptoLib from "@/lib/crypto";
 import * as cryptoV2 from "@/lib/cryptoV2";
+import {
+    decryptSecuredEnvelope,
+    encryptSecuredEnvelope,
+    stripSensitiveFileMetadata,
+} from "@/lib/e2eePayload";
 import { useDataStore, type DataItem } from "@/store/useDataStore";
 
 export type FileSaveStatus = "saved" | "unsaved" | "saving";
@@ -123,35 +128,50 @@ export async function buildEncryptedRenamePayload(
     publicKey: CryptoKey,
     privateKey: CryptoKey
 ): Promise<{ secured_meta: string; metadata: Record<string, unknown> }> {
-    const isV2 = typeof target.version === "number" && target.version >= 2;
-    let encryptedMeta: string;
-
-    if (isV2 || target.type === "folder") {
-        encryptedMeta = await cryptoLib.encryptMetadata({ title: newTitle, isLocked: false }, publicKey);
-    } else {
-        let currentSecuredMeta = typeof target.secured_meta === "string" ? target.secured_meta : undefined;
-        if (!currentSecuredMeta) {
-            const res = await apiFetch(`/api/v1/files/${fileId}`);
-            if (res.ok) {
-                const freshFile = (await res.json()) as { secured_meta?: string };
-                currentSecuredMeta = freshFile.secured_meta;
-            }
-        }
-        let metaToEncrypt: Record<string, unknown> = { title: newTitle };
-        if (currentSecuredMeta) {
-            const decrypted = await cryptoLib.decryptMetadata(currentSecuredMeta, privateKey);
-            if (!decrypted.isLocked) {
-                metaToEncrypt = { ...decrypted, title: newTitle };
-            }
-        }
-        encryptedMeta = await cryptoLib.encryptMetadata(metaToEncrypt, publicKey);
-    }
-
     const existingMetadata =
         target.metadata && typeof target.metadata === "object" ? (target.metadata as Record<string, unknown>) : {};
+    const hasSecured = typeof target.secured_meta === "string" && target.secured_meta.trim().length > 0;
+    if (existingMetadata.unencrypted === true && !hasSecured) {
+        return {
+            secured_meta: "",
+            metadata: { ...existingMetadata, title: newTitle },
+        };
+    }
+
+    let currentSecuredMeta = typeof target.secured_meta === "string" ? target.secured_meta : undefined;
+    if (!currentSecuredMeta) {
+        const res = await apiFetch(`/api/v1/files/${fileId}`);
+        if (res.ok) {
+            const freshFile = (await res.json()) as { secured_meta?: string };
+            currentSecuredMeta = freshFile.secured_meta;
+        }
+    }
+
+    let decryptedBase: Record<string, unknown> = {};
+    if (currentSecuredMeta) {
+        const decrypted = await decryptSecuredEnvelope(currentSecuredMeta, privateKey, {
+            accessKeys: target.access_keys,
+        });
+        if (!decrypted.isLocked) {
+            decryptedBase = decrypted;
+        }
+    }
+
+    const metaToEncrypt: Record<string, unknown> = {
+        ...decryptedBase,
+        title: newTitle,
+        isLocked: false,
+        ...(typeof target.safe === "string" && target.safe ? { safe: target.safe } : {}),
+        ...(Array.isArray(target.linkedSafes) ? { linkedSafes: target.linkedSafes } : {}),
+        ...(Array.isArray(target.tagIds) ? { tagIds: target.tagIds } : {}),
+        ...(typeof target.icon === "string" && target.icon ? { icon: target.icon } : {}),
+        ...(typeof target.color === "string" && target.color ? { color: target.color } : {}),
+    };
+    const encryptedMeta = await encryptSecuredEnvelope(metaToEncrypt, publicKey);
+
     return {
         secured_meta: encryptedMeta,
-        metadata: { ...existingMetadata, title: newTitle },
+        metadata: stripSensitiveFileMetadata(existingMetadata),
     };
 }
 
@@ -165,7 +185,9 @@ export async function resolveCurrentMetadata(
     }
     if (file.secured_meta) {
         try {
-            const dec = await cryptoLib.decryptMetadata(file.secured_meta, privateKey);
+            const dec = await decryptSecuredEnvelope(file.secured_meta, privateKey, {
+                accessKeys: file.access_keys,
+            });
             return { ...dec, title: typeof dec.title === "string" ? dec.title : file.title || "Untitled" };
         } catch {
             // Fall back to plaintext metadata below
@@ -239,7 +261,7 @@ export async function prepareVisibilityUpdate(
     }
 
     if (isFolder) {
-        updatePayload.secured_meta = await cryptoLib.encryptMetadata({ title: currentMeta.title }, publicKey);
+        updatePayload.secured_meta = await encryptSecuredEnvelope({ title: currentMeta.title }, publicKey);
     } else {
         const isV2File = (typeof file.version === "number" && file.version >= 2) || Boolean(file.access_keys);
         if (isV2File) {
@@ -247,8 +269,8 @@ export async function prepareVisibilityUpdate(
             const v2Result = await cryptoV2.encryptFileV2(contentStr || "", publicKey);
             updatePayload.version = typeof file.version === "number" ? file.version : 2;
             updatePayload.access_keys = { [myId]: v2Result.encrypted_dek };
-            updatePayload.metadata = { ...v2Result.metadata, title: currentMeta.title };
-            updatePayload.secured_meta = await cryptoLib.encryptMetadata({ title: currentMeta.title }, publicKey);
+            updatePayload.metadata = stripSensitiveFileMetadata(v2Result.metadata);
+            updatePayload.secured_meta = await encryptSecuredEnvelope({ title: currentMeta.title }, publicKey);
             uploadBlob = new Blob([v2Result.content_ciphertext], { type: "application/json" });
             nextMeta = { title: currentMeta.title };
         } else {
@@ -265,7 +287,7 @@ export async function prepareVisibilityUpdate(
                 fileKey: exportedV1Key,
                 iv: encrypted.iv,
             };
-            updatePayload.secured_meta = await cryptoLib.encryptMetadata(metaPayload, publicKey);
+            updatePayload.secured_meta = await encryptSecuredEnvelope(metaPayload, publicKey);
             nextMeta = metaPayload;
         }
     }

@@ -1,4 +1,5 @@
 import { apiFetch } from '@/lib/api';
+import { encryptSecuredEnvelope, stripSensitiveFileMetadata } from '@/lib/e2eePayload';
 import { pushSettingsPatch } from '../../lib/settingsSync';
 import { loadCachedNotes, saveNotesToOfflineCache } from './fsHelpers';
 import type { DataItem, DataStoreSlice, NoteLayout, NoteMargin, NotesSlice } from './types';
@@ -122,7 +123,6 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             // [V2-PIPELINE] Use envelope encryption so the note is immediately shareable.
             // V1 stored fileKey inside secured_meta, making access_keys empty and sharing impossible.
             const cryptoV2 = await import('@/lib/cryptoV2');
-            const cryptoLib = await import('@/lib/crypto');
 
             // Use initialContent if provided (must be valid Tiptap JSON),
             // otherwise default to a block-based empty doc.
@@ -146,9 +146,9 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
             );
             const accessKeysMap = { [state.myId!]: v2Result.encrypted_dek };
 
-            // 2. Secure metadata: title only (fileKey is now managed via access_keys)
-            const securedMeta = await cryptoLib.encryptMetadata(
-                { title },
+            // 2. Secure metadata envelope (title + workspace encrypted client-side via AES-GCM DEK)
+            const securedMeta = await encryptSecuredEnvelope(
+                { title, safe: defaultSafe },
                 state.publicKey
             );
 
@@ -166,7 +166,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                     secured_meta: securedMeta,
                     visibility: 'private',
                     version: 2,
-                    metadata: { ...v2Result.metadata, title, safe: defaultSafe },
+                    metadata: stripSensitiveFileMetadata(v2Result.metadata),
                     access_keys: accessKeysMap,
                 }),
             });
@@ -236,7 +236,6 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
 
         try {
             const cryptoV2 = await import('@/lib/cryptoV2');
-            const cryptoLib = await import('@/lib/crypto');
 
             const emptyCanvas = JSON.stringify({
                 version: 1,
@@ -251,7 +250,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                 state.publicKey
             );
             const accessKeysMap = { [state.myId!]: v2Result.encrypted_dek };
-            const securedMeta = await cryptoLib.encryptMetadata(
+            const securedMeta = await encryptSecuredEnvelope(
                 { title },
                 state.publicKey
             );
@@ -267,7 +266,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                     secured_meta: securedMeta,
                     visibility: 'private',
                     version: 2,
-                    metadata: { ...v2Result.metadata, title },
+                    metadata: stripSensitiveFileMetadata(v2Result.metadata),
                     access_keys: accessKeysMap,
                 }),
             });
@@ -338,9 +337,8 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
         }
 
         try {
-            const cryptoLib = await import('@/lib/crypto');
             const meta = { title: name, parent_id: targetParentId, color: folderColor };
-            const securedMeta = await cryptoLib.encryptMetadata(meta, state.publicKey);
+            const securedMeta = await encryptSecuredEnvelope(meta, state.publicKey);
 
             const res = await apiFetch('/api/v1/files', {
                 method: 'POST',
@@ -349,7 +347,7 @@ export const createNotesSlice: DataStoreSlice<NotesSlice> = (set, get) => ({
                     type: 'folder',
                     parent_id: targetParentId,
                     public_meta: {},
-                    metadata: { title: name, color: folderColor },
+                    metadata: {},
                     secured_meta: securedMeta,
                     visibility: 'private',
                 }),

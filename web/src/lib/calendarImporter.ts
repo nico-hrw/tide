@@ -2,8 +2,7 @@ import type { ParsedIcsEvent } from '@/lib/icsParser';
 import { apiFetch } from '@/lib/api';
 import { useDataStore, type DataItem } from '@/store/useDataStore';
 import { encryptFileV2 } from '@/lib/cryptoV2';
-import * as cryptoLib from '@/lib/crypto';
-import { buildSecuredEventMeta } from '@/lib/securedEventMeta';
+import { encryptSecuredEnvelope, stripSensitiveFileMetadata } from '@/lib/e2eePayload';
 
 export interface ImportProgress {
     current: number;
@@ -88,9 +87,7 @@ export async function importCalendarEvents(
                         is_cancelled: event.isCancelled || false,
                     };
 
-                    // RSA-OAEP can only encrypt ~190 bytes, so secured_meta carries just the essentials.
-                    // Full details live in `metadata` and the AES-encrypted content blob.
-                    const securedMeta = await cryptoLib.encryptMetadata(buildSecuredEventMeta(event), publicKey);
+                    const securedMeta = await encryptSecuredEnvelope(meta, publicKey);
 
                     const contentString = JSON.stringify({
                         title: event.title,
@@ -106,10 +103,7 @@ export async function importCalendarEvents(
                         public_meta: {},
                         secured_meta: securedMeta,
                         version: 2,
-                        metadata: {
-                            ...v2Result.metadata,
-                            ...meta,
-                        },
+                        metadata: stripSensitiveFileMetadata(v2Result.metadata),
                         access_keys: { [myId]: v2Result.encrypted_dek },
                         content_ciphertext: v2Result.content_ciphertext,
                     };
