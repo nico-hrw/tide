@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import { Clock, X } from 'lucide-react';
 import { useDataStore } from '@/store/useDataStore';
 import { useIslandActionsStore } from '@/store/useIslandActionsStore';
@@ -20,7 +21,7 @@ export default function WorkspaceTimeTracker() {
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
-    usePopupAutoClose(dialogRef, dismiss, { enabled: !!pending });
+    const { fillRef, restRef } = usePopupTimer({ refs: [dialogRef], enabled: !!pending, duration: 3000, onExpire: dismiss });
 
     const label = workspaceLabel(activeSafes ?? []);
 
@@ -73,6 +74,7 @@ export default function WorkspaceTimeTracker() {
             aria-label="Arbeitszeit eintragen"
             className="fixed bottom-6 left-1/2 z-[60] w-[340px] max-w-[calc(100vw-32px)] -translate-x-1/2 rounded-2xl border border-t2-line bg-t2-surface p-4 text-t2-ink shadow-[var(--shadow-float)]"
         >
+            <PopupTimerBar fillRef={fillRef} restRef={restRef} />
             <div className="flex items-start gap-3">
                 <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-t2-sub text-t2-accent">
                     <Clock size={16} aria-hidden="true" />

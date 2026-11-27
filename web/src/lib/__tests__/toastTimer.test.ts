@@ -47,16 +47,4 @@ describe('toast timer', () => {
         expect(toastTimerProgress(initialToastTimer(8000), cfg)).toBe(1);
         expect(toastTimerProgress({ remaining: 4000, life: 4000, lastDistance: null }, cfg)).toBeCloseTo(0.5);
     });
-
-    it('runs faster while the mouse moves away (awayFactor)', () => {
-        const away = { ...cfg, awayFactor: 3 };
-        let slow = initialToastTimer(8000);
-        let fast = initialToastTimer(8000);
-        for (let i = 0; i < 20; i++) {
-            const d = 100 + i * 5;
-            slow = stepToastTimer(slow, 16, d, cfg).state;
-            fast = stepToastTimer(fast, 16, d, away).state;
-        }
-        expect(fast.remaining).toBeLessThan(slow.remaining);
-    });
 });

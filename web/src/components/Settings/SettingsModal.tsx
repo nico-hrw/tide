@@ -9,6 +9,7 @@ import { useT, useTDynamic } from './useT';
 import { AccountPage } from './pages/AccountPage';
 import { AppearancePage } from './pages/AppearancePage';
 import { CalendarPage } from './pages/CalendarPage';
+import { TagsPage } from './pages/TagsPage';
 import { NotesPage } from './pages/NotesPage';
 import { TodosPage } from './pages/TodosPage';
 import { WorkspacesPage } from './pages/WorkspacesPage';
@@ -17,6 +18,7 @@ import { AccessPage } from './pages/AccessPage';
 import { AboutPage } from './pages/AboutPage';
 import type { ProfileUser } from './account/ProfileSections';
 import type { CalendarGroup } from './calendar/CalendarGroupsSection';
+import type { TagDeleteOptions } from './tags/TagSettingsRow';
 
 /** Akzeptiert auch die alten Tab-Ids ('info', 'debug'), die auf neue Seiten abgebildet werden. */
 type SettingsTabId = SettingsPageId | 'info' | 'debug';
@@ -37,6 +39,7 @@ interface SettingsModalProps {
     onUpdateGroup?: (id: string, updates: Partial<CalendarGroup>) => void;
     onShareGroup?: (e: React.MouseEvent, id: string) => void;
     onDeleteGroup?: (e: React.MouseEvent, id: string) => void;
+    onDeleteGroupWithOptions?: (id: string, options: TagDeleteOptions) => void;
     onDeleteGroupEvents?: (id: string) => void;
     onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
@@ -65,8 +68,8 @@ function SettingsModalBody({
     hiddenGroupIds = [],
     onToggleGroupVisibility,
     onUpdateGroup,
-    onShareGroup,
     onDeleteGroup,
+    onDeleteGroupWithOptions,
     onDeleteGroupEvents,
     onCreateGroup,
 }: SettingsModalProps) {
@@ -160,17 +163,19 @@ function SettingsModalBody({
                         <div className="mx-auto max-w-[660px] px-5 pb-20 pt-[18px] sm:px-10 sm:pt-9">
                             {page === 'account' && <AccountPage userProfile={userProfile} onClose={onClose} onLogout={onLogout} />}
                             {page === 'appearance' && <AppearancePage />}
-                            {page === 'calendar' && (
-                                <CalendarPage
+                            {page === 'calendar' && <CalendarPage enabledExtensions={enabledExtensions} groups={groups} onCreateGroup={onCreateGroup} />}
+                            {page === 'tags' && (
+                                <TagsPage
+                                    enabledExtensions={enabledExtensions}
                                     groups={groups}
                                     hiddenGroupIds={hiddenGroupIds}
                                     onToggleGroupVisibility={onToggleGroupVisibility}
                                     onUpdateGroup={onUpdateGroup}
-                                    onShareGroup={onShareGroup}
                                     onDeleteGroup={onDeleteGroup}
+                                    onDeleteGroupWithOptions={onDeleteGroupWithOptions}
                                     onDeleteGroupEvents={onDeleteGroupEvents}
                                     onCreateGroup={onCreateGroup}
-                                    enabledExtensions={enabledExtensions}
+                                    onNavigate={select}
                                 />
                             )}
                             {page === 'notes' && <NotesPage noteLayout={noteLayout} onSetNoteLayout={onSetNoteLayout} />}

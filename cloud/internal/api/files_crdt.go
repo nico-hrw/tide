@@ -64,6 +64,16 @@ func (h *FileHandler) CompactYjsWAL(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if len(file.Metadata) > 0 {
+		var metaCheck struct {
+			DeletedAt string `json:"deleted_at"`
+		}
+		if err := json.Unmarshal(file.Metadata, &metaCheck); err == nil && metaCheck.DeletedAt != "" {
+			http.Error(w, "File not found or access denied", http.StatusNotFound)
+			return
+		}
+	}
+
 	if !store.CanWrite(file.Permission) {
 		http.Error(w, "Forbidden: write permission required", http.StatusForbidden)
 		return

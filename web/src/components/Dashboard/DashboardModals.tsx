@@ -172,17 +172,58 @@ export function DashboardModals({
         [files]
     );
 
-    const handleDeleteGroup = async (e: React.MouseEvent, id: string) => {
+    const checkGroupDeletable = (id: string) => {
         const group = files.find((f) => f.id === id);
         const isPlannerActive = enabledExtensions.includes("job_planner");
         const plannerGroupId = useJobPlannerStore.getState().pluginGroupId;
         const isProtected = isPlannerActive && Boolean(plannerGroupId && id === plannerGroupId);
         if (isProtected) {
             notify("Diese Kategorie wird vom Job & Studienplaner verwendet und kann nicht gelöscht werden.");
-            return;
+            return null;
         }
+        return group ?? null;
+    };
+
+    const runDeleteTagEverywhere = async (
+        id: string,
+        isOwner: boolean,
+        text: (key: string, vars?: Record<string, string | number>) => string
+    ) => {
+        const fresh = useDataStore.getState();
+        const freshEvents = fresh.events as unknown as CalendarEvent[];
+        const freshNotes = fresh.notes.filter((n) => n.type !== "folder" && n.type !== "event");
+        const result = await deleteTagEverywhere(id, {
+            events: freshEvents,
+            tasks: fresh.tasks,
+            notes: freshNotes,
+            saveNote: (noteId, tagIds) => setNoteTags(noteId, tagIds, { strict: true }),
+            myId,
+            isOwner,
+            saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
+            saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates, { strict: true }),
+            pruneViews: (tagId) => useDataStore.getState().pruneTagFromViews(tagId),
+            clearFilters: (tagId) => {
+                const s = useDataStore.getState();
+                s.setCalendarTagFilter({ ...s.calendarTagFilter, tagIds: s.calendarTagFilter.tagIds.filter((t) => t !== tagId) });
+                s.setTodoTagFilter({ ...s.todoTagFilter, tagIds: s.todoTagFilter.tagIds.filter((t) => t !== tagId) });
+            },
+            deleteFile: async (tagId) => {
+                const res = await apiFetch(`/api/v1/files/${tagId}`, { method: "DELETE" });
+                if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete tag");
+                const s = useDataStore.getState();
+                s.setNotes(s.notes.filter((f) => f.id !== tagId));
+                onTabClose(null, tagId);
+            },
+        });
+        if (!result.ok) notifyError(text("cal.deleteFailed"));
+        // The calendar is gone: its share rule must not keep auto-sharing.
+        else void useCalendarShareStore.getState().removeRule(id).catch(() => undefined);
+    };
+
+    const handleDeleteGroup = async (e: React.MouseEvent | null | undefined, id: string) => {
+        const group = checkGroupDeletable(id);
         if (!group) return;
-        e.stopPropagation();
+        e?.stopPropagation();
         const store = useDataStore.getState();
         const events = store.events as unknown as CalendarEvent[];
         const isOwner = !isForeignOwned(group, myId) && (!group.share_status || group.share_status === "owner");
@@ -209,33 +250,88 @@ export function DashboardModals({
             const res = await startGroupSync({ rule: shareRule, removed: [], permissionChanged: [], mode: "revoke-only" }).catch(() => null);
             if (!res || res.failed > 0) notifyError(text("calShare.deletePendingFailed"));
         }
-        void deleteTagEverywhere(id, {
-            events,
-            tasks: store.tasks,
-            notes: noteItems,
-            saveNote: (noteId, tagIds) => setNoteTags(noteId, tagIds, { strict: true }),
-            myId,
-            isOwner,
-            saveEvent: (eventId, updates) => onEventSave(eventId, updates, { strict: true }),
-            saveTask: (taskId, updates) => useDataStore.getState().updateTask(taskId, updates, { strict: true }),
-            pruneViews: (tagId) => useDataStore.getState().pruneTagFromViews(tagId),
-            clearFilters: (tagId) => {
-                const s = useDataStore.getState();
-                s.setCalendarTagFilter({ ...s.calendarTagFilter, tagIds: s.calendarTagFilter.tagIds.filter((t) => t !== tagId) });
-                s.setTodoTagFilter({ ...s.todoTagFilter, tagIds: s.todoTagFilter.tagIds.filter((t) => t !== tagId) });
-            },
-            deleteFile: async (tagId) => {
-                const res = await apiFetch(`/api/v1/files/${tagId}`, { method: "DELETE" });
-                if (!res.ok && res.status !== 404) throw new Error("Backend failed to delete tag");
-                const s = useDataStore.getState();
-                s.setNotes(s.notes.filter((f) => f.id !== tagId));
-                onTabClose(null, tagId);
-            },
-        }).then((result) => {
-            if (!result.ok) notifyError(text("cal.deleteFailed"));
-            // The calendar is gone: its share rule must not keep auto-sharing.
-            else void useCalendarShareStore.getState().removeRule(id).catch(() => undefined);
+        void runDeleteTagEverywhere(id, isOwner, text);
+    };
+
+    const handleDeleteGroupWithOptions = async (
+        id: string,
+        options: { deleteTodos: boolean; deleteEvents: boolean; deleteNotes: boolean }
+    ) => {
+        if (!options.deleteTodos && !options.deleteEvents && !options.deleteNotes) {
+            await handleDeleteGroup(null, id);
+            return;
+        }
+        const group = checkGroupDeletable(id);
+        if (!group) return;
+        const store = useDataStore.getState();
+        const events = store.events as unknown as CalendarEvent[];
+        const isOwner = !isForeignOwned(group, myId) && (!group.share_status || group.share_status === "owner");
+        const noteItems = store.notes.filter((n) => n.type !== "folder" && n.type !== "event");
+        const ownedTodos = isOwner ? store.tasks.filter((t) => !isForeignOwned(t, myId) && t.tags?.includes(id)) : [];
+        const ownedEventIds = isOwner ? eventIdsWithTag(id, events, myId) : [];
+        const ownedNotes = isOwner
+            ? noteItems.filter(
+                  (n) =>
+                      !isForeignOwned(
+                          { owner_id: typeof n.owner_id === "string" ? n.owner_id : undefined },
+                          myId
+                      ) && n.tagIds?.includes(id)
+              )
+            : [];
+        const text = (key: string, vars?: Record<string, string | number>) =>
+            formatMessage(getTranslation(store.language || "de", "settings", key), vars);
+        const shareRules = await useCalendarShareStore.getState().freshRules(60_000);
+        const shareRule = shareRules?.[id];
+        const keepsSharesNote = !shareRules || shareRule ? ` ${text("calShare.deleteKeepsShares")}` : "";
+        const ok = await askConfirm({
+            title: text("cal.delete", { name: group.title }),
+            message:
+                text("tags.deleteConfirmWithItems", {
+                    todos: options.deleteTodos ? ownedTodos.length : 0,
+                    events: options.deleteEvents ? ownedEventIds.length : 0,
+                    notes: options.deleteNotes ? ownedNotes.length : 0,
+                }) + keepsSharesNote,
+            confirmLabel: text("tags.deleteTagAndSelected"),
+            tone: "danger",
         });
+        if (!ok) return;
+        if (shareRule?.pendingRevoke?.length) {
+            const res = await startGroupSync({ rule: shareRule, removed: [], permissionChanged: [], mode: "revoke-only" }).catch(() => null);
+            if (!res || res.failed > 0) notifyError(text("calShare.deletePendingFailed"));
+        }
+        if (isOwner && options.deleteEvents) {
+            const { deleted, failed } = await deleteEventsWithTag(
+                id,
+                events,
+                async (eventId) => {
+                    const res = await apiFetch(`/api/v1/files/${encodeURIComponent(eventId)}`, { method: "DELETE" });
+                    return res.ok || res.status === 404;
+                },
+                myId
+            );
+            if (deleted.length > 0) {
+                const gone = new Set(deleted);
+                const latest = useDataStore.getState();
+                latest.setEvents(latest.events.filter((ev) => !gone.has(ev.id)));
+            }
+            if (failed.length > 0) notifyError(text("cal.deleteEventsFailed", { count: failed.length }));
+        }
+        if (isOwner && options.deleteTodos) {
+            for (const todo of ownedTodos) {
+                await useDataStore.getState().deleteTask(todo.id);
+            }
+        }
+        if (isOwner && options.deleteNotes) {
+            for (const note of ownedNotes) {
+                const res = await apiFetch(`/api/v1/files/${encodeURIComponent(note.id)}`, { method: "DELETE" });
+                if (res.ok || res.status === 404) {
+                    const latest = useDataStore.getState();
+                    latest.setNotes(latest.notes.filter((f) => f.id !== note.id));
+                    onTabClose(null, note.id);
+                }
+            }
+        }
+        await runDeleteTagEverywhere(id, isOwner, text);
     };
 
     const handleDeleteGroupEvents = (id: string) => {
@@ -336,6 +432,7 @@ export function DashboardModals({
                 onUpdateGroup={onUpdateEventGroup}
                 onShareGroup={onShareGroup}
                 onDeleteGroup={handleDeleteGroup}
+                onDeleteGroupWithOptions={handleDeleteGroupWithOptions}
                 onDeleteGroupEvents={handleDeleteGroupEvents}
                 onCreateGroup={onCreateEventGroup}
                 scheduleModalOpen={scheduleModalOpen}

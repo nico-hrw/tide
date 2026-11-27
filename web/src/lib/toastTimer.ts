@@ -22,8 +22,6 @@ export interface ToastTimerConfig {
     nearPx: number;
     /** Distance (px) in which approaching the banner extends the time */
     reachPx: number;
-    /** Optional: while the mouse moves away from the banner the clock runs this many times faster (default 1) */
-    awayFactor?: number;
 }
 
 export const defaultToastTimerConfig = (duration: number): ToastTimerConfig => ({
@@ -51,12 +49,6 @@ export function stepToastTimer(
         remaining -= dt;
         life += dt;
         if (approaching) remaining += dt * 3; // net +2 per ms of approach
-        const leaving = distance !== null && s.lastDistance !== null && distance > s.lastDistance + 0.5;
-        if (leaving && cfg.awayFactor && cfg.awayFactor > 1) {
-            const extra = dt * (cfg.awayFactor - 1);
-            remaining -= extra;
-            life += extra;
-        }
         remaining = Math.min(remaining, cfg.duration * cfg.extendCap);
     }
     const expired = !near && (remaining <= 0 || life >= cfg.duration * cfg.maxLifeFactor);

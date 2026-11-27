@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
+import { Eye, EyeOff, Star, Trash2 } from 'lucide-react';
 import { SettingsCard, SettingsPage, SettingsPageHeader, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
-import { Button, TextField, Toggle } from '../ui/Controls';
+import { Button, TextField } from '../ui/Controls';
 import { useT } from '../useT';
 import { useDataStore } from '@/store/useDataStore';
 import { normalizeSafe, todoSafe } from '@/lib/todoSafes';
@@ -62,15 +63,41 @@ export function WorkspacesPage() {
                         const c = count(safe);
                         const shown = activeSafes.map(normalizeSafe).includes(safe);
                         const isDefault = defaultSafe === safe;
+                        const defaultLabel = isDefault ? 'Standard für neue Inhalte' : 'Für neue Inhalte';
+                        const shownLabel = shown ? `${label(safe)}: Angezeigt` : `${label(safe)}: Ausgeblendet`;
+                        const deleteLabel = `${label(safe)} löschen`;
                         return (
                             <SettingsRow key={safe} title={label(safe)} description={`${c.notes} Notizen · ${c.tasks} Todos · ${c.events} Termine`}>
-                                <div className="flex flex-wrap items-center gap-2">
-                                    <Button onClick={() => setDefaultSafe(isDefault ? null : safe)}>
-                                        {isDefault ? 'Standard für neue Inhalte' : 'Für neue Inhalte'}
-                                    </Button>
-                                    <span className="text-[13px] text-t2-ink-2">{shown ? 'Angezeigt' : 'Ausgeblendet'}</span>
-                                    <Toggle checked={shown} onChange={() => toggleShown(safe)} label={`${label(safe)} anzeigen`} />
-                                    {safe !== 'main' && <Button variant="danger" onClick={() => remove(safe)}>Löschen</Button>}
+                                <div className="flex flex-wrap items-center gap-1">
+                                    <button
+                                        type="button"
+                                        onClick={() => setDefaultSafe(isDefault ? null : safe)}
+                                        title={defaultLabel}
+                                        aria-label={defaultLabel}
+                                        className={`bg-transparent p-1.5 transition-colors ${isDefault ? 'text-amber-400' : 'text-t2-ink-3 hover:text-amber-400'}`}
+                                    >
+                                        <Star className={`h-4 w-4 ${isDefault ? 'text-amber-400 fill-amber-400' : ''}`} />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => toggleShown(safe)}
+                                        title={shownLabel}
+                                        aria-label={shownLabel}
+                                        className={`bg-transparent p-1.5 transition-colors ${shown ? 'text-t2-ink-2' : 'text-t2-ink-3'}`}
+                                    >
+                                        {shown ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                                    </button>
+                                    {safe !== 'main' && (
+                                        <button
+                                            type="button"
+                                            onClick={() => remove(safe)}
+                                            title={deleteLabel}
+                                            aria-label={deleteLabel}
+                                            className="bg-transparent p-1.5 text-t2-ink-3 transition-colors hover:text-red-500"
+                                        >
+                                            <Trash2 className="h-4 w-4" />
+                                        </button>
+                                    )}
                                 </div>
                             </SettingsRow>
                         );

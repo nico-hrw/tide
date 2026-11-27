@@ -1,7 +1,6 @@
 "use client";
 
 import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
-import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
 import { createPortal } from "react-dom";
 import { format } from "date-fns";
 import { Star, Ban, Trash2, Share2, X, ChevronDown, Check, Clock, CalendarDays, Tag as TagIcon, Repeat } from "lucide-react";
@@ -13,6 +12,8 @@ import { useTagCreate } from "@/components/Tags/useTagCreate";
 import { CALENDAR_CATEGORIES, categoryVar, resolveCategory } from "@/lib/calendarColors";
 import { EventPrivateToggle } from "./EventPrivateToggle";
 import { EventMentionField } from "./EventMentionField";
+import { usePopupTimer } from "@/hooks/usePopupTimer";
+import { PopupTimerBar } from "@/components/Popup/PopupTimerBar";
 
 interface CustomDropdownOption {
     value: string;
@@ -300,7 +301,9 @@ export default function EventPopover({
     // A blocked close (no-tag prompt) keeps the popover open, so the unmount save must stay armed.
     useEffect(() => { if (showNoTagConfirm) savedOnCloseRef.current = false; }, [showNoTagConfirm]);
     const handleClose = () => { savedOnCloseRef.current = true; handleSave(); onClose(); };
-    usePopupAutoClose(popoverRef, handleClose);
+    // Closes (and saves) by itself when the mouse stays away from the popover; the bar on top shows the time left.
+    // Holds while a text field inside has focus and while the no-tag question is open.
+    const { fillRef, restRef } = usePopupTimer({ refs: [popoverRef], enabled: !showNoTagConfirm, duration: 3000, onExpire: handleClose });
     const handleTaskToggle = (v: boolean) => { setIsTask(v); if (!v) setIsCompleted(false); };
     const handleToggleCancel = () => {
         const next = !isCancelled;
@@ -327,6 +330,7 @@ export default function EventPopover({
             className="fixed z-[1000] w-[344px] max-w-[calc(100vw-24px)] bg-t2-surface rounded-[20px] shadow-[0_0_0_1px_var(--t2-line),0_18px_44px_rgba(0,0,0,0.16)] p-4 flex flex-col gap-3.5 animate-in fade-in zoom-in-95 duration-150"
             style={{ top: `${pos.top}px`, left: `${pos.left}px`, '--ev': accent } as React.CSSProperties}
         >
+            <PopupTimerBar fillRef={fillRef} restRef={restRef} />
             {/* ── Header ── */}
             <div className="flex items-center gap-2.5">
                 <button

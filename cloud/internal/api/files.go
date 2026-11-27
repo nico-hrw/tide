@@ -324,6 +324,17 @@ func (h *FileHandler) UpdateFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Soft-deleted files must not be updated (a late autosave PUT would wipe deleted_at and resurrect them).
+	if len(file.Metadata) > 0 {
+		var metaCheck struct {
+			DeletedAt string `json:"deleted_at"`
+		}
+		if err := json.Unmarshal(file.Metadata, &metaCheck); err == nil && metaCheck.DeletedAt != "" {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+	}
+
 	requesterID, ok := r.Context().Value("user_id").(string)
 	if !ok || requesterID == "" {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)

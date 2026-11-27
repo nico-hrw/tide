@@ -1,6 +1,10 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { announceSidebarDropdown, onOtherSidebarDropdown } from "@/lib/sidebarDropdown";
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
+import { workspaceTone } from "@/lib/workspaceColor";
+import { usePopupTimer } from "@/hooks/usePopupTimer";
+import { PopupTimerBar } from "@/components/Popup/PopupTimerBar";
 import {
     Plus,
     Archive,
@@ -54,7 +58,17 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
+    useEffect(() => (compact ? onOtherSidebarDropdown('workspaces', () => setIsOpen(false)) : undefined), [compact]);
+    const rootRef = useRef<HTMLDivElement>(null);
+    const popRef = useRef<HTMLDivElement>(null);
     const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
+    // Compact (sidebar row): the list closes when the mouse stays away from it and the row (the bar on top shows the time);
+    // it holds while a context menu of a workspace is open.
+    const { fillRef, restRef } = usePopupTimer({
+        refs: [rootRef, popRef],
+        enabled: compact && isOpen && !ctxMenu,
+        onExpire: () => setIsOpen(false),
+    });
     const [listPos, setListPos] = useState<{ top: number; left: number } | null>(null);
     const defaultSafe = useDataStore((s) => s.defaultSafe);
     const setDefaultSafe = useDataStore((s) => s.setDefaultSafe);
@@ -78,7 +92,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={(e) => {
-                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); }
+                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); announceSidebarDropdown('workspaces'); }
                 setIsOpen((prev) => !prev);
             }}
             className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none"
@@ -111,7 +125,9 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     );
 
     return (
-        <div className={compact ? 'relative shrink-0' : (className || "flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
+        <div
+            ref={rootRef}
+            className={compact ? 'relative w-full px-2' :(className ||"flex-shrink-0 pt-[max(0.75rem,calc(env(safe-area-inset-top)+8px))] pb-0")}>
             {toggleButton}
             {ctxMenu && (
                 <WorkspaceContextMenu
@@ -142,15 +158,17 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
             <AnimatePresence>
                 {isOpen && (
                     <motion.div
+                        ref={popRef}
                         initial={{ opacity: 0, height: 0 }}
                         animate={{ opacity: 1, height: 'auto' }}
                         exit={{ opacity: 0, height: 0 }}
                         transition={{ duration: 0.2, ease: [0.2, 0.8, 0.2, 1] }}
                         style={compact && listPos ? { top: listPos.top, left: listPos.left } : undefined}
                         className={compact
-                            ? 'fixed z-[700] w-[260px] p-1.5 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
+                            ? 'fixed z-[700] w-[260px] p-1.5 pt-3 rounded-2xl bg-[var(--sidebar-bg)] border border-t2-line  shadow-[0_12px_32px_-12px_rgba(0,0,0,0.35)] space-y-0.5 overflow-hidden'
                             : 'mx-2 mb-2 p-1.5 rounded-lg bg-[var(--sidebar-bg)] border border-t2-line  space-y-1 overflow-hidden'}
                     >
+                        {compact && <PopupTimerBar fillRef={fillRef} restRef={restRef} />}
                         {/* List of safes */}
                         <div className="flex flex-col gap-0.5 max-h-48 overflow-y-auto no-scrollbar">
                             {allSafes.map((safe, idx) => {
@@ -168,7 +186,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             mass: 0.8,
                                             delay: idx * 0.03,
                                         }}
-                                        className={`flex items-center justify-between px-2 py-1.5 rounded-lg group transition-colors ${
+                                        className={`flex h-9 items-center justify-between px-2 rounded-lg group transition-colors ${
                                             isActive
                                                 ? 'bg-t2-sub  text-t2-accent  font-medium'
                                                 : 'text-t2-ink  hover:bg-t2-hover '
@@ -183,16 +201,11 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                             className="flex items-center gap-2 flex-1 text-left truncate cursor-pointer min-w-0"
                                             title={`Zu "${safe}" wechseln`}
                                         >
-                                            <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold ${isActive ? 'bg-t2-accent text-t2-accent-ink' : 'bg-t2-sub text-t2-ink-2'}`} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
-                                            <span className="truncate text-xs">{safe}</span>
-                                            {isActive && (
-                                                <span className="ml-1 text-[11px] px-1.5 py-0.5 rounded bg-t2-sub  text-t2-accent  font-normal shrink-0">
-                                                    aktiv
-                                                </span>
-                                            )}
+                                            <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-md text-[11px] font-semibold" style={{ background: workspaceTone(safe).bg, color: workspaceTone(safe).ink }} aria-hidden="true">{displayName(safe).charAt(0).toUpperCase()}</span>
+                                            <span className="truncate text-xs">{displayName(safe)}</span>
                                         </button>
 
-                                        <div className="flex items-center gap-1 shrink-0">
+                                        <div className="flex h-6 items-center gap-1 shrink-0">
                                             {/* Toggle multi-select */}
                                             <button
                                                 type="button"
@@ -200,7 +213,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                     e.stopPropagation();
                                                     toggleSafe(safe);
                                                 }}
-                                                className={`p-1 rounded hover:bg-t2-hover  transition-colors cursor-pointer ${
+                                                className={`flex h-6 w-6 items-center justify-center rounded hover:bg-t2-hover transition-colors cursor-pointer ${
                                                     isActive
                                                         ? 'text-t2-accent '
                                                         : 'text-t2-ink-3  hover:text-t2-ink-2 '
@@ -231,7 +244,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
                                                             e.stopPropagation();
                                                             deleteSafe(safe);
                                                         }}
-                                                        className="p-1 rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
+                                                        className="flex h-6 w-6 items-center justify-center rounded text-t2-ink-3 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors opacity-0 group-hover:opacity-100 cursor-pointer"
                                                         title={`Workspace "${safe}" löschen`}
                                                     >
                                                         <Trash2 size={12} />

@@ -3,7 +3,8 @@
 import { ChevronDown, X, Eye, Edit3, Share2, Link2, Check, Loader2, Variable, Search, Plus } from "lucide-react";
 import { askConfirm, notifyError } from '@/lib/feedback';
 import { useState, useEffect, useCallback, useRef } from "react";
-import { usePopupAutoClose } from '@/hooks/usePopupAutoClose';
+import { usePopupTimer } from '@/hooks/usePopupTimer';
+import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
 import * as Y from "yjs";
 import { apiFetch } from "@/lib/api";
 import { useDataStore } from "@/store/useDataStore";
@@ -78,7 +79,7 @@ export default function ShareModal({
     const [searchResult, setSearchResult] = useState<Contact | null>(null);
     const [loading, setLoading] = useState(false);
     const [sharing, setSharing] = useState(false);
-    usePopupAutoClose(dialogRef, onClose, { enabled: !sharing });
+    const { fillRef, restRef } = usePopupTimer({ refs: [dialogRef], enabled: !sharing, duration: 3000, onExpire: onClose });
     const [sharedContactId, setSharedContactId] = useState<string | null>(null);
     const [permission, setPermission] = useState<SharePermission>(callerPermission === 'view' ? 'view' : 'view');
     const [canReshare, setCanReshare] = useState(false);
@@ -543,12 +544,13 @@ export default function ShareModal({
         <div className="fixed inset-0 bg-[color-mix(in_srgb,var(--t2-ink)_20%,transparent)] flex items-center justify-center z-50 p-4 animate-in fade-in duration-200" onClick={onClose}>
             <div
                 ref={dialogRef}
-                className="bg-t2-surface  border border-t2-line  rounded-[20px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full overflow-hidden animate-in zoom-in-95 duration-150"
+                className="bg-t2-surface  border border-t2-line  rounded-[20px] shadow-[0px_24px_64px_rgba(17,24,39,0.16)] max-w-[540px] w-full relative overflow-hidden animate-in zoom-in-95 duration-150"
                 role="dialog"
                 aria-modal="true"
                 aria-labelledby="share-modal-title"
                 onClick={(e) => e.stopPropagation()}
             >
+                <PopupTimerBar fillRef={fillRef} restRef={restRef} />
                 {/* Header */}
                 <div className="px-5 pt-4 pb-3 flex items-center justify-between">
                     <div>

@@ -5,24 +5,10 @@ import { createPortal } from 'react-dom';
 import { AlertCircle, Check, Info, X } from 'lucide-react';
 import { useFeedbackStore, type Toast } from '@/store/useFeedbackStore';
 import { defaultToastTimerConfig, initialToastTimer, stepToastTimer, toastTimerProgress } from '@/lib/toastTimer';
-
-// Last known mouse position (null on touch devices), shared by all toasts
-let mousePos: { x: number; y: number } | null = null;
-let mouseListening = false;
-function trackMouse() {
-    if (mouseListening || typeof window === 'undefined') return;
-    mouseListening = true;
-    window.addEventListener('mousemove', (e) => { mousePos = { x: e.clientX, y: e.clientY }; }, { passive: true });
-}
+import { distanceToRect, getMousePos, trackMouse } from '@/lib/mousePosition';
 
 const RING_R = 12;
 const RING_C = 2 * Math.PI * RING_R;
-
-function distanceToRect(p: { x: number; y: number }, r: DOMRect): number {
-    const dx = Math.max(r.left - p.x, 0, p.x - r.right);
-    const dy = Math.max(r.top - p.y, 0, p.y - r.bottom);
-    return Math.hypot(dx, dy);
-}
 
 function ToastItem({ toast }: { toast: Toast }) {
     const dismiss = useFeedbackStore((s) => s.dismissToast);
@@ -41,7 +27,8 @@ function ToastItem({ toast }: { toast: Toast }) {
             const dt = Math.min(now - last, 100); // a background tab must not burn the timer in one step
             last = now;
             const rect = rootRef.current?.getBoundingClientRect();
-            const distance = rect && mousePos ? distanceToRect(mousePos, rect) : null;
+            const mouse = getMousePos();
+            const distance = rect && mouse ? distanceToRect(mouse, rect) : null;
             const r = stepToastTimer(state, dt, distance, cfg);
             state = r.state;
             if (r.expired) { dismiss(toast.id); return; }

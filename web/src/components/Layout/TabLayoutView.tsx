@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState } from 'react';
-import type { DropTarget, TabRows } from '@/lib/tabLayout';
+import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { moveTab, resolveDrop, type DropTarget, type RowBox, type TabBox, type TabRows } from '@/lib/tabLayout';
 
 interface TabLayoutViewProps {
   rows: TabRows;
@@ -10,114 +10,213 @@ interface TabLayoutViewProps {
   onMove: (id: string, target: DropTarget) => void;
 }
 
+/** Pointer distance before a press turns into a drag (a plain click must still click). */
+const DRAG_THRESHOLD = 6;
+const MOVE_MS = 180;
+
+/** Where every tab is on screen right now, row by row (taken when a drag starts). */
+function measureRows(root: HTMLElement, rows: TabRows): RowBox[] {
+  const els = new Map<string, HTMLElement>();
+  root.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el) => {
+    if (el.dataset.tabId) els.set(el.dataset.tabId, el);
+  });
+  return rows.map((row) => {
+    const tabs: TabBox[] = [];
+    let top = Infinity;
+    let bottom = -Infinity;
+    row.forEach((group, g) =>
+      group.forEach((id) => {
+        const el = els.get(id);
+        if (!el) return;
+        const r = el.getBoundingClientRect();
+        tabs.push({ id, left: r.left, right: r.right, group: g });
+        top = Math.min(top, r.top);
+        bottom = Math.max(bottom, r.bottom);
+      }),
+    );
+    return { top, bottom, tabs };
+  });
+}
+
+/** The translation a running animation currently applies to an element. */
+function currentTranslate(el: HTMLElement): { x: number; y: number } {
+  const t = getComputedStyle(el).transform;
+  if (!t || t === 'none') return { x: 0, y: 0 };
+  const m = new DOMMatrixReadOnly(t);
+  return { x: m.m41, y: m.m42 };
+}
+
 /**
- * Tab bar layout: rows of small groups. Tabs are dragged with the mouse; drop zones appear only
- * while dragging: at the row edges (new group), between groups (new group), below a row (new row),
- * on a tab's left or right half (place next to it). Empty groups and rows are removed by moveTab.
+ * Tab bar layout: rows of small groups. A tab is dragged with the mouse (pointer events, so it behaves the
+ * same in every browser). While it is dragged the other tabs make room: next to a tab it joins that tab's
+ * group; further away (in the gap between groups, past the end of a row, above, below or between rows) a
+ * new group or row appears. The result is shown live and the tabs slide to their new places. Empty groups
+ * and rows are removed by moveTab.
  */
 export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
   const [dragId, setDragId] = useState<string | null>(null);
-  const [hint, setHint] = useState<string | null>(null);
+  const [preview, setPreview] = useState<TabRows | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number } | null>(null);
+  const rootRef = useRef<HTMLDivElement>(null);
+  const onMoveRef = useRef(onMove);
+  const rowsRef = useRef(rows);
+  useEffect(() => {
+    onMoveRef.current = onMove;
+    rowsRef.current = rows;
+  });
 
-  const drop = (target: DropTarget) => (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const id = dragId ?? e.dataTransfer.getData('text/plain');
-    if (id) onMove(id, target);
-    setDragId(null);
-    setHint(null);
-  };
-  const over = (key: string) => (e: React.DragEvent) => {
-    if (!dragId) return;
-    e.preventDefault();
-    e.stopPropagation();
-    setHint(key);
-  };
-  const leave = (key: string) => () => setHint((h) => (h === key ? null : h));
+  // Tabs slide to their new place (FLIP): each render, compare layout positions with the previous ones.
+  const lastPos = useRef(new Map<string, { x: number; y: number }>());
+  const running = useRef(new WeakMap<HTMLElement, Animation>());
+  useLayoutEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const next = new Map<string, { x: number; y: number }>();
+    root.querySelectorAll<HTMLElement>('[data-tab-id]').forEach((el) => {
+      const id = el.dataset.tabId;
+      if (!id) return;
+      const pos = { x: el.offsetLeft, y: el.offsetTop };
+      next.set(id, pos);
+      const prev = lastPos.current.get(id);
+      if (reduce || !prev || (prev.x === pos.x && prev.y === pos.y)) return;
+      const cur = currentTranslate(el);
+      running.current.get(el)?.cancel();
+      running.current.set(
+        el,
+        el.animate(
+          [
+            { transform: `translate(${prev.x - pos.x + cur.x}px, ${prev.y - pos.y + cur.y}px)` },
+            { transform: 'translate(0px, 0px)' },
+          ],
+          { duration: MOVE_MS, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' },
+        ),
+      );
+    });
+    lastPos.current = next;
+  });
 
-  // A drop zone keeps its space all the time (no jump when dragging starts); it is only tinted while dragging.
-  const zone = (key: string, target: DropTarget, box: string) => (
-    <div
-      key={key}
-      onDragOver={(e) => {
-        if (!dragId) return;
-        e.dataTransfer.dropEffect = 'move';
-        over(key)(e);
-      }}
-      onDragLeave={leave(key)}
-      onDrop={drop(target)}
-      className={`shrink-0 rounded-full transition-colors ${box} ${
-        !dragId ? '' : hint === key ? 'bg-t2-accent' : 'bg-t2-line-soft'
-      }`}
-      aria-hidden="true"
-    />
-  );
+  const startDrag = (e: React.PointerEvent<HTMLDivElement>, id: string) => {
+    if (e.button !== 0 || e.pointerType === 'touch') return;
+    const startX = e.clientX;
+    const startY = e.clientY;
+    const box = e.currentTarget.getBoundingClientRect();
+    const grabX = startX - box.left;
+    const grabY = startY - box.top;
+    let active = false;
+    let geometry: RowBox[] = [];
+    let current: DropTarget | null = null;
+    let currentKey = '';
+
+    const move = (ev: PointerEvent) => {
+      if (!active) {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) < DRAG_THRESHOLD) return;
+        active = true;
+        // Measured before anything moves: the answer for a pointer position stays the same while tabs make room.
+        if (rootRef.current) geometry = measureRows(rootRef.current, rowsRef.current);
+        setDragId(id);
+        document.body.style.userSelect = 'none';
+      }
+      setGhost({ x: ev.clientX - grabX, y: ev.clientY - grabY });
+      const target = resolveDrop(geometry, id, ev.clientX, ev.clientY);
+      const key = target ? `${target.kind}:${target.ref}` : '';
+      if (key === currentKey) return;
+      currentKey = key;
+      current = target;
+      const next = target ? moveTab(rowsRef.current, id, target) : rowsRef.current;
+      setPreview(next === rowsRef.current ? null : next);
+    };
+
+    const finish = (commit: boolean) => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+      window.removeEventListener('pointercancel', cancel);
+      window.removeEventListener('keydown', key);
+      document.body.style.userSelect = '';
+      if (active) {
+        // The click that follows the release must not activate the tab that was dragged.
+        const swallow = (c: MouseEvent) => {
+          c.stopPropagation();
+          c.preventDefault();
+        };
+        window.addEventListener('click', swallow, { capture: true, once: true });
+        window.setTimeout(() => window.removeEventListener('click', swallow, true), 100);
+        if (commit && current) onMoveRef.current(id, current);
+      }
+      setDragId(null);
+      setPreview(null);
+      setGhost(null);
+    };
+    const up = () => finish(true);
+    const cancel = () => finish(false);
+    const key = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') finish(false);
+    };
+
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    window.addEventListener('pointercancel', cancel);
+    window.addEventListener('keydown', key);
+  };
+
+  const shown = preview ?? rows;
+
+  // The bar grows and shrinks smoothly when rows come and go: its height follows the content with a transition.
+  const innerRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    const el = innerRef.current;
+    if (!el) return;
+    const update = () => setHeight(el.offsetHeight);
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   return (
-    <div className="flex flex-col min-w-0">
-      {rows.map((row, r) => {
-        const firstRef = row[0][0];
-        const lastGroup = row[row.length - 1];
-        const lastRef = lastGroup[lastGroup.length - 1];
-        return (
-          <React.Fragment key={`row-${r}`}>
-            {r === 0 && zone(`rowAbove-${r}`, { kind: 'rowAbove', ref: firstRef }, 'h-3 w-full')}
-            <div className="flex items-stretch">
-              {zone(`rowStart-${r}`, { kind: 'rowStart', ref: firstRef }, 'w-3 min-h-[34px]')}
-              {row.map((group, g) => (
-                <React.Fragment key={`group-${r}-${g}`}>
-                  {g > 0 && zone(`groupBefore-${r}-${g}`, { kind: 'groupBefore', ref: group[0] }, 'w-4 min-h-[34px]')}
+    <div
+      ref={rootRef}
+      className="relative min-w-0 flex-1 transition-[height] duration-200 ease-out motion-reduce:transition-none"
+      style={height === null ? undefined : { height }}
+    >
+      <div ref={innerRef} className={`flex flex-col gap-3 ${shown.length > 1 ? 'py-2.5' : ''}`}>
+      {shown.map((row, r) => (
+        <div key={`row-${r}`} className="flex w-full items-center">
+          {/* Centering by two soft spacers: with too many tabs the row starts at the left edge instead of being cut off on both sides. */}
+          <div className="min-w-0 grow-[0.001]" aria-hidden="true" />
+          {row.map((group, g) => (
+            <React.Fragment key={`group-${r}-${g}`}>
+              {/* Tabs of one group sit close together; groups keep room between them (12 to 128 px). */}
+              {g > 0 && <div className="h-px min-w-3 max-w-32 flex-1" aria-hidden="true" />}
+              <div className="flex min-w-0 items-center gap-1">
+                {group.map((id) => (
                   <div
-                    className="flex items-center gap-1"
-                    onDragOver={over(`group-${r}-${g}`)}
-                    onDragLeave={leave(`group-${r}-${g}`)}
-                    onDrop={drop({ kind: 'intoGroup', ref: group[group.length - 1] })}
+                    key={id}
+                    data-tab-id={id}
+                    onPointerDown={(e) => startDrag(e, id)}
+                    onDragStart={(e) => e.preventDefault()}
+                    className={`relative flex min-w-0 items-center ${dragId === id ? 'opacity-40' : ''}`}
                   >
-                    {group.map((id) => (
-                      <div
-                        key={id}
-                        draggable
-                        onDragStart={(e) => {
-                          e.dataTransfer.setData('text/plain', id);
-                          e.dataTransfer.effectAllowed = 'move';
-                          setDragId(id);
-                        }}
-                        onDragEnd={() => {
-                          setDragId(null);
-                          setHint(null);
-                        }}
-                        onDragOver={(e) => {
-                          if (!dragId || dragId === id) return;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          setHint(`${e.clientX < rect.left + rect.width / 2 ? 'before' : 'after'}-${id}`);
-                        }}
-                        onDrop={(e) => {
-                          const rect = e.currentTarget.getBoundingClientRect();
-                          const before = e.clientX < rect.left + rect.width / 2;
-                          drop({ kind: before ? 'before' : 'after', ref: id })(e);
-                        }}
-                        className={`relative flex items-center ${dragId === id ? 'opacity-50' : ''}`}
-                      >
-                        {dragId && dragId !== id && hint === `before-${id}` && (
-                          <span className="pointer-events-none absolute -left-1 top-1 bottom-1 w-[3px] rounded-full bg-t2-accent" aria-hidden="true" />
-                        )}
-                        {dragId && dragId !== id && hint === `after-${id}` && (
-                          <span className="pointer-events-none absolute -right-1 top-1 bottom-1 w-[3px] rounded-full bg-t2-accent" aria-hidden="true" />
-                        )}
-                        {renderTab(id)}
-                      </div>
-                    ))}
+                    {renderTab(id)}
                   </div>
-                </React.Fragment>
-              ))}
-              {zone(`rowEnd-${r}`, { kind: 'rowEnd', ref: lastRef }, 'w-3 min-h-[34px]')}
-            </div>
-            {zone(`rowBelow-${r}`, { kind: 'rowBelow', ref: firstRef }, 'h-3 w-full')}
-          </React.Fragment>
-        );
-      })}
+                ))}
+              </div>
+            </React.Fragment>
+          ))}
+          <div className="min-w-0 grow-[0.001]" aria-hidden="true" />
+        </div>
+      ))}
+      </div>
+      {dragId && ghost && (
+        <div
+          className="pointer-events-none fixed z-[900] flex items-center rounded-lg border border-t2-line bg-t2-surface opacity-95 shadow-lg"
+          style={{ left: ghost.x, top: ghost.y }}
+          aria-hidden="true"
+        >
+          {renderTab(dragId)}
+        </div>
+      )}
     </div>
   );
 }
