@@ -128,10 +128,35 @@ export default function TabList({
         previewTimer.current = null;
         setPreview(null);
     };
+    const tabDetail = (type: Tab['type']): string | undefined => {
+        if (type === 'todos') {
+            const open = useDataStore.getState().tasks.filter((t) => t.status !== 'completed').length;
+            return open === 1 ? '1 offenes Todo' : `${open} offene Todos`;
+        }
+        switch (type) {
+            case 'calendar': return 'Wochen- und Tagesplanung';
+            case 'social': return 'Kontakte und Freigaben';
+            case 'job_planner':
+            case 'exams': return 'Bewerbungen, Uni und Prüfungen';
+            case 'chat':
+            case 'messages': return 'Nachrichten';
+            case 'profile': return 'Dein Profil';
+            case 'trash': return 'Gelöschte Notizen';
+            case 'folders': return 'Alle Notizen und Ordner';
+            case 'ext_finance': return 'Plugin: Finanzen';
+            default: return undefined;
+        }
+    };
     const schedulePreview = (tab: Tab, el: HTMLElement) => {
         hidePreview();
         previewTimer.current = setTimeout(() => {
-            setPreview({ id: tab.id, title: getTabLabel(tab), isNote: tab.type === 'file', isActive: tab.id === activeTabId, content: tab.content, rect: el.getBoundingClientRect() });
+            setPreview({ id: tab.id, title: getTabLabel(tab), isNote: tab.type === 'file', isActive: tab.id === activeTabId, content: tab.content, rect: el.getBoundingClientRect(), detail: tabDetail(tab.type) });
+        }, PREVIEW_DELAY_MS);
+    };
+    const scheduleTodosPreview = (el: HTMLElement) => {
+        hidePreview();
+        previewTimer.current = setTimeout(() => {
+            setPreview({ id: 'todos', title: 'Todos', isNote: false, isActive: activeTabId === 'todos', rect: el.getBoundingClientRect(), detail: tabDetail('todos') });
         }, PREVIEW_DELAY_MS);
     };
     useEffect(() => () => { if (previewTimer.current) clearTimeout(previewTimer.current); }, []);
@@ -201,6 +226,9 @@ export default function TabList({
                 <button
                     type="button"
                     onClick={navigationMode === 'folders' || !onToggleTodos ? () => onTabSelect('todos', 'todos') : onToggleTodos}
+                    onMouseEnter={(e) => scheduleTodosPreview(e.currentTarget)}
+                    onMouseLeave={hidePreview}
+                    onPointerDown={hidePreview}
                     style={{ borderRadius: DT.radius }}
                     className={`flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
                         activeTabId === 'todos'
@@ -236,7 +264,7 @@ export default function TabList({
                     onMouseLeave={hidePreview}
                     onPointerDown={hidePreview}
                     style={{ borderRadius: DT.radius }}
-                    className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[100px] border
+                    className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[64px] border
                         ${isActive
                             ? 'bg-t2-surface  text-t2-ink  shadow-sm border-t2-line  font-semibold'
                             : 'text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-stage  border-transparent'

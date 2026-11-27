@@ -182,19 +182,21 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
     >
       <div ref={innerRef} className={`flex flex-col gap-3 ${shown.length > 1 ? 'py-2.5' : ''}`}>
       {shown.map((row, r) => (
-        <div key={`row-${r}`} className="flex w-full items-center justify-center">
+        <div key={`row-${r}`} className="flex w-full items-center">
+          {/* Centering by two soft spacers: with too many tabs the row starts at the left edge instead of being cut off on both sides. */}
+          <div className="min-w-0 grow-[0.001]" aria-hidden="true" />
           {row.map((group, g) => (
             <React.Fragment key={`group-${r}-${g}`}>
-              {/* Tabs of one group sit close together; groups keep room between them (28 to 128 px). */}
-              {g > 0 && <div className="h-px min-w-7 max-w-32 flex-1" aria-hidden="true" />}
-              <div className="flex items-center gap-1">
+              {/* Tabs of one group sit close together; groups keep room between them (12 to 128 px). */}
+              {g > 0 && <div className="h-px min-w-3 max-w-32 flex-1" aria-hidden="true" />}
+              <div className="flex min-w-0 items-center gap-1">
                 {group.map((id) => (
                   <div
                     key={id}
                     data-tab-id={id}
                     onPointerDown={(e) => startDrag(e, id)}
                     onDragStart={(e) => e.preventDefault()}
-                    className={`relative flex items-center ${dragId === id ? 'opacity-40' : ''}`}
+                    className={`relative flex min-w-0 items-center ${dragId === id ? 'opacity-40' : ''}`}
                   >
                     {renderTab(id)}
                   </div>
@@ -202,6 +204,7 @@ export function TabLayoutView({ rows, renderTab, onMove }: TabLayoutViewProps) {
               </div>
             </React.Fragment>
           ))}
+          <div className="min-w-0 grow-[0.001]" aria-hidden="true" />
         </div>
       ))}
       </div>

@@ -9,7 +9,7 @@ import type { DecryptedFile, SidebarProps } from "./types";
 export type FileContextMenuState = { x: number; y: number; id: string; type: 'file' | 'folder' };
 export type SidebarContextMenuState = { x: number; y: number };
 
-type ContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote' | 'onNewCanvasNote'> & {
+type ContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote' | 'onNewCanvasNote' | 'onMoveItem'> & {
     contextMenu: FileContextMenuState | null;
     setContextMenu: (v: FileContextMenuState | null) => void;
     sidebarContextMenu: SidebarContextMenuState | null;
@@ -63,7 +63,7 @@ function BackgroundMenu({ menu, close, onNewNote, onNewCanvasNote, onCreateFolde
 }
 
 export default function SidebarContextMenu({
-    files, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote, onNewCanvasNote,
+    files, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote, onNewCanvasNote, onMoveItem,
     contextMenu, setContextMenu, sidebarContextMenu, setSidebarContextMenu, myId,
     handleOpenSecuritySettings, handleExport, handleImport, handleCopyToMyNotes,
 }: ContextMenuProps) {
@@ -82,6 +82,7 @@ export default function SidebarContextMenu({
                     onShare={onShare}
                     onDeleteNote={onDeleteNote}
                     onRenameNote={onRenameNote}
+                    onMoveItem={onMoveItem}
                     handleOpenSecuritySettings={handleOpenSecuritySettings}
                     handleExport={handleExport}
                     handleImport={handleImport}

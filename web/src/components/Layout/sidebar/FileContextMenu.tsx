@@ -9,7 +9,7 @@ import { workspaceLabel, workspaceTone } from "@/lib/workspaceColor";
 import type { DecryptedFile, SidebarProps } from "./types";
 import type { FileContextMenuState } from "./SidebarContextMenu";
 
-type FileContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote'> & {
+type FileContextMenuProps = Pick<SidebarProps, 'files' | 'onNewNote' | 'onCreateFolder' | 'onShare' | 'onDeleteNote' | 'onRenameNote' | 'onMoveItem'> & {
     contextMenu: FileContextMenuState;
     setContextMenu: (v: FileContextMenuState | null) => void;
     myId: string;
@@ -68,7 +68,7 @@ function IconAction({ label, onClick, children }: { label: string; onClick: () =
  * a transparent bridge, so crossing the gap does not close it.
  */
 export default function FileContextMenu({
-    contextMenu, setContextMenu, files, myId, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote,
+    contextMenu, setContextMenu, files, myId, onNewNote, onCreateFolder, onShare, onDeleteNote, onRenameNote, onMoveItem,
     handleOpenSecuritySettings, handleExport, handleImport, handleCopyToMyNotes,
 }: FileContextMenuProps) {
     const rootRef = useRef<HTMLDivElement>(null);
@@ -170,8 +170,16 @@ export default function FileContextMenu({
                                                 type="button"
                                                 onClick={async (e) => {
                                                     e.stopPropagation();
+                                                    const id = contextMenu.id;
                                                     setContextMenu(null);
-                                                    await setNoteSafe(contextMenu.id, safe);
+                                                    if (safe === currentSafe) return;
+                                                    // A note inside a folder follows the folder's workspace, so it leaves the folder.
+                                                    const parent = file?.parent_id ? files.find((f) => f.id === file.parent_id) : undefined;
+                                                    if (parent) {
+                                                        const parentSafe = normalizeSafe(parent.safe || parent.metadata?.safe || 'main');
+                                                        if (parentSafe !== safe) onMoveItem?.(id, null);
+                                                    }
+                                                    await setNoteSafe(id, safe);
                                                 }}
                                                 className={`flex w-full items-center gap-2.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm transition-colors cursor-pointer ${
                                                     isCurrent ? 'bg-t2-sub font-medium text-t2-ink' : 'text-t2-ink hover:bg-t2-hover'
