@@ -246,7 +246,9 @@ export default function Sidebar({
                     type: detail.type,
                     metadata: detail.metadata,
                     onUnlocked: () => {
-                        if (detail.type === 'folder') {
+                        if (typeof detail.onUnlocked === 'function') {
+                            detail.onUnlocked();
+                        } else if (detail.type === 'folder') {
                             useDataStore.getState().toggleFolder(detail.id, true);
                         }
                     }

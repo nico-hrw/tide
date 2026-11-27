@@ -41,6 +41,7 @@ import { VariablesBlock } from '../extensions/VariablesBlock';
 import { FormulaSuggestion } from '../extensions/FormulaSuggestionPlugin';
 import { scopeForDoc } from '../extensions/variablesScope';
 import { ReferenceMark } from '../extensions/ReferenceMark';
+import { openIfUnlocked } from '@/lib/pinSecurity';
 import { ReferenceScannerMode, ReferenceAutopilotMode } from '../extensions/ReferenceModes';
 import { PencilInkExtension, InkStroke, getEditorInkStrokes } from '../extensions/PencilInkExtension';
 import Collaboration from '@tiptap/extension-collaboration';
@@ -474,8 +475,11 @@ export function useTipTapConfig({
                     if (targetId) {
                         const realFile = useDataStore.getState().notes?.find((f: any) => f.id === targetId);
                         if (!realFile) return true;
-                        onLinkClickRef.current?.({ id: targetId, type: 'file', title: realFile.title || mentionNode.textContent?.replace(/^@/, '') || '' });
-                        useDataStore.getState().setActiveNoteId(targetId);
+                        const mentionTitle = realFile.title || mentionNode.textContent?.replace(/^@/, '') || '';
+                        openIfUnlocked({ id: targetId, title: mentionTitle, type: 'file', metadata: realFile.metadata }, () => {
+                            onLinkClickRef.current?.({ id: targetId, type: 'file', title: mentionTitle });
+                            useDataStore.getState().setActiveNoteId(targetId);
+                        });
                         return true;
                     }
                 }

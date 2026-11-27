@@ -11,6 +11,7 @@ import { canReuseTabCache } from "@/lib/tabStorage";
 import { clearNotePreviews } from "@/lib/notePreview";
 import { apiFetch, clearAllSessionData } from "@/lib/api";
 import { useDataStore, type NavigationMode } from "@/store/useDataStore";
+import { openIfUnlocked } from "@/lib/pinSecurity";
 
 export interface WorkspaceFileItem {
     id: string;
@@ -413,8 +414,11 @@ export function useWorkspaceTabs({
         } else if (target.type === "file" || target.type === "note") {
             const targetFile = files.find((f) => f.id === target.id);
             const title = target.title || targetFile?.title || "Untitled";
-            switchTab(target.id, "file", title);
-            useDataStore.getState().setActiveNoteId(target.id);
+            const storeNote = useDataStore.getState().notes.find((n) => n.id === target.id);
+            openIfUnlocked({ id: target.id, title, type: "file", metadata: storeNote?.metadata }, () => {
+                switchTab(target.id, "file", title);
+                useDataStore.getState().setActiveNoteId(target.id);
+            });
         } else if (target.type === "folder") {
             const store = useDataStore.getState();
             const seen = new Set<string>();

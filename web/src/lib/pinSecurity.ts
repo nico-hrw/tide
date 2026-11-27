@@ -205,3 +205,21 @@ export function getSessionPin(itemId: string): string | null {
 export function clearSessionPinCache(): void {
     sessionPinCache.clear();
 }
+
+/**
+ * Runs `open` only if the item is not PIN-protected or currently unlocked.
+ * Otherwise asks the desktop sidebar to prompt for the PIN and runs `open` after a successful unlock.
+ * Every entry point that opens a note (links, mentions, search) should go through this.
+ */
+export function openIfUnlocked(
+    item: { id: string; title: string; type: string; metadata?: unknown },
+    open: () => void,
+): void {
+    const meta = item.metadata as { security_settings?: ItemSecuritySettings; has_custom_password?: boolean } | undefined;
+    const settings = (meta?.security_settings || (meta?.has_custom_password ? meta : null)) as ItemSecuritySettings | null;
+    if (settings?.has_custom_password && !isItemUnlocked(item.id, settings)) {
+        window.dispatchEvent(new CustomEvent('tide:prompt-pin', { detail: { ...item, onUnlocked: open } }));
+        return;
+    }
+    open();
+}
