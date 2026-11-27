@@ -20,7 +20,7 @@ import (
 	"github.com/nicoh/tide/internal/store"
 )
 
-const AppVersion = "0.2.0"
+const AppVersion = "2.1.0"
 
 func getAppVersion() string {
 	if envVer := os.Getenv("APP_VERSION"); envVer != "" {

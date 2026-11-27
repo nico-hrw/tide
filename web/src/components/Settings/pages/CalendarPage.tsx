@@ -1,29 +1,28 @@
 import React, { useState } from 'react';
-import { useDataStore, type CalendarColorPalette, type CalendarHolidayPackage } from '@/store/useDataStore';
-import { useJobPlannerStore } from '@/store/useJobPlannerStore';
+import { useDataStore, type CalendarHolidayPackage } from '@/store/useDataStore';
 import CalendarImportModal from '@/components/Calendar/CalendarImportModal';
 import { SettingsBlock, SettingsCard, SettingsPage, SettingsPageHeader, SettingsRow, SettingsSection } from '../ui/SettingsLayout';
 import { Button, SelectField, Toggle } from '../ui/Controls';
+import { PaletteDropdown } from '../ui/PaletteDropdown';
 import { useT } from '../useT';
 import { CalendarEventPreview } from '../calendar/CalendarEventPreview';
-import { CALENDAR_CATEGORIES } from '@/lib/calendarColors';
-import { CalendarGroupsSection, type CalendarGroupsSectionProps } from '../calendar/CalendarGroupsSection';
+import type { CalendarGroup } from '../calendar/CalendarGroupsSection';
+import { getPaletteCategories } from '@/lib/calendarColors';
 
-export interface CalendarPageProps extends Omit<CalendarGroupsSectionProps, 'protectedGroupId'> {
+export interface CalendarPageProps {
     enabledExtensions?: string[];
+    groups?: CalendarGroup[];
+    onCreateGroup?: (title: string, color?: string, effect?: string) => Promise<string | undefined>;
 }
 
-export function CalendarPage({ enabledExtensions = [], ...groupProps }: CalendarPageProps) {
+export function CalendarPage({ groups, onCreateGroup }: CalendarPageProps) {
     const t = useT();
     const {
         calendarColorPalette, setCalendarColorPalette, calendarOverlapMode, setCalendarOverlapMode,
         calendarScrollMode, setCalendarScrollMode, weekStartsOn, setWeekStartsOn,
         calendarHolidaysEnabled, setCalendarHolidaysEnabled, calendarHolidayPackage, setCalendarHolidayPackage,
-        calendarTagColorOverrideIds, toggleCalendarTagColorOverride, hiddenTagIds, toggleHiddenTag,
     } = useDataStore();
-    const plannerGroupId = useJobPlannerStore((s) => s.pluginGroupId);
     const [importOpen, setImportOpen] = useState(false);
-    const plannerActive = enabledExtensions.includes('job_planner');
 
     return (
         <div>
@@ -59,14 +58,13 @@ export function CalendarPage({ enabledExtensions = [], ...groupProps }: Calendar
                 <SettingsSection title={t('cal.colors')} hint={t('cal.colorsHint')}>
                     <SettingsCard>
                         <SettingsRow title={t('cal.eventColors')} description={t('cal.eventColorsDesc')}>
-                            <SelectField<CalendarColorPalette>
-                                label={t('cal.eventColors')}
+                            <PaletteDropdown
                                 value={calendarColorPalette}
                                 onChange={setCalendarColorPalette}
-                                options={[{ value: 'balsam', label: 'Balsam (Standard)' }]}
+                                ariaLabel={t('cal.eventColors')}
                             />
                             <div className="mt-3 flex flex-wrap gap-2">
-                                {CALENDAR_CATEGORIES.map((cat) => (
+                                {getPaletteCategories(calendarColorPalette).map((cat) => (
                                     <span key={cat.key} className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[12px] font-medium" style={{ background: cat.bg, color: cat.ink }}>
                                         {cat.name}
                                     </span>
@@ -120,22 +118,13 @@ export function CalendarPage({ enabledExtensions = [], ...groupProps }: Calendar
                         </SettingsRow>
                     </SettingsCard>
                 </SettingsSection>
-
-                <CalendarGroupsSection
-                    {...groupProps}
-                    protectedGroupId={plannerActive ? plannerGroupId : null}
-                    colorOverrideIds={calendarTagColorOverrideIds}
-                    onToggleColorOverride={toggleCalendarTagColorOverride}
-                    hiddenByDefaultIds={hiddenTagIds}
-                    onToggleHiddenByDefault={toggleHiddenTag}
-                />
             </SettingsPage>
 
             <CalendarImportModal
                 isOpen={importOpen}
                 onClose={() => setImportOpen(false)}
-                themes={groupProps.groups}
-                onCreateTag={groupProps.onCreateGroup}
+                themes={groups}
+                onCreateTag={onCreateGroup}
             />
         </div>
     );

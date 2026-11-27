@@ -8,7 +8,7 @@ import { Layers, Globe, Lock, Users } from 'lucide-react';
 import { useSocialStore } from '@/store/useSocialStore';
 import type { CalendarColorPalette } from '@/store/slices/types';
 import { getEventGroupIds } from '../../lib/calendarUtils';
-import { resolveCategory } from '@/lib/calendarColors';
+import { resolveCategory, resolveCategoryForPalette } from '@/lib/calendarColors';
 import { VisibilityBadge } from '@/components/Visibility/VisibilityBadge';
 import { ExternalSafeBadge } from '@/components/Workspaces/ExternalSafeBadge';
 import { todoIsExternal, todoSafe } from '@/lib/todoSafes';
@@ -94,9 +94,9 @@ export const resolveEventColor = (rawColor?: string): string | undefined => {
     return undefined;
 };
 
-/** Colour of an event: one of the five calendar categories (lib/calendarColors). The palette setting is kept for old data only. */
-export const getEventTheme = (evt: CalendarEvent, _palette: CalendarColorPalette = 'balsam') => {
-    const cat = resolveCategory(resolveEventColor(evt.color) ?? evt.color);
+/** Colour of an event: resolved for the selected calendar palette (lib/calendarColors). */
+export const getEventTheme = (evt: CalendarEvent, palette: CalendarColorPalette = 'balsam') => {
+    const cat = resolveCategoryForPalette(resolveEventColor(evt.color) ?? evt.color, palette);
     return { bg: cat.bg, text: cat.ink, border: cat.bg };
 };
 

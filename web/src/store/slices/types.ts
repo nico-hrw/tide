@@ -77,7 +77,7 @@ export type ThemePreference = 'light' | 'dark' | 'system';
 export type { AppPalette };
 export type AppTheme = 'light' | 'dark';
 export type AppLanguage = 'en' | 'de';
-export type CalendarColorPalette = 'balsam' | 'modern-dark' | 'soft-pastels' | 'classic-tide';
+export type CalendarColorPalette = 'balsam' | 'modern-dark' | 'soft-pastels' | 'classic-tide' | 'sunset';
 export type CalendarOverlapMode = 'overlap' | 'stack';
 export type CalendarScrollMode = 'infinite' | 'fixed';
 export type CalendarHolidayPackage = 'DE' | 'AT' | 'CH' | 'US';
@@ -130,6 +130,8 @@ export interface EventsSlice {
     eventMentionStyle: EventMentionStyle;
     eventMentionPreview: EventMentionPreview;
     calendarColorPalette: CalendarColorPalette;
+    tagInheritCalendarPalette: boolean;
+    tagColorPalette: CalendarColorPalette;
     calendarOverlapMode: CalendarOverlapMode;
     calendarScrollMode: CalendarScrollMode;
     weekStartsOn: WeekStart;
@@ -145,6 +147,8 @@ export interface EventsSlice {
     setEventMentionStyle: (style: EventMentionStyle) => void;
     setEventMentionPreview: (preview: EventMentionPreview) => void;
     setCalendarColorPalette: (palette: CalendarColorPalette) => void;
+    setTagInheritCalendarPalette: (inherit: boolean) => void;
+    setTagColorPalette: (palette: CalendarColorPalette) => void;
     setCalendarOverlapMode: (mode: CalendarOverlapMode) => void;
     setCalendarScrollMode: (mode: CalendarScrollMode) => void;
     setWeekStartsOn: (w: WeekStart) => void;

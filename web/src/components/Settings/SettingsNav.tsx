@@ -1,5 +1,5 @@
 import React from 'react';
-import { Calendar, CheckSquare, ChevronRight, FileText, Info, KeyRound, Layers, Palette, Puzzle, User } from 'lucide-react';
+import { Calendar, CheckSquare, ChevronRight, FileText, Info, KeyRound, Layers, Palette, Puzzle, Tag, User } from 'lucide-react';
 import { ABOUT_PAGE, NAV_GROUPS, type SettingsPageId } from './settingsPages';
 import { cx } from './ui/cx';
 import { useT } from './useT';
@@ -8,6 +8,7 @@ const ICONS: Record<SettingsPageId, React.ComponentType<{ className?: string }>>
     account: User,
     appearance: Palette,
     calendar: Calendar,
+    tags: Tag,
     notes: FileText,
     todos: CheckSquare,
     workspaces: Layers,
