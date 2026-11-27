@@ -11,7 +11,9 @@ export function trackMouse(): void {
     listening = true;
     const set = (e: MouseEvent) => { mousePos = { x: e.clientX, y: e.clientY }; };
     // mousedown / contextmenu: a menu opens at the click, before any mousemove has been seen
-    window.addEventListener('mousemove', set, { passive: true });
+    // Capture phase: elements that stop mousemove from bubbling (calendar drag handling) must not freeze the position.
+    window.addEventListener('mousemove', set, { passive: true, capture: true });
+    window.addEventListener('pointermove', set, { passive: true, capture: true });
     window.addEventListener('mousedown', set, { passive: true, capture: true });
     window.addEventListener('contextmenu', set, { passive: true, capture: true });
 }
