@@ -1,4 +1,5 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { announceSidebarDropdown, onOtherSidebarDropdown } from "@/lib/sidebarDropdown";
 import { WorkspaceContextMenu, type WorkspaceMenuState } from "./WorkspaceContextMenu";
 import { normalizeSafe } from "@/lib/todoSafes";
 import { workspaceTone } from "@/lib/workspaceColor";
@@ -57,6 +58,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
     }, [availableSafes, notes]);
 
     const [isOpen, setIsOpen] = useState(false);
+    useEffect(() => (compact ? onOtherSidebarDropdown('workspaces', () => setIsOpen(false)) : undefined), [compact]);
     const rootRef = useRef<HTMLDivElement>(null);
     const popRef = useRef<HTMLDivElement>(null);
     const [ctxMenu, setCtxMenu] = useState<WorkspaceMenuState | null>(null);
@@ -90,7 +92,7 @@ const SidebarQuickNotes: React.FC<QuickNotesProps> = ({ className, compact = fal
         <button
             type="button"
             onClick={(e) => {
-                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); }
+                if (!isOpen) { const r = e.currentTarget.getBoundingClientRect(); setListPos({ top: r.top, left: r.right + 8 }); announceSidebarDropdown('workspaces'); }
                 setIsOpen((prev) => !prev);
             }}
             className="flex w-full items-center gap-2.5 rounded-[10px] px-2.5 py-1.5 text-left text-[14px] text-t2-ink-2 transition-colors hover:bg-t2-hover cursor-pointer select-none"

@@ -5,6 +5,7 @@ import { Calendar, ChevronDown, GraduationCap, LayoutGrid, ListTodo, Puzzle, Set
 import { motion } from 'framer-motion';
 import { usePopupTimer } from '@/hooks/usePopupTimer';
 import { PopupTimerBar } from '@/components/Popup/PopupTimerBar';
+import { announceSidebarDropdown, onOtherSidebarDropdown } from '@/lib/sidebarDropdown';
 import type { Tab } from './TabList';
 
 interface PluginsMenuProps {
@@ -38,6 +39,8 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
     // The panel closes when the mouse stays away from the button and the panel; the bar on top shows the time left.
     const { fillRef, restRef } = usePopupTimer({ refs: [ref, popRef], enabled: open, onExpire: () => setOpen(false) });
 
+    useEffect(() => onOtherSidebarDropdown('plugins', () => setOpen(false)), []);
+
     useEffect(() => {
         if (!open) return;
         const onDown = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
@@ -65,7 +68,7 @@ export default function PluginsMenu({ variant = 'pill', activeTabId, enabledExte
             <button
                 type="button"
                 onClick={(e) => {
-                    if (!open) { const r = e.currentTarget.getBoundingClientRect(); setPos({ top: r.top, left: r.right + 8 }); }
+                    if (!open) { const r = e.currentTarget.getBoundingClientRect(); setPos({ top: r.top, left: r.right + 8 }); announceSidebarDropdown('plugins'); }
                     setOpen((v) => !v);
                 }}
                 title="Plugins und Erweiterungen"
