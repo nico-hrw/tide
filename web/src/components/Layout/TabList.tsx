@@ -31,6 +31,8 @@ import { useDataStore } from '@/store/useDataStore';
 import DT from '@/lib/designTokens';
 import TabHoverPreview, { type TabPreviewTarget } from './TabHoverPreview';
 import PluginsMenu from './PluginsMenu';
+import TabOverflow, { type FoldedTab } from './TabOverflow';
+import { tabsToFold } from '@/lib/tabCollapse';
 
 /** Delay before the hover preview of a tab appears. */
 const PREVIEW_DELAY_MS = 450;
@@ -91,6 +93,26 @@ function saveTabRows(rows: TabRows): void {
     try { localStorage.setItem(TAB_LAYOUT_KEY, JSON.stringify(rows)); } catch { /* private mode */ }
 }
 
+const TAB_USAGE_KEY = 'tide_tab_usage';
+
+/** How often each tab was shown on this device; decides which note tabs fold first. Never leaves the device. */
+function loadTabUsage(): Record<string, number> {
+    try {
+        const parsed: unknown = JSON.parse(localStorage.getItem(TAB_USAGE_KEY) || '{}');
+        return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? (parsed as Record<string, number>) : {};
+    } catch {
+        return {};
+    }
+}
+
+function bumpTabUsage(id: string): void {
+    try {
+        const usage = loadTabUsage();
+        usage[id] = (usage[id] ?? 0) + 1;
+        localStorage.setItem(TAB_USAGE_KEY, JSON.stringify(usage));
+    } catch { /* private mode */ }
+}
+
 export default function TabList({ 
     tabs, 
     activeTabId, 
@@ -120,6 +142,19 @@ export default function TabList({
     const navigationMode = useDataStore(s => s.navigationMode);
     const enabledExtensions = useDataStore(s => s.enabledExtensions);
     const scrollRef = useRef<HTMLDivElement>(null);
+    // Width of the tab row, measured: decides how many note tabs fold into the icon group.
+    const [rowWidth, setRowWidth] = useState(0);
+    useEffect(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        const observer = new ResizeObserver(() => setRowWidth(el.clientWidth));
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, []);
+    // Each time another tab is shown, it counts once more (the active tab itself never folds).
+    useEffect(() => {
+        if (activeTabId) bumpTabUsage(activeTabId);
+    }, [activeTabId]);
     const [preview, setPreview] = useState<TabPreviewTarget | null>(null);
     const previewTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -213,12 +248,32 @@ export default function TabList({
     const tabsById = new Map(tabs.map((t) => [t.id, t] as const));
     const tabIds = ['todos', ...tabs.filter((t) => t.id !== 'todos' && t.type !== 'todos').map((t) => t.id)];
     const [storedRows, setStoredRows] = useState<TabRows>(() => loadTabRows());
-    const rows = reconcileRows(storedRows, tabIds);
+    // Note tabs that do not fit at a readable width fold into one icon group (see lib/tabCollapse.ts).
+    // Before the row is measured nothing folds, so the first frame does not hide everything.
+    const foldable = new Set(tabs.filter((t) => t.type === 'file' && t.id !== 'todos').map((t) => t.id));
+    const folded = tabsToFold({
+        ids: tabIds,
+        foldable,
+        usage: loadTabUsage(),
+        activeId: activeTabId,
+        available: rowWidth > 0 ? rowWidth : Number.MAX_SAFE_INTEGER,
+    });
+    const foldedSet = new Set(folded);
+    // The stored layout keeps every tab, folded ones included; only the drawn rows leave them out.
+    const rows = reconcileRows(storedRows, tabIds)
+        .map((row) => row.map((group) => group.filter((id) => !foldedSet.has(id))).filter((group) => group.length > 0))
+        .filter((row) => row.length > 0);
     const applyRows = (next: TabRows) => {
-        setStoredRows(next);
-        saveTabRows(next);
-        onTabsReorder?.(flatten(next).map((id) => tabsById.get(id)).filter((t): t is Tab => Boolean(t)));
+        const full = reconcileRows(next, tabIds);
+        setStoredRows(full);
+        saveTabRows(full);
+        onTabsReorder?.(flatten(full).map((id) => tabsById.get(id)).filter((t): t is Tab => Boolean(t)));
     };
+    const foldedTabs: FoldedTab[] = tabIds
+        .filter((id) => foldedSet.has(id))
+        .map((id) => tabsById.get(id))
+        .filter((t): t is Tab => Boolean(t))
+        .map((t) => ({ id: t.id, label: getTabLabel(t), icon: getTabIcon(t.type), active: t.id === activeTabId }));
 
     const renderTab = (id: string) => {
         if (id === 'todos') {
@@ -230,7 +285,7 @@ export default function TabList({
                     onMouseLeave={hidePreview}
                     onPointerDown={hidePreview}
                     style={{ borderRadius: DT.radius }}
-                    className={`flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer transition-all duration-150 border shrink-0 ${
+                    className={`flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium whitespace-nowrap cursor-pointer transition-all duration-150 border shrink-0 ${
                         activeTabId === 'todos'
                             ? 'bg-t2-surface text-t2-ink shadow-sm border-t2-line font-semibold'
                             : 'text-t2-ink-2 hover:text-t2-ink hover:bg-t2-stage border-transparent'
@@ -264,7 +319,7 @@ export default function TabList({
                     onMouseLeave={hidePreview}
                     onPointerDown={hidePreview}
                     style={{ borderRadius: DT.radius }}
-                    className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[190px] min-w-[64px] border
+                    className={`group relative flex items-center gap-2 min-h-[32px] px-3 py-1.5 text-xs font-medium cursor-pointer hover:-translate-y-[1px] hover:shadow-xs active:translate-y-0 active:scale-[0.99] transition-all duration-150 max-w-[220px] min-w-[120px] border
                         ${isActive
                             ? 'bg-t2-surface  text-t2-ink  shadow-sm border-t2-line  font-semibold'
                             : 'text-t2-ink-2  hover:text-t2-ink  hover:bg-t2-stage  border-transparent'
@@ -332,6 +387,7 @@ export default function TabList({
             >
                 <div className="flex w-full items-center gap-1.5">
                     <TabLayoutView rows={rows} renderTab={renderTab} onMove={(id, target) => applyRows(moveTab(rows, id, target))} />
+                    <TabOverflow tabs={foldedTabs} onSelect={(id) => { const t = tabsById.get(id); if (t) onTabSelect(t.id, t.type); }} />
 
                     {/* "+" New Note Tab Button */}
                     {onNewTab && (
